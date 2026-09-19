@@ -924,7 +924,7 @@ export default function ItemList() {
           align-items: center;
           gap: 6px;
           height: 38px;
-          padding: 0 14px;
+          padding: 8 14px;
           border: 1px solid var(--border-color, #e5e7eb);
           border-radius: 8px;
           background: var(--card-bg, white);
@@ -1472,7 +1472,7 @@ export default function ItemList() {
             )}
           </div>
         </div>
-        <div className="itl-filter-right">
+        <div className="bom-filter-right">
           <select
             value={statusFilter}
             onChange={(e) => {
@@ -1520,7 +1520,7 @@ export default function ItemList() {
             {showDatePicker && (
               <div className="itl-date-picker-popup">
                 <div className="itl-popup-header">
-                  <span className="itl-popup-title">Filter by Date</span>
+                  <span className="itl-popup-title">Filter Date</span>
                   <button className="itl-popup-close" onClick={() => setShowDatePicker(false)}>
                     <FaTimes size={14} />
                   </button>
@@ -1624,13 +1624,14 @@ export default function ItemList() {
             <FaFileExcel size={13} />
             Bulk Upload
           </button>
-          <button className="itl-btn-primary" onClick={handleAddItem}>
+         
+        </div>
+         <button className="itl-btn-primary" onClick={handleAddItem}>
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
               <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
             </svg>
             Add Item
           </button>
-        </div>
       </div>
 
       {/* Active filters indicator */}

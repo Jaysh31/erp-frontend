@@ -70,7 +70,7 @@
 .header-right {
   display: flex;
   align-items: center;
-  gap: 0spx;
+  gap: 8px;
   margin-left: auto;
 }
 

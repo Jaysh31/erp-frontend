@@ -2284,7 +2284,7 @@ export default function ProformaInvoice() {
             )}
           </div>
         </div>
-        <div className="pq-filter-right">
+        <div className="bom-filter-right">
           <select
             value={selectedOrderType}
             onChange={(e) => setSelectedOrderType(e.target.value)}

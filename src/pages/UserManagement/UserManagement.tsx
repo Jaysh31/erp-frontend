@@ -246,7 +246,7 @@ export default function UserManagement() {
               )}
             </div>
           </div>
-          <div className="um-filter-right">
+          <div className="bom-filter-right">
             <select 
               value={statusFilter} 
               onChange={(e) => setStatusFilter(e.target.value)}
@@ -260,11 +260,12 @@ export default function UserManagement() {
               <FaFilter size={12} />
               Filter
             </button>
-            <button className="um-btn-primary" onClick={() => navigate('/users/new')}>
+            
+          </div>
+          <button className="um-btn-primary" onClick={() => navigate('/users/new')}>
               <FaPlus size={12} />
               Add User
             </button>
-          </div>
         </div>
 
         {/* Active Filters Indicator */}

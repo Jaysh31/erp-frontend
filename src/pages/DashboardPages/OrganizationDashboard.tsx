@@ -258,8 +258,8 @@ export default function OrganizationDashboard() {
       {/* Header */}
       <div className="dashboard-header">
         <div className="header-left">
-          <h1>🏢 Organization Dashboard</h1>
-          <p className="header-subtitle">Company structure and workforce management</p>
+          <h1> Organization Dashboard</h1>
+          {/*<p className="header-subtitle">🏢Company structure and workforce management</p>*/}
         </div>
         <div className="header-right">
           <button className="btn-primary" onClick={() => handleNavigate("/company/new")}>

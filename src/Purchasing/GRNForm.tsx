@@ -31,6 +31,8 @@ import {
   FaMoneyBillWave, 
   FaGlobeAsia, 
   FaBuilding, 
+  FaStickyNote,
+  FaBoxes
 } from 'react-icons/fa'; 
 import "./GRNForm.css"; 
 import { PageLoader } from '../components/PageLoader';
@@ -580,7 +582,7 @@ export default function GRNForm() {
   // ─── Item Master & Portal States ─────────────────────────────────── 
   const [itemsMaster, setItemsMaster] = useState<ItemMaster[]>([]); 
   const [allItems, setAllItems] = useState<ItemMaster[]>([]); 
-  const [, setFilteredItems] = useState<{ [key: number]: ItemMaster[] }>({}); 
+  const [filteredItems, setFilteredItems] = useState<{ [key: number]: ItemMaster[] }>({}); 
   const [searchTerms, setSearchTerms] = useState<{ [key: number]: string }>({}); 
   const [showSuggestions, setShowSuggestions] = useState<{ [key: number]: boolean }>({}); 
   const [dropdownPositions, setDropdownPositions] = useState<{ [key: number]: { top: number; left: number; width: number } }>({}); 
@@ -589,8 +591,8 @@ export default function GRNForm() {
   const suggestionRefs = useRef<{ [key: number]: HTMLDivElement | null }>({}); 
  
   // ─── Item Group Filter ────────────────────────────────────────────── 
-  const [itemGroupFilter] = useState<string>('all'); 
-  const [, setItemGroups] = useState<string[]>([]); 
+  const [itemGroupFilter, setItemGroupFilter] = useState<string>('all'); 
+  const [itemGroups, setItemGroups] = useState<string[]>([]); 
  
   // ─── Add Item Popup Modal States ──────────────────────────────────── 
   const [showAddItemPopup, setShowAddItemPopup] = useState<boolean>(false); 
@@ -623,9 +625,9 @@ export default function GRNForm() {
  
   // ─── PurchaseBillForm-style Item Search & Note Popover States ──────── 
   const [, setItemSearch] = useState<string>(''); 
-  const [, setSelectedItemRowIndex] = useState<number | null>(null); 
-  const [, setShowItemDropdown] = useState<boolean>(false); 
-  const [] = useState<number | null>(null); 
+  const [selectedItemRowIndex, setSelectedItemRowIndex] = useState<number | null>(null); 
+  const [showItemDropdown, setShowItemDropdown] = useState<boolean>(false); 
+  const [notePopoverIndex, setNotePopoverIndex] = useState<number | null>(null); 
   const [] = useState<ItemMaster[]>([]); 
   const [] = useState<boolean>(false); 
  
@@ -2859,7 +2861,7 @@ export default function GRNForm() {
                 fontSize: '13px',
               }}
             >
-              {currentSearch ? 'No items found' : 'Type to search items...'}
+              {searchTerms[index] ? 'No items found' : 'Type to search items...'}
             </div>
           )}
         </div>
@@ -3175,788 +3177,1030 @@ export default function GRNForm() {
                                     handleWarehouseSelect(warehouse); 
                                   }} 
                                 >
-                                  <div className="grnf-warehouse-item-name"> 
-                                    <FaWarehouse className="grnf-warehouse-item-icon" size={12} /> 
-                                    {warehouse.warehouse_name} 
-                                  </div> 
-                                  <div className="grnf-warehouse-item-details"> 
-                                    {warehouse.city && <span><FaMapMarkerAlt size={10} /> {warehouse.city}</span>} 
-                                  </div> 
-                                </div> 
-                              ))} 
-                            </div> 
-                          )} 
-                        </div> 
-                      </div> 
-                    </div> 
-                  ) : ( 
-                    <> 
-                      <div className="grnf-info-row"> 
-                        <div className="grnf-info-field"> 
-                          <label>Supplier <span className="grnf-required">*</span></label> 
-                          <div className="grnf-warehouse-wrapper"> 
-                            <input 
-                              ref={supplierInputRef} 
-                              type="text" 
-                              value={supplierSearchTerm} 
-                              onChange={(e) => { 
-                                setSupplierSearchTerm(e.target.value); 
-                                setShowSupplierDropdown(true); 
-                                setFormData(prev => ({ ...prev, supplier: e.target.value, supplierId: undefined })); 
-                                setIsDirty(true); 
-                              }} 
-                              onFocus={() => setShowSupplierDropdown(true)} 
-                              className={`grnf-form-field${errors.supplier ? ' grnf-field-error' : ''}`} 
-                              placeholder="Search supplier..." 
-                              disabled={submitting} 
-                              autoComplete="off" 
-                            /> 
-                            {loadingSuppliers && <FaSpinner className="grnf-warehouse-spinner grnf-spinning" size={14} />} 
-                            {showSupplierDropdown && filteredSuppliers.length > 0 && ( 
-                              <div ref={supplierDropdownRef} className="grnf-warehouse-dropdown grnf-dropdown-large"> 
-                                {filteredSuppliers.map((supplier) => ( 
-                                  <div 
-                                    key={supplier.id} 
-                                    className="grnf-warehouse-item" 
-                                    onClick={() => handleSupplierSelect(supplier)} 
-                                  > 
-                                    <div className="grnf-warehouse-item-name"> 
-                                      <FaBuilding className="grnf-warehouse-item-icon" size={12} /> 
-                                      {supplier.supplier_name} 
-                                    </div> 
-                                    <div className="grnf-warehouse-item-details"> 
-                                      {supplier.supplier_type && <span>{supplier.supplier_type}</span>} 
-                                      {supplier.mobile_no && <span><FaPhone size={10} /> {supplier.mobile_no}</span>} 
-                                    </div> 
-                                  </div> 
-                                ))} 
-                              </div> 
-                            )} 
-                          </div> 
-                        </div> 
-                        <div className="grnf-info-field"> 
-                          <label>Warehouse <span className="grnf-required">*</span></label> 
-                          <div className="grnf-warehouse-wrapper"> 
-                            <input 
-                              ref={warehouseInputRef} 
-                              type="text" 
-                              value={warehouseSearchTerm} 
-                              onChange={(e) => { 
-                                setWarehouseSearchTerm(e.target.value); 
-                                setShowWarehouseDropdown(true); 
-                                setFormData(prev => ({ ...prev, warehouse: e.target.value, warehouseId: undefined })); 
-                                setIsDirty(true); 
-                              }} 
-                              onFocus={() => setShowWarehouseDropdown(true)} 
-                              className={`grnf-form-field${errors.warehouse ? ' grnf-field-error' : ''}`} 
-                              placeholder="Search warehouse..." 
-                              disabled={submitting} 
-                              autoComplete="off" 
-                            /> 
-                            {loadingWarehouses && <FaSpinner className="grnf-warehouse-spinner grnf-spinning" size={14} />} 
-                            {showWarehouseDropdown && filteredWarehouses.length > 0 && ( 
-                              <div ref={warehouseDropdownRef} className="grnf-warehouse-dropdown"> 
-                                {filteredWarehouses.map((warehouse) => ( 
-                                  <div 
-                                    key={warehouse.id} 
-                                    className="grnf-warehouse-item" 
-                                    onClick={() => handleWarehouseSelect(warehouse)} 
-                                  > 
-                                    <div className="grnf-warehouse-item-name"> 
-                                      <FaWarehouse className="grnf-warehouse-item-icon" size={12} /> 
-                                      {warehouse.warehouse_name} 
-                                    </div> 
-                                    <div className="grnf-warehouse-item-details"> 
-                                      {warehouse.city && <span><FaMapMarkerAlt size={10} /> {warehouse.city}</span>} 
-                                    </div> 
-                                  </div> 
-                                ))} 
-                              </div> 
-                            )} 
-                          </div> 
-                        </div> 
-                      </div> 
-                      {formData.entryMode === 'supplier' && ( 
-                        <div className="grnf-info-row"> 
-                          <div className="grnf-info-field"> 
-                            <label>Purchase Order <span className="grnf-required">*</span></label> 
-                            <div className="grnf-warehouse-wrapper"> 
-                              <input 
-                                ref={poInputRef} 
-                                type="text" 
-                                value={poSearchTerm} 
-                                onChange={(e) => { 
-                                  setPOSearchTerm(e.target.value); 
-                                  setShowPODropdown(true); 
-                                  if (e.target.value !== formData.purchaseOrder) { 
-                                    setFormData(prev => ({ ...prev, purchaseOrder: '', purchaseOrderId: undefined })); 
-                                  } 
-                                  setIsDirty(true); 
-                                }} 
-                                onFocus={() => { 
-                                  setShowPODropdown(true); 
-                                  fetchPurchaseOrders(); 
-                                }} 
-                                className={`grnf-form-field${errors.purchaseOrder ? ' grnf-field-error' : ''}`} 
-                                placeholder="Search PO..." 
-                                disabled={submitting} 
-                                autoComplete="off" 
-                              /> 
-                              {loadingPOs && <FaSpinner className="grnf-warehouse-spinner grnf-spinning" size={14} />} 
-                              {showPODropdown && ( 
-                                <div ref={poDropdownRef} className="grnf-warehouse-dropdown grnf-po-dropdown"> 
-                                  {filteredPOs.length > 0 ? ( 
-                                    filteredPOs.map(po => { 
-                                      const poItems = poItemsCache[po.id] || []; 
-                                      const isLoadingItems = loadingPOItems[po.id]; 
-                                      const poDisplayName = getPODisplayName(po); 
-                                       
-                                      const uniqueItems = poItems.reduce((acc, current) => { 
-                                        const exists = acc.find(item => item.item_code === current.item_code); 
-                                        if (!exists) { 
-                                          acc.push(current); 
-                                        } 
-                                        return acc; 
-                                      }, [] as POItem[]); 
-                                       
-                                      return ( 
-                                        <div 
-                                          key={po.id} 
-                                          className={`grnf-warehouse-item ${formData.purchaseOrderId === po.id ? 'grnf-warehouse-item-selected' : ''}`} 
-                                          onClick={() => handlePOSelect(po)} 
-                                          onMouseEnter={() => { 
-                                            if (!poItemsCache[po.id] && !loadingPOItems[po.id]) { 
-                                              fetchPOItems(po.id); 
-                                            } 
-                                          }} 
-                                        > 
-                                          <div className="grnf-warehouse-item-name" style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '4px' }}> 
-                                            <FaFileInvoice className="grnf-warehouse-item-icon" size={12} /> 
-                                            <span className="grnf-po-display-name">{poDisplayName}</span> 
-                                            <span className={`grnf-po-status-badge ${getPOStatusBadgeClass(po.status || '')}`}> 
-                                              {po.status || 'Unknown'} 
-                                            </span> 
-                                            {uniqueItems.length > 0 && ( 
-                                              <> 
-                                                <span className="grnf-po-item-count" style={{ marginLeft: '4px' }}> 
-                                                  <FaBox size={10} /> {uniqueItems.length} item{uniqueItems.length !== 1 ? 's' : ''} 
-                                                </span> 
-                                                <div className="grnf-po-items-preview" style={{ display: 'inline-flex', flexWrap: 'wrap', gap: '4px', marginTop: '2px', alignItems: 'center' }}> 
-                                                  {uniqueItems.map((item, idx) => ( 
-                                                    <div key={idx} className="grnf-po-item-chip" style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', fontSize: '10px', background: '#f9fafb', padding: '1px 6px', borderRadius: '4px', border: '1px solid #e5e7eb' }}> 
-                                                      <span className="grnf-po-item-name" style={{ color: '#6b7280' }}>{item.item_name}</span> 
-                                                      <span className="grnf-po-item-qty" style={{ color: '#3b82f6', fontWeight: 500 }}>×{item.qty}</span> 
-                                                    </div> 
-                                                  ))} 
-                                                </div> 
-                                              </> 
-                                            )} 
-                                          </div> 
-                                          <div className="grnf-warehouse-item-details"> 
-                                            <span>{po.supplier_name || 'N/A'}</span> 
-                                            <span>• {po.currency || 'INR'} {(po.grand_total || 0).toFixed(2)}</span> 
-                                            <span>• Received: {(po.per_received || 0)}%</span> 
-                                          </div> 
-                                           
-                                          {isLoadingItems && ( 
-                                            <div className="grnf-po-items-loading"> 
-                                              <FaSpinner className="grnf-spinning" size={10} /> Loading items... 
-                                            </div> 
-                                          )} 
-                                          {!isLoadingItems && uniqueItems.length === 0 && ( 
-                                            <div className="grnf-po-items-empty"> 
-                                              <FaInfoCircle size={10} /> No items in this PO 
-                                            </div> 
-                                          )} 
-                                        </div> 
-                                      ); 
-                                    }) 
-                                  ) : ( 
-                                    <div className="grnf-warehouse-no-results">No POs found</div> 
-                                  )} 
-                                </div> 
-                              )} 
-                            </div> 
-                          </div> 
-                          <div className="grnf-info-field"></div> 
-                        </div> 
-                      )} 
-                    </> 
-                  )} 
-                </div> 
- 
-                <div className="grnf-info-section"> 
-                  <div className="grnf-section-label">Receipt Information</div> 
-                  <div className="grnf-info-row"> 
-                    <div className="grnf-info-field"> 
-                      <label>GRN Date <span className="grnf-required">*</span></label> 
-                      <input 
-                        type="date" 
-                        value={formData.grnDate} 
-                        onChange={(e) => handleFieldChange('grnDate', e.target.value)} 
-                        className={`grnf-form-field${errors.grnDate ? ' grnf-field-error' : ''}`} 
-                        disabled={submitting} 
-                      /> 
-                    </div> 
-                    <div className="grnf-info-field"> 
-                      <label>Received By <span className="grnf-required">*</span></label> 
-                      <div className="grnf-warehouse-wrapper"> 
-                        <input 
-                          ref={employeeInputRef} 
-                          type="text" 
-                          value={employeeSearchTerm} 
-                          onChange={(e) => { 
-                            setEmployeeSearchTerm(e.target.value); 
-                            setShowEmployeeDropdown(true); 
-                            setFormData(prev => ({ ...prev, receivedBy: e.target.value, receivedById: undefined })); 
-                            setIsDirty(true); 
-                          }} 
-                          onFocus={() => setShowEmployeeDropdown(true)} 
-                          className={`grnf-form-field${errors.receivedBy ? ' grnf-field-error' : ''}`} 
-                          placeholder="Search employee..." 
-                          disabled={submitting} 
-                          autoComplete="off" 
-                        /> 
-                        {loadingEmployees && <FaSpinner className="grnf-warehouse-spinner grnf-spinning" size={14} />} 
-                        {showEmployeeDropdown && filteredEmployees.length > 0 && ( 
-                          <div ref={employeeDropdownRef} className="grnf-warehouse-dropdown"> 
-                            {filteredEmployees.map((employee) => ( 
-                              <div 
-                                key={employee.id} 
-                                className="grnf-warehouse-item" 
-                                onClick={() => handleEmployeeSelect(employee)} 
-                              > 
-                                <div className="grnf-warehouse-item-name"> 
-                                  <FaUserCircle className="grnf-warehouse-item-icon" size={12} /> 
-                                  {employee.employee_name} 
-                                </div> 
-                                <div className="grnf-warehouse-item-details"> 
-                                  {employee.designation && <span>{employee.designation}</span>} 
-                                  {employee.department && <span>• {employee.department}</span>} 
-                                </div> 
-                              </div> 
-                            ))} 
-                          </div> 
-                        )} 
-                      </div> 
-                    </div> 
-                  </div> 
-                </div> 
- 
-                <div className="grnf-info-section"> 
-                  <div className="grnf-section-label">Delivery Details</div> 
-                  <div className="grnf-info-row"> 
-                    <div className="grnf-info-field"> 
-                      <label>Vehicle Number</label> 
-                      <input 
-                        type="text" 
-                        value={formData.vehicleNo} 
-                        onChange={(e) => handleFieldChange('vehicleNo', e.target.value)} 
-                        className="grnf-form-field" 
-                        placeholder="Enter vehicle number" 
-                        disabled={submitting} 
-                      /> 
-                    </div> 
-                    <div className="grnf-info-field"> 
-                      <label>Delivery Challan No.</label> 
-                      <input 
-                        type="text" 
-                        value={formData.deliveryChallanNo} 
-                        onChange={(e) => handleFieldChange('deliveryChallanNo', e.target.value)} 
-                        className="grnf-form-field" 
-                        placeholder="Enter challan number" 
-                        disabled={submitting} 
-                      /> 
-                    </div> 
-                  </div> 
-                  <div className="grnf-info-row"> 
-                    <div className="grnf-info-field"> 
-                      <label>Invoice Number</label> 
-                      <input 
-                        type="text" 
-                        value={formData.invoiceNo} 
-                        onChange={(e) => handleFieldChange('invoiceNo', e.target.value)} 
-                        className="grnf-form-field" 
-                        placeholder="Enter invoice number" 
-                        disabled={submitting} 
-                      /> 
-                    </div> 
-                    <div className="grnf-info-field"></div> 
-                  </div> 
-                </div> 
-              </div> 
- 
-              <div className="grnf-right-column"> 
-                {formData.isService && selectedCustomer ? ( 
-                  <div className="grnf-party-detail-card"> 
-                    <div className="grnf-party-card-header"> 
-                      <FaUsers size={16} /> 
-                      <span>Customer Details</span> 
-                    </div> 
-                    <div className="grnf-party-card-content"> 
-                      <h3>{selectedCustomer.customer_name}</h3> 
-                      <div className="grnf-party-card-info"> 
-                        {selectedCustomer.customer_type && ( 
-                          <div className="grnf-party-info-item"> 
-                            <span className="grnf-party-info-label">Type</span> 
-                            <span className="grnf-party-info-value">{selectedCustomer.customer_type}</span> 
-                          </div> 
-                        )} 
-                        {selectedCustomer.customer_group && ( 
-                          <div className="grnf-party-info-item"> 
-                            <span className="grnf-party-info-label">Group</span> 
-                            <span className="grnf-party-info-value">{selectedCustomer.customer_group}</span> 
-                          </div> 
-                        )} 
-                        {selectedCustomer.territory && ( 
-                          <div className="grnf-party-info-item"> 
-                            <span className="grnf-party-info-label">Territory</span> 
-                            <span className="grnf-party-info-value">{selectedCustomer.territory}</span> 
-                          </div> 
-                        )} 
-                        {selectedCustomer.mobile_no && ( 
-                          <div className="grnf-party-info-item"> 
-                            <span className="grnf-party-info-label">Mobile</span> 
-                            <span className="grnf-party-info-value"> 
-                              <FaPhone size={10} /> {selectedCustomer.mobile_no} 
-                            </span> 
-                          </div> 
-                        )} 
-                        {selectedCustomer.email_id && ( 
-                          <div className="grnf-party-info-item"> 
-                            <span className="grnf-party-info-label">Email</span> 
-                            <span className="grnf-party-info-value"> 
-                              <FaEnvelope size={10} /> {selectedCustomer.email_id} 
-                            </span> 
-                          </div> 
-                        )} 
-                      </div> 
-                    </div> 
-                  </div> 
-                ) : !formData.isService && selectedSupplier ? ( 
-                  <div className="grnf-party-detail-card"> 
-                    <div className="grnf-party-card-header"> 
-                      <FaBuilding size={16} /> 
-                      <span>Supplier Details</span> 
-                    </div> 
-                    <div className="grnf-party-card-content"> 
-                      <h3>{selectedSupplier.supplier_name}</h3> 
-                      <div className="grnf-party-card-info"> 
-                        {selectedSupplier.supplier_type && ( 
-                          <div className="grnf-party-info-item"> 
-                            <span className="grnf-party-info-label">Type</span> 
-                            <span className="grnf-party-info-value">{selectedSupplier.supplier_type}</span> 
-                          </div> 
-                        )} 
-                        {selectedSupplier.supplier_group && ( 
-                          <div className="grnf-party-info-item"> 
-                            <span className="grnf-party-info-label">Group</span> 
-                            <span className="grnf-party-info-value">{selectedSupplier.supplier_group}</span> 
-                          </div> 
-                        )} 
-                        {selectedSupplier.country && ( 
-                          <div className="grnf-party-info-item"> 
-                            <span className="grnf-party-info-label">Country</span> 
-                            <span className="grnf-party-info-value"> 
-                              <FaGlobeAsia size={10} /> {selectedSupplier.country} 
-                            </span> 
-                          </div> 
-                        )} 
-                        {selectedSupplier.mobile_no && ( 
-                          <div className="grnf-party-info-item"> 
-                            <span className="grnf-party-info-label">Mobile</span> 
-                            <span className="grnf-party-info-value"> 
-                              <FaPhone size={10} /> {selectedSupplier.mobile_no} 
-                            </span> 
-                          </div> 
-                        )} 
-                        {selectedSupplier.email_id && ( 
-                          <div className="grnf-party-info-item"> 
-                            <span className="grnf-party-info-label">Email</span> 
-                            <span className="grnf-party-info-value"> 
-                              <FaEnvelope size={10} /> {selectedSupplier.email_id} 
-                            </span> 
-                          </div> 
-                        )} 
-                      </div> 
-                    </div> 
-                  </div> 
-                ) : ( 
-                  <div className="grnf-party-detail-card grnf-party-empty-card"> 
-                    <div className="grnf-party-card-header"> 
-                      {formData.isService ? ( 
-                        <><FaUsers size={16} /><span>Customer Details</span></> 
-                      ) : ( 
-                        <><FaBuilding size={16} /><span>Supplier Details</span></> 
-                      )} 
-                    </div> 
-                    <div className="grnf-party-card-content"> 
-                      <div className="grnf-party-empty-state"> 
-                        <FaInfoCircle size={24} /> 
-                        <p>Select a {formData.isService ? 'customer' : 'supplier'} to view details</p> 
-                      </div> 
-                    </div> 
-                  </div> 
-                )} 
- 
-                <div className="grnf-party-detail-card"> 
-                  <div className="grnf-party-card-header"> 
-                    <FaMoneyBillWave size={16} /> 
-                    <span>Delivery Charges</span> 
-                  </div> 
-                  <div className="grnf-party-card-content"> 
-                    <div className="grnf-delivery-toggle"> 
-                      <button 
-                        type="button" 
-                        className={`grnf-mode-btn${formData.freeDelivery ? ' grnf-mode-btn-active' : ''}`} 
-                        onClick={() => handleFieldChange('freeDelivery', true)} 
-                        disabled={submitting} 
-                      > 
-                        Free 
-                      </button> 
-                      <button 
-                        type="button" 
-                        className={`grnf-mode-btn${!formData.freeDelivery ? ' grnf-mode-btn-active' : ''}`} 
-                        onClick={() => handleFieldChange('freeDelivery', false)} 
-                        disabled={submitting} 
-                      > 
-                        Paid 
-                      </button> 
-                    </div> 
-                    {!formData.freeDelivery && ( 
-                      <div className="grnf-delivery-amount"> 
-                        <label>Amount <span className="grnf-required">*</span></label> 
-                        <DigitInput 
-                          value={formData.deliveryCharge} 
-                          onChange={(val) => handleFieldChange('deliveryCharge', val)} 
-                          placeholder="0" 
-                          maxLength={10} 
-                          disabled={submitting} 
-                        /> 
-                      </div> 
-                    )} 
-                  </div> 
-                </div> 
- 
-              </div> 
-            </div> 
- 
-            <div className="grnf-items-section pof-items-section"> 
-              <div className="grnf-items-header pof-items-header"> 
-                <span className="grnf-section-title" style={{ marginBottom: 0, borderBottom: 'none' }}>Items</span> 
- 
-                <div className="grnf-items-actions pof-items-actions"> 
-                  <button type="button" className="grnf-add-item-btn pof-add-item-btn" onClick={addItem} disabled={submitting}> 
-                    <FaPlus size={12} /> Add Item 
-                  </button> 
-                </div> 
-              </div> 
- 
-              {formData.items.length === 0 ? ( 
-                <div className="grnf-empty-items"> 
-                  <FaBox size={32} /> 
-                  <p>No items added</p> 
-                  <span> 
-                    {formData.isService || formData.entryMode !== 'supplier' 
-                      ? 'Click "Add Item" and search the item master to add items.' 
-                      : 'Select a Supplier and Purchase Order above to fetch items'} 
-                  </span> 
-                </div> 
-              ) : ( 
-                <div className="grnf-table-block pof-table-block"> 
-                  <table className="grnf-items-table pof-inline-table"> 
-                    <thead> 
-                      <tr> 
-                        <th className="grnf-ith pof-ith">#</th> 
-                        <th className="grnf-ith pof-ith">Item Code <span className="grnf-required pof-required">*</span></th> 
-                        <th className="grnf-ith pof-ith">Item Name <span className="grnf-required pof-required">*</span></th> 
-                        <th className="grnf-ith pof-ith">HSN</th> 
-                        <th className="grnf-ith pof-ith">Ordered QTY</th> 
-                        <th className="grnf-ith pof-ith">Received QTY <span className="grnf-required pof-required">*</span></th> 
-                        <th className="grnf-ith pof-ith">Rejected</th> 
-                        <th className="grnf-ith pof-ith">UOM</th> 
-                        <th className="grnf-ith pof-ith">Rate <span className="grnf-required pof-required">*</span></th> 
-                        <th className="grnf-ith pof-ith">Tax <span className="grnf-required pof-required">*</span></th> 
-                        <th className="grnf-ith pof-ith">SGST</th> 
-                        <th className="grnf-ith pof-ith">CGST</th> 
-                        <th className="grnf-ith pof-ith">Amount</th> 
-                        <th className="grnf-ith pof-ith">Remarks</th> 
-                        <th className="grnf-ith pof-ith grnf-ith-action pof-ith-action"></th> 
-                      </tr> 
-                    </thead> 
-                    <tbody> 
-                      {formData.items.map((item, index) => { 
-                        const { sgst, cgst, total } = computeItemAmounts(item); 
-                        return ( 
-                          <tr key={item.id} className="grnf-itr pof-itr"> 
-                            <td className="grnf-itd pof-itd grnf-itd-no pof-itd-no">{index + 1}</td> 
-                            <td className="grnf-itd pof-itd" style={{ position: 'relative' }}> 
-                              <div className="pof-item-search-wrapper"> 
-                                <input 
-                                  ref={(el) => { inputRefs.current[index] = el; }} 
-                                  className="pof-cell-input" 
-                                  type="text" 
-                                  value={item.itemCode} 
-                                  onChange={(e) => { 
-                                    const value = e.target.value; 
-                                    handleItemSearch(index, value); 
-                                  }} 
-                                  placeholder="Search by item code or name" 
-                                  onFocus={() => openItemDropdown(index)} 
-                                  onClick={() => openItemDropdown(index)} 
-                                  onKeyDown={(e) => { 
-                                    if (e.key === 'Escape') { 
-                                      setShowSuggestions(prev => ({ ...prev, [index]: false })); 
-                                    } 
-                                    if (e.key === 'Backspace' && !e.currentTarget.value) { 
-                                      handleClearItem(index); 
-                                    } 
-                                  }} 
-                                  disabled={submitting} 
-                                /> 
-                                {loadingItemsMaster && ( 
-                                  <FaSpinner className="pof-spinning pof-search-spinner" size={14} /> 
-                                )} 
-                                {item.itemCode && !loadingItemsMaster && ( 
-                                  <button  
-                                    className="pof-clear-item-btn" 
-                                    onClick={() => handleClearItem(index)} 
-                                    type="button" 
-                                    title="Clear item" 
-                                  > 
-                                    <FaTimesCircle size={14} /> 
-                                  </button> 
-                                )} 
-                                {!item.itemCode && !loadingItemsMaster && ( 
-                                  <FaSearch className="pof-search-icon" size={14} /> 
-                                )} 
-                                 
-                                {renderItemSearchSuggestions(index)} 
-                              </div> 
-                            </td> 
-                            <td className="grnf-itd pof-itd"> 
-                              <input 
-                                className="pof-cell-input" 
-                                type="text" 
-                                value={item.itemName} 
-                                onChange={(e) => handleItemChange(index, 'itemName', e.target.value)} 
-                                placeholder="Name" 
-                                disabled={submitting} 
-                              /> 
-                            </td> 
-                            <td className="grnf-itd pof-itd"> 
-                              <input 
-                                className="pof-cell-input" 
-                                type="text" 
-                                value={item.hsn || ''} 
-                                onChange={(e) => handleItemChange(index, 'hsn', e.target.value)} 
-                                placeholder="HSN" 
-                                disabled={submitting} 
-                              /> 
-                            </td> 
-                            <td className="grnf-itd pof-itd"> 
-                              <DigitInput 
-                                value={item.orderedQty} 
-                                onChange={(val) => handleItemChange(index, 'orderedQty', val)} 
-                                placeholder="0" 
-                                maxLength={10} 
-                                disabled={true} 
-                                allowDecimal={true} 
-                                className="pof-digit-input" 
-                              /> 
-                            </td> 
-                            <td className="grnf-itd pof-itd"> 
-                              <DigitInput 
-                                value={digitValues[index]?.receivedQty !== undefined ? digitValues[index].receivedQty : item.receivedQty} 
-                                onChange={(val) => handleDigitReceivedQtyChange(index, val)} 
-                                placeholder="0" 
-                                maxLength={10} 
-                                disabled={submitting} 
-                                required={true} 
-                                allowDecimal={true} 
-                                className="pof-digit-input" 
-                              /> 
-                            </td> 
-                            <td className="grnf-itd pof-itd"> 
-                              <DigitInput 
-                                value={digitValues[index]?.rejectedQty !== undefined ? digitValues[index].rejectedQty : item.rejectedQty} 
-                                onChange={(val) => handleDigitRejectedQtyChange(index, val)} 
-                                placeholder="0" 
-                                maxLength={10} 
-                                disabled={submitting} 
-                                allowDecimal={true} 
-                                className="pof-digit-input" 
-                              /> 
-                            </td> 
-                            <td className="grnf-itd pof-itd"> 
-                              <input 
-                                className="pof-cell-input" 
-                                value={item.uom} 
-                                onChange={(e) => handleItemChange(index, 'uom', e.target.value)} 
-                                placeholder="UOM" 
-                                disabled={submitting} 
-                              /> 
-                            </td> 
-                            <td className="grnf-itd pof-itd"> 
-                              <DigitInput 
-                                value={digitValues[index]?.rate !== undefined ? digitValues[index].rate : item.rate} 
-                                onChange={(val) => handleDigitRateChange(index, val)} 
-                                placeholder="0" 
-                                maxLength={10} 
-                                disabled={submitting} 
-                                allowDecimal={true} 
-                                className="pof-digit-input pof-rate-input" 
-                              /> 
-                            </td> 
-                            <td className="grnf-itd pof-itd"> 
-                              <select 
-                                className="pof-cell-select pof-tax-select" 
-                                value={item.taxId ?? ''} 
-                                onChange={(e) => handleItemTaxChange(index, parseInt(e.target.value))} 
-                                disabled={submitting || loadingTaxTypes} 
-                              > 
-                                <option value="" disabled> 
-                                  {loadingTaxTypes ? 'Loading...' : 'Select GST'} 
-                                </option> 
-                                {taxTypes.map((tax) => { 
-                                  const { rate, category } = extractTaxInfo(tax.tax_type); 
-                                  return ( 
-                                    <option key={tax.tax_id} value={tax.tax_id}> 
-                                      {category} {rate}% 
-                                    </option> 
-                                  ); 
-                                })} 
-                              </select> 
-                            </td> 
-                            <td className="grnf-itd pof-itd grnf-itd-readonly pof-itd-readonly">{sgst.toFixed(2)}</td> 
-                            <td className="grnf-itd pof-itd grnf-itd-readonly pof-itd-readonly">{cgst.toFixed(2)}</td> 
-                            <td className="grnf-itd pof-itd grnf-itd-readonly pof-itd-readonly grnf-itd-amount pof-itd-amount">{total.toFixed(2)}</td> 
-                            <td className="grnf-itd pof-itd"> 
-                              <input 
-                                className="pof-cell-input" 
-                                value={item.remarks} 
-                                onChange={(e) => handleItemChange(index, 'remarks', e.target.value)} 
-                                placeholder="Remarks" 
-                                disabled={submitting} 
-                              /> 
-                            </td> 
-                            <td className="grnf-itd pof-itd"> 
-                              {formData.items.length > 1 && ( 
-                                <button 
-                                  className="pof-remove-row grnf-remove-item" 
-                                  onClick={() => removeItem(index)} 
-                                  type="button" 
-                                  disabled={submitting} 
-                                  title="Remove item" 
-                                > 
-                                  × 
-                                </button> 
-                              )} 
-                            </td> 
-                          </tr> 
-                        ); 
-                      })} 
-                    </tbody> 
-                  </table> 
- 
-                  {draftItems.length > 0 && ( 
-                    <div className="grnf-draft-items-section"> 
-                      <div className="grnf-draft-items-header"> 
-                        <h3>Draft Items</h3> 
-                        <span className="grnf-draft-badge"> 
-                          <FaBox size={10} /> {draftItems.length} item{draftItems.length !== 1 ? 's' : ''} 
-                        </span> 
-                      </div> 
-                      <div className="grnf-draft-items-list"> 
-                        {draftItems.map((item, index) => ( 
-                          <div key={item.id} className="grnf-draft-item"> 
-                            <div className="grnf-draft-item-left"> 
-                              <span className="grnf-draft-item-index">#{index + 1}</span> 
-                              <span className="grnf-draft-item-name">{item.itemName || 'Unnamed Item'}</span> 
-                              <div className="grnf-draft-item-details"> 
-                                <span>Code: {item.itemCode || 'N/A'}</span> 
-                                <span>Qty: <span className="grnf-draft-item-qty">{item.receivedQty}</span></span> 
-                                <span>UOM: {item.uom || 'N/A'}</span> 
-                                <span>Rate: {item.rate || 0}</span> 
-                              </div> 
-                            </div> 
-                            <div className="grnf-draft-item-right"> 
-                              <span className="grnf-draft-item-status">Draft</span> 
-                              <button 
-                                className="grnf-draft-item-remove" 
-                                onClick={() => removeItem(formData.items.indexOf(item))} 
-                                type="button" 
-                                disabled={submitting} 
-                              > 
-                                <FaTrash size={12} /> 
-                              </button> 
-                            </div> 
-                          </div> 
-                        ))} 
-                      </div> 
-                    </div> 
-                  )} 
- 
-                  <div className="grnf-bill-summary"> 
-                    <div className="grnf-bill-summary-title"> 
-                      <FaReceipt size={14} /> Bill Summary 
-                    </div> 
-                    <div className="grnf-bill-summary-row"> 
-                      <span>Subtotal</span> 
-                      <span>{billTotals.subtotal.toFixed(2)}</span> 
-                    </div> 
-                    <div className="grnf-bill-summary-row"> 
-                      <span><FaPercentage size={10} /> Total SGST</span> 
-                      <span>{billTotals.sgst.toFixed(2)}</span> 
-                    </div> 
-                    <div className="grnf-bill-summary-row"> 
-                      <span><FaPercentage size={10} /> Total CGST</span> 
-                      <span>{billTotals.cgst.toFixed(2)}</span> 
-                    </div> 
-                    <div className="grnf-bill-summary-row"> 
-                      <span><FaMoneyBillWave size={10} /> Delivery Charges{formData.freeDelivery ? ' (Free)' : ''}</span> 
-                      <span>{deliveryChargeAmount.toFixed(2)}</span> 
-                    </div> 
-                    <div className="grnf-bill-summary-row grnf-bill-summary-total"> 
-                      <span>Grand Total</span> 
-                      <span>{grandTotal.toFixed(2)}</span> 
-                    </div> 
-                  </div> 
-                </div> 
-              )} 
-            </div> 
- 
-          </div> 
- 
-          <div className="grnf-footer"> 
-            <button 
-              type="button" 
-              onClick={() => navigate('/grn')} 
-              className="grnf-cancel-btn" 
-              disabled={submitting} 
-            > 
-              Cancel 
-            </button> 
-            <button 
-              type="button" 
-              onClick={handlePrint} 
-              className="grnf-print-footer-btn" 
-              disabled={submitting} 
-            > 
-              <FaPrint size={12} /> Print 
-            </button> 
-            <button 
-              type="submit" 
-              disabled={submitting} 
-              className="grnf-submit-btn" 
-            > 
-              {submitting && <FaSpinner className="grnf-spinning" />} 
-              <FaSave size={12} /> 
-              {isEditMode ? 'Update' : 'Save'} 
-            </button> 
-          </div> 
-        </form> 
-      </div> 
-    </div> 
-  ); 
+                                  <div className="grnf-warehouse-item-name">
+                                    <FaWarehouse className="grnf-warehouse-item-icon" size={12} />
+                                    {warehouse.warehouse_name}
+                                  </div>
+                                  <div className="grnf-warehouse-item-details">
+                                    {warehouse.city && <span><FaMapMarkerAlt size={10} /> {warehouse.city}</span>}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="grnf-info-row">
+                        <div className="grnf-info-field">
+                          <label>Supplier <span className="grnf-required">*</span></label>
+                          <div className="grnf-warehouse-wrapper">
+                            <input
+                              ref={supplierInputRef}
+                              type="text"
+                              value={supplierSearchTerm}
+                              onChange={(e) => {
+                                setSupplierSearchTerm(e.target.value);
+                                setShowSupplierDropdown(true);
+                                setFormData(prev => ({ ...prev, supplier: e.target.value, supplierId: undefined }));
+                                setIsDirty(true);
+                              }}
+                              onFocus={() => setShowSupplierDropdown(true)}
+                              className={`grnf-form-field${errors.supplier ? ' grnf-field-error' : ''}`}
+                              placeholder="Search supplier..."
+                              disabled={submitting}
+                              autoComplete="off"
+                            />
+                            {loadingSuppliers && <FaSpinner className="grnf-warehouse-spinner grnf-spinning" size={14} />}
+                            {showSupplierDropdown && filteredSuppliers.length > 0 && (
+                              <div ref={supplierDropdownRef} className="grnf-warehouse-dropdown grnf-dropdown-large">
+                                {filteredSuppliers.map((supplier) => (
+                                  <div
+                                    key={supplier.id}
+                                    className="grnf-warehouse-item"
+                                    onClick={() => handleSupplierSelect(supplier)}
+                                  >
+                                    <div className="grnf-warehouse-item-name">
+                                      <FaBuilding className="grnf-warehouse-item-icon" size={12} />
+                                      {supplier.supplier_name}
+                                    </div>
+                                    <div className="grnf-warehouse-item-details">
+                                      {supplier.supplier_type && <span>{supplier.supplier_type}</span>}
+                                      {supplier.mobile_no && <span><FaPhone size={10} /> {supplier.mobile_no}</span>}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        <div className="grnf-info-field">
+                          <label>Warehouse <span className="grnf-required">*</span></label>
+                          <div className="grnf-warehouse-wrapper">
+                            <input
+                              ref={warehouseInputRef}
+                              type="text"
+                              value={warehouseSearchTerm}
+                              onChange={(e) => {
+                                setWarehouseSearchTerm(e.target.value);
+                                setShowWarehouseDropdown(true);
+                                setFormData(prev => ({ ...prev, warehouse: e.target.value, warehouseId: undefined }));
+                                setIsDirty(true);
+                              }}
+                              onFocus={() => setShowWarehouseDropdown(true)}
+                              className={`grnf-form-field${errors.warehouse ? ' grnf-field-error' : ''}`}
+                              placeholder="Search warehouse..."
+                              disabled={submitting}
+                              autoComplete="off"
+                            />
+                            {loadingWarehouses && <FaSpinner className="grnf-warehouse-spinner grnf-spinning" size={14} />}
+                            {showWarehouseDropdown && filteredWarehouses.length > 0 && (
+                              <div ref={warehouseDropdownRef} className="grnf-warehouse-dropdown">
+                                {filteredWarehouses.map((warehouse) => (
+                                  <div
+                                    key={warehouse.id}
+                                    className="grnf-warehouse-item"
+                                    onClick={() => handleWarehouseSelect(warehouse)}
+                                  >
+                                    <div className="grnf-warehouse-item-name">
+                                      <FaWarehouse className="grnf-warehouse-item-icon" size={12} />
+                                      {warehouse.warehouse_name}
+                                    </div>
+                                    <div className="grnf-warehouse-item-details">
+                                      {warehouse.city && <span><FaMapMarkerAlt size={10} /> {warehouse.city}</span>}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      {formData.entryMode === 'supplier' && (
+                        <div className="grnf-info-row">
+                          <div className="grnf-info-field">
+                            <label>Purchase Order <span className="grnf-required">*</span></label>
+                            <div className="grnf-warehouse-wrapper">
+                              <input
+                                ref={poInputRef}
+                                type="text"
+                                value={poSearchTerm}
+                                onChange={(e) => {
+                                  setPOSearchTerm(e.target.value);
+                                  setShowPODropdown(true);
+                                  if (e.target.value !== formData.purchaseOrder) {
+                                    setFormData(prev => ({ ...prev, purchaseOrder: '', purchaseOrderId: undefined }));
+                                  }
+                                  setIsDirty(true);
+                                }}
+                                onFocus={() => {
+                                  setShowPODropdown(true);
+                                  fetchPurchaseOrders();
+                                }}
+                                className={`grnf-form-field${errors.purchaseOrder ? ' grnf-field-error' : ''}`}
+                                placeholder="Search PO..."
+                                disabled={submitting}
+                                autoComplete="off"
+                              />
+                              {loadingPOs && <FaSpinner className="grnf-warehouse-spinner grnf-spinning" size={14} />}
+                              {showPODropdown && (
+                                <div ref={poDropdownRef} className="grnf-warehouse-dropdown grnf-po-dropdown">
+                                  {filteredPOs.length > 0 ? (
+                                    filteredPOs.map(po => {
+                                      const poItems = poItemsCache[po.id] || [];
+                                      const isLoadingItems = loadingPOItems[po.id];
+                                      const poDisplayName = getPODisplayName(po);
+                                      
+                                      const uniqueItems = poItems.reduce((acc, current) => {
+                                        const exists = acc.find(item => item.item_code === current.item_code);
+                                        if (!exists) {
+                                          acc.push(current);
+                                        }
+                                        return acc;
+                                      }, [] as POItem[]);
+                                      
+                                      return (
+                                        <div
+                                          key={po.id}
+                                          className={`grnf-warehouse-item ${formData.purchaseOrderId === po.id ? 'grnf-warehouse-item-selected' : ''}`}
+                                          onClick={() => handlePOSelect(po)}
+                                          onMouseEnter={() => {
+                                            if (!poItemsCache[po.id] && !loadingPOItems[po.id]) {
+                                              fetchPOItems(po.id);
+                                            }
+                                          }}
+                                        >
+                                          <div className="grnf-warehouse-item-name" style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '4px' }}>
+                                            <FaFileInvoice className="grnf-warehouse-item-icon" size={12} />
+                                            <span className="grnf-po-display-name">{poDisplayName}</span>
+                                            <span className={`grnf-po-status-badge ${getPOStatusBadgeClass(po.status || '')}`}>
+                                              {po.status || 'Unknown'}
+                                            </span>
+                                            {uniqueItems.length > 0 && (
+                                              <>
+                                                <span className="grnf-po-item-count" style={{ marginLeft: '4px' }}>
+                                                  <FaBox size={10} /> {uniqueItems.length} item{uniqueItems.length !== 1 ? 's' : ''}
+                                                </span>
+                                                <div className="grnf-po-items-preview" style={{ display: 'inline-flex', flexWrap: 'wrap', gap: '4px', marginTop: '2px', alignItems: 'center' }}>
+                                                  {uniqueItems.map((item, idx) => (
+                                                    <div key={idx} className="grnf-po-item-chip" style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', fontSize: '10px', background: '#f9fafb', padding: '1px 6px', borderRadius: '4px', border: '1px solid #e5e7eb' }}>
+                                                      <span className="grnf-po-item-name" style={{ color: '#6b7280' }}>{item.item_name}</span>
+                                                      <span className="grnf-po-item-qty" style={{ color: '#3b82f6', fontWeight: 500 }}>×{item.qty}</span>
+                                                    </div>
+                                                  ))}
+                                                </div>
+                                              </>
+                                            )}
+                                          </div>
+                                          <div className="grnf-warehouse-item-details">
+                                            <span>{po.supplier_name || 'N/A'}</span>
+                                            <span>• {po.currency || 'INR'} {(po.grand_total || 0).toFixed(2)}</span>
+                                            <span>• Received: {(po.per_received || 0)}%</span>
+                                          </div>
+                                          
+                                          {isLoadingItems && (
+                                            <div className="grnf-po-items-loading">
+                                              <FaSpinner className="grnf-spinning" size={10} /> Loading items...
+                                            </div>
+                                          )}
+                                          {!isLoadingItems && uniqueItems.length === 0 && (
+                                            <div className="grnf-po-items-empty">
+                                              <FaInfoCircle size={10} /> No items in this PO
+                                            </div>
+                                          )}
+                                        </div>
+                                      );
+                                    })
+                                  ) : (
+                                    <div className="grnf-warehouse-no-results">No POs found</div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                          <div className="grnf-info-field"></div>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+
+                {/* Receipt Information Section */}
+                <div className="grnf-info-section">
+                  <div className="grnf-section-label">Receipt Information</div>
+                  <div className="grnf-info-row">
+                    <div className="grnf-info-field">
+                      <label>GRN Date <span className="grnf-required">*</span></label>
+                      <input
+                        type="date"
+                        value={formData.grnDate}
+                        onChange={(e) => handleFieldChange('grnDate', e.target.value)}
+                        className={`grnf-form-field${errors.grnDate ? ' grnf-field-error' : ''}`}
+                        disabled={submitting}
+                      />
+                    </div>
+                    <div className="grnf-info-field">
+                      <label>Received By <span className="grnf-required">*</span></label>
+                      <div className="grnf-warehouse-wrapper">
+                        <input
+                          ref={employeeInputRef}
+                          type="text"
+                          value={employeeSearchTerm}
+                          onChange={(e) => {
+                            setEmployeeSearchTerm(e.target.value);
+                            setShowEmployeeDropdown(true);
+                            setFormData(prev => ({ ...prev, receivedBy: e.target.value, receivedById: undefined }));
+                            setIsDirty(true);
+                          }}
+                          onFocus={() => setShowEmployeeDropdown(true)}
+                          className={`grnf-form-field${errors.receivedBy ? ' grnf-field-error' : ''}`}
+                          placeholder="Search employee..."
+                          disabled={submitting}
+                          autoComplete="off"
+                        />
+                        {loadingEmployees && <FaSpinner className="grnf-warehouse-spinner grnf-spinning" size={14} />}
+                        {showEmployeeDropdown && filteredEmployees.length > 0 && (
+                          <div ref={employeeDropdownRef} className="grnf-warehouse-dropdown">
+                            {filteredEmployees.map((employee) => (
+                              <div
+                                key={employee.id}
+                                className="grnf-warehouse-item"
+                                onClick={() => handleEmployeeSelect(employee)}
+                              >
+                                <div className="grnf-warehouse-item-name">
+                                  <FaUserCircle className="grnf-warehouse-item-icon" size={12} />
+                                  {employee.employee_name}
+                                </div>
+                                <div className="grnf-warehouse-item-details">
+                                  {employee.designation && <span>{employee.designation}</span>}
+                                  {employee.department && <span>• {employee.department}</span>}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Delivery Details Section */}
+                <div className="grnf-info-section">
+                  <div className="grnf-section-label">Delivery Details</div>
+                  <div className="grnf-info-row">
+                    <div className="grnf-info-field">
+                      <label>Vehicle Number</label>
+                      <input
+                        type="text"
+                        value={formData.vehicleNo}
+                        onChange={(e) => handleFieldChange('vehicleNo', e.target.value)}
+                        className="grnf-form-field"
+                        placeholder="Enter vehicle number"
+                        disabled={submitting}
+                      />
+                    </div>
+                    <div className="grnf-info-field">
+                      <label>Delivery Challan No.</label>
+                      <input
+                        type="text"
+                        value={formData.deliveryChallanNo}
+                        onChange={(e) => handleFieldChange('deliveryChallanNo', e.target.value)}
+                        className="grnf-form-field"
+                        placeholder="Enter challan number"
+                        disabled={submitting}
+                      />
+                    </div>
+                  </div>
+                  <div className="grnf-info-row">
+                    <div className="grnf-info-field">
+                      <label>Invoice Number</label>
+                      <input
+                        type="text"
+                        value={formData.invoiceNo}
+                        onChange={(e) => handleFieldChange('invoiceNo', e.target.value)}
+                        className="grnf-form-field"
+                        placeholder="Enter invoice number"
+                        disabled={submitting}
+                      />
+                    </div>
+                    <div className="grnf-info-field"></div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Right Column - Customer/Supplier Details Card */}
+              <div className="grnf-right-column">
+                {formData.isService && selectedCustomer ? (
+                  <div className="grnf-party-detail-card">
+                    <div className="grnf-party-card-header">
+                      <FaUsers size={16} />
+                      <span>Customer Details</span>
+                    </div>
+                    <div className="grnf-party-card-content">
+                      <h3>{selectedCustomer.customer_name}</h3>
+                      <div className="grnf-party-card-info">
+                        {selectedCustomer.customer_type && (
+                          <div className="grnf-party-info-item">
+                            <span className="grnf-party-info-label">Type</span>
+                            <span className="grnf-party-info-value">{selectedCustomer.customer_type}</span>
+                          </div>
+                        )}
+                        {selectedCustomer.customer_group && (
+                          <div className="grnf-party-info-item">
+                            <span className="grnf-party-info-label">Group</span>
+                            <span className="grnf-party-info-value">{selectedCustomer.customer_group}</span>
+                          </div>
+                        )}
+                        {selectedCustomer.territory && (
+                          <div className="grnf-party-info-item">
+                            <span className="grnf-party-info-label">Territory</span>
+                            <span className="grnf-party-info-value">{selectedCustomer.territory}</span>
+                          </div>
+                        )}
+                        {selectedCustomer.mobile_no && (
+                          <div className="grnf-party-info-item">
+                            <span className="grnf-party-info-label">Mobile</span>
+                            <span className="grnf-party-info-value">
+                              <FaPhone size={10} /> {selectedCustomer.mobile_no}
+                            </span>
+                          </div>
+                        )}
+                        {selectedCustomer.email_id && (
+                          <div className="grnf-party-info-item">
+                            <span className="grnf-party-info-label">Email</span>
+                            <span className="grnf-party-info-value">
+                              <FaEnvelope size={10} /> {selectedCustomer.email_id}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ) : !formData.isService && selectedSupplier ? (
+                  <div className="grnf-party-detail-card">
+                    <div className="grnf-party-card-header">
+                      <FaBuilding size={16} />
+                      <span>Supplier Details</span>
+                    </div>
+                    <div className="grnf-party-card-content">
+                      <h3>{selectedSupplier.supplier_name}</h3>
+                      <div className="grnf-party-card-info">
+                        {selectedSupplier.supplier_type && (
+                          <div className="grnf-party-info-item">
+                            <span className="grnf-party-info-label">Type</span>
+                            <span className="grnf-party-info-value">{selectedSupplier.supplier_type}</span>
+                          </div>
+                        )}
+                        {selectedSupplier.supplier_group && (
+                          <div className="grnf-party-info-item">
+                            <span className="grnf-party-info-label">Group</span>
+                            <span className="grnf-party-info-value">{selectedSupplier.supplier_group}</span>
+                          </div>
+                        )}
+                        {selectedSupplier.country && (
+                          <div className="grnf-party-info-item">
+                            <span className="grnf-party-info-label">Country</span>
+                            <span className="grnf-party-info-value">
+                              <FaGlobeAsia size={10} /> {selectedSupplier.country}
+                            </span>
+                          </div>
+                        )}
+                        {selectedSupplier.mobile_no && (
+                          <div className="grnf-party-info-item">
+                            <span className="grnf-party-info-label">Mobile</span>
+                            <span className="grnf-party-info-value">
+                              <FaPhone size={10} /> {selectedSupplier.mobile_no}
+                            </span>
+                          </div>
+                        )}
+                        {selectedSupplier.email_id && (
+                          <div className="grnf-party-info-item">
+                            <span className="grnf-party-info-label">Email</span>
+                            <span className="grnf-party-info-value">
+                              <FaEnvelope size={10} /> {selectedSupplier.email_id}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grnf-party-detail-card grnf-party-empty-card">
+                    <div className="grnf-party-card-header">
+                      {formData.isService ? (
+                        <><FaUsers size={16} /><span>Customer Details</span></>
+                      ) : (
+                        <><FaBuilding size={16} /><span>Supplier Details</span></>
+                      )}
+                    </div>
+                    <div className="grnf-party-card-content">
+                      <div className="grnf-party-empty-state">
+                        <FaInfoCircle size={24} />
+                        <p>Select a {formData.isService ? 'customer' : 'supplier'} to view details</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Delivery Charge Section */}
+                <div className="grnf-party-detail-card">
+                  <div className="grnf-party-card-header">
+                    <FaMoneyBillWave size={16} />
+                    <span>Delivery Charges</span>
+                  </div>
+                  <div className="grnf-party-card-content">
+                    <div className="grnf-delivery-toggle">
+                      <button
+                        type="button"
+                        className={`grnf-mode-btn${formData.freeDelivery ? ' grnf-mode-btn-active' : ''}`}
+                        onClick={() => handleFieldChange('freeDelivery', true)}
+                        disabled={submitting}
+                      >
+                        Free
+                      </button>
+                      <button
+                        type="button"
+                        className={`grnf-mode-btn${!formData.freeDelivery ? ' grnf-mode-btn-active' : ''}`}
+                        onClick={() => handleFieldChange('freeDelivery', false)}
+                        disabled={submitting}
+                      >
+                        Paid
+                      </button>
+                    </div>
+                    {!formData.freeDelivery && (
+                      <div className="grnf-delivery-amount">
+                        <label>Amount <span className="grnf-required">*</span></label>
+                        <DigitInput
+                          value={formData.deliveryCharge}
+                          onChange={(val) => handleFieldChange('deliveryCharge', val)}
+                          placeholder="0"
+                          maxLength={10}
+                          disabled={submitting}
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* ─── STATUS SECTION REMOVED ─────────────────────────── */}
+                {/* The status dropdown has been removed from the UI */}
+
+              </div>
+            </div>
+
+            {/* ─── Items Section ────────────────────────────────────────── */}
+            <div className="grnf-items-section pof-items-section">
+              <div className="pif-table-header-row">
+                <span className="pif-section-title" style={{ margin: 0, border: 'none', paddingBottom: 0 }}>
+                  <FaBoxes className="pif-section-icon" /> Items
+                </span>
+
+                {itemGroups.length > 0 && (
+                  <div className="pof-item-group-filter">
+                    <button
+                      type="button"
+                      className={`pof-filter-btn ${itemGroupFilter === 'all' ? 'active' : ''}`}
+                      onClick={() => {
+                        setItemGroupFilter('all');
+                        formData.items.forEach((_, idx) => {
+                          const term = searchTerms[idx] || '';
+                          let filtered = allItems.length > 0 ? allItems : itemsMaster;
+                          if (term.length >= 1) {
+                            const t = term.toLowerCase().trim();
+                            filtered = filtered.filter(item => 
+                              (item.item_code || '').toLowerCase().includes(t) ||
+                              (item.item_name || '').toLowerCase().includes(t)
+                            );
+                          }
+                          setFilteredItems(prev => ({ ...prev, [idx]: filtered }));
+                        });
+                      }}
+                    >
+                      {/*All Items*/}
+                    </button>
+                    {itemGroups.map(group => (
+                      <button
+                        key={group}
+                        type="button"
+                        className={`pof-filter-btn ${itemGroupFilter === group ? 'active' : ''}`}
+                        onClick={() => {
+                          setItemGroupFilter(group);
+                          formData.items.forEach((_, idx) => {
+                            const term = searchTerms[idx] || '';
+                            let filtered = (allItems.length > 0 ? allItems : itemsMaster).filter(item => item.item_group === group);
+                            if (term.length >= 1) {
+                              const t = term.toLowerCase().trim();
+                              filtered = filtered.filter(item => 
+                                (item.item_code || '').toLowerCase().includes(t) ||
+                                (item.item_name || '').toLowerCase().includes(t)
+                              );
+                            }
+                            setFilteredItems(prev => ({ ...prev, [idx]: filtered }));
+                          });
+                        }}
+                      >
+                        {/*group*/}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <button type="button" className="pif-add-item-btn" onClick={addItem} disabled={submitting}>
+                    <FaPlus size={12} /> Add Item
+                  </button>
+                </div>
+              </div>
+
+              {formData.items.length === 0 ? (
+                <div className="pif-empty-items">
+                  <FaBoxes size={32} />
+                  <p>No items added</p>
+                  <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
+                    {formData.isService || formData.entryMode !== 'supplier'
+                      ? 'Click "Add Item" and search the item master to add items.'
+                      : 'Select a Supplier and Purchase Order above to fetch items'}
+                  </span>
+                </div>
+              ) : (
+                <>
+                  <div className="pif-table-block pof-table-block grnf-table-block">
+                    <table className="pif-inline-table grnf-items-table pof-inline-table">
+                      <thead>
+                        <tr>
+                          <th className="grnf-ith">#</th>
+                          <th className="grnf-ith ">Item Code <span className="grnf-required">*</span></th>
+                          <th className="grnf-ith">Item Name <span className="grnf-required">*</span></th>
+                          <th className=" grnf-ith">HSN</th>
+                          <th className="grnf-ith">Ordered Qty</th>
+                          <th className="grnf-ith">Received Qty <span className="grnf-required">*</span></th>
+                          <th className="grnf-ith">Rejected Qty</th>
+                          <th className="pif-ith">UOM</th>
+                          <th className="grnf-ith">Ordered Rate <span className="grnf-required">*</span></th>
+                          
+                          <th className="grnf-ith">Tax% <span className="grnf-required">*</span></th>
+                          <th className="grnf-ith ">Amount</th>
+                          <th className="grnf-ith">Note</th>
+                          {/*<th className="pif-ith pif-ith-action">Action</th>*/}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {formData.items.map((item, index) => {
+                          const { total } = computeItemAmounts(item);
+                          const isDropdownOpen = (showItemDropdown && selectedItemRowIndex === index) || showSuggestions[index];
+                          const suggestionsList = filteredItems[index] || (allItems.length > 0 ? allItems : itemsMaster);
+                          const currentSearch = searchTerms[index] || item.itemCode || '';
+                          const position = dropdownPositions[index] || {
+                            top: 0,
+                            left: 0,
+                            width: 320,
+                          };
+                          const filtered = suggestionsList;
+                          function selectItem(item: ItemMaster) {
+                            handleSelectItem(index, item);
+                          }
+
+                          return (
+                            <tr key={item.id} className="pif-itr pof-itr">
+                              <td className="pif-itd pof-itd pif-itd-no pof-itd-no" data-label="#">
+                                <span className="pof-mobile-row-badge">Item #{index + 1}</span>
+                                <span className="pof-desktop-row-num">{index + 1}</span>
+                              </td>
+                              <td className="pif-itd pof-itd pof-itd-code pif-itd-code" data-label="Item Code *" style={{ position: 'relative', overflow: 'visible' }}>
+                                <div style={{ position: 'relative', width: '100%' }}>
+                                  <input
+                                    ref={(el) => { inputRefs.current[index] = el; }}
+                                    className="pif-cell-input pof-cell-input"
+                                    type="text"
+                                    value={item.itemCode || ''}
+                                    onChange={(e) => {
+                                      const value = e.target.value;
+                                      setItemSearch(value);
+                                      setSelectedItemRowIndex(index);
+                                      setShowItemDropdown(true);
+                                      handleItemSearch(index, value);
+                                    }}
+                                    placeholder="Search item..."
+                                    onFocus={() => {
+                                      setSelectedItemRowIndex(index);
+                                      setShowItemDropdown(true);
+                                      setItemSearch(item.itemCode || '');
+                                      openItemDropdown(index);
+                                    }}
+                                    onClick={() => {
+                                      setSelectedItemRowIndex(index);
+                                      setShowItemDropdown(true);
+                                      openItemDropdown(index);
+                                    }}
+                                    onBlur={() => {
+                                      setTimeout(() => {
+                                        setShowItemDropdown(false);
+                                        setShowSuggestions(prev => ({ ...prev, [index]: false }));
+                                      }, 200);
+                                    }}
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Escape') {
+                                        setShowItemDropdown(false);
+                                        setShowSuggestions(prev => ({ ...prev, [index]: false }));
+                                      }
+                                      if (e.key === 'Backspace' && !e.currentTarget.value) {
+                                        handleClearItem(index);
+                                      }
+                                    }}
+                                    disabled={submitting}
+                                    autoComplete="off"
+                                  />
+                                  {isDropdownOpen && (
+                                    <div
+        ref={(el) => { suggestionRefs.current[index] = el; }}
+        className="pof-suggestions-dropdown-portal"
+        style={{
+          position: 'fixed',
+          top: position.top,
+          left: position.left,
+          width: position.width,
+          maxHeight: '280px',
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
+          zIndex: 9999,
+          background: theme === 'dark-theme' ? '#1e1e2f' : '#ffffff',
+          borderRadius: '8px',
+          boxShadow: '0 10px 40px rgba(0,0,0,0.2)',
+          border: `1px solid ${theme === 'dark-theme' ? '#3a3a4a' : '#e5e7eb'}`,
+        }}
+      >
+        <div
+          style={{
+            overflowY: 'auto',
+            flex: '1 1 auto',
+            maxHeight: '220px',
+          }}
+        >
+          {loadingItemsMaster ? (
+            <div
+              className="pof-suggestions-loading"
+              style={{
+                padding: '12px',
+                textAlign: 'center',
+                color: '#6b7280',
+              }}
+            >
+              <FaSpinner className="pof-spinning" size={14} /> Loading items...
+            </div>
+          ) : filtered.length > 0 ? (
+            <ul
+              className="pof-dropdown-list"
+              style={{ margin: 0, padding: 0, listStyle: 'none' }}
+            >
+              {filtered.map(item => (
+                <li
+                  key={item.id}
+                  className="pof-suggestion-item"
+                  onMouseDown={(e) => {
+                    // Same important behavior as PurchaseBillForm:
+                    // selection happens before the input blur.
+                    e.preventDefault();
+                    selectItem(item);
+                  }}
+                  style={{
+                    padding: '8px 12px',
+                    cursor: 'pointer',
+                    borderBottom: `1px solid ${theme === 'dark-theme' ? '#2a2a3a' : '#f3f4f6'}`,
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    transition: 'background 0.15s',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background =
+                      theme === 'dark-theme' ? '#2a2a3a' : '#f3f4f6';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = 'transparent';
+                  }}
+                >
+                  <div>
+                    <div
+                      className="pof-suggestion-code"
+                      style={{
+                        fontWeight: 500,
+                        fontSize: '13px',
+                        color: theme === 'dark-theme' ? '#e5e7eb' : '#111827',
+                      }}
+                    >
+                      {item.item_code || ''}
+                    </div>
+
+                    <div
+                      className="pof-suggestion-name"
+                      style={{
+                        fontSize: '12px',
+                        color: '#6b7280',
+                      }}
+                    >
+                      {item.item_name || ''}
+                    </div>
+
+                    {item.HSN && (
+                      <div
+                        className="pof-suggestion-hsn"
+                        style={{
+                          fontSize: '10px',
+                          color: '#9ca3af',
+                        }}
+                      >
+                        HSN: {item.HSN}
+                      </div>
+                    )}
+                  </div>
+
+                  <div style={{ textAlign: 'right' }}>
+                    <div
+                      className="pof-suggestion-rate"
+                      style={{
+                        fontSize: '13px',
+                        fontWeight: 500,
+                        color: '#6366f1',
+                      }}
+                    >
+                      INR {(item.standard_rate || item.valuation_rate || 0).toFixed(2)}
+                    </div>
+
+                    <div
+                      className="pof-suggestion-uom"
+                      style={{
+                        fontSize: '10px',
+                        color: '#9ca3af',
+                      }}
+                    >
+                      UOM: {item.stock_uom || 'NOS'}
+                    </div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <div
+              className="pof-dropdown-empty"
+              style={{
+                padding: '12px',
+                textAlign: 'center',
+                color: '#6b7280',
+                fontSize: '13px',
+              }}
+            >
+              {currentSearch ? 'No items found' : 'Type to search items...'}
+            </div>
+          )}
+        </div>
+                                    </div>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="pif-itd pof-itd pof-itd-name pif-itd-name" data-label="Item Name *">
+                                <input
+                                  className="pif-cell-input pof-cell-input"
+                                  type="text"
+                                  value={item.itemName || ''}
+                                  onChange={(e) => handleItemChange(index, 'itemName', e.target.value)}
+                                  placeholder="Item name"
+                                  disabled={submitting}
+                                />
+                              </td>
+                              <td className="pif-itd pof-itd" data-label="HSN">
+                                <input
+                                  className="pif-cell-input pof-cell-input"
+                                  type="text"
+                                  value={item.hsn || ''}
+                                  onChange={(e) => handleItemChange(index, 'hsn', e.target.value)}
+                                  placeholder="HSN"
+                                  disabled={submitting}
+                                />
+                              </td>
+                              <td className="pif-itd pof-itd pif-itd-num" data-label="Ordered Qty">
+                                <span className="pif-cell-readonly pof-uom-display">{item.orderedQty || 0}</span>
+                              </td>
+                              <td className="pif-itd pof-itd pif-itd-num" data-label="Received Qty *">
+                                <input
+                                  type="number"
+                                  className="pif-cell-input pof-cell-input pif-cell-number"
+                                  value={digitValues[index]?.receivedQty !== undefined ? digitValues[index].receivedQty : item.receivedQty}
+                                  onChange={(e) => handleDigitReceivedQtyChange(index, e.target.value)}
+                                  placeholder="0"
+                                  min="0"
+                                  step="any"
+                                  disabled={submitting}
+                                  required
+                                />
+                              </td>
+                              <td className="pif-itd pof-itd pif-itd-num" data-label="Rejected Qty">
+                                <input
+                                  type="number"
+                                  className="pif-cell-input pof-cell-input pif-cell-number"
+                                  value={digitValues[index]?.rejectedQty !== undefined ? digitValues[index].rejectedQty : item.rejectedQty}
+                                  onChange={(e) => handleDigitRejectedQtyChange(index, e.target.value)}
+                                  placeholder="0"
+                                  min="0"
+                                  step="any"
+                                  disabled={submitting}
+                                />
+                              </td>
+                              <td className="pif-itd pof-itd" data-label="UOM">
+                                <input
+                                  className="pif-cell-input pof-cell-input"
+                                  value={item.uom || ''}
+                                  onChange={(e) => handleItemChange(index, 'uom', e.target.value)}
+                                  placeholder="UOM"
+                                  disabled={submitting}
+                                />
+                              </td>
+                              <td className="pif-itd pof-itd pif-itd-num" data-label="Ordered Rate">
+                                <input
+                                  type="number"
+                                  className="pif-cell-input pof-cell-input pif-cell-number"
+                                  value={digitValues[index]?.rate !== undefined ? digitValues[index].rate : item.rate}
+                                  onChange={(e) => handleDigitRateChange(index, e.target.value)}
+                                  placeholder="0"
+                                  min="0"
+                                  step="0.01"
+                                  disabled={submitting}
+                                />
+                              </td>
+                              
+                              <td className="pif-itd pof-itd pif-itd-num" data-label="Tax% *">
+                                <select
+                                  className="pif-cell-input pof-cell-select pof-tax-select"
+                                  value={item.taxId ?? ''}
+                                  onChange={(e) => handleItemTaxChange(index, parseInt(e.target.value))}
+                                  disabled={submitting || loadingTaxTypes}
+                                >
+                                  <option value="" disabled>
+                                    {loadingTaxTypes ? 'Loading...' : 'Select GST'}
+                                  </option>
+                                  {taxTypes.map((tax) => {
+                                    const { rate, category } = extractTaxInfo(tax.tax_type);
+                                    return (
+                                      <option key={tax.tax_id} value={tax.tax_id}>
+                                        {category} {rate}%
+                                      </option>
+                                    );
+                                  })}
+                                </select>
+                              </td>
+<td className="pif-itd pof-itd pif-itd-num " data-label="Amount">
+                              <td className="pif-amount pof-itd-amount pif-itd-amount" >
+                                ₹ {total.toFixed(2)}
+                              </td>
+                              </td>
+
+                              <td className="pif-itd pof-itd pif-itd-note pof-itd-note" data-label="Note" style={{ position: 'relative' }}>
+                                <button
+                                  type="button"
+                                  className={`pif-note-btn ${item.remarks ? 'pif-note-btn--filled' : ''}`}
+                                  onClick={() => setNotePopoverIndex(notePopoverIndex === index ? null : index)}
+                                  title={item.remarks || 'Add note'}
+                                >
+                                  <FaStickyNote size={12} />
+                                </button>
+                                {notePopoverIndex === index && (
+                                  <div className="pif-note-popover">
+                                    <textarea
+                                      className="pif-note-textarea"
+                                      value={item.remarks || ''}
+                                      onChange={(e) => handleItemChange(index, 'remarks', e.target.value)}
+                                      onBlur={() => setTimeout(() => setNotePopoverIndex(null), 150)}
+                                      placeholder="Remarks / Note"
+                                      rows={3}
+                                      autoFocus
+                                    />
+                                  </div>
+                                )}
+                              </td>
+                              {/*<td className="pif-itd pof-itd pif-itd-action pof-itd-action">
+                                {formData.items.length > 1 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => removeItem(index)}
+                                    className="pif-remove-item-btn pof-remove-row"
+                                    title="Remove item"
+                                    disabled={submitting}
+                                  >
+                                    <FaTrash size={12} />
+                                    <span className="pof-remove-row-text">Remove</span>
+                                  </button>
+                                )}
+                              </td>*/}
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* ─── Draft Items Section ───────────────────────────── */}
+                  {draftItems.length > 0 && (
+                    <div className="grnf-draft-items-section">
+                      <div className="grnf-draft-items-header">
+                        <h3>Draft Items</h3>
+                        <span className="grnf-draft-badge">
+                          <FaBox size={10} /> {draftItems.length} item{draftItems.length !== 1 ? 's' : ''}
+                        </span>
+                      </div>
+                      <div className="grnf-draft-items-list">
+                        {draftItems.map((item, index) => (
+                          <div key={item.id} className="grnf-draft-item">
+                            <div className="grnf-draft-item-left">
+                              <span className="grnf-draft-item-index">#{index + 1}</span>
+                              <span className="grnf-draft-item-name">{item.itemName || 'Unnamed Item'}</span>
+                              <div className="grnf-draft-item-details">
+                                <span>Code: {item.itemCode || 'N/A'}</span>
+                                <span>Qty: <span className="grnf-draft-item-qty">{item.receivedQty}</span></span>
+                                <span>UOM: {item.uom || 'N/A'}</span>
+                                <span>Rate: {item.rate || 0}</span>
+                              </div>
+                            </div>
+                            <div className="grnf-draft-item-right">
+                              <span className="grnf-draft-item-status">Draft</span>
+                              <button
+                                className="grnf-draft-item-remove"
+                                onClick={() => removeItem(formData.items.indexOf(item))}
+                                type="button"
+                                disabled={submitting}
+                              >
+                                <FaTrash size={12} />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ─── Bill Summary ─────────────────────────────────── */}
+                  <div className="grnf-bill-summary">
+                    <div className="grnf-bill-summary-title">
+                      <FaReceipt size={14} /> Bill Summary
+                    </div>
+                    <div className="grnf-bill-summary-row">
+                      <span>Subtotal</span>
+                      <span>{billTotals.subtotal.toFixed(2)}</span>
+                    </div>
+                    <div className="grnf-bill-summary-row">
+                      <span><FaPercentage size={10} /> Total SGST</span>
+                      <span>{billTotals.sgst.toFixed(2)}</span>
+                    </div>
+                    <div className="grnf-bill-summary-row">
+                      <span><FaPercentage size={10} /> Total CGST</span>
+                      <span>{billTotals.cgst.toFixed(2)}</span>
+                    </div>
+                    <div className="grnf-bill-summary-row">
+                      <span><FaMoneyBillWave size={10} /> Delivery Charges{formData.freeDelivery ? ' (Free)' : ''}</span>
+                      <span>{deliveryChargeAmount.toFixed(2)}</span>
+                    </div>
+                    <div className="grnf-bill-summary-row grnf-bill-summary-total">
+                      <span>Grand Total</span>
+                      <span>{grandTotal.toFixed(2)}</span>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+
+          </div>
+
+          {/* ─── Footer ────────────────────────────────────────────────── */}
+          <div className="grnf-footer">
+            <button
+              type="button"
+              onClick={() => navigate('/grn')}
+              className="grnf-cancel-btn"
+              disabled={submitting}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handlePrint}
+              className="grnf-print-footer-btn"
+              disabled={submitting}
+            >
+              <FaPrint size={12} /> Print
+            </button>
+            <button
+              type="submit"
+              disabled={submitting}
+              className="grnf-submit-btn"
+            >
+              {submitting && <FaSpinner className="grnf-spinning" />}
+              <FaSave size={12} />
+              {isEditMode ? 'Update' : 'Save'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
 }

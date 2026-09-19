@@ -450,7 +450,7 @@ export default function QualityInspectionList() {
             )}
           </div>
         </div>
-        <div className="qi-filter-right">
+        <div className="bom-filter-right">
           <select
             value={selectedResult}
             onChange={(e) => setSelectedResult(e.target.value)}
@@ -574,10 +574,11 @@ export default function QualityInspectionList() {
             )}
           </div>
 
-          <button className="qi-btn-new" onClick={() => navigate('/quality-inspection/new')}>
+          
+        </div>
+        <button className="qi-btn-new" onClick={() => navigate('/quality-inspection/new')}>
             <FaPlus size={12} /> Add Quality Inspection
           </button>
-        </div>
       </div>
 
       {/* Active filters indicator */}

@@ -590,14 +590,14 @@ export default function PurchaseInvoice() {
           </div>
           
         </div>
-        <div className="inv-filter-right">
+        <div className="bom-filter-right">
           <select 
             value={selectedStatus} 
             onChange={(e) => {
               setSelectedStatus(e.target.value);
               setCurrentPage(1);
             }}
-            className="inv-filter-select"
+            className="bom-filter-select"
           >
             <option value="All">All Status</option>
             {statusOptions.map(s => <option key={s} value={s}>{s}</option>)}
@@ -737,12 +737,13 @@ export default function PurchaseInvoice() {
             <FaFilter size={12} />
             Filter
           </button>
+           <button className="inv-btn-secondary" onClick={handleCreateJournalEntry}>
+            <FaFileAlt size={12} /> New Journal Entry
+          </button>
         </div>
        
         <div className="inv-header-actions">
-          <button className="inv-btn-secondary" onClick={handleCreateJournalEntry}>
-            <FaFileAlt size={12} /> New Journal Entry
-          </button>
+         
           <button className="inv-btn-primary" onClick={handleCreate}>
             <FaPlus size={12} /> New Purchase Bill
           </button>
@@ -826,7 +827,7 @@ export default function PurchaseInvoice() {
               <th className="inv-th">Supplier</th>
               <th className="inv-th">Date</th>
               <th className="inv-th">Total</th>
-              <th className="inv-th">Balance</th>
+              {/*<th className="inv-th">Balance</th>*/}
               <th className="inv-th">Status</th>
               <th className="inv-th inv-th-meta">
                 <span className="inv-count-label">{filteredInvoices.length} of {totalRecords}</span>
@@ -863,7 +864,7 @@ export default function PurchaseInvoice() {
                   </td>
                   <td className="inv-td">{inv.supplier}</td>
                   <td className="inv-td">{new Date(inv.date).toLocaleDateString()}</td>
-                  <td className="inv-td">{inv.currency} {inv.totalAmount.toLocaleString()}</td>
+                  {/*<td className="inv-td">{inv.currency} {inv.totalAmount.toLocaleString()}</td>*/}
                   <td className={`inv-td ${inv.balanceAmount > 0 && new Date(inv.dueDate) < new Date() ? 'inv-balance-overdue' : ''}`}>
                     {inv.currency} {inv.balanceAmount.toLocaleString()}
                   </td>
@@ -992,15 +993,15 @@ export default function PurchaseInvoice() {
                           </div>
                         </div>
 
-                        <div className="inv-mobile-detail-row">
+                        {/*<div className="inv-mobile-detail-row">
                           <span className="inv-mobile-detail-label">Total</span>
                           <span className="inv-mobile-detail-value inv-total-val">
                             {inv.currency} {inv.totalAmount.toLocaleString()}
                           </span>
-                        </div>
+                        </div>*/}
 
                         <div className="inv-mobile-detail-row">
-                          <span className="inv-mobile-detail-label">Balance</span>
+                          <span className="inv-mobile-detail-label">Total</span>
                           <span className={`inv-mobile-detail-value ${inv.balanceAmount > 0 && new Date(inv.dueDate) < new Date() ? 'inv-balance-overdue' : ''}`}>
                             {inv.currency} {inv.balanceAmount.toLocaleString()}
                           </span>

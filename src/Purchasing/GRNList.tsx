@@ -630,11 +630,11 @@ export default function GRNList() {
             )}
           </div>
         </div>
-        <div className="grn-filter-right">
+        <div className="bom-filter-right">
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="grn-filter-select"
+            className="bom-filter-select"
           >
             <option value="all">All Status</option>
             <option value="draft">Draft</option>
@@ -646,7 +646,7 @@ export default function GRNList() {
           {/* Created On Button with Calendar Dropdown */}
           <div ref={dateFilterRef} style={{ position: 'relative', display: 'inline-block' }}>
             <button
-              className="grn-sort-btn"
+              className="bom-sort-btn"
               onClick={() => setShowDateFilterDropdown(!showDateFilterDropdown)}
               style={dateFrom ? { borderColor: '#3182ce', color: '#3182ce' } : undefined}
             >
@@ -769,11 +769,11 @@ export default function GRNList() {
               </div>
             )}
           </div>
-
+</div>
           <button className="grn-btn-primary" onClick={() => navigate('/grn/new')}>
             <FaPlus size={12} /> New GRN
           </button>
-        </div>
+        
       </div>
 
       {/* ─── Active filters indicator ───────────────────────────── */}

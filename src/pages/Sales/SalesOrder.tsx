@@ -1687,7 +1687,7 @@ export default function SalesOrder() {
         .qt-date-picker-container {
           position: relative;
           display: inline-block;
-          margin-left: 8px;
+          margin-left: 2px;
         }
 
         .qt-date-picker-trigger {
@@ -2695,7 +2695,7 @@ export default function SalesOrder() {
           </div>
         </div>
         
-        <div className="qt-filter-right">
+        <div className="bom-filter-right">
           <select
             value={selectedStatus}
             onChange={(e) => setSelectedStatus(e.target.value)}

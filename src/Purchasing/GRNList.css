@@ -1300,3 +1300,67 @@
   .grn-pagination-center { flex-wrap: wrap; justify-content: center; }
   .grn-modal { max-width: 95%; }
 }
+/* ─── Tabs (BOM style) ──────────────────────────────────────────── */
+@media (max-width: 380px) {
+.grn-tabs {
+  display: flex;
+  gap: 1px;
+  background: var(--card-bg, #ffffff);
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 10px;
+  padding: 0px;
+  flex-shrink: 0;
+}
+
+.grn-tab {
+  flex: 1;
+  padding: 2px 2px;
+  border: none;
+  border-radius: 1px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background: transparent;
+  color: var(--text-secondary, #6b7280);
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+
+.grn-tab:hover {
+  background: var(--nav-hover, #f9fafb);
+  color: var(--text-primary, #1f2433);
+}
+
+.grn-tab--active {
+  background: var(--primary-color, #6366f1);
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
+}
+
+.grn-tab--active:hover {
+  background: var(--primary-hover, #4f46e5);
+  color: #ffffff;
+}
+
+.grn-tab-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  margin-left: 1px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  background: rgba(0, 0, 0, 0.1);
+}
+
+.grn-tab--active .grn-tab-count {
+  background: rgba(255, 255, 255, 0.25);
+}
+}

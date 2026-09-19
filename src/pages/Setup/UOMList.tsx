@@ -537,7 +537,7 @@ export default function UOMList() {
             )}
           </div>
         </div>
-        <div className="uoml-filter-right">
+        <div className="bom-filter-right">
           <select 
             value={statusFilter} 
             onChange={(e) => setStatusFilter(e.target.value)}
@@ -665,11 +665,12 @@ export default function UOMList() {
           </div>
 
           
-          <button className="uoml-btn-primary" onClick={handleOpenModal}>
+          
+        </div>
+        <button className="uoml-btn-primary" onClick={handleOpenModal}>
             <FaPlus size={12} />
             Add UOM
           </button>
-        </div>
       </div>
 
       {/* Active filters indicator */}

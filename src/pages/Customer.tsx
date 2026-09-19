@@ -409,7 +409,7 @@ const Customer: React.FC = () => {
             )}
           </div>
         </div>
-        <div className="igl-filter-right">
+        <div className="bom-filter-right">
           <select
             value={statusFilter}
             onChange={(e) => handleStatusFilterChange(e.target.value)}

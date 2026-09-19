@@ -294,7 +294,7 @@ export default function CompanyList() {
             )}
           </div>
         </div>
-        <div className="cl-filter-right">
+        <div className="bom-filter-right">
           <select
             value={groupFilter}
             onChange={(e) => { setGroupFilter(e.target.value); setCurrentPage(1); }}

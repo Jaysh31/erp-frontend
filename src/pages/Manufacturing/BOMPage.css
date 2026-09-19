@@ -1811,7 +1811,7 @@
     grid-template-rows: auto auto !important;
     gap: 8px !important;
     width: 100% !important;
-  }
+  } 
 
   /* Row 1 (Filters): Left = Active status (bom-filter-select), Right = Date Filter (bom-date-range-wrapper) */
   .bom-filter-right .bom-filter-select {

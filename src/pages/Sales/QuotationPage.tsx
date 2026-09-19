@@ -1391,7 +1391,7 @@ export default function QuotationPage() {
             )}
           </div>
         </div>
-        <div className="qt-filter-right">
+        <div className="bom-filter-right">
           <select
             value={selectedStatus}
             onChange={(e) => setSelectedStatus(e.target.value)}
@@ -1620,10 +1620,11 @@ export default function QuotationPage() {
   )}
 </div>
 
-          <button className="qt-btn-new" onClick={() => navigate('/quotation/new')}>
+          
+        </div>
+        <button className="jc-btn-primary" onClick={() => navigate('/quotation/new')}>
             <FaPlus size={12} /> New Quotation
           </button>
-        </div>
       </div>
 
       {/* Active filters indicator */}

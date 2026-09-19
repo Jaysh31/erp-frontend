@@ -720,7 +720,9 @@ export default function WorkstationList() {
                 )}
               </div>
 
-              <button 
+              
+            </div>
+            <button 
                 className="wo-btn-primary" 
                 onClick={() => {
                   setEditData(null);
@@ -730,7 +732,6 @@ export default function WorkstationList() {
                 <FaPlus size={12} />
                 Add Workstation
               </button>
-            </div>
           </div>
 
           {/* Active filters indicator */}

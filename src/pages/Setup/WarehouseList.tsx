@@ -427,7 +427,7 @@ export default function WarehouseList() {
             )}
           </div>
         </div>
-        <div className="wl-filter-right">
+        <div className="bom-filter-right">
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
@@ -667,11 +667,12 @@ export default function WarehouseList() {
           </div>
 
 
-          <button className="wl-btn-primary" onClick={handleAddWarehouse}>
+         
+        </div>
+         <button className="wl-btn-primary" onClick={handleAddWarehouse}>
             <FaPlus size={12} />
             Add Warehouse
           </button>
-        </div>
       </div>
 
       {/* Active filters indicator */}

@@ -348,10 +348,10 @@ export default function DashboardPage() {
       {/* Header */}
       <div className="dashboard-header">
         <div className="header-left">
-          <h1>🏭 Manufacturing Dashboard</h1>
-          <p className="header-subtitle">
-            Real-time production overview · {dashboardData.totalWorkOrders} orders · {dashboardData.totalJobCards} job cards
-          </p>
+          <h1> Manufacturing Dashboard</h1>
+         {/*} <p className="header-subtitle">
+            🏭 Real-time production overview · {dashboardData.totalWorkOrders} orders · {dashboardData.totalJobCards} job cards
+          </p>*/}
         </div>
         <div className="header-right">
           <button className="btn-primary" onClick={() => handleNavigate("/work-order/new")}>

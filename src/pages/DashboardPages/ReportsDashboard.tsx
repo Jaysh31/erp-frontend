@@ -232,8 +232,8 @@ export default function ReportsDashboard() {
       {/* Header */}
       <div className="dashboard-header">
         <div className="header-left">
-          <h1>📊 Reports Dashboard</h1>
-          <p className="header-subtitle">Analytics and reporting center</p>
+          <h1> Reports Dashboard</h1>
+          {/*<p className="header-subtitle">📊Analytics and reporting center</p>*/}
         </div>
         <div className="header-right">
           <button className="btn-primary" onClick={() => handleNavigate("/reports/new")}>
