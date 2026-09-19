@@ -1168,8 +1168,8 @@ export default function WorkOrderList() {
             )}
           </div>
 
-          {/* Pagination */}
-          <div className="wo-pagination">
+           {/* Pagination */}
+           <div className="wo-pagination">
             <div className="wo-pagination-left">
               <span className="wo-pagination-label">Show:</span>
               <select
@@ -1180,30 +1180,59 @@ export default function WorkOrderList() {
                 {pageSizeOptions.map(size => (
                   <option key={size} value={size}>{size}</option>
                 ))}
-                <button
-                  onClick={goToNextPage}
-                  disabled={currentPage >= displayTotalPages || displayTotalPages === 0}
-                  className="wo-page-btn"
-                >
-                  <FaChevronRight size={12} />
-                </button>
-                <button
-                  onClick={goToLastPage}
-                  disabled={currentPage >= displayTotalPages || displayTotalPages === 0}
-                  className="wo-page-btn"
-                >
-                  <FaAngleDoubleRight size={12} />
-                </button>
-              </div>
-              <div className="wo-pagination-right">
-                <span className="wo-pagination-page">
-                  Page {currentPage} of {displayTotalPages}
-                </span>
-              </div>
+              </select>
+              <span className="wo-pagination-label">entries</span>
             </div>
-          )}
+            <div className="wo-pagination-center">
+              <button
+                onClick={goToFirstPage}
+                disabled={currentPage === 1 || displayTotalPages === 0}
+                className="wo-page-btn"
+              >
+                <FaAngleDoubleLeft size={12} />
+              </button>
+              <button
+                onClick={goToPrevPage}
+                disabled={currentPage === 1 || displayTotalPages === 0}
+                className="wo-page-btn"
+              >
+                <FaChevronLeft size={12} />
+              </button>
+              {getPageNumbers().map(page => (
+                <button
+                  key={page}
+                  onClick={() => setCurrentPage(page)}
+                  className={`wo-page-btn ${currentPage === page ? 'wo-page-btn-active' : ''}`}
+                >
+                  {page}
+                </button>
+              ))}
+              <button
+                onClick={goToNextPage}
+                disabled={currentPage >= displayTotalPages || displayTotalPages === 0}
+                className="wo-page-btn"
+              >
+                <FaChevronRight size={12} />
+              </button>
+              <button
+                onClick={goToLastPage}
+                disabled={currentPage >= displayTotalPages || displayTotalPages === 0}
+                className="wo-page-btn"
+              >
+                <FaAngleDoubleRight size={12} />
+              </button>
+            </div>
+            <div className="wo-pagination-right">
+              <span className="wo-pagination-info">
+                {displayTotalItems > 0
+                  ? `Showing ${getStartIndex()} to ${getEndIndex()} of ${displayTotalItems} entries`
+                  : 'No entries to show'}
+              </span>
+            </div>
+          </div>
         </>
       )}
+
 
       {/* Delete Confirmation Modal */}
       {showDeleteConfirm && selectedItem && (
