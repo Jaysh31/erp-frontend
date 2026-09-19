@@ -20,9 +20,8 @@ import '../Sales/SalesMobileTable.css';
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
 import api from '../../services/api';
 import { PageLoader } from "../components/PageLoader";
-import { span } from "framer-motion/client";
 
-
+//hi
 interface Item {
   id: number;
   item_code: string;
