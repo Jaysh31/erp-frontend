@@ -670,9 +670,6 @@ export default function SalesOrder() {
     return pages;
   };
 
-  const totalAmount = salesOrders.reduce((sum, o) => sum + o.totalAmount, 0);
-  const completedAmount = salesOrders.filter(o => o.status === 'Completed').reduce((sum, o) => sum + o.totalAmount, 0);
-  const fulfillmentRate = totalAmount > 0 ? Math.round((completedAmount / totalAmount) * 100) : 0;
 
   /* ═══════════════════════════════════════════════════════════════════
      VIEW / EDIT NAVIGATION

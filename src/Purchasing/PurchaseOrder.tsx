@@ -234,7 +234,7 @@ export default function PurchaseOrder() {
   const dateFilterRef = useRef<HTMLDivElement>(null);
 
   // Modals
-  const [showViewModal, setShowViewModal] = useState(false);
+  const [, ] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [selectedPO, setSelectedPO] = useState<PurchaseOrder | null>(null);
   const [loading, setLoading] = useState(false);

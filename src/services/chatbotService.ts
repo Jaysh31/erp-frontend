@@ -1,10 +1,8 @@
 // src/services/chatbotService.ts
 import { type ChatbotContextData } from '../hooks/useModulePermissions';
 import {
-  ERP_ENDPOINTS,
   matchEndpoint,
   fetchErpData,
-  askAi,                 // ← ADD
   askAiWithErpContext,   // ← ADD
   type ErpEndpoint,
   type ChatMessage,      // ← ADD (AI chat message type)

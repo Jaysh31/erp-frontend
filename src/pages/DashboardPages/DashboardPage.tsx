@@ -128,7 +128,7 @@ export default function DashboardPage() {
   const [bomLoading, setBomLoading] = useState(false);
   const [producible, setProducible] = useState<ProducibleResult | null>(null);
   const [, setRecentJobCards] = useState<any[]>([]);
-  const [recentInventory, setRecentInventory] = useState<any[]>([]);
+  const [, setRecentInventory] = useState<any[]>([]);
 
   useEffect(() => {
     fetchAllData();

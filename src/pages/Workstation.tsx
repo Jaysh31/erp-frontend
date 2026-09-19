@@ -299,7 +299,7 @@ export default function WorkstationList() {
   // ─── Calculate pagination values (CLIENT-SIDE) ────────────────────────
   
   // Get the current page data from all records
-  const totalFilteredItems = totalItems;
+  const totalFilteredItems = currentPage;
   const totalPages = Math.ceil(totalFilteredItems / itemsPerPage) || 1;
   const validCurrentPage = Math.min(currentPage, totalPages);
   

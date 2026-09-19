@@ -10,8 +10,7 @@ import {
   FaBuilding, FaPhone, FaEnvelope,
   FaClipboardList, FaCalculator, FaChevronDown,
   FaPrint, FaPaperPlane,
-  FaCopy,
-  FaEdit
+  FaCopy
 } from 'react-icons/fa';
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
 import './CreateQuotation.css';
@@ -1263,7 +1262,7 @@ export default function CreateQuotation() {
     navState?.edit === true ||
     navState?.viewMode === false;
 
-  const [isViewMode, setIsViewMode] = useState<boolean>(!startInEdit);
+  const [isViewMode, ] = useState<boolean>(!startInEdit);
   // ─────────────────────────────────────────────────────────────────────
 
   const getDraftStorageKey = () => `${QUOTATION_DRAFT_PREFIX}${id || 'new'}`;
@@ -1666,30 +1665,6 @@ export default function CreateQuotation() {
     });
   };
 
-  const handleIsServiceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (isViewMode) return;
-    const value = e.target.checked;
-
-    setFormData((prev) => ({
-      ...prev,
-      isService: value,
-      items: [
-        { id: '1', itemCode: '', itemName: '', quantity: 1, rate: 0, cgst: 0, sgst: 0, amount: 0, hsn: '', description: '', unit: 'pcs', tax: 0, taxAmount: 0, totalAmount: 0 }
-      ],
-      totalQuantity: 0,
-      baseTotal: 0,
-      cgstTotal: 0,
-      sgstTotal: 0,
-      grandTotal: 0,
-      roundedTotal: 0
-    }));
-
-    setProducts([]);
-    setAllProducts([]);
-    fetchAllItems();
-
-    toast.success(value ? 'Switched to Services' : 'Switched to Items');
-  };
 
   const applyPaymentTemplate = (templateId: string) => {
     if (isViewMode) return;
@@ -2472,15 +2447,7 @@ export default function CreateQuotation() {
   };
 
   // ─── NEW: enter edit mode from view mode ────────────────────────────
-  const handleEnterEditMode = () => {
-    setIsViewMode(false);
-    const params = new URLSearchParams(location.search);
-    params.set('mode', 'edit');
-    navigate(`${location.pathname}?${params.toString()}`, {
-      replace: true,
-      state: { ...(navState || {}), edit: true, viewMode: false },
-    });
-  };
+
   // ─────────────────────────────────────────────────────────────────────
 
   const allValidationErrors = getAllValidationErrors();

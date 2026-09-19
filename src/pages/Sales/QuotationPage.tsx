@@ -759,9 +759,6 @@ export default function QuotationPage() {
     return Math.min(currentPage * itemsPerPage, totalRecords);
   };
 
-  const totalAmount = quotations.reduce((sum, q) => sum + q.totalAmount, 0);
-  const acceptedAmount = quotations.filter(q => q.status === 'Accepted').reduce((sum, q) => sum + q.totalAmount, 0);
-  const conversionRate = totalAmount > 0 ? Math.round((acceptedAmount / totalAmount) * 100) : 0;
 
   // ─── UPDATED: View & Edit navigation ────────────────────────────────
   // View  →  /quotation/:id            (read-only, CreateQuotation detects no edit intent)

@@ -23,7 +23,6 @@ import "./UOMList.css";
 import '../Sales/SalesMobileTable.css';
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
 import api from '../../services/api';
-import { PageLoader } from "../components/PageLoader";
 
 // The authorization token provided
 const AUTH_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjMsImVtYWlsIjoiamF5ZXNod2FrbGUxMEBnbWFpbC5jb20iLCJpYXQiOjE3ODkwMzY0NDcsImV4cCI6MTc4OTEyMjg0N30.SzSd1wlUZ5VomUTL4GlQ_N24zdGPgHpuNdatB2GQZuo";

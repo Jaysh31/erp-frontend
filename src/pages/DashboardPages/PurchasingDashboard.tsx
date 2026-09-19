@@ -4,9 +4,8 @@ import { useNavigate } from "react-router-dom";
 import {
   FaShoppingCart, FaMoneyBillWave, FaUsers, 
   FaFileInvoice, FaCheckCircle, FaClock, 
-  FaPlus, FaArrowRight, FaPercent, FaTruck, FaBoxes,
-  FaDollarSign, FaBuilding
-} from "react-icons/fa";
+  FaPlus, FaArrowRight, FaTruck, FaBoxes,
+  FaDollarSign} from "react-icons/fa";
 import "./PurchasingDashboard.css";
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
 import api from "../../services/api";
