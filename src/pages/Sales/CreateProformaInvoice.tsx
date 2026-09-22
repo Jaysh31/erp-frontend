@@ -24,7 +24,7 @@ import {
   FaExclamationCircle,
   FaQuestionCircle,
   FaFileAlt,
-  
+
   FaEye
 } from 'react-icons/fa';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
@@ -32,7 +32,6 @@ import api from '../../services/api';
 import toast from 'react-hot-toast';
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
 import './CreateProformaInvoice.css';
-
 // ===== INTERFACES (Same as Sales Bill) =====
 
 interface Customer {
@@ -223,7 +222,9 @@ const getTaxIdFromRate = (taxRate: number, taxOpts: TaxOption[]): number | undef
 };
 
 // ===== API SERVICE =====
-
+// ★ FIX: removed stray `const handoffAppliedRef = useRef(false);`
+// which was called at module scope (not inside a component) and
+// triggered React's "Invalid hook call" error.
 class ProformaAPI {
   private apiService: any;
 
@@ -302,29 +303,29 @@ const SuccessModal: React.FC<SuccessModalProps> = ({
         <div className="npi-modal-success-icon">
           <FaCheckCircle size={48} />
         </div>
-        
+
         <h2 className="npi-modal-title">✓ Proforma Created!</h2>
-        
+
         <p className="npi-modal-message">{message}</p>
-        
+
         <div className="npi-modal-details">
           <div className="npi-modal-detail-item">
             <span className="npi-modal-detail-label">Proforma Number</span>
             <span className="npi-modal-detail-value npi-modal-pi-number">{proformaNumber}</span>
           </div>
-          
+
           {customerName && (
             <div className="npi-modal-detail-item">
               <span className="npi-modal-detail-label">Customer</span>
               <span className="npi-modal-detail-value">{customerName}</span>
             </div>
           )}
-          
+
           <div className="npi-modal-detail-item">
             <span className="npi-modal-detail-label">Total Items</span>
             <span className="npi-modal-detail-value">{totalItems}</span>
           </div>
-          
+
           {totalAmount !== undefined && (
             <div className="npi-modal-detail-item">
               <span className="npi-modal-detail-label">Total Amount</span>
@@ -334,7 +335,7 @@ const SuccessModal: React.FC<SuccessModalProps> = ({
             </div>
           )}
         </div>
-        
+
         <div className="npi-modal-actions">
           <button onClick={onViewDetails} className="npi-modal-btn npi-modal-btn-primary">
             View Proforma
@@ -855,6 +856,12 @@ const CreateProformaInvoice: React.FC = () => {
   const { id } = useParams<{ id?: string }>();
   const location = useLocation();
   const { theme } = useAdminTheme();
+
+  // ★ FIX: handoffAppliedRef declared ONCE at the top of the component,
+  // so it is a valid hook call. Previously it was declared at module
+  // scope AND inside loadExistingSalesOrderIntoForm, both illegal.
+  const handoffAppliedRef = useRef(false);
+
   const [loadingExistingRecord, setLoadingExistingRecord] = useState<boolean>(false);
   const [recordLoaded, setRecordLoaded] = useState<boolean>(false);
 
@@ -1004,12 +1011,12 @@ const CreateProformaInvoice: React.FC = () => {
     const newId = String(paymentSchedule.length + 1);
     setPaymentSchedule([
       ...paymentSchedule,
-      { 
-        id: newId, 
-        paymentTerm: '', 
-        dueDate: '', 
-        durationDays: 0, 
-        invoicePortion: 0, 
+      {
+        id: newId,
+        paymentTerm: '',
+        dueDate: '',
+        durationDays: 0,
+        invoicePortion: 0,
         paymentAmount: 0,
         paidAmount: 0,
         status: 'Pending'
@@ -1027,12 +1034,12 @@ const CreateProformaInvoice: React.FC = () => {
     if (isReadOnly) return; // ✅ Prevent changes in read-only mode
     const updated = [...paymentSchedule];
     updated[index] = { ...updated[index], ...patch };
-    
+
     if (patch.invoicePortion !== undefined) {
       const grandTotal = getGrandTotalWithRound();
       updated[index].paymentAmount = (patch.invoicePortion / 100) * grandTotal;
     }
-    
+
     setPaymentSchedule(updated);
   };
 
@@ -1157,6 +1164,9 @@ const CreateProformaInvoice: React.FC = () => {
 
     // Restore warehouse from the saved child row. The form stores the
     // warehouse id, while the API stores the warehouse name on each item.
+    // ★ FIX: removed the invalid `const handoffAppliedRef = useRef(false);`
+    // that used to be here. The ref is now declared once at the top of
+    // the component.
     const sourceItems = Array.isArray(record.items) ? record.items : [];
     const firstWarehouseName = sourceItems.find((it: any) => it?.warehouse)?.warehouse || record.set_warehouse || '';
     if (firstWarehouseName) {
@@ -1236,7 +1246,7 @@ const CreateProformaInvoice: React.FC = () => {
   // Update payment amounts when grand total changes
   useEffect(() => {
     const grandTotal = getGrandTotalWithRound();
-    setPaymentSchedule(prev => 
+    setPaymentSchedule(prev =>
       prev.map(p => ({
         ...p,
         paymentAmount: (p.invoicePortion / 100) * grandTotal
@@ -1312,7 +1322,7 @@ const CreateProformaInvoice: React.FC = () => {
             disabled: wh.disabled || 0
           }));
           setWarehouses(mapped);
-          
+
           const finishedGoods = mapped.find(w => w.warehouse_name.toLowerCase() === 'finished goods');
           if (finishedGoods) {
             setWarehouse(finishedGoods.id.toString());
@@ -1426,7 +1436,7 @@ const CreateProformaInvoice: React.FC = () => {
               const tax_id = getTaxIdFromRate(taxRate, taxOptions);
               const amount = (updated.quantity || 0) * product.rate;
               const taxAmount = (amount * taxRate) / 100;
-              
+
               updated.itemName = product.itemName || '';
               updated.hsn = product.hsn || '';
               updated.description = product.description || '';
@@ -1565,11 +1575,11 @@ const CreateProformaInvoice: React.FC = () => {
     try {
       const payload = buildPayload('Submitted');
       const response = await proformaAPI.createProforma(payload);
-      
+
       if (!response.data.success) {
         throw new Error(response.data.message || 'Failed to create proforma');
       }
-      
+
       const responseData = response.data.data;
       const proformaName = responseData?.name || responseData?.id || proformaNumber;
       const totalItemsCount = items.filter(i => i.itemCode && i.quantity > 0).length;
@@ -1603,10 +1613,10 @@ const CreateProformaInvoice: React.FC = () => {
       const payload = buildPayload('Draft');
       const response = await proformaAPI.createProforma(payload);
       if (!response.data.success) throw new Error(response.data.message || 'Failed to save');
-      
+
       const responseData = response.data.data;
       const proformaName = responseData?.name || responseData?.id || proformaNumber;
-      
+
       toast.success(`Draft saved: ${proformaName}`, { id: toastId });
       setTimeout(() => navigate('/proforma-invoice'), 1000);
     } catch (error: any) {
@@ -1756,16 +1766,16 @@ const CreateProformaInvoice: React.FC = () => {
           </button>
           <div className="npi-header-divider" />
           {/*<h1 className="npi-header-title">
-            <FaFileInvoice className="npi-header-icon" /> 
+            <FaFileInvoice className="npi-header-icon" />
             {isReadOnly ? 'View Proforma Invoice' : 'Create Proforma Invoice'}
           </h1>*/}
           {isReadOnly && (
-            <span style={{ 
-              marginLeft: '12px', 
-              background: 'var(--primary-color, #2563eb)', 
-              color: '#fff', 
-              padding: '2px 12px', 
-              borderRadius: '12px', 
+            <span style={{
+              marginLeft: '12px',
+              background: 'var(--primary-color, #2563eb)',
+              color: '#fff',
+              padding: '2px 12px',
+              borderRadius: '12px',
               fontSize: '11px',
               fontWeight: 600
             }}>

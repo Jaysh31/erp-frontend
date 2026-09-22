@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useParams } from "react-router-dom";
 import { AdminThemeProvider } from './admin-theme/AdminThemeContext';
 import ChatbotWidget from './pages/components/ChatbotWidget';
 import { ModuleProvider } from './context/ModuleContext';
@@ -15,6 +15,7 @@ import ItemGroupForm from "./pages/Setup/Itemgroupform";
 import ItemGroupList from "./pages/Setup/Itemgrouplist";
 import Itemlist from "./pages/Setup/Itemlist";
 import ItemForm from "./pages/Setup/Itemform";
+
 import ItemAttributeForm from "./pages/Setup/ItemAttributeForm";
 import WarehouseForm from "./pages/Setup/WarehouseForm";
 import WarehouseList from "./pages/Setup/WarehouseList";
@@ -106,6 +107,20 @@ import CreateProformaInvoice from "./pages/Sales/CreateProformaInvoice";
 import ItemBulkUpload from "./pages/Setup/Itembulkupload";
 import GeneralAccountEntry from "./pages/Generalaccountentry";
 
+// ────────────────────────────────────────────────────────────
+// FIXED REDIRECT HELPER
+// Reads :id from the current URL and builds the target path
+// with the real ID. Replaces the broken pattern:
+//   <Navigate to="/xyz/:id" />  // ❌ sends user to literal ":id"
+// Usage:
+//   <RedirectTo to={(id) => `/xyz/${id}`} />
+// ────────────────────────────────────────────────────────────
+function RedirectTo({ to }: { to: (id: string) => string }) {
+  const { id } = useParams<{ id: string }>();
+  if (!id) return <Navigate to="/" replace />;
+  return <Navigate to={to(id)} replace />;
+}
+
 function App() {
   return (
     <AdminThemeProvider>
@@ -138,6 +153,8 @@ function App() {
                 <Route path="/lead" element={<LeadManagement />} />
                 <Route path="/leads/new" element={<LeadForm />} />
                 <Route path="/leads/:id" element={<LeadForm />} />
+                {/* Redirect: /lead/:id → /leads/:id */}
+                <Route path="/lead/:id" element={<RedirectTo to={(id) => `/leads/${id}`} />} />
                 <Route path="/quotation" element={<QuotationPage />} />
                 <Route path="/quotation/new" element={<CreateQuotationPage />} />
                 <Route path="/quotation/:id" element={<CreateQuotationPage />} />
@@ -156,22 +173,34 @@ function App() {
                 <Route path="/contacts/view/:id" element={<ContactForm />} />
                 <Route path="/material-request" element={<MaterialRequest />} />
                 <Route path="/purchase-order" element={<PurchaseOrder />} />
+                {/* ✅ ADDED: Purchase Order list-style detail routes */}
+                <Route path="/purchase-order/new" element={<PurchaseOrderForm />} />
+                <Route path="/purchase-order/edit/:id" element={<PurchaseOrderForm />} />
+                <Route path="/purchase-order/view/:id" element={<PurchaseOrderForm />} />
+                {/* Redirect: /purchase-order/:id → /purchase-order/view/:id */}
+                <Route path="/purchase-order/:id" element={<RedirectTo to={(id) => `/purchase-order/view/${id}`} />} />
                 <Route path="/request-for-quotation" element={<RequestForQuotation />} />
                 <Route path="/supplier-quotation" element={<SupplierQuotation />} />
                 <Route path="/supplier-quotation/new" element={<NewSupplierQuotation />} />
                 <Route path="/purchase-invoice" element={<PurchaseInvoice />} />
                 <Route path="/purchase-invoice/new" element={<PurchaseInvoiceForm />} />
                 <Route path="/purchase-invoice/edit/:id" element={<PurchaseInvoiceForm />} />
+                {/* Redirect: /purchase-invoice/:id → /purchase-invoice/edit/:id */}
+                <Route path="/purchase-invoice/:id" element={<RedirectTo to={(id) => `/purchase-invoice/edit/${id}`} />} />
 
                 <Route path="/customer" element={<Customer />} />
                 <Route path="/customer/add" element={<AddCustomer />} />
                 <Route path="/customer/edit/:id" element={<AddCustomer />} />
                 <Route path="/customer/view/:id" element={<AddCustomer />} />
+                {/* ✅ ADDED: /customer/:id → /customer/view/:id */}
+                <Route path="/customer/:id" element={<RedirectTo to={(id) => `/customer/view/${id}`} />} />
 
                 <Route path="/sales-bill" element={<SalesInvoice />} />
                 <Route path="/sales-bill/new" element={<CreateSalesBill />} />
                 <Route path="/sales-bill/edit/:id" element={<CreateSalesBill />} />
                 <Route path="/sales-bill/view/:id" element={<CreateSalesBill />} />
+                {/* Redirect: /sales-bill/:id → /sales-bill/edit/:id */}
+                <Route path="/sales-bill/:id" element={<RedirectTo to={(id) => `/sales-bill/edit/${id}`} />} />
 
                 {/* Module Dashboards */}
                 <Route path="/dashboard/manufacturing" element={<DashboardPage />} />
@@ -192,11 +221,12 @@ function App() {
                 <Route path="/delivery-challan/edit/:id" element={<DeliveryChallanForm />} />
                 <Route path="/delivery-challan/new" element={<DeliveryChallanForm />} />
                 <Route path="/delivery-challan/view/:id" element={<DeliveryChallanForm />} />
+                {/* Redirect: /delivery-challan/:id → /delivery-challan/view/:id */}
+                <Route path="/delivery-challan/:id" element={<RedirectTo to={(id) => `/delivery-challan/view/${id}`} />} />
                 <Route path="/outstanding-receivables" element={<OutstandingDashboard />} />
                 <Route path="/customer-payments" element={<CustomerPayments />} />
                 <Route path="/customer-invoices" element={<CustomerInvoices />} />
                 <Route path="/payables/supplier-bills" element={<SupplierBills />} />
-
 
                 <Route path="/accounts/entry" element={<GeneralAccountEntry />} />
 
@@ -204,6 +234,8 @@ function App() {
                 <Route path="/job-card" element={<JobCardManagement />} />
                 <Route path="/job-cards/new" element={<JobCardForm />} />
                 <Route path="/job-cards/:id" element={<JobCardForm />} />
+                {/* Redirect: /job-card/:id → /job-cards/:id */}
+                <Route path="/job-card/:id" element={<RedirectTo to={(id) => `/job-cards/${id}`} />} />
 
                 <Route path="/item-group" element={<ItemGroupList />} />
                 <Route path="/item-group/:id" element={<ItemGroupForm />} />
@@ -212,17 +244,18 @@ function App() {
                 <Route path="/stock-entry/:id" element={<StockentryForm2 />} />
 
                 <Route path="/InventoryList" element={<InventoryList />} />
+                {/* Inventory has its own detail route using itemCode */}
+                <Route path="/InventoryList/:itemCode" element={<InventoryDetail />} />
                 <Route path="/inventory/detail/:itemCode" element={<InventoryDetail />} />
 
                 <Route path="/item-bulk-upload" element={<ItemBulkUpload />} />
                 <Route path="/item-list" element={<Itemlist />} />
                 <Route path="/item/:id" element={<ItemForm />} />
+                {/* Redirect: /item-list/385 → /item/385 */}
+                <Route path="/item-list/:id" element={<RedirectTo to={(id) => `/item/${id}`} />} />
                 <Route path="/item-attribute/new" element={<ItemAttributeForm />} />
                 <Route path="/item-attribute/:id" element={<ItemAttributeForm />} />
 
-                <Route path="/purchase-order/new" element={<PurchaseOrderForm />} />
-                <Route path="/purchase-order/edit/:id" element={<PurchaseOrderForm />} />
-                <Route path="/purchase-order/view/:id" element={<PurchaseOrderForm />} />
                 <Route path="/proforma-invoice" element={<ProformaInvoice />} />
                 <Route path="/proforma-invoice/new" element={<CreateProformaInvoice />} />
                 <Route path="/proforma-invoice/:id" element={<CreateProformaInvoice />} />
@@ -248,6 +281,9 @@ function App() {
                 <Route path="/work-order/:id" element={<WorkOrderForm />} />
 
                 <Route path="/NewWorkstation" element={<NewWorkstation />} />
+                {/* ✅ ADDED: /Workstation alias (list + detail) */}
+                <Route path="/Workstation" element={<Workstation />} />
+                <Route path="/Workstation/:id" element={<NewWorkstation />} />
 
                 <Route path="/employee" element={<Employee />} />
                 <Route path="/employee/new" element={<EmployeeForm />} />
@@ -261,6 +297,8 @@ function App() {
                 <Route path="/operation/new" element={<OperationQuickAdd />} />
                 <Route path="/operation/:id" element={<OperationQuickAdd />} />
                 <Route path="/operation/:id/edit" element={<OperationQuickAdd />} />
+                {/* Redirect: /operations/123 → /operation/123 */}
+                <Route path="/operations/:id" element={<RedirectTo to={(id) => `/operation/${id}`} />} />
 
                 <Route path="/user/create" element={<UserCreate />} />
                 <Route path="/user/roles/:id" element={<UserRoles />} />
@@ -283,7 +321,9 @@ function App() {
                 <Route path="/bank-details" element={<BankDetailsForm />} />
                 <Route path="/bom" element={<BOMPage />} />
                 <Route path="/bom/new" element={<NewBOMPage />} />
-                <Route path="/Workstation" element={<Workstation />} />
+                {/* BOM has no dedicated detail/edit page yet —
+                    route /bom/:id to the create form so chat navigation still works */}
+                <Route path="/bom/:id" element={<NewBOMPage />} />
 
                 <Route path="/settings" element={<Settings />} />
               </Route>

@@ -1,5 +1,3 @@
-
-
 import { useState, useEffect, useRef, useMemo } from 'react';
 import {
   FaSave, FaSpinner, FaArrowLeft,
@@ -183,7 +181,20 @@ export default function PurchaseInvoiceForm() {
   const [searchParams] = useSearchParams();
   const mode = searchParams.get('mode');
   const isViewMode = mode === 'view';
-  const isEdit = Boolean(id);
+
+  // ✅ FIX: Validate the route param.
+  //    If `id` is missing, is "new", is the literal string ":id",
+  //    or is not purely numeric, we treat this as a CREATE form and
+  //    never call the detail API (which would 400 Bad Request and
+  //    then redirect the user back to the list).
+  const hasValidId =
+    Boolean(id) &&
+    id !== 'new' &&
+    !String(id).startsWith(':') &&
+    /^\d+$/.test(String(id));
+
+  const isEdit = hasValidId;
+
   useAdminTheme();
 
   // ── Core form state ────────────────────────────────────────────────────────
@@ -387,7 +398,10 @@ export default function PurchaseInvoiceForm() {
     fetchItems();
     fetchTaxes();
     fetchWarehouses();
-    if (isEdit && id) loadExistingInvoice(id);
+    // ✅ FIX: Only load the invoice when we have a *valid* numeric id.
+    if (isEdit && id && /^\d+$/.test(String(id))) {
+      loadExistingInvoice(id);
+    }
 
     const handleOutsideClick = (e: MouseEvent) => {
       if (supplierSearchRef.current && !supplierSearchRef.current.contains(e.target as Node)) {
@@ -1022,6 +1036,12 @@ export default function PurchaseInvoiceForm() {
 
   // ─── Load existing invoice ──────────────────────────────────────────────────
   const loadExistingInvoice = async (invoiceId: string) => {
+    // ✅ FIX: Guard against bad ids reaching the API.
+    if (!invoiceId || String(invoiceId).startsWith(':') || !/^\d+$/.test(String(invoiceId))) {
+      console.warn(`Skipping loadExistingInvoice — invalid id "${invoiceId}"`);
+      return;
+    }
+
     setPageLoading(true);
     try {
       const res = await api.get(`/purchase-invoice/${invoiceId}`);
@@ -1870,7 +1890,7 @@ export default function PurchaseInvoiceForm() {
     }
 
     const payload: any = {
-      ...(isEdit && id ? { id: Number(id) } : {}),
+      ...(isEdit && id && /^\d+$/.test(String(id)) ? { id: Number(id) } : {}),
       name: isEdit ? (formData.invoiceNumber || 'PINV-') : 'PINV-',
       modified_by: 'Administrator',
       naming_series: 'PINV-',

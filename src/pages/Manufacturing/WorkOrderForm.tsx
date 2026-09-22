@@ -50,7 +50,6 @@ interface CommentRow {
   time: string;
 }
 
-// Exact shape from GET /grn?page=1&limit=10&type=External
 interface GRNData {
   id: number;
   grn_number: string;
@@ -90,8 +89,6 @@ interface GRNListResponse {
   };
 }
 
-// Full GRN detail — GET /grn/:id. This is the shape that actually carries
-// the item lines + warehouse, which the list endpoint above does not.
 interface GRNItemDetail {
   id: number;
   grn_id: number;
@@ -127,7 +124,6 @@ interface WorkOrderData {
   name: string;
   status: Status;
   type: OrderType;
-  // Core
   company: string;
   qty_to_manufacture: number;
   item_to_manufacture: string;
@@ -135,20 +131,16 @@ interface WorkOrderData {
   item_id: string;
   stock_uom: string;
   bom_no: string;
-  // Qty tracking (read-only in most cases)
   material_transferred_for_manufacturing: number;
   manufactured_qty: number;
   additional_transferred_qty: number;
   disassembled_qty: number;
-  // Warehouses
   source_warehouse: string;
   target_warehouse: string;
   wip_warehouse: string;
   transfer_material_against: "Work Order" | "Job Card";
-  // Tables
   operations: OperationRow[];
   required_items: RequiredItemRow[];
-  // Configuration
   planned_start_date: string;
   actual_start_date: string;
   actual_end_date: string;
@@ -157,10 +149,8 @@ interface WorkOrderData {
   actual_operating_cost: number;
   additional_operating_cost: number;
   corrective_operation_cost: number;
-  // Comments / Activity
   comments: CommentRow[];
   activity: { id: string; text: string; time: string }[];
-  // Connections
   items_produced_pct: number;
   completed_operations: string[];
   job_card_progress: string;
@@ -170,16 +160,12 @@ interface WorkOrderData {
   serial_no_count: number;
   batch_count: number;
   material_request_count: number;
-  // External WO fields
   selected_grn_id?: number;
   selected_grn?: GRNData;
   customer_name?: string;
   customer_po?: string;
-  // Media
   media_files: { id: string; type: "image" | "video"; url: string; name: string; }[];
 }
-
-// ─── BOM API shape ────────────────────────────────────────────────────────────
 
 interface BomListItem {
   id: number;
@@ -189,7 +175,7 @@ interface BomListItem {
   uom: string;
   company: string;
   is_default: number;
-  type: string; // "Internal" | "External" — used to filter the BOM picker by WO type
+  type: string;
   operating_cost?: number;
   total_cost?: number;
 }
@@ -199,7 +185,6 @@ interface BomListResponse {
   data: { total: number; page: number; limit: number; records: BomListItem[] };
 }
 
-// Exact shape from your /bom/:id response
 interface BomApiOperation {
   id: number;
   operation: string;
@@ -211,11 +196,8 @@ interface BomApiOperation {
   source_warehouse?: string | null;
   wip_warehouse?: string | null;
   fg_warehouse?: string | null;
-  
 }
 
-// Per-warehouse stock breakdown returned inline on each BOM item line
-// (GET /bom/:id → data.items[].stock_by_warehouse).
 interface BomItemWarehouseStock {
   id: number;
   warehouse_name: string;
@@ -268,8 +250,6 @@ interface BomDetailResponse {
   };
 }
 
-// ─── Warehouse API shape ──────────────────────────────────────────────────────
-
 interface Warehouse {
   id: number;
   warehouse_name: string;
@@ -280,11 +260,6 @@ interface WarehouseResponse {
   success: number;
   data: { records: Warehouse[] };
 }
-
-// ─── Operation master API shape (GET /operation) ─────────────────────────────
-// Used for both External and Internal Work Orders: lets the user pick a
-// defined operation (with its workstation + hour rate) rather than typing
-// free text.
 
 interface OperationMaster {
   id: number;
@@ -302,11 +277,6 @@ interface OperationListResponse {
   data: OperationMaster[];
 }
 
-// ─── Raw Item API shape (GET /item?type=raw) ──────────────────────────────────
-// Used for both Internal and External Work Orders: lets the user pick a
-// defined raw-material item for a Required Items row instead of typing
-// free text for item code / item name.
-
 interface RawItemMaster {
   id: number;
   item_code: string;
@@ -321,8 +291,6 @@ interface RawItemListResponse {
   success: number;
   data: RawItemMaster[];
 }
-
-// ─── Job Card API shape ───────────────────────────────────────────────────────
 
 interface JobCardRecord {
   id: number;
@@ -352,8 +320,6 @@ interface JobCardDetailResponse {
   success: number;
   data: JobCardRecord | JobCardRecord[];
 }
-
-// ─── Payload to POST ──────────────────────────────────────────────────────────
 
 interface WOPayloadOperation {
   operation: string;
@@ -451,12 +417,7 @@ const STATUS_CLASS: Record<Status, string> = {
   Completed: "s-completed",
   Stopped: "s-stopped",
 };
-// ─── Lead time formatting ──────────────────────────────────────────────────
-// Converts total minutes into a "1 day 8 hrs 15 min" style string, based on
-// an 8-hour working day (480 mins/day). Used for display only — the
-// underlying wo.lead_time_mins value stays in raw minutes for calculations
-// and the payload.
-const WORKING_MINS_PER_DAY = 8 * 60; // 480
+const WORKING_MINS_PER_DAY = 8 * 60;
 
 const formatLeadTime = (totalMins: number): string => {
   if (!totalMins || totalMins <= 0) return "0 min";
@@ -533,7 +494,6 @@ const emptyWO = (): WorkOrderData => ({
 });
 
 // ─── WarehousePickerField ─────────────────────────────────────────────────────
-// A dropdown field that lets the user select a warehouse by name and returns the ID
 
 function WarehousePickerField({
   label,
@@ -568,12 +528,10 @@ function WarehousePickerField({
         if (r.data.success === 1) {
           const records = r.data.data?.records || [];
           setAll(records);
-          // If value is a number (ID), find and set the name
           if (value && !isNaN(Number(value))) {
             const match = records.find(w => w.id === Number(value));
             if (match) setSelectedName(match.warehouse_name);
           } else if (value && typeof value === 'string' && !value.match(/^\d+$/)) {
-            // If value is already a name, use it directly
             setSelectedName(value);
           }
         }
@@ -582,13 +540,11 @@ function WarehousePickerField({
       .finally(() => setLoading(false));
   }, [value]);
 
-  // Update selected name when value changes externally
   useEffect(() => {
     if (value && !isNaN(Number(value)) && all.length > 0) {
       const match = all.find(w => w.id === Number(value));
       if (match) setSelectedName(match.warehouse_name);
     } else if (typeof value === 'string' && value.match(/^\d+$/)) {
-      // It's an ID as string
       const match = all.find(w => w.id === Number(value));
       if (match) setSelectedName(match.warehouse_name);
     } else if (typeof value === 'string') {
@@ -679,12 +635,7 @@ function WarehousePickerField({
   );
 }
 
-// ─── Custom DatePicker with Calendar ─────────────────────────────────────────
-
-
 // ─── DigitInput ───────────────────────────────────────────────────────────────
-// Numeric-only input (digits + optional single decimal point). Strips any
-// letters/symbols as the user types instead of relying on <input type="number">.
 
 function DigitInput({
   label, value, onChange, placeholder, maxLength, disabled = false,
@@ -738,13 +689,7 @@ function DigitInput({
   );
 }
 
-// ─── WarehouseSearchField ─────────────────────────────────────────────────────
-
-
 // ─── BomSearchField ───────────────────────────────────────────────────────────
-// filterType restricts the picker to a single BOM "type" — "Internal" for
-// Internal Work Orders, "External" for External Work Orders — so a user
-// building an External WO never sees Internal BOMs (and vice versa).
 
 function BomSearchField({
   value, onSelect, onClear, disabled = false, error, filterType,
@@ -834,7 +779,8 @@ function BomSearchField({
   );
 }
 
-// ─── OperationPickerField (portal-based dropdown — same look, no clipping) ──
+// ─── OperationPickerField ─────────────────────────────────────────────────────
+
 function OperationPickerField({
   value, operations, loading, onSelect, onTextChange, disabled = false,
 }: {
@@ -949,10 +895,6 @@ function OperationPickerField({
 }
 
 // ─── ItemPickerField ──────────────────────────────────────────────────────────
-// Used for both Internal and External Work Orders — lets the user choose a
-// defined raw-material item (GET /item?type=raw) for a Required Items row
-// instead of typing free text for item code / item name. Selecting one
-// auto-fills item code, item name, UOM, and rate on the row.
 
 function ItemPickerField({
   value, items, loading, onSelect, disabled = false, placeholder = "Search raw material…",
@@ -1081,15 +1023,19 @@ export default function WorkOrderForm() {
   const [validationErrors, setValidationErrors] = useState<{ field: string; label: string; message: string }[]>([]);
   const [] = useState(false);
 
+  // ─── Chatbot handoff guard ─────────────────────────────────────────────
+  const handoffApplied = useRef(false);
+
   // WIP Warehouse state
   const [selectedWipWarehouse, setSelectedWipWarehouse] = useState<{ id: number; name: string }>({
-    id: 10, // Default to WIP warehouse ID 10
+    id: 10,
     name: "Work In Progress"
   });
 
   // Reset the form to a blank state whenever we land on the "new" route.
   useEffect(() => {
     if (isNew) {
+      handoffApplied.current = false;
       setWo(emptyWO());
       setActiveTab("production_item");
       setSelectedBomLabel("");
@@ -1105,6 +1051,105 @@ export default function WorkOrderForm() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
+
+  // ─── 🆕 Chatbot handoff reader ─────────────────────────────────────────
+  // When the chatbot navigates here with a fetched payload stashed in
+  // sessionStorage, hydrate the form immediately from that payload
+  // (master + related lists) instead of waiting for /work-order/:id.
+  useEffect(() => {
+    if (isNew || !id || handoffApplied.current) return;
+
+    const raw = sessionStorage.getItem("erp-detail-handoff");
+    if (!raw) return;
+
+    try {
+      const parsed = JSON.parse(raw);
+      if (
+        parsed?.endpointKey === "workOrder" &&
+        String(parsed.id) === String(id) &&
+        parsed.master
+      ) {
+        console.log("📦 Chatbot handoff → hydrating Work Order", id);
+        const d = parsed.master;
+
+        const isExternalType =
+          !!d.grn_id || (d.type && String(d.type).toLowerCase() === "external");
+
+        // Minimal, safe hydration — the normal /work-order/:id effect will
+        // still run afterwards and fill in anything we miss here (warehouse
+        // name resolution, BOM detail, GRN detail, job cards, etc.).
+        setWo(prev => ({
+          ...prev,
+          id: d.id,
+          name: d.name ?? prev.name,
+          status: (d.status as Status) ?? prev.status,
+          type: isExternalType ? "external" : (prev.type ?? "internal"),
+          company: d.company ?? prev.company,
+          qty_to_manufacture: d.qty ?? 0,
+          item_to_manufacture: d.production_item ?? "",
+          item_name: d.item_name ?? "",
+          stock_uom: d.stock_uom ?? prev.stock_uom,
+          bom_no: d.bom_no != null ? String(d.bom_no) : "",
+          source_warehouse: d.source_warehouse ?? "",
+          target_warehouse: d.fg_warehouse ?? "",
+          wip_warehouse: d.wip_warehouse ?? prev.wip_warehouse,
+          transfer_material_against:
+            (d.transfer_material_against as "Work Order" | "Job Card") ??
+            prev.transfer_material_against,
+          planned_start_date:
+            d.planned_start_date?.split?.("T")?.[0] ??
+            prev.planned_start_date,
+          actual_start_date: d.actual_start_date?.split?.("T")?.[0] ?? "",
+          actual_end_date: d.actual_end_date?.split?.("T")?.[0] ?? "",
+          lead_time_mins: d.lead_time ?? 0,
+          planned_operating_cost: d.planned_operating_cost ?? 0,
+          actual_operating_cost: d.actual_operating_cost ?? 0,
+          additional_operating_cost: d.additional_operating_cost ?? 0,
+          corrective_operation_cost: d.corrective_operation_cost ?? 0,
+          selected_grn_id: d.grn_id ?? undefined,
+        }));
+
+        // Populate operations directly from handoff if the payload
+        // includes them as an array (some backends embed them).
+        if (Array.isArray(d.operations) && d.operations.length > 0) {
+          const ops: OperationRow[] = d.operations.map((op: any) => ({
+            id: uid(),
+            operation: op.operation ?? "",
+            workstation: op.workstation ?? "",
+            time_in_mins: op.time_in_mins ?? 0,
+            hour_rate: op.hour_rate ?? 0,
+            operating_cost: op.operating_cost ?? 0,
+          }));
+          setWo(prev => ({ ...prev, operations: ops }));
+        }
+
+        if (Array.isArray(d.items) && d.items.length > 0) {
+          const items: RequiredItemRow[] = d.items.map((it: any) => ({
+            id: uid(),
+            item_id: it.item_id,
+            item_code: it.item_code ?? "",
+            item_name: it.item_name ?? "",
+            source_warehouse: it.source_warehouse ?? "",
+            required_qty: it.required_qty ?? 0,
+            uom: it.stock_uom ?? it.uom ?? "",
+            transferred_qty: 0,
+            consumed_qty: 0,
+            returned_qty: 0,
+            rate: it.rate ?? 0,
+            amount: it.amount ?? 0,
+            operation: it.operation ?? "",
+          }));
+          setWo(prev => ({ ...prev, required_items: items }));
+        }
+
+        handoffApplied.current = true;
+        sessionStorage.removeItem("erp-detail-handoff");
+      }
+    } catch (e) {
+      console.warn("⚠️ Could not read work-order handoff:", e);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, isNew]);
 
   // Stock Warning Modal state
   const [stockWarningModal, setStockWarningModal] = useState<{
@@ -1147,17 +1192,14 @@ export default function WorkOrderForm() {
   const [showGrnModal, setShowGrnModal] = useState(false);
   const [grnDetailLoading, setGrnDetailLoading] = useState(false);
 
-  // Operation master state (GET /operation) — used by both Internal and External WOs
+  // Operation master state
   const [operationMasters, setOperationMasters] = useState<OperationMaster[]>([]);
   const [operationsLoading, setOperationsLoading] = useState(false);
 
-  // Raw item master state (GET /item?type=raw) — used by both Internal and External WOs
+  // Raw item master state
   const [rawItems, setRawItems] = useState<RawItemMaster[]>([]);
   const [rawItemsLoading, setRawItemsLoading] = useState(false);
 
-  // Material availability: what the GRN actually brought in, and where it's
-  // sitting, compared against the full warehouse list. Populated once a GRN
-  // is selected on an External Work Order.
   const [materialAvailability, setMaterialAvailability] = useState<
     { item_code: string; item_name: string; received_qty: number; uom: string; warehouse: string }[]
   >([]);
@@ -1168,14 +1210,12 @@ export default function WorkOrderForm() {
   const [bomDetail, setBomDetail] = useState<{ bom: BomDetail; items: BomApiItem[]; operations: BomApiOperation[] } | null>(null);
   const [bomLoading, setBomLoading] = useState(false);
 
-  // BOM state (External WO) — used only to pull Operations rows; required
-  // items for External WOs always come from the selected GRN, never a BOM.
+  // BOM state (External WO)
   const [selectedExternalBomLabel, setSelectedExternalBomLabel] = useState("");
   const [, setExternalBomDetail] = useState<
     { bom: BomDetail; items: BomApiItem[]; operations: BomApiOperation[] } | null
   >(null);
 
-  // ── Material availability constraints derived from the selected BOM ──
   const [materialConstraints, setMaterialConstraints] = useState<
     { item_code: string; item_name: string; available: number; required: number; uom: string; shortfall: boolean }[]
   >([]);
@@ -1190,7 +1230,6 @@ export default function WorkOrderForm() {
 
   const disabled = submitting || loading;
 
-  // ─── Warehouse map (name → id) ──────────────────────────────────────
   const [warehouseMap, setWarehouseMap] = useState<Record<string, number>>({});
 
   useEffect(() => {
@@ -1207,7 +1246,6 @@ export default function WorkOrderForm() {
       .catch(() => {});
   }, []);
 
-  // ─── Load GRNs (External type only) ───────────────────────────────────
   const loadGRNs = async (page = 1, limit = 10) => {
     setGrnLoading(true);
     setGrnError(null);
@@ -1228,7 +1266,6 @@ export default function WorkOrderForm() {
     }
   };
 
-  // ─── Load operation masters (used by both Internal and External WOs) ───
   const loadOperations = async () => {
     setOperationsLoading(true);
     try {
@@ -1243,7 +1280,6 @@ export default function WorkOrderForm() {
     }
   };
 
-  // ─── Load raw material item masters (used by both Internal and External WOs) ───
   const loadRawItems = async () => {
     setRawItemsLoading(true);
     try {
@@ -1258,8 +1294,6 @@ export default function WorkOrderForm() {
     }
   };
 
-  // Load operation + raw item masters once on mount — needed by both
-  // Internal and External Work Orders (previously External-only).
   useEffect(() => {
     loadOperations();
     loadRawItems();
@@ -1271,7 +1305,6 @@ export default function WorkOrderForm() {
       loadGRNs();
       setActiveTab("grn_selection");
     } else {
-      // Switching back to Internal: External-only BOM selection no longer applies.
       setSelectedExternalBomLabel("");
       setExternalBomDetail(null);
       if (activeTab === "grn_selection") setActiveTab("production_item");
@@ -1279,13 +1312,8 @@ export default function WorkOrderForm() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wo.type]);
 
-  // ─── Load existing WO ────────────────────────────────────────────────
   useEffect(() => {
     if (!isNew && id) {
-      // Wait for the warehouse id->name map (fetched on mount) before we
-      // hydrate source/wip/target warehouse fields — otherwise we'd briefly
-      // (or permanently, if this fires first) show raw numeric IDs instead
-      // of names in the warehouse fields.
       if (Object.keys(warehouseMap).length === 0) {
         return;
       }
@@ -1298,33 +1326,27 @@ export default function WorkOrderForm() {
       const resolveWhName = (val: unknown): string => {
         if (val === null || val === undefined || val === "") return "";
         const str = String(val).trim();
-        // Purely numeric -> treat as an id and look up its name.
-        // Falls back to the raw value if not found (e.g. disabled/deleted
-        // warehouse), or if it was already a name string.
         return /^\d+$/.test(str) ? (whIdToName[Number(str)] || str) : str;
       };
 
       setLoading(true);
       api.get(`/work-order/${id}`).then(async (r) => {
-        console.log("GET work-order response:", r.data); // <- check this shape
+        console.log("GET work-order response:", r.data);
 
           if (r.data.success === 1) {
-            // API shape: { success, data: { workOrder, grn, grn_items } }
             const payload = r.data.data;
-            const d = payload?.workOrder ?? payload; // fall back for older shape
+            const d = payload?.workOrder ?? payload;
             const grnDetailRaw = payload?.grn ?? null;
             const grnItemsRaw = payload?.grn_items ?? [];
 
             const isExternalType = !!d.grn_id || (d.type && String(d.type).toLowerCase() === "external");
 
-            // job_card_progress e.g. "0/2" — completed/total across job cards
             const jobCardProgress: string =
               d.job_card_progress ??
               (d.completed_job_cards !== undefined && d.total_job_cards !== undefined
                 ? `${d.completed_job_cards}/${d.total_job_cards}`
                 : "");
 
-            // Load WIP warehouse from existing WO
             let wipWhId = 10;
             let wipWhName = "Work In Progress";
             if (d.wip_warehouse) {
@@ -1378,9 +1400,6 @@ export default function WorkOrderForm() {
               required_items: prev.required_items,
             }));
 
-            // External WO: re-hydrate the GRN detail + material availability.
-            // Prefer the grn/grn_items already embedded in this response;
-            // fall back to a separate /grn/:id fetch if not present.
             if (d.grn_id) {
               try {
                 if (grnDetailRaw) {
@@ -1414,9 +1433,6 @@ export default function WorkOrderForm() {
               }
             }
 
-            // Fetch the linked BOM. For Internal WOs this also drives
-            // Required Items; for External WOs it only supplies Operations
-            // (Required Items always come from the GRN).
             if (d.bom_no) {
               const isExternal = isExternalType;
               if (isExternal) {
@@ -1498,7 +1514,6 @@ export default function WorkOrderForm() {
               }
             }
 
-            // Load job card totals for Total Produced tab
             if (d.id) {
               setTimeout(() => {
                 loadTotalProducedData();
@@ -1511,7 +1526,6 @@ export default function WorkOrderForm() {
     }
   }, [id, isNew, warehouseMap]);
 
-  // ─── BOM selection (Internal WO) ───────────────────────────────────────
   const handleSelectBom = (bom: BomListItem) => {
     setSelectedBomLabel(`${bom.item_name} (${bom.item})`);
     setWo(prev => ({
@@ -1556,10 +1570,6 @@ export default function WorkOrderForm() {
     }));
   };
 
-  // ─── BOM selection (External WO) ───────────────────────────────────────
-  // Pulls both Operations rows AND the production item (item code / name)
-  // from the selected External BOM. Required Items for an External WO
-  // always come from the selected GRN, never from a BOM.
   const handleSelectExternalBom = (bom: BomListItem) => {
     setSelectedExternalBomLabel(`${bom.item_name} (${bom.item})`);
     setWo(prev => ({
@@ -1609,7 +1619,6 @@ export default function WorkOrderForm() {
     }));
   };
 
-  // ─── Apply BOM data to WO rows (with qty scaling) ────────────────────
   const applyBomToWo = (
     detail: { bom: BomDetail; items: BomApiItem[]; operations: BomApiOperation[] },
     qty: number
@@ -1648,16 +1657,11 @@ export default function WorkOrderForm() {
     }));
   };
 
-  // ─── Material availability check ──────────────────────────────────────
-  // Only counts stock sitting in the SOURCE warehouse (where raw materials
-  // are picked from for this WO) — not other warehouses like WIP, which
-  // would otherwise inflate the "available" number.
   const getItemAvailableQty = (item: BomApiItem, warehouseName?: string) => {
     if (warehouseName && Array.isArray(item.stock_by_warehouse)) {
       const match = item.stock_by_warehouse.find(w => w.warehouse_name === warehouseName);
       if (match) return match.actual_qty || 0;
     }
-    // Fallback: no specific warehouse matched (or none provided) — sum all.
     if (Array.isArray(item.stock_by_warehouse) && item.stock_by_warehouse.length > 0) {
       return item.stock_by_warehouse.reduce((sum, w) => sum + (w.actual_qty || 0), 0);
     }
@@ -1672,9 +1676,6 @@ export default function WorkOrderForm() {
     qty: number
   ) => {
     const base = detail.bom.quantity > 0 ? detail.bom.quantity : 1;
-
-    // Prefer the WO's currently selected Source Warehouse; fall back to
-    // the BOM's default source warehouse if the WO field isn't set yet.
     const sourceWarehouseName = wo.source_warehouse || detail.bom.default_source_warehouse || "";
 
     const constraints = detail.items.map(it => {
@@ -1702,7 +1703,6 @@ export default function WorkOrderForm() {
     setMaxProducibleQty(max);
   };
 
-  // Re-scale when qty changes and BOM is loaded (internal WOs only)
   useEffect(() => {
     if (wo.type === "internal" && bomDetail && wo.qty_to_manufacture > 0) {
       applyBomToWo(bomDetail, wo.qty_to_manufacture);
@@ -1711,11 +1711,6 @@ export default function WorkOrderForm() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wo.qty_to_manufacture]);
 
-  // ─── Keep planned_operating_cost / lead_time_mins in sync with the
-  // Operations table's Time (mins) / Operating Cost columns — for BOTH
-  // Internal and External Work Orders. Lead Time always reflects the sum
-  // of the Operations table's Time (mins), regardless of where the rows
-  // came from (BOM, GRN's linked BOM, or manual entry). ───
   useEffect(() => {
     const totalTime = wo.operations.reduce((s, o) => s + (o.time_in_mins || 0), 0);
     const totalCost = wo.operations.reduce((s, o) => s + (o.operating_cost || 0), 0);
@@ -1730,7 +1725,6 @@ export default function WorkOrderForm() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wo.operations]);
 
-  // ─── GRN → Required Items + material availability ─────────────────────
   const hydrateFromGrnDetail = async (detail: GRNDetail) => {
     const codeOf = (it: GRNItemDetail) => it.item_code || `ITEM-${it.item_id}`;
     const nameOf = (it: GRNItemDetail) => it.item_name || `Unnamed item (ID ${it.item_id})`;
@@ -1782,7 +1776,6 @@ export default function WorkOrderForm() {
     }
   };
 
-  // ─── GRN Selection ────────────────────────────────────────────────────
   const handleSelectGRN = async (grn: GRNData) => {
     setShowGrnModal(false);
     setWo(prev => ({
@@ -1810,7 +1803,6 @@ export default function WorkOrderForm() {
     }
   };
 
-  // ─── Media Upload ─────────────────────────────────────────────────────
   const uploadMediaFiles = async (files: File[], workOrderId: number) => {
     if (files.length === 0) return;
     setUploadingMedia(true);
@@ -1868,7 +1860,6 @@ export default function WorkOrderForm() {
     });
   };
 
-  // ─── Load Total Produced Data from Job Cards ──────────────────────────
   const loadTotalProducedData = async () => {
     if (!wo.id) return;
     try {
@@ -1880,11 +1871,6 @@ export default function WorkOrderForm() {
   
       if (matchedJobCards.length > 0) {
         const completedCards = matchedJobCards.filter(jc => jc.status === "Completed");
-  
-        // Take the LAST operation's job card as source of truth — it reflects
-        // finished units after the full sequence, not a sum across stages.
-        // If job cards carry a sequence/operation order, sort by that;
-        // otherwise fall back to highest id (most recently created).
         const finalCard = [...completedCards].sort((a, b) => (b.id ?? 0) - (a.id ?? 0))[0];
   
         const totalCompleted = finalCard?.total_completed_qty || 0;
@@ -1905,7 +1891,6 @@ export default function WorkOrderForm() {
     }
   };
 
-  // ─── Work Order Completion: fetch job card qty/loss (NO PUT call yet) ───
   const handleWorkOrderCompletion = async () => {
     if (!wo.id) return;
     setCompletionSummary({ show: true, loading: true, error: null });
@@ -1944,7 +1929,7 @@ export default function WorkOrderForm() {
         totalCompletedQty,
         processLossQty,
         itemName: jc.item_name,
-        woStatusUpdated: false,  // Not updated yet - waiting for inventory
+        woStatusUpdated: false,
         stockEntryPosting: false,
         stockEntryPosted: false,
         stockEntryError: null,
@@ -1952,9 +1937,6 @@ export default function WorkOrderForm() {
         inventoryPosting: false,
         inventoryError: null,
       });
-
-      // REMOVED: The immediate PUT call to update WO status
-      // Instead, we'll update WO status only after inventory is posted
       
       try {
         const whRes = await api.get<WarehouseResponse>("/warehouse");
@@ -1982,11 +1964,6 @@ export default function WorkOrderForm() {
     }
   };
 
-  // ─── Manual step: post the completed job card's output into a Stock
-  // Entry (WIP → Finished Goods). Only runs when the user explicitly
-  // clicks "Add to Stock Entry" in the completion modal. ───
-  // ─── Single action: post Stock Entry (WIP → FG), post Finished Goods
-// inventory, and mark the Work Order Completed — all in one click. ───
 const handleCompleteWorkOrder = async () => {
   if (!wo.id || !completionSummary || completionSummary.totalCompletedQty === undefined || !completionSummary.jobCardId) return;
 
@@ -1997,7 +1974,6 @@ const handleCompleteWorkOrder = async () => {
     ? { ...prev, stockEntryPosting: true, stockEntryError: null, inventoryError: null }
     : prev));
 
-  // Step 1: Stock Entry (WIP → Finished Goods)
   try {
     await api.post("/stock-entry", {
       name: "",
@@ -2067,10 +2043,9 @@ const handleCompleteWorkOrder = async () => {
     setCompletionSummary(prev => (prev
       ? { ...prev, stockEntryPosting: false, stockEntryError: err.response?.data?.message || "Failed to post stock entry." }
       : prev));
-    return; // don't continue to inventory if stock entry failed
+    return;
   }
 
-  // Step 2: Post finished product to Inventory + mark WO Completed
   setCompletionSummary(prev => (prev ? { ...prev, inventoryPosting: true, inventoryError: null } : prev));
 
   try {
@@ -2093,8 +2068,6 @@ const handleCompleteWorkOrder = async () => {
       return;
     }
 
-    // item_Id for the finished product comes from the BOM detail, not the
-    // job card — job cards only carry the item CODE, not its numeric id.
     let productItemId = bomDetail?.bom.item_Id ?? 0;
     if (!productItemId && wo.bom_no) {
       try {
@@ -2140,11 +2113,7 @@ const handleCompleteWorkOrder = async () => {
 
     setCompletionSummary(prev => (prev ? { ...prev, inventoryPosting: false, inventoryPosted: true } : prev));
 
-    // Step 3: mark Work Order as Completed
     try {
-      // Workaround: backend's SQL builder doesn't JSON.stringify
-      // operations/items before interpolating into the UPDATE query.
-      // Omit them here since this call only needs to change the status.
       const { operations, items, ...updatePayload } = { ...buildPayload("Completed"), id: wo.id };
       await api.put("/work-order", updatePayload);
       setWo(prev => ({ ...prev, status: "Completed" }));
@@ -2163,11 +2132,6 @@ const handleCompleteWorkOrder = async () => {
   }
 };
 
-
-  // ─── Read-only view: the Work Order is already Completed. Just re-fetch
-  // the job card's qty/loss numbers and show them — no PUT to work-order,
-  // no POST anywhere. Used when the user clicks the "Completed" status
-  // button again after it's already Completed. ───
   const viewCompletionSummary = async () => {
     if (!wo.id) return;
     setCompletionSummary({ show: true, loading: true, error: null, readOnly: true });
@@ -2176,7 +2140,6 @@ const handleCompleteWorkOrder = async () => {
       const jcListRes = await api.get<JobCardListResponse>("/job-card");
       const jobCards = jcListRes.data?.data || [];
       
-      // Find ALL job cards for this work order (not just completed ones)
       const matchedJobCards = jobCards.filter(
         (jc) => String(jc.work_order) === String(wo.id)
       );
@@ -2191,7 +2154,6 @@ const handleCompleteWorkOrder = async () => {
         return;
       }
 
-      // Get the first completed job card for details
       const completedJobCard = matchedJobCards.find(jc => jc.status === "Completed");
       
       if (!completedJobCard) {
@@ -2216,7 +2178,6 @@ const handleCompleteWorkOrder = async () => {
         return;
       }
 
-      // Calculate totals from all job cards
       const totalCompleted = matchedJobCards
         .filter(jc => jc.status === "Completed")
         .reduce((sum, jc) => sum + (jc.total_completed_qty || 0), 0);
@@ -2246,8 +2207,6 @@ const handleCompleteWorkOrder = async () => {
     }
   };
 
-
-  // ─── Field helpers ────────────────────────────────────────────────────
   const set = <K extends keyof WorkOrderData>(k: K, v: WorkOrderData[K]) =>
     setWo(prev => ({ ...prev, [k]: v }));
 
@@ -2260,28 +2219,19 @@ const handleCompleteWorkOrder = async () => {
   const availabilityFor = (itemCode: string) =>
     materialAvailability.find(m => m.item_code === itemCode);
 
-  // ─── Validation ───────────────────────────────────────────────────────
   const validate = () => {
     const errs: { field: string; label: string; message: string }[] = [];
 
-    // ─── Validation for Internal Work Orders ───────────────────────────
     if (wo.type === "internal") {
-      // BOM validation
       if (!wo.bom_no.trim()) {
         errs.push({ field: "bom_no", label: "BOM", message: "Please select a BOM" });
       }
-
-      // Item to Manufacture validation (from table: production_item is required)
       if (!wo.item_to_manufacture.trim()) {
         errs.push({ field: "item_to_manufacture", label: "Item To Manufacture", message: "Required" });
       }
-
-      // Qty validation (from table: qty decimal(21,9) NOT NULL, default 1)
       if (wo.qty_to_manufacture <= 0) {
         errs.push({ field: "qty_to_manufacture", label: "Qty To Manufacture", message: "Must be greater than 0" });
       }
-
-      // Material availability validation
       if (materialConstraints.some(c => c.shortfall)) {
         const shortfalls = materialConstraints.filter(c => c.shortfall);
         const detail = shortfalls
@@ -2295,43 +2245,30 @@ const handleCompleteWorkOrder = async () => {
       }
     }
 
-    // ─── Validation for External Work Orders ───────────────────────────
     if (wo.type === "external") {
-      // GRN validation
       if (!wo.selected_grn_id) {
         errs.push({ field: "selected_grn_id", label: "GRN", message: "Please select a GRN" });
       }
-
-      // Item to Manufacture validation (from table: production_item is required)
       if (!wo.item_to_manufacture.trim()) {
         errs.push({ field: "item_to_manufacture", label: "Item To Manufacture", message: "Select an Operations Source BOM to set this" });
       }
-
-      // Qty validation (from table: qty decimal(21,9) NOT NULL, default 1)
       if (wo.qty_to_manufacture <= 0) {
         errs.push({ field: "qty_to_manufacture", label: "Qty To Manufacture", message: "Must be greater than 0" });
       }
-
-      // Check if required items exist from GRN
       const hasRequiredItems = wo.required_items.some(item => item.item_code.trim() && item.required_qty > 0);
       if (!hasRequiredItems) {
         errs.push({ field: "required_items", label: "Required Items", message: "At least one required item with quantity is needed" });
       }
     }
 
-    // ─── Common validations for both types ─────────────────────────────
-
-    // Company validation (from table: company varchar(140) YES, but required for WO)
     if (!wo.company.trim()) {
       errs.push({ field: "company", label: "Company", message: "Company is required" });
     }
 
-    // Planned Start Date validation (from table: planned_start_date datetime(6) YES)
     if (!wo.planned_start_date) {
       errs.push({ field: "planned_start_date", label: "Planned Start Date", message: "Required" });
     }
 
-    // Operations validation (at least one operation with a name)
     const hasValidOperation = wo.operations.some(op => op.operation.trim() && op.workstation.trim());
     if (!hasValidOperation) {
       errs.push({ field: "operations", label: "Operations", message: "At least one operation with name and workstation is required" });
@@ -2340,7 +2277,6 @@ const handleCompleteWorkOrder = async () => {
     return errs;
   };
 
-  // ─── Build payload ────────────────────────────────────────────────────
   const buildPayload = (overrideStatus?: Status): WOPayload => {
     const validOperations = wo.operations.filter(op => op.operation.trim() && op.workstation.trim());
     const firstOperationName = validOperations[0]?.operation || "";
@@ -2403,9 +2339,6 @@ const handleCompleteWorkOrder = async () => {
     type: wo.type === "internal" ? "Internal" : "External",
     sales_order: "",
 
-    // ── BOM-style Operations + Required Items, sent alongside the flat
-    // fields above so the backend can create/update the corresponding
-    // line records for this Work Order. ──
     operations: validOperations.map((op, idx) => ({
       operation: op.operation,
       sequence_id: idx + 1,
@@ -2428,7 +2361,6 @@ const handleCompleteWorkOrder = async () => {
   };
   };
 
-  // ─── Submit ───────────────────────────────────────────────────────────
   const handleSave = async (e: FormEvent) => {
     e.preventDefault();
     setApiError(null);
@@ -2467,7 +2399,6 @@ const handleCompleteWorkOrder = async () => {
             setPendingMedia([]);
           }
 
-          // Create job cards after successful update
           try {
             const jobCardResponse = await api.post(`/job-card/create-job-cards-from-wo/${workOrderId}`);
             
@@ -2529,7 +2460,6 @@ const handleCompleteWorkOrder = async () => {
               setPendingMedia([]);
             }
 
-            // Create job cards after successful creation
             try {
               const jobCardResponse = await api.post(`/job-card/create-job-cards-from-wo/${workOrderId}`);
               
@@ -2612,18 +2542,14 @@ const handleCompleteWorkOrder = async () => {
 
   const totalRawMaterialCost = wo.required_items.reduce((sum, item) => sum + (item.amount || 0), 0);
 
-  // Helper function to get error message for a field
   const getFieldError = (field: string): string | undefined => {
     return validationErrors.find(e => e.field === field)?.message;
   };
 
-  // Helper function to check if field has error
   const hasFieldError = (field: string): boolean => {
     return !!getFieldError(field);
   };
 
-  // Parse "completed/total" job_card_progress into numbers for the
-  // Operations Completed progress bar on the Total Produced tab.
   const parsedJobCardProgress = (() => {
     const raw = wo.job_card_progress || "";
     const match = raw.match(/^\s*(\d+)\s*\/\s*(\d+)\s*$/);
@@ -2652,7 +2578,6 @@ const handleCompleteWorkOrder = async () => {
   return (
     <div className={`wof-page ${theme}`}>
 
-      {/* Stock Warning Modal - Compulsory to close before navigating */}
       {stockWarningModal.show && (
         <div className="modal-overlay">
           <div className="stock-warning-modal" onClick={e => e.stopPropagation()}>
@@ -2709,7 +2634,6 @@ const handleCompleteWorkOrder = async () => {
         </div>
       )}
 
-      {/* Work Order Completion Summary Modal */}
       {completionSummary?.show && (
         <div className="modal-overlay">
           <div className="stock-warning-modal" onClick={e => e.stopPropagation()}>
@@ -2811,13 +2735,11 @@ const handleCompleteWorkOrder = async () => {
         </div>
       )}
 
-      {/* Header */}
       <div className="wof-header-wrap">
         <div className="wof-header-row">
           <button type="button" onClick={() => navigate("/work-order")} className="wof-back-btn">
             <FaArrowLeft size={12} /> Back
           </button>
-          {/*<h1 className="wof-title">{isNew ? "New Work Order" : `Edit: ${wo.item_name || wo.name}`}</h1>*/}
           {!isNew && <span className={`wof-status-badge ${STATUS_CLASS[wo.status]}`}>{wo.status}</span>}
           {apiError && (
             <div className="wof-error-pill">
@@ -2829,7 +2751,6 @@ const handleCompleteWorkOrder = async () => {
         </div>
       </div>
 
-  {/* Order Type Selector */}
 <div className="wof-job-type-selector">
   {(isNew || wo.type === "internal") && (
     <button
@@ -2857,11 +2778,8 @@ const handleCompleteWorkOrder = async () => {
         <form onSubmit={handleSave}>
           <div className="wof-form-layout">
 
-            {/* ══════════ MAIN COLUMN ══════════ */}
             <div className="wof-main-col">
 
-              {/* Quick info strip */}
-            {/* Quick info strip */}
 <div className="wof-card">
   <div className="wof-quick-info-row">
     <div className="wof-quick-info-item" style={{ flex: 2, minWidth: 260 }}>
@@ -2907,7 +2825,6 @@ const handleCompleteWorkOrder = async () => {
   </div>
 </div>
 
-              {/* Tabs */}
               <div className="wof-tabs-row">
                 {visibleTabs.map(t => (
                   <button key={t.key} type="button"
@@ -2923,7 +2840,6 @@ const handleCompleteWorkOrder = async () => {
                 ))}
               </div>
 
-              {/* ══════════ TAB: GRN SELECTION (External WO) ══════════ */}
               {activeTab === "grn_selection" && wo.type === "external" && (
                 <div className="wof-card">
                   <div className="wof-card-header"><FaTruck /> Select GRN for External Work Order</div>
@@ -3341,7 +3257,6 @@ const handleCompleteWorkOrder = async () => {
                 </div>
               )}
 
-              {/* ══════════ TAB: PRODUCTION ITEM (Internal WO only) ══════════ */}
               {activeTab === "production_item" && wo.type === "internal" && (
                 <div className="wof-card">
                   <div className="wof-card-header"><FaBoxOpen /> Production Item</div>
@@ -3664,7 +3579,6 @@ const handleCompleteWorkOrder = async () => {
                 </div>
               )}
 
-              {/* ══════════ TAB: TOTAL PRODUCED ══════════ */}
               {activeTab === "total_produced" && (
                 <div className="wof-card">
                   <div className="wof-card-header"><FaCheckCircle /> Total Produced</div>
@@ -3761,7 +3675,6 @@ const handleCompleteWorkOrder = async () => {
               )}
             </div>
 
-            {/* ══════════ SIDEBAR ══════════ */}
             <aside className="wof-sidebar">
               <div className="wof-sidebar-card">
                 <div className="wof-sidebar-section-title"><ActiveTabIcon size={12} /> Status</div>
@@ -3820,7 +3733,6 @@ const handleCompleteWorkOrder = async () => {
                 </div>
               </div>
 
-              {/* ─── Warehouse Selection ─── */}
               <div className="wof-sidebar-card">
                 <div className="wof-sidebar-section-title"><FaWarehouse size={12} /> Warehouses</div>
                 <div className="wof-sidebar-stats">
@@ -3875,7 +3787,6 @@ const handleCompleteWorkOrder = async () => {
         </form>
       </div>
 
-      {/* GRN Selection Modal */}
       {showGrnModal && (
         <div className="modal-overlay" onClick={() => setShowGrnModal(false)}>
           <div className="grn-modal" onClick={e => e.stopPropagation()}>
