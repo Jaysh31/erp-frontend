@@ -71,6 +71,8 @@ const PAGE_TITLES: Record<string, string> = {
   "/Customer-payments": "Customer Payments",
   "/customer-invoices": "Customer Invoices",
   "/receivables/credit-notes": "Credit Notes",
+  "/Debit-notes": "Debit Notes",
+  "/GeneralAccountEntry": "General Account Entry",
   "/outstanding-receivables": "Outstanding Receivables",
   "/payables/supplier-bills": "Supplier Bills",
   "/payables/supplier-payments": "Supplier Payments",
@@ -107,8 +109,8 @@ const PAGE_TITLES: Record<string, string> = {
   "/users/new" :"User / Add New User",
   "/role":"Role",
   "/role/new": "Role / Add New Role",
-  "/company/new":"Company / Add New Company"
-
+  "/company/new":"Company / Add New Company",
+  
 };
 
 // Module names for display
@@ -138,6 +140,8 @@ const MODULE_DASHBOARD_PATHS: Record<string, string> = {
   'system': '/settings',
   'accounting': '/dashboard/accounting'
 };
+
+
 
 // Get the display name for a path
 const getPageTitle = (path: string): string => {
@@ -396,7 +400,7 @@ export default function Header({ isSidebarOpen = false, onToggleSidebar }: Heade
                 </svg>
                 Profile
               </button>
-              <button className="dropdown-item" onClick={() => {/* Navigate to settings */}}>
+              <button className="dropdown-item" onClick={() => navigate( "/settings") }>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <circle cx="12" cy="12" r="3"/>
                   <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
