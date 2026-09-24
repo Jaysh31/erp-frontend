@@ -1,5 +1,5 @@
 // InventoryDetail.tsx
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import {
   FaArrowLeft,
@@ -162,7 +162,6 @@ export default function InventoryDetail() {
   const [searchParams] = useSearchParams();
 
   // ─── Type filter (passed in from the list page via ?type=Internal|External) ──
-  // If absent (e.g. someone deep-links straight to this page), we show everything.
   const filterType = searchParams.get("type") as "Internal" | "External" | null;
 
   const [data, setData] = useState<InventoryDetailResponse['data'] | null>(null);
@@ -177,6 +176,48 @@ export default function InventoryDetail() {
     grnHistory: true,
     summary: true,
   });
+
+  // 🆕 Guard so the chatbot handoff only hydrates once per itemCode
+  const handoffApplied = useRef(false);
+
+  // ─── 🆕 Chatbot handoff: hydrate from sessionStorage when /inventory/.../:code ─
+  // The chatbot calls fetchInventoryHistory(itemCode) which hits
+  // /inventory/history?item_code=..., stashes the payload under
+  // sessionStorage["erp-detail-handoff"], then navigates here. This effect
+  // maps that payload into the shape InventoryDetail expects so the page
+  // renders immediately without waiting for the API roundtrip.
+  useEffect(() => {
+    if (!itemCode || handoffApplied.current) return;
+
+    const raw = sessionStorage.getItem("erp-detail-handoff");
+    if (!raw) return;
+
+    try {
+      const parsed = JSON.parse(raw);
+      if (
+        parsed?.endpointKey === "inventory" &&
+        String(parsed.id) === String(itemCode)
+      ) {
+        console.log("📦 Chatbot handoff → hydrating Inventory", itemCode);
+
+        // The chatbot stashes the raw response under `master` (because
+        // fetchDetailPageData treats the endpoint's first result as the master).
+        // The inventory history endpoint returns a rich payload with
+        // item_details, current_inventory, grn_history, etc. — so we use
+        // that directly if it matches the expected shape.
+        const m = parsed.master;
+        if (m && m.item_details && m.current_inventory) {
+          setData(m as InventoryDetailResponse['data']);
+          setLoading(false);
+          handoffApplied.current = true;
+          sessionStorage.removeItem("erp-detail-handoff");
+        }
+      }
+    } catch (e) {
+      console.warn("⚠️ Could not read inventory handoff:", e);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [itemCode]);
 
   // Fetch inventory detail data
   useEffect(() => {
@@ -213,6 +254,7 @@ export default function InventoryDetail() {
       [section]: !prev[section]
     }));
   };
+  
 
   // Check if item is a Product (not Raw Material)
   const isProduct = (itemGroup: string): boolean => {
@@ -279,17 +321,16 @@ export default function InventoryDetail() {
     return 'pending';
   };
 
-    // ─── Loading Screen ─────────────────────────────────────────────────────
-    if (loading) {
-      return (
-        <div className={`p-6 max-w-7xl mx-auto ${theme}`}>
-          <PageLoader 
-            message="Loading Manufacturing  & Inventory List..." 
-            //subtitle="Calculating bill of materials, operations rates, and component structures"
-          />
-        </div>
-      );
-    }
+  // ─── Loading Screen ─────────────────────────────────────────────────────
+  if (loading) {
+    return (
+      <div className={`p-6 max-w-7xl mx-auto ${theme}`}>
+        <PageLoader 
+          message="Loading Manufacturing  & Inventory List..." 
+        />
+      </div>
+    );
+  }
 
   if (error || !data) {
     return (
@@ -316,11 +357,6 @@ export default function InventoryDetail() {
   } = data;
 
   // ─── Type-filtered records ──────────────────────────────────────────
-  // current_inventory and grn_history each carry a `type` field per record
-  // (Internal / External). When the user arrived here from a specific row
-  // on the list page (via ?type=...), we only show records matching that type.
-  // purchase_order_history / sales_invoice_history don't carry a per-record
-  // type in the API response, so they are left unfiltered.
   const filteredCurrentInventory = filterType
     ? current_inventory.filter((inv) => inv.type === filterType)
     : current_inventory;
@@ -329,9 +365,6 @@ export default function InventoryDetail() {
     ? grn_history.filter((grn) => grn.type === filterType)
     : grn_history;
 
-  // Recompute stock figures from the filtered set so the header numbers
-  // match what's actually shown below (rather than using the type-agnostic
-  // `summary.current_stock`, which sums across both types).
   const filteredCurrentStock = filteredCurrentInventory.reduce(
     (sum, inv) => sum + inv.actual_qty,
     0
@@ -341,12 +374,9 @@ export default function InventoryDetail() {
     0
   );
 
-  // Calculate Total Stock Value using standard_rate * filtered current_stock
   const totalStockValue = item_details.standard_rate * filteredCurrentStock;
-  // Use standard_rate for valuation rate display
   const displayValuationRate = item_details.standard_rate;
 
-  // Check if item is Product or Raw Material
   const isProductItem = isProduct(item_details.item_group);
   const isRawMaterialItem = isRawMaterial(item_details.item_group);
 

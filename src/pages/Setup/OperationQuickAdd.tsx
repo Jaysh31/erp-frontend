@@ -50,7 +50,7 @@ export default function OperationForm() {
   const location = useLocation();
   const { id } = useParams();
   const { theme } = useAdminTheme();
-  
+
   const [mode, setMode] = useState<'new' | 'edit' | 'view'>('new');
   const [formData, setFormData] = useState<Partial<Operation>>({
     name: '',
@@ -81,7 +81,7 @@ export default function OperationForm() {
       setMode('new');
     } else if (path.includes('/edit')) {
       setMode('edit');
-    } else if (id && path.includes(`/operation/${id}`)) {
+    } else if (id && path.includes(`/operations/${id}`)) {
       setMode('view');
     }
 
@@ -126,12 +126,32 @@ export default function OperationForm() {
     }
   }, [formData, originalData, mode]);
 
+  // ★ FIX: Your ERP has no /api/operation/:id endpoint.
+  //   The ONLY operation endpoint is GET /api/operation (returns the full list,
+  //   including every field your form needs). So we fetch the list and find
+  //   the matching operation by name OR id — both work.
   const fetchOperation = async (operationId: string) => {
     setLoading(true);
     try {
-      const response = await api.get<ApiResponse>(`/operation/${operationId}`);
+      const response = await api.get<ApiResponse>('/operation');
       if (response.data.success === 1) {
-        const data = response.data.data;
+        const list: any[] = Array.isArray(response.data.data)
+          ? response.data.data
+          : (response.data.data?.records || []);
+
+        const target = decodeURIComponent(String(operationId));
+        const targetLower = target.toLowerCase();
+
+        const data =
+          list.find((o: any) => String(o.name) === target) ||
+          list.find((o: any) => String(o.id) === target) ||
+          list.find((o: any) => String(o.name).toLowerCase() === targetLower);
+
+        if (!data) {
+          setError(`Operation "${target}" not found`);
+          return;
+        }
+
         setFormData({
           name: data.name,
           workstationId: data.workstationId || 0,
@@ -173,7 +193,7 @@ export default function OperationForm() {
       if (response.data.success === 1) {
         const data = response.data.data;
         let workstationList: Workstation[] = [];
-        
+
         if (Array.isArray(data)) {
           workstationList = data;
         } else if (data && data.records) {
@@ -181,10 +201,10 @@ export default function OperationForm() {
         } else {
           workstationList = [];
         }
-        
+
         const activeWorkstations = workstationList.filter(w => w.is_deleted === 0);
         setWorkstations(activeWorkstations);
-        
+
         console.log('Fetched workstations:', activeWorkstations);
       }
     } catch (err) {
@@ -196,7 +216,7 @@ export default function OperationForm() {
   // ─── Handle Text Input with Alphabet-Only Validation ────────────────
   const handleTextInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
-    
+
     // For Operation Name and Quality Inspection Template - only allow alphabets and spaces
     if (name === 'name' || name === 'quality_inspection_template') {
       // Allow only alphabets and spaces
@@ -217,7 +237,7 @@ export default function OperationForm() {
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
-    
+
     if (name === 'workstationId') {
       const selectedId = parseInt(value);
       const selectedWs = workstations.find(w => w.id === selectedId);
@@ -253,7 +273,7 @@ export default function OperationForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     // ─── Validate Operation Name (Only Alphabets) ──────────────────
     if (!formData.name?.trim()) {
       setError('Operation name is required');
@@ -263,7 +283,7 @@ export default function OperationForm() {
       setError('Operation name must contain only alphabets and spaces');
       return;
     }
-    
+
     // ─── Validate Quality Inspection Template (Only Alphabets) ────
     if (formData.quality_inspection_template && formData.quality_inspection_template.trim()) {
       if (!/^[a-zA-Z\s]+$/.test(formData.quality_inspection_template.trim())) {
@@ -271,7 +291,7 @@ export default function OperationForm() {
         return;
       }
     }
-    
+
     if (!formData.workstationId || formData.workstationId === 0) {
       setError('Workstation is required');
       return;
@@ -314,9 +334,9 @@ export default function OperationForm() {
 
       let response;
       if (mode === 'edit' || mode === 'view') {
-        response = await api.put('/operation', { 
+        response = await api.put('/operation', {
           id: parseInt(id || '0'),
-          ...payload 
+          ...payload
         });
       } else {
         response = await api.post('/operation', payload);
@@ -326,7 +346,7 @@ export default function OperationForm() {
         setSuccess(mode === 'new' ? 'Operation created successfully!' : 'Operation updated successfully!');
         setOriginalData({ ...formData });
         setHasChanges(false);
-        
+
         if (mode === 'new') {
           setTimeout(() => {
             navigate('/operations');
@@ -401,8 +421,8 @@ export default function OperationForm() {
   if (loading) {
     return (
       <div className={`p-6 max-w-7xl mx-auto ${theme}`}>
-        <PageLoader 
-          message="Loading Setup & Operation Quick Add..." 
+        <PageLoader
+          message="Loading Setup & Operation Quick Add..."
           //subtitle="Calculating bill of materials, operations rates, and component structures"
         />
       </div>
@@ -421,7 +441,7 @@ export default function OperationForm() {
           {/*<h1>{title}</h1>*/}
           <div className="opf-header-actions">
             {isViewMode && (
-              <button 
+              <button
                 className="opf-btn opf-btn-primary"
                 onClick={() => navigate(`/operation/${id}/edit`, { state: { operationData: formData } })}
               >
@@ -462,7 +482,7 @@ export default function OperationForm() {
           <div className="opf-form-grid">
             <div className="opf-form-section">
               <h3>Basic Information</h3>
-              
+
               <div className="opf-form-group">
                 <label htmlFor="name">Operation Name *</label>
                 <input
@@ -621,8 +641,8 @@ export default function OperationForm() {
               <button type="button" className="opf-btn opf-btn-secondary" onClick={handleCancel}>
                 Cancel
               </button>
-              <button 
-                type="submit" 
+              <button
+                type="submit"
                 className="opf-btn opf-btn-primary"
                 disabled={saving}
               >
@@ -650,8 +670,8 @@ export default function OperationForm() {
                 </div>
               )}
               <div className="opf-view-actions">
-                <button 
-                  type="submit" 
+                <button
+                  type="submit"
                   className="opf-btn opf-btn-primary"
                   disabled={saving || !hasChanges}
                 >

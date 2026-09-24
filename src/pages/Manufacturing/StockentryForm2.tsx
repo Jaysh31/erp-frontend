@@ -1107,6 +1107,9 @@ export default function StockEntryForm2() {
   const [apiError, setApiError] = useState<string | null>(null);
   const [loadingWorkOrder, setLoadingWorkOrder] = useState(false);
 
+  // 🆕 Guard so the chatbot handoff only hydrates once per :id
+  const handoffApplied = useRef(false);
+
   const [warehouses, setWarehouses] = useState<WarehouseOption[]>([]);
   const [warehousesLoading, setWarehousesLoading] = useState(false);
 
@@ -1159,7 +1162,108 @@ export default function StockEntryForm2() {
     fetchSuppliers();
   }, []);
 
-  // ─── Load existing Stock Entry ──────────────────────────────────────
+  // ─── 🆕 Chatbot handoff: hydrate from sessionStorage when /stock-entry/:id ─
+  // When the user asks the chatbot to "navigate on stock entry 86 detail page",
+  // the chatbot fetches the master record + related lists via
+  // fetchDetailPageData('stockEntry', 86), stashes them under
+  // sessionStorage["erp-detail-handoff"], then navigates here.
+  useEffect(() => {
+    if (isNew || !id || handoffApplied.current) return;
+
+    const raw = sessionStorage.getItem("erp-detail-handoff");
+    if (!raw) return;
+
+    try {
+      const parsed = JSON.parse(raw);
+      if (
+        parsed?.endpointKey === "stockEntry" &&
+        String(parsed.id) === String(id) &&
+        parsed.master
+      ) {
+        console.log("📦 Chatbot handoff → hydrating Stock Entry", id);
+        const d = parsed.master;
+        const related = parsed.related || {};
+
+        // 1) Master record — hydrate the flat Stock Entry fields.
+        const itemCode = d.production_item || d.item_code || "";
+        const itemName = d.item_name || "";
+        const qty = d.fg_completed_qty || d.qty || 1;
+        const amount = d.total_outgoing_value || d.total_amount || 0;
+        const sourceWh = d.from_warehouse || "";
+        const targetWh = d.to_warehouse || "";
+
+        setSe(prev => ({
+          ...prev,
+          name: d.name || "",
+          supplier: d.supplier || "",
+          stockEntryType: d.stock_entry_type || prev.stockEntryType || "Material Transfer",
+          postingDate: d.posting_date
+            ? String(d.posting_date).split("T")[0]
+            : getToday().date,
+          postingTime: d.posting_time || getToday().time,
+          editPostingDate: d.set_posting_time === 1,
+          sourceWarehouse: sourceWh,
+          targetWarehouse: targetWh,
+          remarks: d.remarks || prev.remarks,
+          workOrderId: String(d.work_order || ""),
+          scanBarcode: d.scan_barcode || "",
+          addToTransit: d.add_to_transit === 1,
+          applyPutawayRule: d.apply_putaway_rule === 1,
+          inspectionRequired: d.inspection_required === 1,
+          isOpening: d.is_opening || "No",
+          perTransferred: String(d.per_transferred || 100),
+        }));
+
+        // 2) Items — prefer master.items[] if provided by the API,
+        //    otherwise synthesise one row from the flat master fields.
+        const masterItems: any[] = Array.isArray(d.items) ? d.items : [];
+        if (masterItems.length > 0) {
+          setSe(prev => ({
+            ...prev,
+            items: masterItems.map((it: any) => ({
+              id: uid(),
+              targetWarehouse: it.warehouse || it.target_warehouse || targetWh,
+              itemCode: it.item_code || "",
+              itemName: it.item_name || it.item_code || "",
+              itemGroup: it.item_group || "",
+              qty: String(it.qty ?? 0),
+              basicRate: String(it.rate ?? 0),
+              uom: it.uom || it.stock_uom || "Nos",
+              amount: String(it.amount ?? 0),
+            })),
+          }));
+        } else if (itemCode) {
+          setSe(prev => ({
+            ...prev,
+            items: [{
+              id: uid(),
+              targetWarehouse: targetWh,
+              itemCode,
+              itemName: itemName || itemCode,
+              itemGroup: "",
+              qty: String(qty),
+              basicRate: qty > 0 ? String(amount / qty) : "",
+              uom: d.stock_uom || "Nos",
+              amount: String(amount),
+            }],
+          }));
+        }
+
+        // 3) Optional: if the chatbot also stashed related warehouses /
+        //    suppliers, we don't need to inject them here — the form
+        //    fetches these from the API already. We just make sure the
+        //    selected values are pre-populated.
+
+        handoffApplied.current = true;
+        sessionStorage.removeItem("erp-detail-handoff");
+      }
+    } catch (e) {
+      console.warn("⚠️ Could not read stock-entry handoff:", e);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, isNew]);
+
+  // ─── Load existing Stock Entry (full fetch, runs alongside handoff) ──
   useEffect(() => {
     if (!isNew && id) {
       setLoading(true);

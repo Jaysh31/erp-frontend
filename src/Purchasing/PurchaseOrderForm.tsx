@@ -4,6 +4,8 @@
 // UPDATED: Added Quantity field in "Add New Item" popup
 // UPDATED: Removed HSN field from "Add New Item" popup
 // UPDATED: Added VIEW MODE support via URL parameter ?mode=view
+// FIXED: Guard against literal ":id" route param and non-numeric ids so the
+//        page doesn't redirect to the list when a bad id is passed.
 
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
@@ -231,7 +233,19 @@ export default function PurchaseOrderForm() {
   const [searchParams] = useSearchParams();
   const mode = searchParams.get('mode');
   const isViewMode = mode === 'view';
-  const isEdit = Boolean(id) && id !== 'new';
+
+  // ✅ FIX: Validate the route param.
+  //    If `id` is missing, is "new", is the literal string ":id",
+  //    or is not purely numeric, we treat this as a CREATE form and
+  //    never call the detail API (which would 400 Bad Request and
+  //    then redirect the user back to the list).
+  const hasValidId =
+    Boolean(id) &&
+    id !== 'new' &&
+    !String(id).startsWith(':') &&
+    /^\d+$/.test(String(id));
+
+  const isEdit = hasValidId;
   
   let theme = 'light';
   try {
@@ -878,6 +892,12 @@ export default function PurchaseOrderForm() {
 
   // ─── Fetch single purchase order ──────────────────────────────────
   const fetchPurchaseOrder = async (poId: string) => {
+    // ✅ FIX: Guard against bad ids reaching the API.
+    if (!poId || String(poId).startsWith(':') || !/^\d+$/.test(String(poId))) {
+      console.warn(`Skipping fetchPurchaseOrder — invalid id "${poId}"`);
+      return;
+    }
+
     setLoadingData(true);
     try {
       const response = await api.get(`/purchase-order/${poId}`);
@@ -1404,7 +1424,9 @@ export default function PurchaseOrderForm() {
   // ─── Load PO data or generate new PO number after master data is ready ──
   useEffect(() => {
     if (masterDataLoaded) {
-      if (isEdit && id) {
+      // ✅ FIX: Only fetch the PO when we have a *valid* numeric id.
+      //        Otherwise treat this as a fresh create form.
+      if (isEdit && id && /^\d+$/.test(String(id))) {
         setTimeout(() => {
           fetchPurchaseOrder(id);
         }, 100);
@@ -1864,7 +1886,7 @@ export default function PurchaseOrderForm() {
       }))
     };
 
-    if (isEdit && id) {
+    if (isEdit && id && /^\d+$/.test(String(id))) {
       payload.id = parseInt(id);
     }
 

@@ -506,7 +506,6 @@ class DeliveryChallanAPI {
     return this.apiService.put(`/inventory`, data);
   }
 
-  // Get quality inspection by delivery challan ID
   async getQualityInspectionByDC(dcId: string | number): Promise<ApiResponse<any>> {
     const dcResponse = await this.apiService.get(`/delivery-note/${dcId}`);
     if (dcResponse.success && dcResponse.data) {
@@ -519,7 +518,6 @@ class DeliveryChallanAPI {
     return this.apiService.get(`/quality-inspection?reference_id=${dcId}&reference_type=Delivery Challan`);
   }
 
-  // Get quality inspection by ID directly
   async getQualityInspectionById(qiId: string | number): Promise<ApiResponse<any>> {
     return this.apiService.get(`/quality-inspection/${qiId}`);
   }
@@ -1099,21 +1097,17 @@ const CustomerDropdown: React.FC<CustomerDropdownProps> = ({
     fetchCustomers('');
   }, []);
 
-  // FIX: When presetCustomer changes, update selectedCustomer
   useEffect(() => {
     if (presetCustomer && presetCustomer.id && presetCustomer.name) {
       setSelectedCustomer(presetCustomer);
-      // Force close dropdown if open
       setIsOpen(false);
     }
   }, [presetCustomer]);
 
-  // When value prop changes externally, update selectedCustomer
   useEffect(() => {
     if (value && presetCustomer && presetCustomer.id === value) {
       setSelectedCustomer(presetCustomer);
     } else if (value && !presetCustomer) {
-      // Find customer from the list
       const found = customers.find(c => c.id === value);
       if (found) {
         setSelectedCustomer(found);
@@ -1805,6 +1799,9 @@ const NewDeliveryChallan: React.FC = () => {
 
   const itemsRestoredRef = useRef(false);
 
+  // 🆕 Guard: only apply the chatbot handoff once per :id
+  const handoffAppliedRef = useRef(false);
+
   const [showQuickAddModal, setShowQuickAddModal] = useState<boolean>(false);
   const [quickAddPrefillName, setQuickAddPrefillName] = useState<string>('');
 
@@ -2157,7 +2154,6 @@ const NewDeliveryChallan: React.FC = () => {
       return;
     }
 
-    // Navigate to the quality inspection page in view mode
     navigate(`/quality-inspection/${qiId}?view=1`);
   };
 
@@ -2234,6 +2230,188 @@ const NewDeliveryChallan: React.FC = () => {
   useEffect(() => {
     restoreStateFromQI();
   }, []);
+
+  // ─── 🆕 CHATBOT HANDOFF READER ─────────────────────────────────────
+  // When the chatbot navigates here as `/delivery-challan/view/86`
+  // (or /edit/86), it first fetches the master + all related lists via
+  // fetchDetailPageData('deliveryNote', 86), stashes them under
+  // sessionStorage["erp-detail-handoff"], then navigates.
+  // This effect hydrates the form from that payload immediately so the
+  // page renders without waiting for the sequential mount fetches.
+  useEffect(() => {
+    if (!isEditMode && !isViewMode) return;
+    if (!id) return;
+    if (handoffAppliedRef.current) return;
+
+    const raw = sessionStorage.getItem("erp-detail-handoff");
+    if (!raw) return;
+
+    try {
+      const parsed = JSON.parse(raw);
+      if (
+        parsed?.endpointKey === "deliveryNote" &&
+        String(parsed.id) === String(id) &&
+        parsed.master
+      ) {
+        console.log("📦 Chatbot handoff → hydrating Delivery Challan", id);
+        const wrapper = parsed.master;
+        // Unwrap the payload: some APIs return { deliveryNote: {...}, items: [...] }
+        const master =
+          wrapper.deliveryNote ?? wrapper.delivery_note ?? wrapper;
+        const related = parsed.related || {};
+
+        // ── Master fields ──
+        if (master.customer_id) {
+          setSelectedCustomer(String(master.customer_id));
+          setCustomerData({
+            id: String(master.customer_id),
+            name: master.customer_name || master.customer || "",
+            code: master.customer_code || "",
+            email: master.customer_email || master.email_id || "",
+            phone: master.customer_phone || master.mobile_no || "",
+            address: master.customer_address || master.primary_address || "",
+            shippingAddress: master.shipping_address || master.primary_address || "",
+            gstin: master.gstin || master.customer_gstin || "",
+          });
+        }
+        if (master.posting_date) {
+          setDcDate(String(master.posting_date).split("T")[0]);
+        }
+        if (master.set_warehouse || master.warehouse) {
+          setWarehouse(master.set_warehouse || master.warehouse || "");
+        }
+        if (master.transporter) setTransporter(master.transporter);
+        if (master.vehicle_no) setVehicleNumber(master.vehicle_no);
+        if (master.instructions || master.remarks) {
+          setRemarks(master.instructions || master.remarks || "");
+        }
+        if (master.name) setDcNumber(master.name);
+        if (master.sales_order_id) {
+          setHasSalesOrder(true);
+          setSelectedSalesOrder(String(master.sales_order_id));
+        } else {
+          setHasSalesOrder(false);
+        }
+        if (master.quality_inspection_id) {
+          setQualityInspectionId(master.quality_inspection_id);
+          setQualityInspection(true);
+        }
+
+        // ── Line items ──
+        const itemsRaw: any[] = Array.isArray(master.items)
+          ? master.items
+          : Array.isArray(master.delivery_note_items)
+            ? master.delivery_note_items
+            : [];
+
+        if (itemsRaw.length > 0) {
+          const mapped: DeliveryChallanItem[] = itemsRaw.map((item: any, idx: number) => {
+            const qty = Number(item.qty) || 0;
+            const rate = Number(item.rate) || 0;
+            const taxRate = Number(item.tax_rate ?? item.tax ?? 0);
+            const amount = Number(item.amount) || qty * rate;
+            const taxAmount =
+              Number(item.tax_amount) || (amount * taxRate) / 100;
+            const totalAmount =
+              Number(item.total_amount) || amount + taxAmount;
+
+            const { status: stockStatus, availableQty } = getStockStatus(
+              item.item_code || "",
+              qty
+            );
+
+            return {
+              id: `handoff-${idx}`,
+              itemCode: item.item_code || "",
+              itemName: item.item_name || item.description || "",
+              hsn: item.hsn || "",
+              description: item.description || item.item_name || "",
+              quantity: qty || 1,
+              unit: item.uom || item.stock_uom || "pcs",
+              rate,
+              amount,
+              tax: taxRate,
+              tax_id: item.item_tax_id ?? item.tax_id ?? undefined,
+              taxAmount,
+              totalAmount,
+              type:
+                item.type === "Services" || item.type === "service"
+                  ? "service"
+                  : "product",
+              stockStatus,
+              availableQty,
+              inventoryId: undefined,
+            };
+          });
+          itemsRestoredRef.current = true;
+          setItems(mapped);
+        }
+
+        // ── Dropdown lists — reuse what the chatbot already fetched ──
+        if (Array.isArray(related.customers) && related.customers.length) {
+          setCustomers(
+            related.customers.map((c: any) => ({
+              id: String(c.id ?? c.customer_id ?? ""),
+              name: c.customer_name || c.name || "",
+              code: c.customer_code || "",
+              email: c.email_id || c.email || "",
+              phone: c.mobile_no || c.phone || "",
+              address: c.address || "",
+              shippingAddress: c.shipping_address || c.address || "",
+              gstin: c.gstin || "",
+            }))
+          );
+        }
+        if (
+          Array.isArray(related.productsForLine) &&
+          related.productsForLine.length
+        ) {
+          const mapped = related.productsForLine.map((item: any) => ({
+            id: String(item.id ?? item.name ?? ""),
+            itemCode: item.item_code || item.name || "",
+            itemName: item.item_name || "",
+            hsn: item.HSN || item.hsn || "",
+            description: item.description || item.item_name || "",
+            unit: item.stock_uom || "pcs",
+            rate: Number(item.standard_rate ?? item.rate ?? 0),
+            tax: Number(item.tax ?? 0),
+            type: "product" as const,
+            stockUom: item.stock_uom,
+            standardRate: Number(item.standard_rate ?? 0),
+            rawItem: item,
+          }));
+          setAllProducts(mapped);
+          setProducts(mapped);
+        }
+        if (Array.isArray(related.taxes) && related.taxes.length) {
+          setTaxOptions(related.taxes);
+        }
+        if (Array.isArray(related.warehouses) && related.warehouses.length) {
+          setWarehouses(
+            related.warehouses.map((w: any) => ({
+              id: Number(w.id ?? 0),
+              warehouse_name: w.warehouse_name || "",
+              company: w.company || "",
+              parent_warehouse: w.parent_warehouse ?? null,
+              warehouse_type: w.warehouse_type ?? null,
+              city: w.city ?? null,
+              state: w.state ?? null,
+              email_id: w.email_id ?? null,
+              phone_no: w.phone_no ?? null,
+              disabled: Number(w.disabled ?? 0),
+            }))
+          );
+        }
+
+        handoffAppliedRef.current = true;
+        sessionStorage.removeItem("erp-detail-handoff");
+        toast.success("Delivery Challan loaded from chatbot");
+      }
+    } catch (e) {
+      console.warn("⚠️ Could not read delivery challan handoff:", e);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, isEditMode, isViewMode]);
 
   useEffect(() => {
     if (selectedCustomer && !customerData && customers.length > 0) {
@@ -2397,6 +2575,8 @@ const NewDeliveryChallan: React.FC = () => {
       allProducts.length > 0 &&
       taxOptions.length > 0
     ) {
+      // 🆕 Skip the mount fetch if the chatbot handoff already hydrated
+      if (handoffAppliedRef.current) return;
       fetchDeliveryChallanForEdit(id);
     }
   }, [
