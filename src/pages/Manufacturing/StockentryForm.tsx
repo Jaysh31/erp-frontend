@@ -162,6 +162,8 @@ interface ApiStockEntryPayload {
   total_amount: number;
   amended_from: string;
   credit_note: string;
+  Debit_note: string;
+  GeneralAccountEntry: string;
   is_return: number;
   _user_tags: string;
   _comments: string;
@@ -691,6 +693,8 @@ export default function StockEntryForm() {
       total_amount: totalAmount,
       amended_from: "",
       credit_note: "",
+      Debit_note: "",
+      GeneralAccountEntry:"",
       is_return: 0,
       _user_tags: "",
       _comments: "",

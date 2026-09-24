@@ -87,6 +87,21 @@ const ROUTE_MODULE_MAP: Array<{ prefix: string; module: string }> = [
   { prefix: "/expenses", module: "accounting" },
   { prefix: "/CompanyAccountingSetup", module: "accounting" },
 
+  {
+  prefix: '/receivables/credit-notes',
+  module: "accounting"
+},
+
+{
+  prefix: '/DetailsNote',
+  module: "receivables"
+},
+
+{
+  prefix: '/GeneralAccountEntry',
+  module: "receivables"
+},
+
   // Stock
   { prefix: "/raw-material", module: "stock" },
   { prefix: "/work-in-progress", module: "stock" },
@@ -172,9 +187,11 @@ const ROUTE_CATEGORY_MAP: Array<{ prefix: string; category: string }> = [
   { prefix: "/chart-of-accounts", category: "Accounts" },
   { prefix: "/ledger-accounts", category: "Accounts" },
   { prefix: "/accounting/cost-centers", category: "Accounts" },
+  { prefix: "/Debit-notes", category: "Receivables" },
   { prefix: "/customer-invoices", category: "Receivables" },
   { prefix: "/Customer-payments", category: "Receivables" },
   { prefix: "/receivables/credit-notes", category: "Receivables" },
+  { prefix: "/GeneralAccountEntry", category: "Receivables" },
   { prefix: "/outstanding-receivables", category: "Receivables" },
   { prefix: "/payables", category: "Payables" },
   { prefix: "/banking", category: "Banking" },
@@ -355,7 +372,7 @@ export default function Sidebar({
   ];
 
   // All menu categories (without Home)
-  const allMenuCategories: { title: string; module: string; icon: JSX.Element; items: MenuItem[] }[] = [
+  const allMenuCategories: { title: string; module: string; category?: string; icon: JSX.Element; items: MenuItem[] }[] = [
     {
       title: 'Sales',
       module: 'sales',
@@ -474,11 +491,13 @@ export default function Sidebar({
         { title: 'Chart of Accounts', icon: <ChartOfAccountsIcon />, path: '/chart-of-accounts', apiSubmodule: 'Chart of Accounts' },
         { title: 'Ledger Accounts', icon: <LedgerIcon />, path: '/ledger-accounts', apiSubmodule: 'Ledger Accounts' },
         { title: 'Cost Centers', icon: <CostCenterIcon />, path: '/accounting/cost-centers', apiSubmodule: 'Cost Centers' },
+        
       ]
     },
     {
       title: 'Receivables',
       module: 'accounting',
+      category: 'Receivables',
       icon: <ReceivablesIcon />,
       items: [
         {
@@ -500,6 +519,19 @@ export default function Sidebar({
           apiSubmodule: 'Credit Notes'
         },
         {
+      title: 'Debit Notes',
+      icon: <SupplierIcon />,
+      path: '/Debit-notes',
+      apiSubmodule: 'Debit Notes'
+    },
+
+    {
+      title: 'General Account Entry',
+      icon: <CreditNoteIcon />,
+      path: '/GeneralAccountEntry',
+      apiSubmodule: 'General Account Entry'
+    },
+        {
           title: 'Outstanding Receivables',
           icon: <CustomersIcon />,
           path: '/outstanding-receivables',
@@ -514,7 +546,10 @@ export default function Sidebar({
       items: [
         { title: 'Supplier Bills', icon: <SupplierIcon />, path: '/payables/supplier-bills', apiSubmodule: 'Supplier Bills' },
         { title: 'Supplier Payments', icon: <PaymentIcon />, path: '/payables/supplier-payments', apiSubmodule: 'Supplier Payments' },
-        { title: 'Outstanding Payables', icon: <OutstandingIcon />, path: '/payables/outstanding-payables', apiSubmodule: 'Outstanding Payables' }
+        { title: 'Outstanding Payables', icon: <OutstandingIcon />, path: '/payables/outstanding-payables', apiSubmodule: 'Outstanding Payables' },
+        { title: 'Credit', icon: <CostCenterIcon />, path: '/payables/credit', apiSubmodule: 'Credit' },
+        { title: 'Debit', icon: <CostCenterIcon />, path: '/payables/Debit', apiSubmodule: 'Debit' },
+        { title: 'GeneralAccountEntry', icon: <CostCenterIcon />, path: '/payables/GeneralAccountEntry', apiSubmodule: 'GeneralAccountEntry' },
       ]
     },
     {

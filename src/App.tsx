@@ -105,6 +105,9 @@ import ProformaInvoice from "./pages/Sales/ProformaInvoice";
 import CreateProformaInvoice from "./pages/Sales/CreateProformaInvoice";
 import ItemBulkUpload from "./pages/Setup/Itembulkupload";
 import GeneralAccountEntry from "./pages/Generalaccountentry";
+import CreditForm from "./pages/CreditForm";
+import DebitForm from "./pages/DebitForm";
+import GAEForm from "./pages/GAEForm";
 
 function App() {
   return (
@@ -199,6 +202,10 @@ function App() {
 
 
                 <Route path="/accounts/entry" element={<GeneralAccountEntry />} />
+                <Route path="/receivables/credit-notes" element={<CreditForm />} />
+                <Route path="/Debit-notes" element={<DebitForm />} />
+                <Route path="/GeneralAccountEntry" element={<GAEForm />} />
+                
 
 
                 <Route path="/job-card" element={<JobCardManagement />} />
