@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   FaSearch,
   FaFilter,
@@ -54,6 +54,7 @@ interface ApiResponse {
 
 export default function ItemList() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { theme } = useAdminTheme();
 
   const [items, setItems] = useState<Item[]>([]);
@@ -62,6 +63,8 @@ export default function ItemList() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [groupFilter, setGroupFilter] = useState('all');
+  // 🆕 TYPE FILTER — populated from URL (?type=raw / ?type=product) or dropdown
+  const [typeFilter, setTypeFilter] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [totalItems, setTotalItems] = useState(0);
@@ -93,6 +96,111 @@ export default function ItemList() {
   // ===== CALENDAR STATE =====
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
+
+  // ====================================================================
+  // 🆕 READ FILTERS FROM URL QUERY PARAMS (chatbot navigation support)
+  // ====================================================================
+  useEffect(() => {
+    const urlStatus = searchParams.get('status');
+    const urlType = searchParams.get('type');
+    const urlGroup = searchParams.get('group');
+    const urlSearch = searchParams.get('search');
+    const urlFromDate = searchParams.get('from_date');
+    const urlToDate = searchParams.get('to_date');
+    const autoFilter = searchParams.get('autoFilter');
+
+    let hasUrlFilters = false;
+
+    if (urlStatus) {
+      // Normalize common status values to dropdown values
+      const s = urlStatus.toLowerCase().trim();
+      if (s === 'enabled' || s === 'active') {
+        setStatusFilter('enabled');
+        hasUrlFilters = true;
+      } else if (s === 'disabled' || s === 'inactive') {
+        setStatusFilter('disabled');
+        hasUrlFilters = true;
+      } else {
+        // Unknown status — keep as-is; the API/backend may support other values
+        setStatusFilter(urlStatus);
+        hasUrlFilters = true;
+      }
+    }
+
+    if (urlType) {
+      setTypeFilter(urlType);
+      hasUrlFilters = true;
+    }
+
+    if (urlGroup) {
+      setGroupFilter(urlGroup);
+      hasUrlFilters = true;
+    }
+
+    if (urlSearch) {
+      setSearchTerm(urlSearch);
+      hasUrlFilters = true;
+    }
+
+    if (urlFromDate) {
+      setFromDate(urlFromDate);
+      setTempFromDate(urlFromDate);
+      hasUrlFilters = true;
+    }
+    if (urlToDate) {
+      setToDate(urlToDate);
+      setTempToDate(urlToDate);
+      hasUrlFilters = true;
+    }
+
+    if (hasUrlFilters) {
+      console.log('🔗 URL filters detected:', {
+        status: urlStatus,
+        type: urlType,
+        group: urlGroup,
+        search: urlSearch,
+        fromDate: urlFromDate,
+        toDate: urlToDate,
+        autoFilter,
+      });
+      setCurrentPage(1);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // run once on mount
+
+  // Also react to URL changes after mount (e.g., chatbot navigates while already on this page)
+  useEffect(() => {
+    const urlStatus = searchParams.get('status');
+    const urlType = searchParams.get('type');
+    const urlGroup = searchParams.get('group');
+    const urlSearch = searchParams.get('search');
+    const urlFromDate = searchParams.get('from_date');
+    const urlToDate = searchParams.get('to_date');
+
+    // Only update state if the URL actually has different values than current state
+    if (urlStatus) {
+      const s = urlStatus.toLowerCase().trim();
+      if (s === 'enabled' || s === 'active') {
+        if (statusFilter !== 'enabled') setStatusFilter('enabled');
+      } else if (s === 'disabled' || s === 'inactive') {
+        if (statusFilter !== 'disabled') setStatusFilter('disabled');
+      } else {
+        if (statusFilter !== urlStatus) setStatusFilter(urlStatus);
+      }
+    }
+    if (urlType && typeFilter !== urlType) setTypeFilter(urlType);
+    if (urlGroup && groupFilter !== urlGroup) setGroupFilter(urlGroup);
+    if (urlSearch && searchTerm !== urlSearch) setSearchTerm(urlSearch);
+    if (urlFromDate && fromDate !== urlFromDate) {
+      setFromDate(urlFromDate);
+      setTempFromDate(urlFromDate);
+    }
+    if (urlToDate && toDate !== urlToDate) {
+      setToDate(urlToDate);
+      setTempToDate(urlToDate);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   // ===== DATE HELPER FUNCTIONS =====
   const formatDateForDisplay = (dateStr: string): string => {
@@ -290,10 +398,21 @@ export default function ItemList() {
         params.append('search', searchTerm);
       }
       if (statusFilter !== 'all') {
-        params.append('status', statusFilter === 'enabled' ? '1' : '0');
+        // Map dropdown values -> API values
+        const statusParam =
+          statusFilter === 'enabled' || statusFilter === 'active'
+            ? '1'
+            : statusFilter === 'disabled' || statusFilter === 'inactive'
+              ? '0'
+              : statusFilter;
+        params.append('status', statusParam);
       }
       if (groupFilter !== 'all') {
         params.append('group', groupFilter);
+      }
+      // 🆕 TYPE FILTER — pass to API if set
+      if (typeFilter !== 'all') {
+        params.append('type', typeFilter);
       }
       // Add date filters
       if (fromDate) {
@@ -309,9 +428,10 @@ export default function ItemList() {
       if (response.data.success === 1) {
         const raw = response.data.data;
 
+        let records: Item[] = [];
+
         if (Array.isArray(raw)) {
-          setItems(raw);
-          setAllItems(raw);
+          records = raw;
 
           const isFullPage = raw.length === itemsPerPage;
           const estimatedTotal = isFullPage
@@ -320,15 +440,57 @@ export default function ItemList() {
 
           setTotalItems(estimatedTotal);
         } else if (raw && typeof raw === 'object') {
-          const records = raw.records || [];
-          setItems(records);
+          records = raw.records || [];
           setTotalItems(raw.total || records.length || 0);
-          setAllItems(records);
         } else {
-          setItems([]);
+          records = [];
           setTotalItems(0);
-          setAllItems([]);
         }
+
+        // 🆕 CLIENT-SIDE TYPE FALLBACK
+        // If the API ignored the `type` param, filter here.
+        if (typeFilter !== 'all' && records.length > 0) {
+          const targetType = typeFilter.toLowerCase().trim();
+          const filteredByType = records.filter((r: any) => {
+            const rt = String(
+              r?.type ?? r?.item_type ?? r?.item_group ?? r?.group ?? ""
+            ).toLowerCase().trim();
+            return rt.includes(targetType) || targetType.includes(rt);
+          });
+
+          if (filteredByType.length > 0 && filteredByType.length < records.length) {
+            console.log(
+              `🔍 Client-side type filter: ${filteredByType.length}/${records.length} match "${typeFilter}"`
+            );
+            records = filteredByType;
+          }
+        }
+
+        // 🆕 CLIENT-SIDE STATUS FALLBACK (active/inactive)
+        if (
+          (statusFilter === 'enabled' ||
+            statusFilter === 'active' ||
+            statusFilter === 'disabled' ||
+            statusFilter === 'inactive') &&
+          records.length > 0
+        ) {
+          const targetDisabled = statusFilter === 'disabled' || statusFilter === 'inactive';
+          const filteredByStatus = records.filter(
+            (r: any) => (r?.disabled === 1) === targetDisabled
+          );
+          if (
+            filteredByStatus.length > 0 &&
+            filteredByStatus.length < records.length
+          ) {
+            console.log(
+              `🔍 Client-side status filter: ${filteredByStatus.length}/${records.length} match "${statusFilter}"`
+            );
+            records = filteredByStatus;
+          }
+        }
+
+        setItems(records);
+        setAllItems(records);
       } else {
         setError('Failed to fetch items');
       }
@@ -338,7 +500,16 @@ export default function ItemList() {
     } finally {
       setLoading(false);
     }
-  }, [currentPage, itemsPerPage, searchTerm, statusFilter, groupFilter, fromDate, toDate]);
+  }, [
+    currentPage,
+    itemsPerPage,
+    searchTerm,
+    statusFilter,
+    groupFilter,
+    typeFilter,
+    fromDate,
+    toDate,
+  ]);
 
   // Delete item
   const handleDeleteItem = async (id: number, e: React.MouseEvent) => {
@@ -381,7 +552,7 @@ export default function ItemList() {
   // Reset page when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, statusFilter, groupFilter, fromDate, toDate]);
+  }, [searchTerm, statusFilter, groupFilter, typeFilter, fromDate, toDate]);
 
   // Get unique item groups for filter
   const itemGroups = Array.from(new Set(allItems.map(item => item.item_group))).filter(Boolean);
@@ -453,12 +624,16 @@ export default function ItemList() {
     setSearchTerm('');
     setStatusFilter('all');
     setGroupFilter('all');
+    setTypeFilter('all');
     setFromDate('');
     setToDate('');
     setTempFromDate('');
     setTempToDate('');
     setSelectedQuickFilter('');
     setShowDatePicker(false);
+
+    // 🆕 Clear URL query params too
+    setSearchParams({});
   };
 
   const handleRowClick = (item: Item) => {
@@ -1484,6 +1659,21 @@ export default function ItemList() {
             <option value="enabled">Enabled</option>
             <option value="disabled">Disabled</option>
           </select>
+          {/* 🆕 TYPE FILTER DROPDOWN */}
+          <select
+            value={typeFilter}
+            onChange={(e) => {
+              setTypeFilter(e.target.value);
+              setCurrentPage(1);
+            }}
+            className="itl-filter-select"
+          >
+            <option value="all">All Types</option>
+            <option value="raw">Raw</option>
+            <option value="product">Product</option>
+            <option value="service">Service</option>
+            <option value="consumable">Consumable</option>
+          </select>
           <select
             value={groupFilter}
             onChange={(e) => {
@@ -1634,7 +1824,7 @@ export default function ItemList() {
       </div>
 
       {/* Active filters indicator */}
-      {(searchTerm || statusFilter !== 'all' || groupFilter !== 'all' || fromDate || toDate) && (
+      {(searchTerm || statusFilter !== 'all' || groupFilter !== 'all' || typeFilter !== 'all' || fromDate || toDate) && (
         <div className="itl-active-filters">
           <FaFilter size={12} style={{ color: 'var(--primary-color)' }} />
           <span style={{ color: 'var(--text-primary)' }}>Active filters:</span>
@@ -1646,6 +1836,12 @@ export default function ItemList() {
           {statusFilter !== 'all' && (
             <span style={{ color: 'var(--text-primary)' }}>
               <strong>Status:</strong> {statusFilter}
+            </span>
+          )}
+          {/* 🆕 Type filter chip */}
+          {typeFilter !== 'all' && (
+            <span style={{ color: 'var(--text-primary)' }}>
+              <strong>Type:</strong> {typeFilter}
             </span>
           )}
           {groupFilter !== 'all' && (

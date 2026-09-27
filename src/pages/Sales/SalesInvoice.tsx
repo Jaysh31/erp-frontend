@@ -28,7 +28,7 @@ import {
   FaChevronDown,
   FaTrash
 } from 'react-icons/fa';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
 import api from '../../services/api';
 import './SalesMobileTable.css';
@@ -160,10 +160,42 @@ let companyDetails = {
 };
 
 // ===== FORMAT INVOICE NUMBER =====
-const formatInvoiceNumber = (id: string | number): string => {
-  const numId = typeof id === 'string' ? parseInt(id, 10) : id;
-  const paddedId = String(numId).padStart(5, '0');
-  return `SINV-${paddedId}`;
+// 🆕 Always renders "SI-<zero-padded-to-5-digits>", e.g. SI-00070
+// Handles null / undefined / non-numeric / already-prefixed ids gracefully.
+const SALES_INVOICE_PREFIX = 'SI-';
+const formatInvoiceNumber = (id: string | number | null | undefined): string => {
+  if (id === null || id === undefined) return '';
+  const s = String(id).trim();
+  if (!s) return '';
+  // Already prefixed (e.g. "SI-00070") → leave untouched
+  if (s.toUpperCase().startsWith(SALES_INVOICE_PREFIX)) return s;
+  const n = Number(s);
+  if (Number.isNaN(n)) return s; // non-numeric fallback
+  return SALES_INVOICE_PREFIX + String(n).padStart(5, '0');
+};
+
+// 🆕 Normalize a status string from the URL query param into the exact
+// casing the dropdown uses.
+//   "draft"           → "Draft"
+//   "submitted"       → "Submitted"
+//   "cancelled"       → "Cancelled"
+//   "paid"            → "Paid"
+//   "partially paid"  → "Partially Paid"
+//   "partially-paid"  → "Partially Paid"
+//   "overdue"         → "Overdue"
+const normalizeStatusParam = (raw: string): string => {
+  if (!raw) return 'All';
+  const s = raw.trim();
+  if (!s) return 'All';
+  const lower = s.toLowerCase();
+  if (lower === 'partially paid' || lower === 'partially-paid') return 'Partially Paid';
+  if (lower === 'cancelled' || lower === 'canceled' || lower === 'cancel') return 'Cancelled';
+  if (lower === 'submitted' || lower === 'submit') return 'Submitted';
+  if (lower === 'overdue') return 'Overdue';
+  if (lower === 'paid') return 'Paid';
+  if (lower === 'draft') return 'Draft';
+  // Fallback: capitalize first letter
+  return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
 };
 
 // ===== AMOUNT IN WORDS HELPER =====
@@ -236,6 +268,9 @@ const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
 // ===== MAIN COMPONENT =====
 const SalesInvoice: React.FC = () => {
   const navigate = useNavigate();
+  // 🆕 Read URL query params (?status=...&autoFilter=1) sent by the chatbot
+  const [searchParams, setSearchParams] = useSearchParams();
+
   const menuRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
   const printWindowRef = useRef<Window | null>(null); // ✅ Track print window
   
@@ -274,6 +309,32 @@ const SalesInvoice: React.FC = () => {
     if (!dateString) return '';
     return formatDate(dateString);
   };
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // 🆕 On mount (and whenever the URL query string changes), read the
+  //    status / autoFilter params sent by the chatbot and apply them to
+  //    the local filter state. After applying, strip them from the URL so
+  //    a refresh doesn't re-trigger the filter.
+  // ═══════════════════════════════════════════════════════════════════════
+  useEffect(() => {
+    const statusParam = searchParams.get('status');
+    const autoFilter = searchParams.get('autoFilter');
+
+    if (statusParam) {
+      const normalized = normalizeStatusParam(statusParam);
+      console.log(`🎯 SalesInvoice: applying URL status filter → "${normalized}"`);
+      setSelectedStatus(normalized);
+      setCurrentPage(1);
+
+      if (autoFilter === '1') {
+        const next = new URLSearchParams(searchParams);
+        next.delete('status');
+        next.delete('autoFilter');
+        setSearchParams(next, { replace: true });
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
 
   // ===== FETCH COMPANY DETAILS =====
@@ -729,11 +790,14 @@ const SalesInvoice: React.FC = () => {
 
     const hasPaymentSchedule = invoice.payment_schedule && invoice.payment_schedule.length > 0;
 
+    // Always print the SI-<padded-id> form.
+    const printInvoiceNumber = formatInvoiceNumber(invoice.id);
+
     return `<!DOCTYPE html>
 <html>
 <head>
 <meta charset="UTF-8" />
-<title>${escapeHtml(invoice.displayInvoiceNumber || 'Sales Invoice')}</title>
+<title>${escapeHtml(printInvoiceNumber || 'Sales Invoice')}</title>
 <style>
   * { box-sizing: border-box; }
   body { font-family: Arial, Helvetica, sans-serif; font-size: 12px; color: #1a1a1a; margin: 0; padding: 24px; }
@@ -821,7 +885,7 @@ const SalesInvoice: React.FC = () => {
         <div class="pq-meta-row">
           <div class="pq-meta-cell">
             <div class="pq-meta-label">Invoice No.</div>
-            <div class="pq-meta-value">${escapeHtml(invoice.displayInvoiceNumber || invoice.id || '')}</div>
+            <div class="pq-meta-value">${escapeHtml(printInvoiceNumber)}</div>
           </div>
           <div class="pq-meta-cell" style="border-right:none;">
             <div class="pq-meta-label">Date</div>
@@ -977,7 +1041,7 @@ const SalesInvoice: React.FC = () => {
       rows.push([`State Name: ${companyDetails.stateName}, Code: ${companyDetails.stateCode}`]);
       rows.push([]);
       
-      rows.push(['Invoice No.', invoice.displayInvoiceNumber || invoice.id || '']);
+      rows.push(['Invoice No.', formatInvoiceNumber(invoice.id)]);
       rows.push(['Date', formatDisplayDate(invoice.posting_date)]);
       rows.push(['Due Date', formatDisplayDate(invoice.due_date)]);
       rows.push(['Currency', invoice.currency || 'INR']);
@@ -1302,6 +1366,13 @@ const SalesInvoice: React.FC = () => {
     setSelectedQuickFilter('');
     setCurrentPage(1);
     setShowDatePicker(false);
+
+    // 🆕 Also strip any leftover status/autoFilter params from the URL
+    // so clear-filters actually clears everything.
+    const next = new URLSearchParams(searchParams);
+    next.delete('status');
+    next.delete('autoFilter');
+    setSearchParams(next, { replace: true });
   };
 
       // ─── Loading Screen ─────────────────────────────────────────────────────
@@ -2725,7 +2796,7 @@ const SalesInvoice: React.FC = () => {
                 return (
                   <tr key={item.id} className="qt-tr">
                     <td className="qt-td qt-td-id">
-                      {item.displayInvoiceNumber || item.id || '-'}
+                      {formatInvoiceNumber(item.id)}
                     </td>
                     <td className="qt-td">
                       <span className="qt-td-customer" onClick={() => handleView(item.id)}>
@@ -2861,7 +2932,7 @@ const SalesInvoice: React.FC = () => {
                           <div className="sales-mobile-card-primary-row">
                             <span className="sales-mobile-header-badge">
                               <span className="qt-td qt-td-id">
-                      {item.displayInvoiceNumber || item.id || '-'}
+                      {formatInvoiceNumber(item.id)}
                               </span>
                             </span>
                              <span className="sales-mobile-item-name">
@@ -2923,7 +2994,7 @@ const SalesInvoice: React.FC = () => {
                             <span className="sales-mobile-card-meta-text">
                               {/*rowNumber} of {totalRecords*/}
                             </span>
-                            
+                             
                              
 
 

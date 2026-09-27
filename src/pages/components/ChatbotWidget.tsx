@@ -131,72 +131,14 @@ export default function ChatbotWidget() {
   // FLOATING LAUNCHER — shows when chat is closed
   // Works on /home, /dashboard/*, and every other page
   // ============================================================
-  if (!isChatbotOpen) {
-    return (
-      <button
-        className="chatbot-launcher"
-        onClick={openChatbot}
-        aria-label="Open ERP Assistant"
-        title="Ask the ERP Assistant"
-        type="button"
-      >
-        {/* Chat bubble icon */}
-        <svg
-          width="26"
-          height="26"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-          <circle cx="9" cy="10" r="1" fill="currentColor" />
-          <circle cx="12" cy="10" r="1" fill="currentColor" />
-          <circle cx="15" cy="10" r="1" fill="currentColor" />
-        </svg>
-      </button>
-    );
-  }
+
 
   const suggestions = chatbotService.getSuggestions(currentModule);
 
   // ============================================================
   // FULL CHAT PANEL — shows when chat is open
   // ============================================================
-  return (
-    <div className="chatbot-widget" role="dialog" aria-label="ERP Assistant">
-      {/* HEADER */}
-      <div className="chatbot-header">
-        <div className="chatbot-header-left">
-          <div className="chatbot-avatar">🤖</div>
-          <div>
-            <div className="chatbot-title">ERP Assistant</div>
-            <div className="chatbot-subtitle">
-              <span className="chatbot-status-dot" /> Online
-            </div>
-          </div>
-        </div>
-        <div className="chatbot-header-actions">
-          <button
-            className="chatbot-icon-btn"
-            onClick={clearChatMessages}
-            title="Clear chat"
-            aria-label="Clear chat"
-          >
-            🗑
-          </button>
-          <button
-            className="chatbot-icon-btn"
-            onClick={closeChatbot}
-            title="Close"
-            aria-label="Close chat"
-          >
-            ✕
-          </button>
-        </div>
-      </div>
+ 
 
       {/* MESSAGES */}
       <div className="chatbot-messages">
@@ -242,26 +184,7 @@ export default function ChatbotWidget() {
         </div>
       )}
 
-      {/* INPUT */}
-      <form className="chatbot-input-area" onSubmit={handleSend}>
-        <input
-          ref={inputRef}
-          type="text"
-          className="chatbot-input"
-          placeholder="Ask me anything..."
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          disabled={isChatbotLoading}
-        />
-        <button
-          type="submit"
-          className="chatbot-send-btn"
-          disabled={!input.trim() || isChatbotLoading}
-          aria-label="Send"
-        >
-          ➤
-        </button>
-      </form>
-    </div>
-  );
+
+          
+  
 }

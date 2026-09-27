@@ -25,7 +25,7 @@ import {
   
   FaChevronDown
 } from 'react-icons/fa';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
@@ -160,6 +160,29 @@ const formatDcNumber = (id: string | number): string => {
   return `DC-${paddedId}`;
 };
 
+// 🆕 Normalize a status string from the URL query param into the exact
+// casing the dropdown uses.
+//   "draft"       → "Draft"
+//   "submitted"   → "Submitted"
+//   "cancelled"   → "Cancelled"
+//   "pending"     → "Pending"
+//   "partial dispatch"  → "Partial Dispatch"
+//   "fully dispatched"  → "Fully Dispatched"
+const normalizeStatusParam = (raw: string): string => {
+  if (!raw) return 'All';
+  const s = raw.trim();
+  if (!s) return 'All';
+  const lower = s.toLowerCase();
+  if (lower === 'partial dispatch' || lower === 'partial-dispatch') return 'Partial Dispatch';
+  if (lower === 'fully dispatched' || lower === 'fully-dispatched' || lower === 'fully dispatched') return 'Fully Dispatched';
+  if (lower === 'cancelled' || lower === 'canceled' || lower === 'cancel') return 'Cancelled';
+  if (lower === 'submitted' || lower === 'submit') return 'Submitted';
+  if (lower === 'pending') return 'Pending';
+  if (lower === 'draft') return 'Draft';
+  // Fallback: capitalize first letter
+  return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
+};
+
 // ===== AMOUNT IN WORDS HELPER =====
 const ONES = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten',
   'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
@@ -244,6 +267,9 @@ const useDebounce = (value: string, delay: number) => {
 // ===== MAIN COMPONENT =====
 const DeliveryChallans: React.FC = () => {
   const navigate = useNavigate();
+  // 🆕 Read URL query params (?status=...&autoFilter=1) sent by the chatbot
+  const [searchParams, setSearchParams] = useSearchParams();
+
   const menuRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
   const printWindowRef = useRef<Window | null>(null);
   
@@ -301,6 +327,31 @@ const DeliveryChallans: React.FC = () => {
     return formatDate(dateString);
   };
 
+  // ═══════════════════════════════════════════════════════════════════════
+  // 🆕 On mount (and whenever the URL query string changes), read the
+  //    status / autoFilter params sent by the chatbot and apply them to
+  //    the local filter state. After applying, strip them from the URL so
+  //    a refresh doesn't re-trigger the filter.
+  // ═══════════════════════════════════════════════════════════════════════
+  useEffect(() => {
+    const statusParam = searchParams.get('status');
+    const autoFilter = searchParams.get('autoFilter');
+
+    if (statusParam) {
+      const normalized = normalizeStatusParam(statusParam);
+      console.log(`🎯 DeliveryChallans: applying URL status filter → "${normalized}"`);
+      setSelectedStatus(normalized);
+      setCurrentPage(1);
+
+      if (autoFilter === '1') {
+        const next = new URLSearchParams(searchParams);
+        next.delete('status');
+        next.delete('autoFilter');
+        setSearchParams(next, { replace: true });
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   // ─── Fetch Company Details ──────────────────────────────
   const fetchCompanyDetails = async () => {
@@ -1624,6 +1675,13 @@ const DeliveryChallans: React.FC = () => {
     setSelectedQuickFilter('');
     setCurrentPage(1);
     setShowDatePicker(false);
+
+    // 🆕 Also strip any leftover status/autoFilter params from the URL
+    // so clear-filters actually clears everything.
+    const next = new URLSearchParams(searchParams);
+    next.delete('status');
+    next.delete('autoFilter');
+    setSearchParams(next, { replace: true });
   };
 
   const openDatePicker = () => {
