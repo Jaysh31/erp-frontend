@@ -1,739 +1,615 @@
-/* =========================================================
-   REFERENCE DETAILS – CREDIT
-   Theme-compatible with BOM UI
-   ========================================================= */
+/* ============================================================
+   CREDIT PAGE
+============================================================ */
 
-* {
-  box-sizing: border-box;
-}
-
-/* =========================================================
-   PAGE CONTAINER
-   ========================================================= */
-
-.rd-credit-page {
+.credit-page {
   width: 100%;
   min-height: 100%;
-  padding: 20px;
-
-  background: var(--layout-bg, #f5f7fb);
-
-  font-family:
-    -apple-system,
-    "Inter",
-    "Segoe UI",
-    Roboto,
-    sans-serif;
-
-  color: var(--text-primary, #1f2433);
-
+  padding: 8px 10px 30px;
+  background: #f7f9fc;
+  box-sizing: border-box;
   overflow-y: auto;
-  overflow-x: hidden;
 }
 
-.rd-credit-page::-webkit-scrollbar {
-  width: 6px;
-}
-
-.rd-credit-page::-webkit-scrollbar-track {
-  background: var(--layout-bg, #f9fafb);
-  border-radius: 3px;
-}
-
-.rd-credit-page::-webkit-scrollbar-thumb {
-  background: var(--border-color, #e5e7eb);
-  border-radius: 3px;
-}
-
-.rd-credit-page::-webkit-scrollbar-thumb:hover {
-  background: var(--primary-color, #6366f1);
-}
-
-/* =========================================================
-   MAIN CARD
-   ========================================================= */
-
-.rd-credit-card {
-  width: 100%;
-
-  background: var(--card-bg, #ffffff);
-
-  border: 1px solid var(--border-color, #e5e7eb);
-  border-radius: 10px;
-
-  box-shadow:
-    0 1px 3px var(
-      --shadow-color,
-      rgba(0, 0, 0, 0.05)
-    );
-
-  overflow: hidden;
-}
-
-/* =========================================================
+/* ============================================================
    HEADER
-   ========================================================= */
+============================================================ */
 
-.rd-credit-header {
-  min-height: 43px;
-
+.credit-header {
+  width: 100%;
+  height: 38px;
   display: flex;
   align-items: center;
+  padding: 0 8px;
+  box-sizing: border-box;
 
-  padding: 0 16px;
-
-  background: var(
-    --primary-color,
-    #6366f1
+  background: linear-gradient(
+    90deg,
+    #1689d5,
+    #2b98dc,
+    #43a5df
   );
+
+  border-radius: 3px 3px 0 0;
 }
 
-.rd-credit-header h2 {
+.credit-header h2 {
   margin: 0;
-
   color: #ffffff;
-
-  font-size: 16px;
-  font-weight: 600;
-
-  letter-spacing: 0.1px;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
 }
 
-/* =========================================================
-   FORM
-   ========================================================= */
+/* ============================================================
+   FORM CARD
+============================================================ */
 
-.rd-credit-form {
-  padding: 20px;
-}
-
-/* =========================================================
-   ROW
-   ========================================================= */
-
-.rd-credit-row {
+.credit-form-card {
   width: 100%;
-  margin-bottom: 16px;
+  background: #ffffff;
+
+  border: 1px solid #c7def4;
+  border-top: none;
+
+  border-radius: 0 0 5px 5px;
+
+  padding: 18px 18px 20px;
+
+  box-sizing: border-box;
+
+  box-shadow:
+    0 1px 4px rgba(25, 118, 180, 0.05);
 }
 
-.rd-credit-row.two-column {
+/* ============================================================
+   MAIN GRID
+============================================================ */
+
+.credit-form-grid {
   display: grid;
 
   grid-template-columns:
     minmax(0, 1fr)
     minmax(0, 1fr);
 
-  gap: 20px;
+  column-gap: 20px;
+  row-gap: 15px;
 }
 
-/* =========================================================
+/* ============================================================
    FIELD
-   ========================================================= */
+============================================================ */
 
-.rd-credit-field {
-  width: 100%;
+.credit-field {
+  min-width: 0;
 
-  display: grid;
-
-  grid-template-columns:
-    145px
-    minmax(0, 1fr);
-
+  display: flex;
   align-items: center;
 
-  column-gap: 14px;
-
-  position: relative;
+  gap: 12px;
 }
 
-.rd-credit-field > label {
+.credit-field label {
+  flex: 0 0 145px;
+
+  color: #355b85;
+
   font-size: 13px;
   font-weight: 600;
 
-  color: var(
-    --text-primary,
-    #374151
-  );
+  white-space: nowrap;
 }
 
-.rd-credit-field > label span {
+.credit-field label span,
+.payment-type-row label span {
   color: #ef4444;
-  margin-left: 2px;
+  font-weight: 700;
 }
 
-/* =========================================================
-   INPUT / SELECT / TEXTAREA
-   ========================================================= */
+/* ============================================================
+   INPUTS
+============================================================ */
 
-.rd-credit-field input,
-.rd-credit-field select,
-.rd-credit-field textarea {
+.credit-field input,
+.credit-field select,
+.credit-field textarea {
   width: 100%;
 
-  border: 1px solid var(
-    --border-color,
-    #e5e7eb
-  );
+  border: 1px solid #c9def1;
 
-  border-radius: 8px;
+  background: #ffffff;
 
-  background: var(
-    --input-bg,
-    var(--card-bg, #ffffff)
-  );
+  color: #486785;
 
-  color: var(
-    --text-primary,
-    #374151
-  );
-
-  font-family: inherit;
-  font-size: 13px;
+  font-size: 12px;
 
   outline: none;
 
+  box-sizing: border-box;
+
   transition:
-    border-color 0.2s ease,
-    box-shadow 0.2s ease,
-    background 0.2s ease;
+    border-color 0.2s,
+    box-shadow 0.2s,
+    background 0.2s;
 }
 
-.rd-credit-field input,
-.rd-credit-field select {
-  height: 36px;
+.credit-field input,
+.credit-field select {
+  height: 34px;
+  padding: 0 11px;
 
-  padding: 0 10px;
+  border-radius: 4px;
 }
 
-.rd-credit-field textarea {
-  min-height: 72px;
+.credit-field textarea {
+  min-height: 82px;
 
-  padding: 9px 10px;
+  padding: 11px;
 
   resize: vertical;
+
+  border-radius: 4px;
 }
 
-.rd-credit-field input::placeholder,
-.rd-credit-field textarea::placeholder {
-  color: var(
-    --text-secondary,
-    #9ca3af
-  );
+.credit-field input::placeholder,
+.credit-field textarea::placeholder {
+  color: #9aaec2;
 }
 
-.rd-credit-field input:focus,
-.rd-credit-field select:focus,
-.rd-credit-field textarea:focus {
-  border-color: var(
-    --primary-color,
-    #6366f1
-  );
+.credit-field input:focus,
+.credit-field select:focus,
+.credit-field textarea:focus {
+  border-color: #2994db;
 
   box-shadow:
-    0 0 0 3px
-    rgba(99, 102, 241, 0.1);
+    0 0 0 2px rgba(41, 148, 219, 0.08);
 }
 
-.rd-credit-field select {
+.credit-field input[readonly] {
+  background: #f8fbfe;
+  color: #5d7892;
+  cursor: default;
+}
+
+/* ============================================================
+   DATE INPUT
+============================================================ */
+
+.credit-date-input {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+
+.credit-date-input input {
+  width: 100%;
+  padding-right: 38px;
+}
+
+.credit-date-input svg {
+  position: absolute;
+
+  right: 11px;
+  top: 50%;
+
+  transform: translateY(-50%);
+
+  color: #7893ad;
+
+  font-size: 14px;
+
+  pointer-events: none;
+}
+
+/* Hide native calendar icon while keeping date functionality */
+.credit-date-input input::-webkit-calendar-picker-indicator {
+  opacity: 0;
   cursor: pointer;
 }
 
-/* =========================================================
-   AMOUNT
-   ========================================================= */
+/* ============================================================
+   SELECT
+============================================================ */
 
-.rd-credit-amount {
-  width: 100%;
-  height: 36px;
+.credit-select-wrapper {
+  position: relative;
 
-  display: grid;
-
-  grid-template-columns:
-    38px
-    minmax(0, 1fr);
+  flex: 1;
+  min-width: 0;
 }
 
-.rd-credit-amount span {
-  height: 36px;
+.credit-select-wrapper select {
+  appearance: none;
+  -webkit-appearance: none;
 
+  width: 100%;
+
+  padding-right: 34px;
+
+  cursor: pointer;
+}
+
+.credit-select-wrapper svg {
+  position: absolute;
+
+  right: 12px;
+  top: 50%;
+
+  transform: translateY(-50%);
+
+  color: #7290aa;
+
+  font-size: 10px;
+
+  pointer-events: none;
+}
+
+/* ============================================================
+   PAYMENT TYPE
+============================================================ */
+
+.payment-type-row {
   display: flex;
+
   align-items: center;
-  justify-content: center;
 
-  border: 1px solid var(
-    --border-color,
-    #e5e7eb
-  );
+  margin-top: 17px;
 
-  border-right: none;
+  min-height: 31px;
+}
 
-  border-radius: 8px 0 0 8px;
+.payment-type-row > label {
+  flex: 0 0 145px;
 
-  background: var(
-    --layout-bg,
-    #f9fafb
-  );
-
-  color: var(
-    --text-secondary,
-    #6b7280
-  );
+  color: #355b85;
 
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 600;
 }
 
-.rd-credit-amount input {
-  height: 36px;
-
-  border-radius: 0 8px 8px 0 !important;
-}
-
-/* =========================================================
-   PAYMENT TYPE
-   ========================================================= */
-
-.payment-field {
-  align-items: start;
-}
-
-.payment-field > label {
-  padding-top: 9px;
-}
-
-.rd-credit-radio-group {
-  min-height: 36px;
-
+.payment-options {
   display: flex;
-  align-items: center;
-
-  gap: 28px;
-
-  flex-wrap: wrap;
-}
-
-.rd-credit-radio {
-  display: inline-flex !important;
 
   align-items: center;
 
-  gap: 7px;
-
-  cursor: pointer;
-
-  font-size: 13px !important;
-  font-weight: 500 !important;
-
-  color: var(
-    --text-primary,
-    #374151
-  ) !important;
+  gap: 38px;
 }
 
-.rd-credit-radio input {
-  width: 15px !important;
-  height: 15px !important;
-
-  margin: 0;
-
-  padding: 0;
-
-  accent-color: var(
-    --primary-color,
-    #6366f1
-  );
-
-  cursor: pointer;
-
-  box-shadow: none !important;
-}
-
-/* =========================================================
-   ERROR
-   ========================================================= */
-
-.rd-credit-error {
-  grid-column: 2;
-
-  display: block;
-
-  margin-top: 4px;
-
-  color: #dc2626;
-
-  font-size: 11px;
-}
-
-/* =========================================================
-   ACTION BUTTONS
-   ========================================================= */
-
-.rd-credit-actions {
-  width: 100%;
-
+.payment-option {
   display: flex;
 
-  justify-content: center;
   align-items: center;
 
   gap: 8px;
 
-  margin-top: 22px;
+  color: #476985;
 
-  padding-top: 18px;
+  font-size: 12px;
 
-  border-top: 1px solid var(
-    --border-color,
-    #e5e7eb
-  );
+  cursor: pointer;
 }
 
-.rd-credit-actions button {
-  height: 36px;
+.payment-option input {
+  width: 18px;
+  height: 18px;
 
-  min-width: 125px;
+  margin: 0;
 
-  padding: 0 16px;
+  accent-color: #168ee0;
+
+  cursor: pointer;
+}
+
+/* ============================================================
+   BANK DETAILS
+============================================================ */
+
+.bank-details {
+  width: 100%;
+
+  margin-top: 7px;
+
+  border: 1px solid #c8def2;
+
+  border-radius: 5px;
+
+  overflow: hidden;
+
+  background: #ffffff;
+}
+
+.bank-details-header {
+  height: 31px;
+
+  display: flex;
+  align-items: center;
+
+  padding: 0 13px;
+
+  background: #eaf5fd;
+
+  border-bottom: 1px solid #d2e6f6;
+
+  color: #527492;
+
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.bank-details-body {
+  display: grid;
+
+  grid-template-columns:
+    minmax(0, 1fr)
+    minmax(0, 1fr)
+    minmax(0, 1fr);
+
+  gap: 15px;
+
+  padding: 10px 13px 12px;
+}
+
+/*
+ * Bank fields have slightly smaller labels
+ * because they are inside the blue section.
+ */
+
+.bank-details-body .credit-field {
+  gap: 9px;
+}
+
+.bank-details-body .credit-field label {
+  flex: 0 0 100px;
+
+  font-size: 12px;
+}
+
+/* ============================================================
+   BOTTOM SECTION
+============================================================ */
+
+.credit-bottom-section {
+  margin-top: 20px;
+
+  padding-top: 14px;
+
+  border-top: 1px solid #edf2f7;
+}
+
+.credit-bottom-section .credit-field {
+  margin-bottom: 15px;
+}
+
+.amount-input-wrapper {
+  flex: 1;
+
+  display: flex;
+
+  height: 43px;
+
+  border: 1px solid #c7ddef;
+
+  border-radius: 5px;
+
+  overflow: hidden;
+
+  background: #ffffff;
+}
+
+.rupee-symbol {
+  width: 47px;
+
+  display: flex;
+
+  align-items: center;
+  justify-content: center;
+
+  background: #f3f8fc;
+
+  border-right: 1px solid #d5e4f1;
+
+  color: #627e99;
+
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.amount-input-wrapper input {
+  height: 100% !important;
+
+  border: none !important;
+
+  border-radius: 0 !important;
+
+  box-shadow: none !important;
+
+  padding-left: 15px;
+}
+
+.amount-input-wrapper:focus-within {
+  border-color: #2994db;
+
+  box-shadow:
+    0 0 0 2px rgba(41, 148, 219, 0.08);
+}
+
+/* ============================================================
+   NARRATION
+============================================================ */
+
+.narration-field {
+  align-items: flex-start;
+}
+
+.narration-field label {
+  padding-top: 11px;
+}
+
+.narration-field textarea {
+  flex: 1;
+
+  min-height: 82px;
+}
+
+/* ============================================================
+   FOOTER
+============================================================ */
+
+.credit-footer {
+  display: flex;
+
+  justify-content: center;
+
+  align-items: center;
+
+  gap: 12px;
+
+  padding-top: 10px;
+
+  margin-top: 3px;
+
+  border-top: 1px solid #edf2f7;
+}
+
+.credit-btn {
+  min-width: 162px;
+
+  height: 44px;
 
   border: none;
-  border-radius: 8px;
 
-  color: #ffffff;
+  border-radius: 5px;
 
-  font-family: inherit;
+  display: inline-flex;
 
-  font-size: 13px;
-  font-weight: 500;
+  align-items: center;
+  justify-content: center;
+
+  gap: 8px;
+
+  font-size: 14px;
+  font-weight: 600;
 
   cursor: pointer;
 
   transition:
-    background 0.15s ease,
-    transform 0.1s ease,
-    box-shadow 0.15s ease;
+    transform 0.15s,
+    box-shadow 0.15s,
+    background 0.15s;
 }
 
-.rd-credit-actions button:hover {
-  background: var(
-    --primary-hover,
-    #4f46e5
+.credit-btn-primary {
+  color: #ffffff;
+
+  background: linear-gradient(
+    180deg,
+    #168fe0 0%,
+    #087bd1 100%
+  );
+
+  box-shadow:
+    0 2px 4px rgba(15, 118, 190, 0.16);
+}
+
+.credit-btn-primary:hover {
+  background: linear-gradient(
+    180deg,
+    #087bd1 0%,
+    #056bbd 100%
   );
 
   transform: translateY(-1px);
 
   box-shadow:
-    0 4px 12px
-    rgba(99, 102, 241, 0.25);
+    0 4px 9px rgba(15, 118, 190, 0.22);
 }
 
-.rd-credit-actions button:active {
-  transform: translateY(0);
-}
-
-/* =========================================================
-   SAVE CONTINUE
-   ========================================================= */
-
-.rd-credit-save-continue {
-  background: var(
-    --primary-color,
-    #6366f1
-  );
-}
-
-/* =========================================================
-   SAVE CLOSE
-   ========================================================= */
-
-.rd-credit-save-close {
-  background: var(
-    --primary-color,
-    #6366f1
-  );
-}
-
-/* =========================================================
-   DISABLED
-   ========================================================= */
-
-.rd-credit-actions button:disabled {
-  opacity: 0.6;
+.credit-btn:disabled {
+  opacity: 0.65;
 
   cursor: not-allowed;
 
   transform: none;
-
-  box-shadow: none;
 }
 
-/* =========================================================
-   DARK THEME
-   ========================================================= */
-
-.dark-theme .rd-credit-page {
-  background: var(
-    --layout-bg,
-    #0f172a
-  );
-
-  color: var(
-    --text-primary,
-    #f8fafc
-  );
-}
-
-.dark-theme .rd-credit-card {
-  background: var(
-    --card-bg,
-    #1e293b
-  );
-
-  border-color: var(
-    --border-color,
-    #334155
-  );
-}
-
-.dark-theme .rd-credit-header {
-  background: var(
-    --primary-color,
-    #6366f1
-  );
-}
-
-.dark-theme .rd-credit-field > label {
-  color: var(
-    --text-primary,
-    #f8fafc
-  );
-}
-
-.dark-theme .rd-credit-field input,
-.dark-theme .rd-credit-field select,
-.dark-theme .rd-credit-field textarea {
-  background: var(
-    --input-bg,
-    #1e293b
-  );
-
-  border-color: var(
-    --border-color,
-    #334155
-  );
-
-  color: var(
-    --text-primary,
-    #f8fafc
-  );
-}
-
-.dark-theme .rd-credit-field input::placeholder,
-.dark-theme .rd-credit-field textarea::placeholder {
-  color: var(
-    --text-secondary,
-    #64748b
-  );
-}
-
-.dark-theme .rd-credit-field input:focus,
-.dark-theme .rd-credit-field select:focus,
-.dark-theme .rd-credit-field textarea:focus {
-  border-color: var(
-    --primary-color,
-    #818cf8
-  );
-
-  box-shadow:
-    0 0 0 3px
-    rgba(99, 102, 241, 0.18);
-}
-
-.dark-theme .rd-credit-amount span {
-  background: var(
-    --layout-bg,
-    #0f172a
-  );
-
-  border-color: var(
-    --border-color,
-    #334155
-  );
-
-  color: var(
-    --text-secondary,
-    #94a3b8
-  );
-}
-
-.dark-theme .rd-credit-radio {
-  color: var(
-    --text-primary,
-    #f8fafc
-  ) !important;
-}
-
-.dark-theme .rd-credit-radio input {
-  accent-color: var(
-    --primary-color,
-    #818cf8
-  );
-}
-
-.dark-theme .rd-credit-actions {
-  border-top-color: var(
-    --border-color,
-    #334155
-  );
-}
-
-.dark-theme .rd-credit-actions button {
-  background: var(
-    --primary-color,
-    #6366f1
-  );
-}
-
-.dark-theme .rd-credit-actions button:hover {
-  background: var(
-    --primary-hover,
-    #4f46e5
-  );
-}
-
-/* =========================================================
+/* ============================================================
    RESPONSIVE
-   ========================================================= */
+============================================================ */
 
-@media (max-width: 768px) {
-  .rd-credit-page {
-    padding: 12px 10px;
-  }
-
-  .rd-credit-header {
-    min-height: 42px;
-
-    padding: 0 12px;
-  }
-
-  .rd-credit-header h2 {
-    font-size: 15px;
-  }
-
-  .rd-credit-form {
-    padding: 14px 12px 16px;
-  }
-
-  .rd-credit-row {
-    margin-bottom: 13px;
-  }
-
-  .rd-credit-row.two-column {
+@media (max-width: 900px) {
+  .credit-form-grid {
     grid-template-columns: 1fr;
 
-    gap: 13px;
+    row-gap: 13px;
   }
 
-  .rd-credit-field {
-    grid-template-columns: 1fr;
-
-    gap: 5px;
-  }
-
-  .rd-credit-field > label {
-    font-size: 12.5px;
-  }
-
-  .rd-credit-field input,
-  .rd-credit-field select {
-    height: 36px;
-
-    font-size: 12.5px;
-  }
-
-  .rd-credit-field textarea {
-    min-height: 80px;
-
-    font-size: 12.5px;
-  }
-
-  .rd-credit-amount {
-    height: 36px;
-  }
-
-  .rd-credit-amount span,
-  .rd-credit-amount input {
-    height: 36px;
-  }
-
-  .payment-field > label {
-    padding-top: 0;
-  }
-
-  .rd-credit-radio-group {
-    width: 100%;
-
-    min-height: auto;
-
-    gap: 12px 20px;
-  }
-
-  .rd-credit-error {
-    grid-column: 1;
-  }
-
-  .rd-credit-actions {
-    margin-top: 16px;
-
-    padding-top: 14px;
-
-    flex-direction: row;
-  }
-
-  .rd-credit-actions button {
-    flex: 1;
-
-    min-width: 0;
-
-    height: 36px;
-
-    padding: 0 10px;
-
-    font-size: 12px;
+  .bank-details-body {
+    grid-template-columns: 1fr 1fr;
   }
 }
 
-/* =========================================================
-   SMALL MOBILE
-   ========================================================= */
-
-@media (max-width: 480px) {
-  .rd-credit-page {
-    padding: 8px;
+@media (max-width: 650px) {
+  .credit-page {
+    padding: 5px;
   }
 
-  .rd-credit-header {
-    padding: 0 10px;
+  .credit-form-card {
+    padding: 14px 10px 18px;
   }
 
-  .rd-credit-header h2 {
-    font-size: 14px;
-  }
+  .credit-field {
+    align-items: flex-start;
 
-  .rd-credit-form {
-    padding: 12px 10px;
-  }
-
-  .rd-credit-radio-group {
-    gap: 10px 16px;
-  }
-
-  .rd-credit-actions {
     flex-direction: column;
 
+    gap: 6px;
+  }
+
+  .credit-field label,
+  .bank-details-body .credit-field label,
+  .payment-type-row > label {
+    flex: none;
+
     width: 100%;
   }
 
-  .rd-credit-actions button {
+  .credit-field input,
+  .credit-field select,
+  .credit-field textarea,
+  .credit-select-wrapper,
+  .credit-date-input,
+  .amount-input-wrapper {
+    width: 100%;
+  }
+
+  .payment-type-row {
+    align-items: flex-start;
+
+    flex-direction: column;
+
+    gap: 9px;
+  }
+
+  .payment-options {
+    flex-wrap: wrap;
+
+    gap: 15px 25px;
+  }
+
+  .bank-details-body {
+    grid-template-columns: 1fr;
+
+    padding: 12px;
+  }
+
+  .credit-footer {
+    flex-direction: column;
+
+    gap: 9px;
+  }
+
+  .credit-btn {
     width: 100%;
   }
 }

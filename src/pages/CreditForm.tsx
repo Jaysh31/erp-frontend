@@ -1,461 +1,865 @@
-import React, { useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
+import { FaCalendarAlt, FaChevronDown, FaSave, FaTimes } from "react-icons/fa";
+import { useNavigate } from "react-router-dom";
+import toast from "react-hot-toast";
+import api from "../services/api";
 import "./CreditForm.css";
 
-interface CreditFormData {
-  creditDate: string;
+interface SalesInvoice {
+  id: string | number;
   customer: string;
-  referenceType: string;
-  invoiceNumber: string;
-  invoiceDate: string;
-  paymentType: string;
-  amount: string;
-  narration: string;
+  customer_name: string;
+  posting_date: string;
+  due_date?: string;
+  currency?: string;
+  total?: number;
+  net_total?: number;
+  grand_total: number;
+  outstanding_amount?: number;
+  paid_amount?: number;
+  status?: string;
+  company?: string;
+  creation?: string;
+  modified?: string;
 }
 
-const initialFormData: CreditFormData = {
-  creditDate: "2026-09-09",
-  customer: "XYZ Customer",
-  referenceType: "Sales Invoice",
-  invoiceNumber: "SI-000456",
-  invoiceDate: "2026-09-09",
-  paymentType: "Bank Transfer",
-  amount: "75000.00",
-  narration: "",
+
+interface SalesBillDraftPayload {
+  selectedCustomer: string;
+  selectedSalesOrder: string;
+  isService: boolean;
+  hasDeliveryChallan: boolean;
+  billDate: string;
+  dueDate: string;
+  warehouse: string;
+  invoiceNumber: string;
+  invoiceDate: string;
+  paymentMode: string;
+  invoiceStatus: string;
+  remarks: string;
+  customerData: Customer | null;
+  isCustomerDisabled: boolean;
+  selectedPaymentTemplate: string;
+}
+
+interface CustomerDropdownProps {
+  value: string;
+  onChange: (value: string, customerData?: Customer) => void;
+  placeholder?: string;
+  disabled?: boolean;
+  error?: boolean;
+  presetCustomer?: Customer | null;
+
+  onAddNew: (searchTerm: string) => void;
+}
+
+interface ApiResponse {
+  success: number;
+  data: {
+    total: number;
+    page: number;
+    limit: number;
+    records: SalesInvoice[];
+  };
+}
+
+interface CustomerOption {
+  customerId: string;
+  customerName: string;
+  invoice: SalesInvoice;
+}
+
+type Customer = Record<string, unknown>;
+
+const formatInvoiceNumber = (id: string | number) => {
+  const numId = typeof id === "string" ? parseInt(id, 10) : id;
+
+  if (Number.isNaN(numId)) {
+    return String(id);
+  }
+
+  return `SINV-${String(numId).padStart(5, "0")}`;
+};
+
+const formatDateForInput = (dateString?: string) => {
+  if (!dateString) return "";
+
+  return dateString.substring(0, 10);
+};
+
+const formatDateForDisplay = (dateString?: string) => {
+  if (!dateString) return "";
+
+  const date = new Date(dateString);
+
+  if (Number.isNaN(date.getTime())) {
+    return dateString;
+  }
+
+  return date.toLocaleDateString("en-GB");
 };
 
 const CreditForm: React.FC = () => {
-  const [formData, setFormData] =
-    useState<CreditFormData>(initialFormData);
+  const navigate = useNavigate();
 
-  const [errors, setErrors] = useState<
-    Partial<Record<keyof CreditFormData, string>>
-  >({});
+  // ============================================================
+  // SALES INVOICES
+  // ============================================================
 
-  const handleChange = (
-    field: keyof CreditFormData,
-    value: string
-  ) => {
-    setFormData((prev) => ({
-      ...prev,
-      [field]: value,
-    }));
+  const [invoices, setInvoices] = useState<SalesInvoice[]>([]);
+  const [loadingInvoices, setLoadingInvoices] = useState(false);
 
-    setErrors((prev) => ({
-      ...prev,
-      [field]: "",
-    }));
+  // ============================================================
+  // FORM STATE
+  // ============================================================
+
+  const [receiptNo, setReceiptNo] = useState("");
+  const [creditDate, setCreditDate] = useState(
+    new Date().toISOString().split("T")[0]
+  );
+
+  const [customer, setCustomer] = useState("");
+  const [invoiceNo, setInvoiceNo] = useState("");
+  const [invoiceDate, setInvoiceDate] = useState("");
+  const [amount, setAmount] = useState("");
+
+  const [referenceType, setReferenceType] = useState("");
+  const [referenceNo, setReferenceNo] = useState("");
+
+  const [paymentType, setPaymentType] = useState("Bank Transfer");
+
+  const [bankName, setBankName] = useState("");
+  const [accountNo, setAccountNo] = useState("");
+  const [ifscCode, setIfscCode] = useState("");
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [narration, setNarration] = useState("");
+
+  const [saving, setSaving] = useState(false);
+
+  // ============================================================
+  // FETCH SALES INVOICES
+  // ============================================================
+
+  const fetchInvoices = async () => {
+    try {
+      setLoadingInvoices(true);
+
+      const response = await api.get<ApiResponse>(
+        "/sales-invoice?page=1&limit=1000"
+      );
+
+      if (
+        response.data?.success === 1 &&
+        response.data?.data?.records
+      ) {
+        setInvoices(response.data.data.records);
+      } else {
+        setInvoices([]);
+        toast.error("No sales invoices found");
+      }
+    } catch (error) {
+      console.error("Error fetching sales invoices:", error);
+      toast.error("Failed to load customers");
+      setInvoices([]);
+    } finally {
+      setLoadingInvoices(false);
+    }
   };
 
-  const validateForm = () => {
-    const newErrors: Partial<
-      Record<keyof CreditFormData, string>
-    > = {};
+  useEffect(() => {
+    fetchInvoices();
+  }, []);
 
-    if (!formData.creditDate) {
-      newErrors.creditDate = "Credit date is required";
-    }
+  // ============================================================
+  // CUSTOMER DROPDOWN
+  // ============================================================
 
-    if (!formData.customer.trim()) {
-      newErrors.customer = "Customer is required";
-    }
+  const customers = useMemo<CustomerOption[]>(() => {
+    const map = new Map<string, CustomerOption>();
 
-    if (!formData.referenceType) {
-      newErrors.referenceType = "Reference type is required";
-    }
+    invoices.forEach((invoice) => {
+      const customerId = String(
+        invoice.customer || invoice.customer_name || ""
+      ).trim();
 
-    if (!formData.invoiceNumber.trim()) {
-      newErrors.invoiceNumber = "Invoice number is required";
-    }
+      const customerName = String(
+        invoice.customer_name || invoice.customer || ""
+      ).trim();
 
-    if (!formData.invoiceDate) {
-      newErrors.invoiceDate = "Invoice date is required";
-    }
+      if (!customerId || !customerName) return;
 
-    if (!formData.paymentType) {
-      newErrors.paymentType = "Payment type is required";
-    }
+      /*
+       * If one customer has multiple invoices,
+       * keep the latest invoice for auto-fill.
+       */
+      const existing = map.get(customerId);
 
-    if (!formData.amount || Number(formData.amount) <= 0) {
-      newErrors.amount = "Enter a valid amount";
-    }
+      if (!existing) {
+        map.set(customerId, {
+          customerId,
+          customerName,
+          invoice,
+        });
+        return;
+      }
 
-    if (!formData.narration.trim()) {
-      newErrors.narration = "Narration is required";
-    }
+      const existingDate = new Date(
+        existing.invoice.posting_date || existing.invoice.creation || ""
+      ).getTime();
 
-    setErrors(newErrors);
+      const currentDate = new Date(
+        invoice.posting_date || invoice.creation || ""
+      ).getTime();
 
-    return Object.keys(newErrors).length === 0;
-  };
-
-  const saveCreditDetails = () => {
-    console.log("Credit details saved:", formData);
-
-    // Add your API call here
-    // Example:
-    // await axios.post("/api/reference-details/credit", formData);
-  };
-
-  const handleSaveContinue = () => {
-    if (!validateForm()) {
-      return;
-    }
-
-    saveCreditDetails();
-
-    // Refresh / reset form after successful save
-    setFormData({
-      ...initialFormData,
-      creditDate: new Date().toISOString().split("T")[0],
-      customer: "",
-      invoiceNumber: "",
-      invoiceDate: "",
-      amount: "",
-      narration: "",
+      if (currentDate > existingDate) {
+        map.set(customerId, {
+          customerId,
+          customerName,
+          invoice,
+        });
+      }
     });
 
-    setErrors({});
+    return Array.from(map.values()).sort((a, b) =>
+      a.customerName.localeCompare(b.customerName)
+    );
+  }, [invoices]);
 
-    console.log("Credit details saved. Form refreshed.");
-  };
+  // ============================================================
+  // CUSTOMER CHANGE
+  // ============================================================
 
-  const handleSaveClose = () => {
-    if (!validateForm()) {
+  const handleCustomerChange = (
+    event: React.ChangeEvent<HTMLSelectElement>
+  ) => {
+    const customerId = event.target.value;
+
+    setCustomer(customerId);
+
+    if (!customerId) {
+      setInvoiceNo("");
+      setInvoiceDate("");
+      setAmount("");
+      setReferenceNo("");
       return;
     }
 
-    saveCreditDetails();
+    const selectedCustomer = customers.find(
+      (item) => item.customerId === customerId
+    );
 
-    console.log("Credit details saved. Closing form.");
+    if (!selectedCustomer) {
+      return;
+    }
 
-    // If using React Router:
-    // navigate(-1);
+    const invoice = selectedCustomer.invoice;
 
-    window.history.back();
+    // Auto-fill invoice number
+    setInvoiceNo(formatInvoiceNumber(invoice.id));
+
+    // Auto-fill invoice date
+    setInvoiceDate(formatDateForInput(invoice.posting_date));
+
+    // Auto-fill amount
+    const invoiceAmount =
+      invoice.grand_total ??
+      invoice.net_total ??
+      invoice.total ??
+      0;
+
+    setAmount(String(invoiceAmount));
+
+    // Auto-fill reference number
+    setReferenceNo(formatInvoiceNumber(invoice.id));
+
+    // Default reference type
+    setReferenceType("Sales Invoice");
   };
 
+  // ============================================================
+  // REFERENCE TYPE
+  // ============================================================
+
+  const handleReferenceTypeChange = (
+    event: React.ChangeEvent<HTMLSelectElement>
+  ) => {
+    setReferenceType(event.target.value);
+  };
+
+  // ============================================================
+  // PAYMENT TYPE
+  // ============================================================
+
+  const handlePaymentTypeChange = (type: string) => {
+    setPaymentType(type);
+
+    if (type !== "Bank Transfer") {
+      setBankName("");
+      setAccountNo("");
+      setIfscCode("");
+    }
+  };
+
+  // ============================================================
+  // SAVE DATA
+  // ============================================================
+
+  const validateForm = () => {
+    if (!receiptNo.trim()) {
+      toast.error("Receipt No. is required");
+      return false;
+    }
+
+    if (!creditDate) {
+      toast.error("Date is required");
+      return false;
+    }
+
+    if (!customer) {
+      toast.error("Please select customer");
+      return false;
+    }
+
+    if (!referenceType) {
+      toast.error("Please select reference type");
+      return false;
+    }
+
+    if (!referenceNo.trim()) {
+      toast.error("Reference No. is required");
+      return false;
+    }
+
+    if (!invoiceDate) {
+      toast.error("Invoice Date is required");
+      return false;
+    }
+
+    if (!amount || Number(amount) <= 0) {
+      toast.error("Enter a valid amount");
+      return false;
+    }
+
+    if (!narration.trim()) {
+      toast.error("Narration is required");
+      return false;
+    }
+
+    if (paymentType === "Bank Transfer") {
+      if (!bankName.trim()) {
+        toast.error("Bank Name is required");
+        return false;
+      }
+
+      if (!accountNo.trim()) {
+        toast.error("Account No. is required");
+        return false;
+      }
+
+      if (!ifscCode.trim()) {
+        toast.error("IFSC Code is required");
+        return false;
+      }
+    }
+
+    return true;
+  };
+
+  const buildPayload = () => {
+    return {
+      receipt_no: receiptNo,
+      credit_date: creditDate,
+
+      customer,
+
+      reference_type: referenceType,
+      reference_no: referenceNo,
+
+      invoice_no: invoiceNo,
+      invoice_date: invoiceDate,
+
+      payment_type: paymentType,
+
+      bank_name:
+        paymentType === "Bank Transfer" ? bankName : null,
+
+      account_no:
+        paymentType === "Bank Transfer" ? accountNo : null,
+
+      ifsc_code:
+        paymentType === "Bank Transfer" ? ifscCode : null,
+
+      amount: Number(amount),
+
+      narration,
+    };
+  };
+
+  const saveCredit = async (closeAfterSave: boolean) => {
+    if (!validateForm()) return;
+
+    try {
+      setSaving(true);
+
+      const payload = buildPayload();
+
+      console.log("Credit Payload:", payload);
+
+      /*
+       * Change this endpoint if your backend uses another
+       * Credit Entry API endpoint.
+       */
+      await api.post("/credit-note", payload);
+
+      toast.success("Credit Entry saved successfully");
+
+      if (closeAfterSave) {
+        navigate(-1);
+      } else {
+        // Reset form for next entry
+        setReceiptNo("");
+        setCustomer("");
+        setInvoiceNo("");
+        setInvoiceDate("");
+        setReferenceNo("");
+        setReferenceType("");
+        setAmount("");
+        setBankName("");
+        setAccountNo("");
+        setIfscCode("");
+        setNarration("");
+
+        setCreditDate(
+          new Date().toISOString().split("T")[0]
+        );
+      }
+    } catch (error: any) {
+      console.error("Error saving credit entry:", error);
+
+      toast.error(
+        error?.response?.data?.message ||
+          "Failed to save Credit Entry"
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // ============================================================
+  // RENDER
+  // ============================================================
+
   return (
-    <div className="rd-credit-page">
-      <div className="rd-credit-card">
+    <div className="credit-page">
 
-        {/* ================= HEADER ================= */}
-        <div className="rd-credit-header">
-          <h2>REFERENCE DETAILS – CREDIT FORM</h2>
-        </div>
+      {/* ========================================================
+          HEADER
+      ======================================================== */}
 
-        {/* ================= FORM ================= */}
-        <div className="rd-credit-form">
+      <div className="credit-header">
+        <h2>CREDIT ENTRY</h2>
+      </div>
 
-          {/* ================= ROW 1 ================= */}
-          <div className="rd-credit-row">
-            <div className="rd-credit-field">
-              <label>
-                Credit Date <span>*</span>
-              </label>
+      {/* ========================================================
+          MAIN FORM
+      ======================================================== */}
 
+      <div className="credit-form-card">
+
+        <div className="credit-form-grid">
+
+          {/* Receipt No */}
+          <div className="credit-field">
+            <label>
+              Receipt No. <span>*</span>
+            </label>
+
+            <input
+              type="text"
+              value={receiptNo}
+              onChange={(e) => setReceiptNo(e.target.value)}
+              placeholder="Enter receipt number"
+            />
+          </div>
+
+          {/* Date */}
+          <div className="credit-field">
+            <label>
+              Date <span>*</span>
+            </label>
+
+            <div className="credit-date-input">
               <input
                 type="date"
-                value={formData.creditDate}
-                onChange={(e) =>
-                  handleChange(
-                    "creditDate",
-                    e.target.value
-                  )
-                }
+                value={creditDate}
+                onChange={(e) => setCreditDate(e.target.value)}
               />
 
-              {errors.creditDate && (
-                <small className="rd-credit-error">
-                  {errors.creditDate}
-                </small>
-              )}
+              <FaCalendarAlt />
             </div>
           </div>
 
-          {/* ================= ROW 2 ================= */}
-          <div className="rd-credit-row two-column">
+          {/* Customer */}
+          <div className="credit-field">
+            <label>
+              Customer <span>*</span>
+            </label>
 
-            {/* Customer */}
-            <div className="rd-credit-field">
-              <label>
-                Customer <span>*</span>
-              </label>
-
-              <input
-                type="text"
-                placeholder="Enter customer"
-                value={formData.customer}
-                onChange={(e) =>
-                  handleChange(
-                    "customer",
-                    e.target.value
-                  )
-                }
-              />
-
-              {errors.customer && (
-                <small className="rd-credit-error">
-                  {errors.customer}
-                </small>
-              )}
-            </div>
-
-            {/* Reference Type */}
-            <div className="rd-credit-field">
-              <label>
-                Reference Type <span>*</span>
-              </label>
-
+            {/*<div className="credit-select-wrapper">
               <select
-                value={formData.referenceType}
-                onChange={(e) =>
-                  handleChange(
-                    "referenceType",
-                    e.target.value
-                  )
-                }
+                value={customer}
+                onChange={handleCustomerChange}
+                disabled={loadingInvoices}
               >
+                <option value="">
+                  {loadingInvoices
+                    ? "Loading customers..."
+                    : "Select customer"}
+                </option>
+
+                {customers.map((item) => (
+                  <option
+                    key={item.customerId}
+                    value={item.customerId}
+                  >
+                    {item.customerName}
+                  </option>
+                ))}
+              </select>
+
+              <FaChevronDown />*/}
+
+                  <div className="credit-select-wrapper">
+                    <select
+                      value={customer}
+                      onChange={handleCustomerChange}
+                      disabled={loadingInvoices}
+                    >
+                      <option value="">
+                        {loadingInvoices ? "Loading customers..." : "Select customer"}
+                      </option>
+                      {customers.map((item) => (
+                        <option key={item.customerId} value={item.customerId}>
+                          {item.customerName}
+                        </option>
+                      ))}
+                    </select>
+                    <FaChevronDown />
+                  </div>
+
+            </div>
+          
+
+          {/* Reference Type */}
+          <div className="credit-field">
+            <label>
+              Reference Type <span>*</span>
+            </label>
+
+            <div className="credit-select-wrapper">
+              <select
+                value={referenceType}
+                onChange={handleReferenceTypeChange}
+              >
+                <option value="">
+                  Select reference type
+                </option>
                 <option value="Sales Invoice">
                   Sales Invoice
                 </option>
-                <option value="Sales Order">
-                  Sales Order
+                <option value="Credit Note">
+                  Credit Note
                 </option>
-                <option value="Receipt">
-                  Receipt
-                </option>
-                <option value="Income">
-                  Income
-                </option>
-                <option value="Other">
-                  Other
+                <option value="Journal Entry">
+                  Journal Entry
                 </option>
               </select>
 
-              {errors.referenceType && (
-                <small className="rd-credit-error">
-                  {errors.referenceType}
-                </small>
-              )}
+              <FaChevronDown />
             </div>
-
           </div>
 
-          {/* ================= ROW 3 ================= */}
-          <div className="rd-credit-row two-column">
+          {/* Invoice No 
+          <div className="credit-field">
+            <label>
+              Invoice No. <span>*</span>
+            </label>
 
-            {/* Invoice Number */}
-            <div className="rd-credit-field">
-              <label>
-                Invoice Number <span>*</span>
-              </label>
+            <input
+              type="text"
+              value={invoiceNo}
+              readOnly
+              placeholder="Auto-filled invoice number"
+            />
+          </div>*/}
 
-              <input
-                type="text"
-                placeholder="Enter invoice number"
-                value={formData.invoiceNumber}
-                onChange={(e) =>
-                  handleChange(
-                    "invoiceNumber",
-                    e.target.value
-                  )
-                }
-              />
+           {/* Reference No */}
+          <div className="credit-field">
+            <label>
+              Reference No. <span>*</span>
+            </label>
 
-              {errors.invoiceNumber && (
-                <small className="rd-credit-error">
-                  {errors.invoiceNumber}
-                </small>
-              )}
-            </div>
+            <input
+              type="text"
+              value={referenceNo}
+              onChange={(e) =>
+                setReferenceNo(e.target.value)
+              }
+              placeholder="Enter reference number"
+            />
+          </div>
 
-            {/* Invoice Date */}
-            <div className="rd-credit-field">
-              <label>
-                Invoice Date <span>*</span>
-              </label>
+      
 
+
+          {/* Invoice Date */}
+          <div className="credit-field">
+            <label>
+              Invoice Date <span>*</span>
+            </label>
+
+            <div className="credit-date-input">
               <input
                 type="date"
-                value={formData.invoiceDate}
-                onChange={(e) =>
-                  handleChange(
-                    "invoiceDate",
-                    e.target.value
-                  )
-                }
+                value={invoiceDate}
+                readOnly
               />
 
-              {errors.invoiceDate && (
-                <small className="rd-credit-error">
-                  {errors.invoiceDate}
-                </small>
-              )}
+              <FaCalendarAlt />
             </div>
+          </div>
+</div>
+         
+        {/* ======================================================
+            PAYMENT TYPE
+        ====================================================== */}
+
+        <div className="payment-type-row">
+
+          <label>
+            Payment Type <span>*</span>
+          </label>
+
+          <div className="payment-options">
+
+            <label className="payment-option">
+              <input
+                type="radio"
+                name="paymentType"
+                checked={paymentType === "Bank Transfer"}
+                onChange={() =>
+                  handlePaymentTypeChange("Bank Transfer")
+                }
+              />
+              <span>Bank Transfer</span>
+            </label>
+
+            <label className="payment-option">
+              <input
+                type="radio"
+                name="paymentType"
+                checked={paymentType === "Cash"}
+                onChange={() =>
+                  handlePaymentTypeChange("Cash")
+                }
+              />
+              <span>Cash</span>
+            </label>
+
+            <label className="payment-option">
+              <input
+                type="radio"
+                name="paymentType"
+                checked={paymentType === "UPI"}
+                onChange={() =>
+                  handlePaymentTypeChange("UPI")
+                }
+              />
+              <span>UPI</span>
+            </label>
 
           </div>
+        </div>
 
-          {/* ================= ROW 4 ================= */}
-          <div className="rd-credit-row">
-            <div className="rd-credit-field payment-field">
+        {/* ======================================================
+            BANK DETAILS
+        ====================================================== */}
 
-              <label>
-                Payment Type <span>*</span>
-              </label>
+        {paymentType === "Bank Transfer" && (
+          <div className="bank-details">
 
-              <div className="rd-credit-radio-group">
+            <div className="bank-details-header">
+              Bank Details
+            </div>
 
-                <label className="rd-credit-radio">
-                  <input
-                    type="radio"
-                    name="paymentType"
-                    value="Bank Transfer"
-                    checked={
-                      formData.paymentType ===
-                      "Bank Transfer"
-                    }
-                    onChange={(e) =>
-                      handleChange(
-                        "paymentType",
-                        e.target.value
-                      )
-                    }
-                  />
-                  <span>Bank Transfer</span>
+            <div className="bank-details-body">
+
+              {/* Bank Name */}
+              <div className="credit-field">
+                <label>
+                  Bank Name <span>*</span>
                 </label>
 
-                <label className="rd-credit-radio">
-                  <input
-                    type="radio"
-                    name="paymentType"
-                    value="Cash"
-                    checked={
-                      formData.paymentType === "Cash"
-                    }
+                <div className="credit-select-wrapper">
+                  <select
+                    value={bankName}
                     onChange={(e) =>
-                      handleChange(
-                        "paymentType",
-                        e.target.value
-                      )
+                      setBankName(e.target.value)
                     }
-                  />
-                  <span>Cash</span>
-                </label>
+                  >
+                    <option value="">
+                      Select bank
+                    </option>
+                    <option value="State Bank of India">
+                      State Bank of India
+                    </option>
+                    <option value="HDFC Bank">
+                      HDFC Bank
+                    </option>
+                    <option value="ICICI Bank">
+                      ICICI Bank
+                    </option>
+                    <option value="Axis Bank">
+                      Axis Bank
+                    </option>
+                    <option value="Kotak Mahindra Bank">
+                      Kotak Mahindra Bank
+                    </option>
+                  </select>
 
-                <label className="rd-credit-radio">
-                  <input
-                    type="radio"
-                    name="paymentType"
-                    value="UPI"
-                    checked={
-                      formData.paymentType === "UPI"
-                    }
-                    onChange={(e) =>
-                      handleChange(
-                        "paymentType",
-                        e.target.value
-                      )
-                    }
-                  />
-                  <span>UPI</span>
-                </label>
-
+                  <FaChevronDown />
+                </div>
               </div>
 
-              {errors.paymentType && (
-                <small className="rd-credit-error">
-                  {errors.paymentType}
-                </small>
-              )}
-
-            </div>
-          </div>
-
-          {/* ================= ROW 5 ================= */}
-          <div className="rd-credit-row">
-            <div className="rd-credit-field">
-              <label>
-                Amount <span>*</span>
-              </label>
-
-              <div className="rd-credit-amount">
-                <span>₹</span>
+              {/* Account No */}
+              <div className="credit-field">
+                <label>
+                  Account No. <span>*</span>
+                </label>
 
                 <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  placeholder="Enter amount"
-                  value={formData.amount}
+                  type="text"
+                  value={accountNo}
                   onChange={(e) =>
-                    handleChange(
-                      "amount",
-                      e.target.value
-                    )
+                    setAccountNo(e.target.value)
                   }
+                  placeholder="Enter account number"
                 />
               </div>
 
-              {errors.amount && (
-                <small className="rd-credit-error">
-                  {errors.amount}
-                </small>
-              )}
+              {/* IFSC */}
+              <div className="credit-field">
+                <label>
+                  IFSC Code <span>*</span>
+                </label>
+
+                <input
+                  type="text"
+                  value={ifscCode}
+                  onChange={(e) =>
+                    setIfscCode(
+                      e.target.value.toUpperCase()
+                    )
+                  }
+                  placeholder="Enter IFSC code"
+                />
+              </div>
+
             </div>
           </div>
+        )}
 
-          {/* ================= ROW 6 ================= */}
-          <div className="rd-credit-row">
-            <div className="rd-credit-field">
-              <label>
-                Narration <span>*</span>
-              </label>
+        {/* ======================================================
+            AMOUNT + NARRATION
+        ====================================================== */}
 
-              <textarea
-                placeholder="Add narration"
-                value={formData.narration}
+        <div className="credit-bottom-section">
+
+          {/* Amount */}
+          <div className="credit-field amount-field">
+
+            <label>
+              Amount <span>*</span>
+            </label>
+
+            <div className="amount-input-wrapper">
+
+              <span className="rupee-symbol">
+                ₹
+              </span>
+
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={amount}
                 onChange={(e) =>
-                  handleChange(
-                    "narration",
-                    e.target.value
-                  )
+                  setAmount(e.target.value)
                 }
+                placeholder="Enter amount"
               />
 
-              {errors.narration && (
-                <small className="rd-credit-error">
-                  {errors.narration}
-                </small>
-              )}
             </div>
+
           </div>
 
-          {/* ================= ACTIONS ================= */}
-          <div className="rd-credit-actions">
+          {/* Narration */}
+          <div className="credit-field narration-field">
 
-            <button
-              type="button"
-              className="rd-credit-save-continue"
-              onClick={handleSaveContinue}
-            >
-              Save Continue
-            </button>
+            <label>
+              Narration <span>*</span>
+            </label>
 
-            <button
-              type="button"
-              className="rd-credit-save-close"
-              onClick={handleSaveClose}
-            >
-              Save Close
-            </button>
+            <textarea
+              value={narration}
+              onChange={(e) =>
+                setNarration(e.target.value)
+              }
+              placeholder="Add narration"
+              rows={4}
+            />
 
           </div>
 
         </div>
+
+        {/* ======================================================
+            BUTTONS
+        ====================================================== */}
+
+        <div className="credit-footer">
+
+          <button
+            type="button"
+            className="credit-btn credit-btn-primary"
+            disabled={saving}
+            onClick={() => saveCredit(false)}
+          >
+            <FaSave />
+
+            {saving
+              ? "Saving..."
+              : "Save Continue"}
+          </button>
+
+          <button
+            type="button"
+            className="credit-btn credit-btn-primary"
+            disabled={saving}
+            onClick={() => saveCredit(true)}
+          >
+            <FaSave />
+
+            {saving
+              ? "Saving..."
+              : "Save Close"}
+          </button>
+
+        </div>
+
       </div>
     </div>
   );
 };
-
 
 export default CreditForm;
