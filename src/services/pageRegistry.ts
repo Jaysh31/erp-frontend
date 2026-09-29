@@ -106,6 +106,10 @@ export const PAGES: PageInfo[] = [
   { path: '/payables/supplier-bills', name: 'Supplier Bills', module: 'accounting' },
   { path: '/bank-details', name: 'Bank Details', module: 'accounting' },
   { path: '/supplier-bills', name: 'Supplier Bill Form', module: 'accounting' },
+  { path: '/receivables/credit-notes', name: 'Credit form', module: 'accounting' },
+  { path: '/Debit-notes', name: 'Debit form', module: 'accounting' },
+  { path: '/GeneralAccountEntry', name: 'General Account Entry form', module: 'accounting' },
+
 
   // ---------- QUALITY ----------
   { path: '/quality-inspection', name: 'Quality Inspection List', module: 'quality', keywords: ['quality inspection'] },

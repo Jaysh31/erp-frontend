@@ -1,0 +1,739 @@
+/* =========================================================
+   REFERENCE DETAILS – CREDIT
+   Theme-compatible with BOM UI
+   ========================================================= */
+
+* {
+  box-sizing: border-box;
+}
+
+/* =========================================================
+   PAGE CONTAINER
+   ========================================================= */
+
+.rd-credit-page {
+  width: 100%;
+  min-height: 100%;
+  padding: 20px;
+
+  background: var(--layout-bg, #f5f7fb);
+
+  font-family:
+    -apple-system,
+    "Inter",
+    "Segoe UI",
+    Roboto,
+    sans-serif;
+
+  color: var(--text-primary, #1f2433);
+
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.rd-credit-page::-webkit-scrollbar {
+  width: 6px;
+}
+
+.rd-credit-page::-webkit-scrollbar-track {
+  background: var(--layout-bg, #f9fafb);
+  border-radius: 3px;
+}
+
+.rd-credit-page::-webkit-scrollbar-thumb {
+  background: var(--border-color, #e5e7eb);
+  border-radius: 3px;
+}
+
+.rd-credit-page::-webkit-scrollbar-thumb:hover {
+  background: var(--primary-color, #6366f1);
+}
+
+/* =========================================================
+   MAIN CARD
+   ========================================================= */
+
+.rd-credit-card {
+  width: 100%;
+
+  background: var(--card-bg, #ffffff);
+
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 10px;
+
+  box-shadow:
+    0 1px 3px var(
+      --shadow-color,
+      rgba(0, 0, 0, 0.05)
+    );
+
+  overflow: hidden;
+}
+
+/* =========================================================
+   HEADER
+   ========================================================= */
+
+.rd-credit-header {
+  min-height: 43px;
+
+  display: flex;
+  align-items: center;
+
+  padding: 0 16px;
+
+  background: var(
+    --primary-color,
+    #6366f1
+  );
+}
+
+.rd-credit-header h2 {
+  margin: 0;
+
+  color: #ffffff;
+
+  font-size: 16px;
+  font-weight: 600;
+
+  letter-spacing: 0.1px;
+}
+
+/* =========================================================
+   FORM
+   ========================================================= */
+
+.rd-credit-form {
+  padding: 20px;
+}
+
+/* =========================================================
+   ROW
+   ========================================================= */
+
+.rd-credit-row {
+  width: 100%;
+  margin-bottom: 16px;
+}
+
+.rd-credit-row.two-column {
+  display: grid;
+
+  grid-template-columns:
+    minmax(0, 1fr)
+    minmax(0, 1fr);
+
+  gap: 20px;
+}
+
+/* =========================================================
+   FIELD
+   ========================================================= */
+
+.rd-credit-field {
+  width: 100%;
+
+  display: grid;
+
+  grid-template-columns:
+    145px
+    minmax(0, 1fr);
+
+  align-items: center;
+
+  column-gap: 14px;
+
+  position: relative;
+}
+
+.rd-credit-field > label {
+  font-size: 13px;
+  font-weight: 600;
+
+  color: var(
+    --text-primary,
+    #374151
+  );
+}
+
+.rd-credit-field > label span {
+  color: #ef4444;
+  margin-left: 2px;
+}
+
+/* =========================================================
+   INPUT / SELECT / TEXTAREA
+   ========================================================= */
+
+.rd-credit-field input,
+.rd-credit-field select,
+.rd-credit-field textarea {
+  width: 100%;
+
+  border: 1px solid var(
+    --border-color,
+    #e5e7eb
+  );
+
+  border-radius: 8px;
+
+  background: var(
+    --input-bg,
+    var(--card-bg, #ffffff)
+  );
+
+  color: var(
+    --text-primary,
+    #374151
+  );
+
+  font-family: inherit;
+  font-size: 13px;
+
+  outline: none;
+
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    background 0.2s ease;
+}
+
+.rd-credit-field input,
+.rd-credit-field select {
+  height: 36px;
+
+  padding: 0 10px;
+}
+
+.rd-credit-field textarea {
+  min-height: 72px;
+
+  padding: 9px 10px;
+
+  resize: vertical;
+}
+
+.rd-credit-field input::placeholder,
+.rd-credit-field textarea::placeholder {
+  color: var(
+    --text-secondary,
+    #9ca3af
+  );
+}
+
+.rd-credit-field input:focus,
+.rd-credit-field select:focus,
+.rd-credit-field textarea:focus {
+  border-color: var(
+    --primary-color,
+    #6366f1
+  );
+
+  box-shadow:
+    0 0 0 3px
+    rgba(99, 102, 241, 0.1);
+}
+
+.rd-credit-field select {
+  cursor: pointer;
+}
+
+/* =========================================================
+   AMOUNT
+   ========================================================= */
+
+.rd-credit-amount {
+  width: 100%;
+  height: 36px;
+
+  display: grid;
+
+  grid-template-columns:
+    38px
+    minmax(0, 1fr);
+}
+
+.rd-credit-amount span {
+  height: 36px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border: 1px solid var(
+    --border-color,
+    #e5e7eb
+  );
+
+  border-right: none;
+
+  border-radius: 8px 0 0 8px;
+
+  background: var(
+    --layout-bg,
+    #f9fafb
+  );
+
+  color: var(
+    --text-secondary,
+    #6b7280
+  );
+
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.rd-credit-amount input {
+  height: 36px;
+
+  border-radius: 0 8px 8px 0 !important;
+}
+
+/* =========================================================
+   PAYMENT TYPE
+   ========================================================= */
+
+.payment-field {
+  align-items: start;
+}
+
+.payment-field > label {
+  padding-top: 9px;
+}
+
+.rd-credit-radio-group {
+  min-height: 36px;
+
+  display: flex;
+  align-items: center;
+
+  gap: 28px;
+
+  flex-wrap: wrap;
+}
+
+.rd-credit-radio {
+  display: inline-flex !important;
+
+  align-items: center;
+
+  gap: 7px;
+
+  cursor: pointer;
+
+  font-size: 13px !important;
+  font-weight: 500 !important;
+
+  color: var(
+    --text-primary,
+    #374151
+  ) !important;
+}
+
+.rd-credit-radio input {
+  width: 15px !important;
+  height: 15px !important;
+
+  margin: 0;
+
+  padding: 0;
+
+  accent-color: var(
+    --primary-color,
+    #6366f1
+  );
+
+  cursor: pointer;
+
+  box-shadow: none !important;
+}
+
+/* =========================================================
+   ERROR
+   ========================================================= */
+
+.rd-credit-error {
+  grid-column: 2;
+
+  display: block;
+
+  margin-top: 4px;
+
+  color: #dc2626;
+
+  font-size: 11px;
+}
+
+/* =========================================================
+   ACTION BUTTONS
+   ========================================================= */
+
+.rd-credit-actions {
+  width: 100%;
+
+  display: flex;
+
+  justify-content: center;
+  align-items: center;
+
+  gap: 8px;
+
+  margin-top: 22px;
+
+  padding-top: 18px;
+
+  border-top: 1px solid var(
+    --border-color,
+    #e5e7eb
+  );
+}
+
+.rd-credit-actions button {
+  height: 36px;
+
+  min-width: 125px;
+
+  padding: 0 16px;
+
+  border: none;
+  border-radius: 8px;
+
+  color: #ffffff;
+
+  font-family: inherit;
+
+  font-size: 13px;
+  font-weight: 500;
+
+  cursor: pointer;
+
+  transition:
+    background 0.15s ease,
+    transform 0.1s ease,
+    box-shadow 0.15s ease;
+}
+
+.rd-credit-actions button:hover {
+  background: var(
+    --primary-hover,
+    #4f46e5
+  );
+
+  transform: translateY(-1px);
+
+  box-shadow:
+    0 4px 12px
+    rgba(99, 102, 241, 0.25);
+}
+
+.rd-credit-actions button:active {
+  transform: translateY(0);
+}
+
+/* =========================================================
+   SAVE CONTINUE
+   ========================================================= */
+
+.rd-credit-save-continue {
+  background: var(
+    --primary-color,
+    #6366f1
+  );
+}
+
+/* =========================================================
+   SAVE CLOSE
+   ========================================================= */
+
+.rd-credit-save-close {
+  background: var(
+    --primary-color,
+    #6366f1
+  );
+}
+
+/* =========================================================
+   DISABLED
+   ========================================================= */
+
+.rd-credit-actions button:disabled {
+  opacity: 0.6;
+
+  cursor: not-allowed;
+
+  transform: none;
+
+  box-shadow: none;
+}
+
+/* =========================================================
+   DARK THEME
+   ========================================================= */
+
+.dark-theme .rd-credit-page {
+  background: var(
+    --layout-bg,
+    #0f172a
+  );
+
+  color: var(
+    --text-primary,
+    #f8fafc
+  );
+}
+
+.dark-theme .rd-credit-card {
+  background: var(
+    --card-bg,
+    #1e293b
+  );
+
+  border-color: var(
+    --border-color,
+    #334155
+  );
+}
+
+.dark-theme .rd-credit-header {
+  background: var(
+    --primary-color,
+    #6366f1
+  );
+}
+
+.dark-theme .rd-credit-field > label {
+  color: var(
+    --text-primary,
+    #f8fafc
+  );
+}
+
+.dark-theme .rd-credit-field input,
+.dark-theme .rd-credit-field select,
+.dark-theme .rd-credit-field textarea {
+  background: var(
+    --input-bg,
+    #1e293b
+  );
+
+  border-color: var(
+    --border-color,
+    #334155
+  );
+
+  color: var(
+    --text-primary,
+    #f8fafc
+  );
+}
+
+.dark-theme .rd-credit-field input::placeholder,
+.dark-theme .rd-credit-field textarea::placeholder {
+  color: var(
+    --text-secondary,
+    #64748b
+  );
+}
+
+.dark-theme .rd-credit-field input:focus,
+.dark-theme .rd-credit-field select:focus,
+.dark-theme .rd-credit-field textarea:focus {
+  border-color: var(
+    --primary-color,
+    #818cf8
+  );
+
+  box-shadow:
+    0 0 0 3px
+    rgba(99, 102, 241, 0.18);
+}
+
+.dark-theme .rd-credit-amount span {
+  background: var(
+    --layout-bg,
+    #0f172a
+  );
+
+  border-color: var(
+    --border-color,
+    #334155
+  );
+
+  color: var(
+    --text-secondary,
+    #94a3b8
+  );
+}
+
+.dark-theme .rd-credit-radio {
+  color: var(
+    --text-primary,
+    #f8fafc
+  ) !important;
+}
+
+.dark-theme .rd-credit-radio input {
+  accent-color: var(
+    --primary-color,
+    #818cf8
+  );
+}
+
+.dark-theme .rd-credit-actions {
+  border-top-color: var(
+    --border-color,
+    #334155
+  );
+}
+
+.dark-theme .rd-credit-actions button {
+  background: var(
+    --primary-color,
+    #6366f1
+  );
+}
+
+.dark-theme .rd-credit-actions button:hover {
+  background: var(
+    --primary-hover,
+    #4f46e5
+  );
+}
+
+/* =========================================================
+   RESPONSIVE
+   ========================================================= */
+
+@media (max-width: 768px) {
+  .rd-credit-page {
+    padding: 12px 10px;
+  }
+
+  .rd-credit-header {
+    min-height: 42px;
+
+    padding: 0 12px;
+  }
+
+  .rd-credit-header h2 {
+    font-size: 15px;
+  }
+
+  .rd-credit-form {
+    padding: 14px 12px 16px;
+  }
+
+  .rd-credit-row {
+    margin-bottom: 13px;
+  }
+
+  .rd-credit-row.two-column {
+    grid-template-columns: 1fr;
+
+    gap: 13px;
+  }
+
+  .rd-credit-field {
+    grid-template-columns: 1fr;
+
+    gap: 5px;
+  }
+
+  .rd-credit-field > label {
+    font-size: 12.5px;
+  }
+
+  .rd-credit-field input,
+  .rd-credit-field select {
+    height: 36px;
+
+    font-size: 12.5px;
+  }
+
+  .rd-credit-field textarea {
+    min-height: 80px;
+
+    font-size: 12.5px;
+  }
+
+  .rd-credit-amount {
+    height: 36px;
+  }
+
+  .rd-credit-amount span,
+  .rd-credit-amount input {
+    height: 36px;
+  }
+
+  .payment-field > label {
+    padding-top: 0;
+  }
+
+  .rd-credit-radio-group {
+    width: 100%;
+
+    min-height: auto;
+
+    gap: 12px 20px;
+  }
+
+  .rd-credit-error {
+    grid-column: 1;
+  }
+
+  .rd-credit-actions {
+    margin-top: 16px;
+
+    padding-top: 14px;
+
+    flex-direction: row;
+  }
+
+  .rd-credit-actions button {
+    flex: 1;
+
+    min-width: 0;
+
+    height: 36px;
+
+    padding: 0 10px;
+
+    font-size: 12px;
+  }
+}
+
+/* =========================================================
+   SMALL MOBILE
+   ========================================================= */
+
+@media (max-width: 480px) {
+  .rd-credit-page {
+    padding: 8px;
+  }
+
+  .rd-credit-header {
+    padding: 0 10px;
+  }
+
+  .rd-credit-header h2 {
+    font-size: 14px;
+  }
+
+  .rd-credit-form {
+    padding: 12px 10px;
+  }
+
+  .rd-credit-radio-group {
+    gap: 10px 16px;
+  }
+
+  .rd-credit-actions {
+    flex-direction: column;
+
+    width: 100%;
+  }
+
+  .rd-credit-actions button {
+    width: 100%;
+  }
+}

@@ -1,0 +1,247 @@
+* {
+  box-sizing: border-box;
+}
+
+.rd-debit-page {
+  width: 100%;
+  min-height: 100vh;
+  padding: 10px;
+  background: #ffffff;
+  font-family:
+    Inter,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+  color: #14284d;
+}
+
+.rd-debit-card {
+  width: 100%;
+  border: 1px solid #c8dff4;
+  border-radius: 6px;
+  background: #ffffff;
+  overflow: hidden;
+}
+
+/* ================= HEADER ================= */
+
+.rd-debit-header {
+  height: 43px;
+  display: flex;
+  align-items: center;
+  padding: 0 14px;
+
+  background: linear-gradient(
+    90deg,
+    #3188d5,
+    #3c91d9
+  );
+}
+
+.rd-debit-header h2 {
+  margin: 0;
+
+  color: #ffffff;
+
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: 0.1px;
+}
+
+/* ================= FORM ================= */
+
+.rd-debit-form {
+  padding: 13px 18px 15px;
+}
+
+.rd-debit-field {
+  width: 100%;
+  min-height: 40px;
+
+  display: grid;
+  grid-template-columns: 165px minmax(0, 1fr);
+
+  align-items: center;
+
+  column-gap: 14px;
+}
+
+.rd-debit-field label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #172d51;
+}
+
+.rd-debit-field input,
+.rd-debit-field select {
+  width: 100%;
+  height: 32px;
+
+  padding: 0 10px;
+
+  border: 1px solid #c8dced;
+  border-radius: 4px;
+
+  background: #ffffff;
+
+  color: #243b5d;
+
+  font-family: inherit;
+  font-size: 13px;
+
+  outline: none;
+}
+
+.rd-debit-field input:focus,
+.rd-debit-field select:focus {
+  border-color: #3c91d9;
+
+  box-shadow:
+    0 0 0 2px rgba(49, 136, 213, 0.08);
+}
+
+.rd-debit-field select {
+  cursor: pointer;
+}
+
+/* ================= AMOUNT ================= */
+
+.rd-debit-amount {
+  width: 100%;
+  height: 32px;
+
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr);
+}
+
+.rd-debit-amount span {
+  height: 32px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border: 1px solid #c8dced;
+  border-right: none;
+
+  border-radius: 4px 0 0 4px;
+
+  background: #f7fbff;
+
+  color: #455d7b;
+
+  font-size: 13px;
+}
+
+.rd-debit-amount input {
+  height: 32px;
+
+  border-radius: 0 4px 4px 0;
+
+  text-align: left;
+}
+
+/* ================= BUTTONS ================= */
+
+.rd-debit-actions {
+  display: flex;
+  gap: 8px;
+
+  margin-top: 10px;
+}
+
+.rd-debit-actions button {
+  height: 34px;
+
+  min-width: 106px;
+
+  padding: 0 18px;
+
+  border: none;
+  border-radius: 4px;
+
+  color: #ffffff;
+
+  background: #147bd5;
+
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+
+  cursor: pointer;
+
+  transition:
+    background 0.15s ease,
+    transform 0.1s ease;
+}
+
+.rd-debit-actions button:hover {
+  background: #086abe;
+}
+
+.rd-debit-actions button:active {
+  transform: translateY(1px);
+}
+
+.rd-debit-save {
+  background: #147bd5;
+}
+
+.rd-debit-submit {
+  background: #147bd5;
+}
+
+/* ================= RESPONSIVE ================= */
+
+@media (max-width: 768px) {
+  .rd-debit-page {
+    padding: 8px;
+  }
+
+  .rd-debit-header {
+    height: 42px;
+    padding: 0 12px;
+  }
+
+  .rd-debit-header h2 {
+    font-size: 15px;
+  }
+
+  .rd-debit-form {
+    padding: 12px;
+  }
+
+  .rd-debit-field {
+    grid-template-columns: 1fr;
+    gap: 5px;
+
+    margin-bottom: 10px;
+  }
+
+  .rd-debit-field label {
+    font-size: 13px;
+  }
+
+  .rd-debit-field input,
+  .rd-debit-field select {
+    height: 36px;
+  }
+
+  .rd-debit-amount {
+    height: 36px;
+  }
+
+  .rd-debit-amount span,
+  .rd-debit-amount input {
+    height: 36px;
+  }
+
+  .rd-debit-actions {
+    width: 100%;
+  }
+
+  .rd-debit-actions button {
+    flex: 1;
+  }
+}

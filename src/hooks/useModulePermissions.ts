@@ -79,6 +79,8 @@ export const SUBMODULE_MAP: Record<string, number> = {
   'Customer Payments': 26,
   'Delivery Challans': 27,
   'Credit Notes': 28,
+  'Debsit Notes': 28,
+  'GeneralAccountEntry': 28,
   'Outstanding Receivables': 29,
   'Supplier Bills': 30,
   'Supplier Payments': 31,
@@ -272,6 +274,9 @@ export function useModulePermissions() {
       'customer-payments': 'accounting',
       'expenses': 'accounting',
       'banking': 'accounting',
+      'Credit Notes': 'accounting',
+      'Debsit Notes': 'accounting',
+      'GeneralAccountEntry': 'accounting',
     };
 
     const moduleName = pathToModuleMap[pathParts[0]];
