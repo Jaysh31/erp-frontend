@@ -3,6 +3,7 @@ import { useState, useRef, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import {
   FaCommentDots, FaTimes, FaPaperPlane, FaRobot, FaUser, FaSpinner,
+  FaExpandArrowsAlt, FaCompressArrowsAlt,
 } from "react-icons/fa";
 import "./ChatBot.css";
 import api from "../../../services/api";
@@ -14,12 +15,18 @@ import {
   detectSmartNavigation,
   fetchDetailPageData,
   DETAIL_PAGE_APIS,
+  ERP_ENDPOINTS,
+  ENDPOINT_ROUTES,
+  isLatestListQuery,
+  fetchAndBuildLatestListNavigation,
 } from "../../../services/erpApi";
 
 interface Msg {
   role: "user" | "bot";
   text: string;
   navigateTo?: string;
+  navigateLabel?: string;
+  rowActions?: Array<{ label: string; route: string }>;
 }
 
 // ─── Small helpers ─────────────────────────────────────────────────────
@@ -44,24 +51,10 @@ const STOP_WORDS = new Set([
   "page", "navigate", "go", "open", "edit", "view",
 ]);
 
-// ═══════════════════════════════════════════════════════════════════════
-// 🆕 FIX #2 (part a): short keywords that must NEVER win the module
-//    match in a "candidates" list. These are ambiguous (they appear as
-//    substrings of other words) and were the reason an invoice question
-//    could route to the BOM page.
-// ═══════════════════════════════════════════════════════════════════════
 const AMBIGUOUS_MODULE_KEYS = new Set([
   "bom", "grn", "po", "so", "pi", "jc", "wo",
 ]);
 
-// ═══════════════════════════════════════════════════════════════════════
-// 🆕 FIX #5: document-series prefixes that appear in the UI/naming
-//    series (PINV-, SINV-, GRN-, PO-, …) but are never themselves valid
-//    record ids. If the chatbot treats them as a search term, it fires
-//    GET /api/<module>/<PREFIX> and the ERP returns 500
-//    ("Purchase Invoice not found"). We must filter these out of any
-//    "search id" extraction.
-// ═══════════════════════════════════════════════════════════════════════
 const DOCUMENT_PREFIXES = new Set([
   "pinv", "sinv", "grn", "po", "so", "bom", "wo", "jc", "qtn",
   "dn", "pi", "si", "lead", "emp", "sup", "cust",
@@ -157,6 +150,62 @@ function debugCount(label: string, res: any) {
     isArray: Array.isArray(raw),
   };
   console.log(`🔎 [${label}] response shape:`, shape);
+}
+
+// ====================================================================
+// 🆕 TABLE RENDERING HELPERS
+// ====================================================================
+/**
+ * Escapes pipe characters inside a cell. Keeps the value **intact** (no
+ * truncation) so numbers like 100 don't wrap. Returns "" for blanks so the
+ * empty column can be pruned later by `renderTable`.
+ */
+function escapeCell(v: any): string {
+  const s = String(v ?? "").trim();
+  if (!s || s === "—" || s === "-") return "";
+  return s.replace(/\|/g, "\\|").replace(/\s+/g, " ");
+}
+
+/**
+ * Builds a pipe-format markdown table.
+ *
+ * 🆕 Prunes empty columns:
+ *   If EVERY row has "" in column X, that column is removed from the table.
+ *   This is why BOM's empty "Status" column no longer appears.
+ *
+ * 🆕 Skips empty rows entirely.
+ */
+function renderTable(
+  headers: string[],
+  rows: (string | number | null | undefined)[][]
+): string {
+  if (rows.length === 0) return "";
+
+  // Normalize every cell to a string
+  const normalized: string[][] = rows.map((r) =>
+    r.map((c) => escapeCell(c))
+  );
+
+  // Determine which columns are entirely empty
+  const keepColumn: boolean[] = headers.map((_, colIdx) =>
+    normalized.some((row) => row[colIdx] && row[colIdx].length > 0)
+  );
+
+  // Build the final header + rows, only keeping non-empty columns
+  const finalHeaders = headers.filter((_, i) => keepColumn[i]);
+
+  const finalRows = normalized
+    .map((row) => row.filter((_, i) => keepColumn[i]))
+    // Drop any rows that are now completely empty
+    .filter((row) => row.some((c) => c && c.length > 0));
+
+  if (finalHeaders.length === 0 || finalRows.length === 0) return "";
+
+  const headerLine = `| ${finalHeaders.join(" | ")} |`;
+  const sepLine = `|${finalHeaders.map(() => "------").join("|")}|`;
+  const bodyLines = finalRows.map((r) => `| ${r.join(" | ")} |`);
+
+  return [headerLine, sepLine, ...bodyLines].join("\n");
 }
 
 // ====================================================================
@@ -309,23 +358,333 @@ function filterByDate(records: any[], range: DateRange): any[] {
   });
 }
 
-function rowLine(r: any, idx: number): string {
-  const name =
-    r.customer_name || r.supplier_name || r.party_name || r.item_name ||
-    r.item_code || r.lead_name || r.name || r.title || "Record";
-  const id = r.name || r.id || "";
-  const amount =
-    r.grand_total != null ? `₹${fmt(r.grand_total)}` :
-    r.total != null ? `₹${fmt(r.total)}` : "";
-  const status = r.status ? ` · ${r.status}` : "";
-  const idPart = id && id !== name ? ` (${id})` : "";
+// ====================================================================
+// 🆕 ROW BUILDERS — produce values for table cells
+// ====================================================================
+function getRowName(r: any): string {
+  return (
+    r.customer_name ||
+    r.supplier_name ||
+    r.party_name ||
+    r.item_name ||
+    r.item_code ||
+    r.lead_name ||
+    r.name ||
+    r.title ||
+    r.id ||
+    "Record"
+  );
+}
+
+function getRowId(r: any): string {
+  return String(
+    r.name || r.id || r.item_code || r.order_no || r.invoice_no || ""
+  );
+}
+
+function getRowAmount(r: any): string {
+  if (r.grand_total != null) return `₹${fmt(r.grand_total)}`;
+  if (r.total != null) return `₹${fmt(r.total)}`;
+  if (r.amount != null) return `₹${fmt(r.amount)}`;
+  return "";
+}
+
+function getRowStatus(r: any): string {
+  return r.status || getRecordStatus(r) || "";
+}
+
+function getRowDate(r: any): string {
   const created = getCreatedDate(r);
   const fallback = created ? null : getRecordDate(r);
   const d = created || fallback;
-  const dateStr = d ? ` · 📅 ${formatShortDate(d)} (${timeAgo(d)})` : "";
-  return `${idx + 1}. ${name}${idPart}${amount ? " · " + amount : ""}${status}${dateStr}`;
+  return d ? formatShortDate(d) : "";
 }
 
+/**
+ * Returns the columns and cell-builder for a given module.
+ * Cell-builders return `""` (empty) for missing values — `renderTable`
+ * prunes those columns automatically.
+ */
+function getModuleTableSpec(endpointKey: string): {
+  headers: string[];
+  rowBuilder: (r: any, idx: number) => (string | number | null | undefined)[];
+} {
+  switch (endpointKey) {
+    case "workOrder":
+    case "jobCard":
+      return {
+        headers: ["#", "WO / JC", "Item", "Qty", "Cards", "Progress", "Status", "Date"],
+        rowBuilder: (r, i) => [
+          i + 1,
+          r.name || r.work_order_no || `WO-${r.id}`,
+          r.item_name || r.item_code || r.production_item || "",
+          r.qty ?? r.quantity ?? "",
+          r.total_job_cards ?? r.job_cards ?? "",
+          r.progress != null ? `${r.progress}%` : "",
+          getRowStatus(r),
+          getRowDate(r),
+        ],
+      };
+    case "bom":
+      return {
+        headers: ["#", "BOM", "Item", "Qty", "Type", "Date"],
+        rowBuilder: (r, i) => [
+          i + 1,
+          r.name || r.bom_no || `BOM-${r.id}`,
+          r.item_name || r.item_code || "",
+          r.quantity ?? r.qty ?? "",
+          r.type || r.bom_type || "",
+          getRowDate(r),
+        ],
+      };
+    case "stockEntry":
+      return {
+        headers: ["#", "Stock Entry", "Type", "Warehouse", "Items", "Status", "Date"],
+        rowBuilder: (r, i) => [
+          i + 1,
+          r.name || r.stock_entry_no || `SE-${r.id}`,
+          r.stock_entry_type || r.purpose || r.type || "",
+          r.to_warehouse || r.from_warehouse || r.warehouse || "",
+          r.total_items ?? "",
+          getRowStatus(r),
+          getRowDate(r),
+        ],
+      };
+    case "item":
+    case "itemProduct":
+    case "itemRaw":
+      return {
+        headers: ["#", "Item Code", "Item Name", "Group", "UOM", "Type", "Status"],
+        rowBuilder: (r, i) => [
+          i + 1,
+          r.item_code || r.name || `ITEM-${r.id}`,
+          r.item_name || r.name || "",
+          r.item_group || r.group || "",
+          r.stock_uom || r.uom || "",
+          r.type || r.item_type || (r.is_stock_item === 1 ? "Stock" : "Non-Stock"),
+          r.disabled === 1 ? "Disabled" : "Enabled",
+        ],
+      };
+    case "warehouse":
+      return {
+        headers: ["#", "Warehouse", "Company", "Status"],
+        rowBuilder: (r, i) => [
+          i + 1,
+          r.name || r.warehouse_name || `WH-${r.id}`,
+          r.company || "",
+          r.disabled === 1 ? "Disabled" : "Enabled",
+        ],
+      };
+    case "workstation":
+      return {
+        headers: ["#", "Workstation", "Type", "Status", "Date"],
+        rowBuilder: (r, i) => [
+          i + 1,
+          r.name || r.workstation_name || `WS-${r.id}`,
+          r.type || "",
+          r.disabled === 1 ? "Disabled" : "Enabled",
+          getRowDate(r),
+        ],
+      };
+    case "operation":
+      return {
+        headers: ["#", "Operation", "Workstation", "Time (min)", "Status"],
+        rowBuilder: (r, i) => [
+          i + 1,
+          r.name || r.operation_name || `OP-${r.id}`,
+          r.workstation || "",
+          r.total_operation_time ?? r.time_in_mins ?? "",
+          getRowStatus(r),
+        ],
+      };
+    case "uom":
+      return {
+        headers: ["#", "UOM", "Enabled"],
+        rowBuilder: (r, i) => [
+          i + 1,
+          r.name || r.uom_name || "",
+          r.enabled === 0 ? "No" : "Yes",
+        ],
+      };
+    case "itemGroup":
+      return {
+        headers: ["#", "Item Group", "Parent"],
+        rowBuilder: (r, i) => [
+          i + 1,
+          r.name || r.item_group_name || "",
+          r.parent_item_group || "",
+        ],
+      };
+    case "quotation":
+      return {
+        headers: ["#", "Quotation", "Customer", "Amount", "Status", "Date"],
+        rowBuilder: (r, i) => [
+          i + 1,
+          r.name || r.quotation_no || `QTN-${r.id}`,
+          r.customer_name || r.party_name || "",
+          getRowAmount(r),
+          getRowStatus(r),
+          getRowDate(r),
+        ],
+      };
+    case "salesOrder":
+      return {
+        headers: ["#", "Sales Order", "Customer", "Amount", "Status", "Date"],
+        rowBuilder: (r, i) => [
+          i + 1,
+          r.name || r.sales_order_no || r.order_no || `SO-${r.id}`,
+          r.customer_name || r.party_name || "",
+          getRowAmount(r),
+          getRowStatus(r),
+          getRowDate(r),
+        ],
+      };
+    case "proformaInvoice":
+      return {
+        headers: ["#", "Proforma", "Customer", "Amount", "Status", "Date"],
+        rowBuilder: (r, i) => [
+          i + 1,
+          r.name || r.proforma_invoice_no || `PI-${r.id}`,
+          r.customer_name || r.party_name || "",
+          getRowAmount(r),
+          getRowStatus(r),
+          getRowDate(r),
+        ],
+      };
+    case "deliveryNote":
+      return {
+        headers: ["#", "Delivery Note", "Customer", "Status", "Date"],
+        rowBuilder: (r, i) => [
+          i + 1,
+          r.name || r.delivery_note_no || `DN-${r.id}`,
+          r.customer_name || r.party_name || "",
+          getRowStatus(r),
+          getRowDate(r),
+        ],
+      };
+    case "salesInvoice":
+      return {
+        headers: ["#", "Invoice", "Customer", "Amount", "Status", "Date"],
+        rowBuilder: (r, i) => [
+          i + 1,
+          r.name || r.invoice_no || r.sales_invoice_no || `INV-${r.id}`,
+          r.customer_name || r.party_name || "",
+          getRowAmount(r),
+          getRowStatus(r),
+          getRowDate(r),
+        ],
+      };
+    case "lead":
+      return {
+        headers: ["#", "Lead", "Company", "Status", "Date"],
+        rowBuilder: (r, i) => [
+          i + 1,
+          r.name || r.lead_name || `LEAD-${r.id}`,
+          r.company_name || "",
+          getRowStatus(r),
+          getRowDate(r),
+        ],
+      };
+    case "purchaseOrder":
+      return {
+        headers: ["#", "PO", "Supplier", "Amount", "Status", "Date"],
+        rowBuilder: (r, i) => [
+          i + 1,
+          r.name || r.purchase_order_no || r.order_no || `PO-${r.id}`,
+          r.supplier_name || r.party_name || "",
+          getRowAmount(r),
+          getRowStatus(r),
+          getRowDate(r),
+        ],
+      };
+    case "grn":
+      return {
+        headers: ["#", "GRN", "Party", "PO Ref", "Items", "Received", "Status", "Date"],
+        rowBuilder: (r, i) => [
+          i + 1,
+          r.name || r.grn_no || `GRN-${r.id}`,
+          r.supplier_name || r.party_name || r.name || "",
+          r.purchase_order_id ? `PO-${String(r.purchase_order_id).padStart(5, "0")}` : "",
+          r.total_items ?? "",
+          r.total_received_qty ?? "",
+          getRowStatus(r),
+          getRowDate(r),
+        ],
+      };
+    case "purchaseInvoice":
+      return {
+        headers: ["#", "Invoice", "Supplier", "Amount", "Status", "Date"],
+        rowBuilder: (r, i) => [
+          i + 1,
+          r.name || r.invoice_no || r.purchase_invoice_no || `PI-${r.id}`,
+          r.supplier_name || r.party_name || "",
+          getRowAmount(r),
+          getRowStatus(r),
+          getRowDate(r),
+        ],
+      };
+    case "qualityInspection":
+      return {
+        headers: ["#", "Inspection", "Item", "Status", "Date"],
+        rowBuilder: (r, i) => [
+          i + 1,
+          r.name || r.inspection_no || `QI-${r.id}`,
+          r.item_name || r.item_code || "",
+          getRowStatus(r),
+          getRowDate(r),
+        ],
+      };
+    case "inventory":
+      return {
+        headers: ["#", "Item Code", "Item Name", "Warehouse", "Qty", "Value"],
+        rowBuilder: (r, i) => [
+          i + 1,
+          r.item_code || r.name || "",
+          r.item_name || "",
+          r.warehouse || r.warehouse_name || "",
+          r.actual_qty ?? r.qty ?? "",
+          r.stock_value != null ? `₹${fmt(r.stock_value)}` : "",
+        ],
+      };
+    case "company":
+      return {
+        headers: ["#", "Company", "Country", "Currency"],
+        rowBuilder: (r, i) => [
+          i + 1,
+          r.name || r.company_name || `CO-${r.id}`,
+          r.country || "",
+          r.default_currency || r.currency || "",
+        ],
+      };
+    case "customer":
+    case "supplier":
+    case "employee":
+      return {
+        headers: ["#", "Name", "Group / Type", "Status"],
+        rowBuilder: (r, i) => [
+          i + 1,
+          r.name || r.customer_name || r.supplier_name || r.employee_name || "",
+          r.customer_group || r.supplier_group || r.designation || "",
+          r.disabled === 1 ? "Disabled" : "Enabled",
+        ],
+      };
+    default:
+      return {
+        headers: ["#", "Name", "ID", "Status", "Date"],
+        rowBuilder: (r, i) => [
+          i + 1,
+          getRowName(r),
+          getRowId(r) || "",
+          getRowStatus(r),
+          getRowDate(r),
+        ],
+      };
+  }
+}
+
+// ====================================================================
+// 🆕 ANSWER MODULE GENERIC (with table)
+// ====================================================================
 async function answerModuleGeneric(
   documentLabel: string,
   endpoint: string,
@@ -358,12 +717,30 @@ async function answerModuleGeneric(
     return db - da;
   });
 
-  const preview = sorted.slice(0, 10).map(rowLine);
-  const more = sorted.length > 10 ? `\n…and ${sorted.length - 10} more.` : "";
+  const shown = sorted.slice(0, 20);
+
+  // Try to find endpointKey from URL
+  const url = endpoint.replace(/^https?:\/\/[^/]+/, "").split("?")[0];
+  const endpointKey =
+    Object.keys(ENDPOINT_ROUTES).find((k) => url.endsWith(ENDPOINT_ROUTES[k])) ||
+    "";
+
+  const { headers, rowBuilder } = getModuleTableSpec(endpointKey);
+  const table = renderTable(
+    headers,
+    shown.map((r, i) => rowBuilder(r, i))
+  );
+
   const header = range
     ? `📅 **${rows.length}** ${documentLabel.toLowerCase()} ${range.label}`
     : `📊 **${total}** ${documentLabel.toLowerCase()} total`;
-  return `${header}\n\nLatest ${Math.min(10, sorted.length)}:\n${preview.join("\n")}${more}`;
+
+  const moreNote =
+    sorted.length > 20
+      ? `\n\n_…and ${sorted.length - 20} more._`
+      : "";
+
+  return `${header}\n\n${table}${moreNote}`;
 }
 
 // ====================================================================
@@ -372,9 +749,8 @@ async function answerModuleGeneric(
 function getRecordNavId(record: any, fallbackIdentifier?: string): string {
   if (record) {
     const idCandidates = [
-      record.name,
       record.id,
-      record.item_code,
+      record.item_id,
       record.customer_id,
       record.supplier_id,
       record.lead_id,
@@ -383,6 +759,16 @@ function getRecordNavId(record: any, fallbackIdentifier?: string): string {
       record.operation_id,
       record.employee_id,
       record.bom_id,
+    ];
+    for (const c of idCandidates) {
+      if (c !== null && c !== undefined && /^\d+$/.test(String(c))) {
+        return String(c);
+      }
+    }
+
+    const nameCandidates = [
+      record.name,
+      record.item_code,
       record.quotation_no,
       record.invoice_number,
       record.order_number,
@@ -392,7 +778,7 @@ function getRecordNavId(record: any, fallbackIdentifier?: string): string {
       record.grn_no,
       record.po_number,
     ];
-    for (const c of idCandidates) {
+    for (const c of nameCandidates) {
       if (c !== null && c !== undefined && String(c).trim() !== "") {
         return String(c);
       }
@@ -400,6 +786,75 @@ function getRecordNavId(record: any, fallbackIdentifier?: string): string {
     if (record.item_name) return String(record.item_name);
   }
   return fallbackIdentifier || "";
+}
+
+// 🆕 INVENTORY-AWARE NAV ID: for inventory records we want item_code
+function getInventoryNavKey(record: any, fallbackIdentifier?: string): string {
+  if (record) {
+    const candidates = [
+      record.item_code,
+      record.item,
+      record.name,
+      record.item_name,
+    ];
+    for (const c of candidates) {
+      if (c !== null && c !== undefined && String(c).trim() !== "") {
+        return String(c);
+      }
+    }
+    if (record.id !== undefined && record.id !== null) return String(record.id);
+  }
+  return fallbackIdentifier || "";
+}
+
+// ====================================================================
+// 🆕 INVENTORY DETAIL ROUTE BUILDER
+// Frontend route: /inventory/detail/{item_code}?type=...&warehouse_id=...
+// ====================================================================
+function buildInventoryDetailRoute(itemCode: string, record?: any): string {
+  const item = itemCode ?? record?.item_code ?? record?.item ?? "";
+  const type =
+    record?.type ??
+    record?.stock_type ??
+    record?.warehouse_type ??
+    "Internal";
+  const warehouseId =
+    record?.warehouse_id ??
+    record?.warehouse ??
+    record?.warehouseId ??
+    "";
+
+  const params = new URLSearchParams();
+  params.set("type", String(type));
+  if (warehouseId !== "" && warehouseId !== undefined && warehouseId !== null) {
+    params.set("warehouse_id", String(warehouseId));
+  }
+
+  return `/inventory/detail/${encodeURIComponent(String(item))}?${params.toString()}`;
+}
+
+// 🆕 Central helper: build the correct detail route for any (endpointKey, record)
+function buildDetailRouteForRecord(
+  endpointKey: string,
+  record: any,
+  fallbackId?: string
+): string {
+  if (endpointKey === "inventory") {
+    const itemCode = getInventoryNavKey(record, fallbackId);
+    return buildInventoryDetailRoute(itemCode, record);
+  }
+
+  // Fall back to the existing lookup
+  const matchedModuleKey = Object.keys(MODULE_DETAIL_ROUTES).find(
+    (mKey) => MODULE_TO_ENDPOINT_KEY[mKey] === endpointKey
+  );
+
+  const route = matchedModuleKey
+    ? MODULE_DETAIL_ROUTES[matchedModuleKey]
+    : ENDPOINT_ROUTES[endpointKey] + "/";
+
+  const id = getRecordNavId(record, fallbackId);
+  return route + encodeURIComponent(id);
 }
 
 // ====================================================================
@@ -503,16 +958,570 @@ function isDetailQuestion(question: string): boolean {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
+// STATUS FILTER HELPERS
+// ═══════════════════════════════════════════════════════════════════════
+const STATUS_KEYWORDS: Record<string, string[]> = {
+  completed:    ["completed", "complete", "done", "finished", "closed"],
+  cancelled:    ["cancelled", "canceled", "cancel"],
+  draft:        ["draft"],
+  sent:         ["sent", "send", "dispatched"],
+  accepted:     ["accepted", "accept"],
+  rejected:     ["rejected", "reject"],
+  expired:      ["expired", "expire", "expiring"],
+  converted:    ["converted", "convert"],
+  paid:         ["paid", "fully paid"],
+  "partially paid": ["partially paid", "partially-paid", "partial paid", "part payment"],
+  unpaid:       ["unpaid", "not paid", "un-paid"],
+  "in process": ["in process", "in-process", "in progress", "in-progress", "processing", "ongoing", "running"],
+  pending:      ["pending", "awaiting", "waiting"],
+  open:         ["open"],
+  submitted:    ["submitted", "submit"],
+  approved:     ["approved", "approve"],
+  overdue:      ["overdue", "over due"],
+  "on hold":    ["on hold", "on-hold"],
+  active:       ["active", "enabled"],
+  inactive:     ["inactive", "disabled"],
+};
+
+const STATUS_FIELD_NAMES = [
+  "status", "work_order_status", "order_status", "job_card_status",
+  "stock_entry_status", "status_name", "state", "document_status",
+  "bom_status", "sales_order_status", "purchase_order_status",
+  "inspection_status", "quotation_status", "invoice_status",
+  "production_status", "current_status",
+  "item_status", "item_type", "type",
+];
+
+function getRecordStatus(record: any): string {
+  for (const field of STATUS_FIELD_NAMES) {
+    const v = record?.[field];
+    if (v !== undefined && v !== null && String(v).trim() !== "") {
+      return String(v).trim().toLowerCase();
+    }
+  }
+  return "";
+}
+
+function matchesStatus(recordStatus: string, targetStatus: string): boolean {
+  if (!recordStatus || !targetStatus) return false;
+  const normRecord = recordStatus.toLowerCase().trim();
+  const normTarget = targetStatus.toLowerCase().trim();
+
+  if (normRecord === normTarget) return true;
+
+  const targetWords = normTarget.split(/\s+/);
+  if (targetWords.length > 1) {
+    return targetWords.every((w) => normRecord.includes(w));
+  }
+  return normRecord.includes(normTarget) || normTarget.includes(normRecord);
+}
+
+function detectStatusFilter(question: string): string | null {
+  const q = question.toLowerCase();
+
+  const allKeywords: Array<{ status: string; keyword: string }> = [];
+  for (const [status, keywords] of Object.entries(STATUS_KEYWORDS)) {
+    for (const kw of keywords) {
+      allKeywords.push({ status, keyword: kw });
+    }
+  }
+  allKeywords.sort((a, b) => b.keyword.length - a.keyword.length);
+
+  for (const { status, keyword } of allKeywords) {
+    const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const re = new RegExp(`(^|[^a-z])${escaped}([^a-z]|$)`, "i");
+    if (re.test(q)) return status;
+  }
+  return null;
+}
+
+function isStatusCountQuery(question: string): boolean {
+  const q = question.toLowerCase();
+  return (
+    /how many/i.test(q) ||
+    /\bcount\b/i.test(q) ||
+    /number of/i.test(q) ||
+    /total/i.test(q)
+  );
+}
+
+function isStatusListQuery(question: string): boolean {
+  const q = question.toLowerCase();
+  return (
+    /show me which/i.test(q) ||
+    /show me the/i.test(q) ||
+    /list.*(which|the|all)/i.test(q) ||
+    /which.*(are|is)/i.test(q) ||
+    /display.*(which|the|all)/i.test(q) ||
+    /tell me which/i.test(q) ||
+    /what are the/i.test(q) ||
+    /show.*(completed|draft|pending|open|approved|rejected|cancelled|sent|accepted|expired|converted|submitted|paid|partially paid|overdue|in process|in progress)/i.test(q) ||
+    /filter.*item/i.test(q) ||
+    /item.*filter/i.test(q) ||
+    /item.*status/i.test(q) ||
+    /item.*type/i.test(q) ||
+    /raw item/i.test(q) ||
+    /product item/i.test(q)
+  );
+}
+
+function detectStatusQuery(question: string): {
+  endpointKey: string;
+  status: string;
+  wantsList: boolean;
+} | null {
+  const status = detectStatusFilter(question);
+  if (!status) return null;
+
+  const endpoint = matchEndpoint(question);
+  if (!endpoint) return null;
+
+  const endpointKey = Object.keys(ERP_ENDPOINTS).find(
+    (k) => ERP_ENDPOINTS[k] === endpoint
+  );
+  if (!endpointKey) return null;
+
+  const isCount = isStatusCountQuery(question);
+  const isList = isStatusListQuery(question);
+  const wantsList = isList || !isCount;
+
+  return { endpointKey, status, wantsList };
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🆕 ANSWER STATUS QUERY (with table)
+// ═══════════════════════════════════════════════════════════════════════
+async function answerStatusQuery(
+  endpointKey: string,
+  status: string,
+  wantsList: boolean
+): Promise<AnswerResult> {
+  const endpoint = ERP_ENDPOINTS[endpointKey];
+  if (!endpoint) {
+    return { text: `⚠️ Unknown module: ${endpointKey}` };
+  }
+
+  const fetchUrl = endpoint.filterBase
+    ? `${endpoint.filterBase}?page=1&limit=100`
+    : endpoint.url;
+
+  let res: any = null;
+  try {
+    res = await api.get(fetchUrl);
+  } catch (e: any) {
+    return {
+      text: `⚠️ Couldn't fetch ${endpoint.label}: ${e?.message || e}`,
+    };
+  }
+
+  const all = unwrap(res);
+  const totalFetched = getTotalCount(res);
+
+  const matching: any[] = [];
+  const statusCounts: Record<string, number> = {};
+
+  for (const record of all) {
+    const rs = getRecordStatus(record);
+    const display = rs || "unknown";
+    statusCounts[display] = (statusCounts[display] || 0) + 1;
+    if (matchesStatus(rs, status)) matching.push(record);
+  }
+
+  const route = ENDPOINT_ROUTES[endpointKey] || "";
+  const navigateTo = route
+    ? `${route}?status=${encodeURIComponent(status)}&autoFilter=1`
+    : undefined;
+
+  const lines: string[] = [];
+
+  if (wantsList) {
+    lines.push(
+      `📋 **${endpoint.label} with status "${status}"** — **${matching.length}** record(s)`
+    );
+    lines.push("");
+
+    if (matching.length === 0) {
+      lines.push("_No records match this status._");
+    } else {
+      const shown = matching.slice(0, 20);
+      const { headers, rowBuilder } = getModuleTableSpec(endpointKey);
+      const table = renderTable(
+        headers,
+        shown.map((r, i) => rowBuilder(r, i))
+      );
+      lines.push(table);
+      if (matching.length > 20) {
+        lines.push("");
+        lines.push(`_…and ${matching.length - 20} more._`);
+      }
+    }
+  } else {
+    lines.push(
+      `📊 **${endpoint.label}** — **${matching.length}** with status "${status}" (out of ${totalFetched} total).`
+    );
+    lines.push("");
+    lines.push("**Status breakdown:**");
+    lines.push("");
+
+    const sortedCounts = Object.entries(statusCounts).sort(
+      (a, b) => b[1] - a[1]
+    );
+    const table = renderTable(
+      ["Status", "Count", "Match"],
+      sortedCounts.map(([st, count]) => [
+        st,
+        count,
+        matchesStatus(st, status) ? "✅" : "",
+      ])
+    );
+    lines.push(table);
+  }
+
+  if (navigateTo && matching.length > 0) {
+    lines.push("");
+    lines.push(
+      `Click below to open the **${endpoint.label}** list filtered to **${status}**.`
+    );
+  }
+
+  return {
+    text: lines.join("\n"),
+    navigateTo,
+    navigateLabel: `🔍 Open ${endpoint.label} · ${status} (${matching.length})`,
+    suggestionKey: endpointKey,
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🆕 ITEM TYPE / GROUP FILTER HELPERS
+// ═══════════════════════════════════════════════════════════════════════
+const ITEM_TYPE_KEYWORDS: Record<string, string[]> = {
+  raw:     ["raw", "raw item", "raw items", "raw material", "raw materials"],
+  product: ["product", "product item", "product items", "finished good", "finished goods"],
+  service: ["service", "service item", "service items"],
+  consumable: ["consumable", "consumables"],
+};
+
+function detectItemTypeFilter(question: string): string | null {
+  const q = question.toLowerCase();
+  const allKeywords: Array<{ type: string; keyword: string }> = [];
+  for (const [type, keywords] of Object.entries(ITEM_TYPE_KEYWORDS)) {
+    for (const kw of keywords) {
+      allKeywords.push({ type, keyword: kw });
+    }
+  }
+  allKeywords.sort((a, b) => b.keyword.length - a.keyword.length);
+
+  for (const { type, keyword } of allKeywords) {
+    const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const re = new RegExp(`(^|[^a-z])${escaped}([^a-z]|$)`, "i");
+    if (re.test(q)) return type;
+  }
+  return null;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🆕 ANSWER ITEM TYPE QUERY (with table)
+// ═══════════════════════════════════════════════════════════════════════
+async function answerItemTypeQuery(
+  itemType: string,
+  wantsList: boolean
+): Promise<AnswerResult> {
+  const endpointKey = "item";
+  const endpoint = ERP_ENDPOINTS[endpointKey];
+
+  const fetchUrl = `${endpoint.filterBase || `${endpoint.url.split("?")[0]}`}?page=1&limit=200&type=${encodeURIComponent(itemType)}`;
+
+  console.log(`📡 Fetching items filtered by type: ${itemType}`);
+
+  let res: any = null;
+  try {
+    res = await api.get(fetchUrl);
+  } catch (e: any) {
+    return {
+      text: `⚠️ Couldn't fetch Items: ${e?.message || e}`,
+    };
+  }
+
+  const all = unwrap(res);
+
+  // Client-side fallback
+  const targetType = itemType.toLowerCase().trim();
+  const filtered = all.filter((r: any) => {
+    const rt = String(
+      r?.type ?? r?.item_type ?? r?.item_group ?? r?.group ?? ""
+    ).toLowerCase().trim();
+    return rt.includes(targetType) || targetType.includes(rt);
+  });
+
+  const matching = filtered.length > 0 && filtered.length < all.length
+    ? filtered
+    : all;
+
+  const route = ENDPOINT_ROUTES[endpointKey] || "";
+  const navigateTo = route
+    ? `${route}?type=${encodeURIComponent(itemType)}&autoFilter=1`
+    : undefined;
+
+  const lines: string[] = [];
+  lines.push(`🏷️ **Items · ${itemType}** — ${matching.length} record(s)`);
+  lines.push("");
+
+  if (matching.length === 0) {
+    lines.push(`_No ${itemType} items found._`);
+  } else if (wantsList) {
+    const shown = matching.slice(0, 20);
+    const { headers, rowBuilder } = getModuleTableSpec(endpointKey);
+    const table = renderTable(
+      headers,
+      shown.map((r, i) => rowBuilder(r, i))
+    );
+    lines.push(table);
+    if (matching.length > 20) {
+      lines.push("");
+      lines.push(`_…and ${matching.length - 20} more._`);
+    }
+  } else {
+    lines.push(`Total: **${matching.length}** items of type "${itemType}".`);
+  }
+
+  if (navigateTo && matching.length > 0) {
+    lines.push("");
+    lines.push(
+      `Click below to open the **Items** list filtered to **${itemType}**.`
+    );
+  }
+
+  return {
+    text: lines.join("\n"),
+    navigateTo,
+    navigateLabel: `🔍 Open Items · ${itemType} (${matching.length})`,
+    suggestionKey: endpointKey,
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🆕 HELPER: Resolve the detail route for ANY endpoint key
+// ═══════════════════════════════════════════════════════════════════════
+function getDetailRouteForEndpoint(endpointKey: string): string | null {
+  if (MODULE_DETAIL_ROUTES[endpointKey]) {
+    return MODULE_DETAIL_ROUTES[endpointKey];
+  }
+
+  const moduleKeys = Object.keys(MODULE_TO_ENDPOINT_KEY);
+  for (const mKey of moduleKeys) {
+    if (MODULE_TO_ENDPOINT_KEY[mKey] === endpointKey) {
+      if (MODULE_DETAIL_ROUTES[mKey]) {
+        return MODULE_DETAIL_ROUTES[mKey];
+      }
+    }
+  }
+
+  if (ENDPOINT_ROUTES[endpointKey]) {
+    return ENDPOINT_ROUTES[endpointKey] + "/";
+  }
+
+  return null;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🆕 LATEST-LIST QUERY HELPER — returns a clean pipe-table
+// ═══════════════════════════════════════════════════════════════════════
+async function answerLatestListQuery(
+  question: string
+): Promise<AnswerResult | null> {
+  const latestKeyword = isLatestListQuery(question);
+  if (!latestKeyword) return null;
+
+  const endpoint = matchEndpoint(question);
+  if (!endpoint) return null;
+
+  const endpointKey = Object.keys(ERP_ENDPOINTS).find(
+    (k) => ERP_ENDPOINTS[k] === endpoint
+  );
+  if (!endpointKey) return null;
+
+  console.log(
+    `🆕 Latest-list query detected: ${endpointKey} (keyword="${latestKeyword}")`
+  );
+
+  let res: any;
+  try {
+    res = await api.get(endpoint.url);
+  } catch (e: any) {
+    return {
+      text: `⚠️ Couldn't fetch ${endpoint.label}: ${e?.message || e}`,
+      suggestionKey: endpointKey,
+    };
+  }
+
+  const all = unwrap(res);
+  const total = getTotalCount(res);
+
+  if (all.length === 0) {
+    return {
+      text: `📭 You have no ${endpoint.label.toLowerCase()} yet.`,
+      suggestionKey: endpointKey,
+    };
+  }
+
+  const sorted = [...all].sort((a, b) => {
+    const da = getRecordDate(a)?.getTime() ?? 0;
+    const db = getRecordDate(b)?.getTime() ?? 0;
+    return db - da;
+  });
+
+  const MAX_ROWS = 20;
+  const shown = sorted.slice(0, MAX_ROWS);
+
+  const { headers, rowBuilder } = getModuleTableSpec(endpointKey);
+  const table = renderTable(
+    headers,
+    shown.map((r, i) => rowBuilder(r, i))
+  );
+
+  const lines: string[] = [];
+  lines.push(`📋 **Latest ${endpoint.label}** — ${total} total`);
+  lines.push("");
+  lines.push(table);
+  if (sorted.length > MAX_ROWS) {
+    lines.push("");
+    lines.push(`_…and ${sorted.length - MAX_ROWS} more._`);
+  }
+
+  const baseRoute = ENDPOINT_ROUTES[endpointKey];
+
+  return {
+    text: lines.join("\n"),
+    navigateTo: baseRoute ? baseRoute : undefined,
+    navigateLabel: baseRoute
+      ? `🔍 Open ${endpoint.label} (${total})`
+      : undefined,
+    suggestionKey: endpointKey,
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// LISTING WITH PER-ROW ACTION BUTTONS — SHOW ALL RECORDS
+// (keeps row buttons interactive — no table here)
+// ═══════════════════════════════════════════════════════════════════════
+async function answerListingWithRowActions(
+  endpointKey: string
+): Promise<AnswerResult | null> {
+  const endpoint = ERP_ENDPOINTS[endpointKey];
+  if (!endpoint) return null;
+
+  let res: any;
+  try {
+    res = await api.get(endpoint.url);
+  } catch (e: any) {
+    return {
+      text: `⚠️ Couldn't fetch ${endpoint.label}: ${e?.message || e}`,
+      suggestionKey: endpointKey,
+    };
+  }
+
+  const all = unwrap(res);
+  const total = getTotalCount(res);
+
+  if (all.length === 0) {
+    return {
+      text: `📭 You have no ${endpoint.label.toLowerCase()} yet.`,
+      suggestionKey: endpointKey,
+    };
+  }
+
+  const sorted = [...all].sort((a, b) => {
+    const da = getRecordDate(a)?.getTime() ?? 0;
+    const db = getRecordDate(b)?.getTime() ?? 0;
+    return db - da;
+  });
+
+  const detailRoute = getDetailRouteForEndpoint(endpointKey);
+
+  const rowActions: Array<{ label: string; route: string }> = [];
+
+  sorted.forEach((rec: any, idx: number) => {
+    const displayName =
+      rec.item_name ||
+      rec.item_code ||
+      rec.customer_name ||
+      rec.supplier_name ||
+      rec.party_name ||
+      rec.lead_name ||
+      rec.name ||
+      rec.title ||
+      rec.id ||
+      "Record";
+
+    const id = getRecordNavId(rec);
+
+    const qtyBits: string[] = [];
+    if (rec.qty != null) qtyBits.push(`Qty ${rec.qty}`);
+    if (rec.quantity != null && rec.quantity !== rec.qty) qtyBits.push(`Qty ${rec.quantity}`);
+    if (rec.uom) qtyBits.push(String(rec.uom));
+    if (rec.type) qtyBits.push(String(rec.type));
+
+    const qtyStr = qtyBits.length > 0 ? ` — ${qtyBits.join(" ")}` : "";
+    const idStr = id ? ` (${id})` : "";
+
+    if (id) {
+      const rowRoute =
+        endpointKey === "inventory"
+          ? buildInventoryDetailRoute(getInventoryNavKey(rec, id), rec)
+          : (detailRoute ? detailRoute + encodeURIComponent(id) : "");
+
+      if (rowRoute) {
+        rowActions.push({
+          label: `${idx + 1}. ${displayName}${idStr}${qtyStr}`,
+          route: rowRoute,
+        });
+        return;
+      }
+    }
+
+    rowActions.push({
+      label: `${idx + 1}. ${displayName}${idStr}${qtyStr}`,
+      route: "",
+    });
+  });
+
+  const headerText =
+    `📄 **${endpoint.label}** — **${total}** total.\n` +
+    `Tap any row below to open its detail page.`;
+
+  const baseRoute = ENDPOINT_ROUTES[endpointKey];
+
+  return {
+    text: headerText,
+    navigateTo: baseRoute ? baseRoute : undefined,
+    navigateLabel: baseRoute
+      ? `🔍 Open ${endpoint.label} (${total})`
+      : undefined,
+    rowActions: rowActions.length > 0 ? rowActions : undefined,
+    suggestionKey: endpointKey,
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════════════
 // ALPHANUMERIC ID EXTRACTION
 // ═══════════════════════════════════════════════════════════════════════
-// 🆕 FIX #1: strip leading zeros so "PO-00098" → "98", and
-//            "00098" → "98". The API needs the numeric id without
-//            leading zeros (e.g. /purchase-order/98, not /00098).
 function extractAlphanumericId(question: string): string | null {
+  const multiSegment = question.match(
+    /\b([A-Za-z]{2,10}(?:[-_][A-Za-z0-9]{1,10}){1,5})\b/
+  );
+  if (multiSegment) {
+    const full = multiSegment[1].toUpperCase();
+    if (/\d/.test(full) && full.length <= 40) {
+      if (!STOP_WORDS.has(full.toLowerCase())) {
+        return full;
+      }
+    }
+  }
+
   const hyphenated = question.match(/\b([A-Za-z]{2,6})-(\d{2,})\b/);
   if (hyphenated) {
     const digits = hyphenated[2];
-    // Strip leading zeros, but keep a single "0" if the number is zero
     const stripped = String(parseInt(digits, 10));
     return stripped === "NaN" ? digits : stripped;
   }
@@ -540,9 +1549,6 @@ function extractAlphanumericId(question: string): string | null {
   return null;
 }
 
-// 🆕 Extract a plain word token like "bolt", "hinge", "tyu".
-//    🆕 FIX #5: reject document-series prefixes (PINV, SINV, GRN, PO, …)
-//    and any all-uppercase short token — these are never real ids.
 function extractWordToken(question: string, moduleKey: string): string | null {
   const filler = new Set([
     "navigate", "on", "to", "go", "open", "show", "me", "the", "page",
@@ -560,7 +1566,7 @@ function extractWordToken(question: string, moduleKey: string): string | null {
     .filter((t) => !filler.has(t))
     .filter((t) => t.length >= 3)
     .filter((t) => !STOP_WORDS.has(t))
-    .filter((t) => !DOCUMENT_PREFIXES.has(t));   // 🆕 FIX #5
+    .filter((t) => !DOCUMENT_PREFIXES.has(t));
 
   return tokens[0] || null;
 }
@@ -594,7 +1600,7 @@ function extractDetailSearchTerm(
     .filter((t) => !fillerWords.includes(t))
     .filter((t) => !moduleKeywords.some((k) => k.toLowerCase() === t))
     .filter((t) => !STOP_WORDS.has(t))
-    .filter((t) => !DOCUMENT_PREFIXES.has(t));   // 🆕 FIX #5
+    .filter((t) => !DOCUMENT_PREFIXES.has(t));
 
   if (tokens.length === 0) return null;
 
@@ -844,8 +1850,7 @@ const MODULE_ROUTES: Record<string, string> = {
 };
 
 const MODULE_DETAIL_ROUTES: Record<string, string> = {
-  // ── Sales (put these FIRST because they are most specific) ──────────
-  "proforma invoice": "/proforma-invoice/view/",
+  "proforma invoice": "/proforma-invoice/",
   "delivery challan": "/delivery-challan/view/",
   "sales invoice": "/sales-bill/edit/",
   "tax invoice": "/sales-bill/edit/",
@@ -854,7 +1859,6 @@ const MODULE_DETAIL_ROUTES: Record<string, string> = {
   "sales order": "/sales-order/",
   quotation: "/quotation/",
 
-  // ── Purchasing ─────────────────────────────────────────────────────
   "goods receipt order": "/grn/",
   "purchase invoice": "/purchase-invoice/",
   "purchase bills": "/purchase-invoice/",
@@ -862,16 +1866,13 @@ const MODULE_DETAIL_ROUTES: Record<string, string> = {
   "purchase order": "/purchase-order/",
   grn: "/grn/",
 
-  // ── Quality ────────────────────────────────────────────────────────
   "quality inspection": "/quality-inspection/",
 
-  // ── Manufacturing ──────────────────────────────────────────────────
   "work order": "/work-order/",
   "job card": "/job-cards/",
   bom: "/bom/",
   "stock entry": "/stock-entry/",
 
-  // ── Setup ──────────────────────────────────────────────────────────
   "item group": "/item-group/",
   workstation: "/Workstation/",
   warehouse: "/warehouse/",
@@ -883,17 +1884,22 @@ const MODULE_DETAIL_ROUTES: Record<string, string> = {
   item: "/item/",
   uom: "/uom/",
 
-  // ── Sales (short keys last) ────────────────────────────────────────
   lead: "/leads/",
+
+  inventory: "/inventory/detail/",
+
+  "product item": "/item/",
+  "raw item": "/item/",
 };
 
-// Map from MODULE_DETAIL_ROUTES keys → DETAIL_PAGE_APIS keys
 const MODULE_TO_ENDPOINT_KEY: Record<string, string> = {
   "work order": "workOrder",
   "job card": "jobCard",
   bom: "bom",
   "stock entry": "stockEntry",
   item: "item",
+  "product item": "itemProduct",
+  "raw item": "itemRaw",
   "item group": "itemGroup",
   warehouse: "warehouse",
   workstation: "workstation",
@@ -910,12 +1916,16 @@ const MODULE_TO_ENDPOINT_KEY: Record<string, string> = {
   "sales invoice": "salesInvoice",
   "tax invoice": "salesInvoice",
   company: "company",
+  customer: "customer",
+  employee: "employee",
+  supplier: "supplier",
   "purchase order": "purchaseOrder",
   grn: "grn",
   "goods receipt order": "grn",
   "purchase invoice": "purchaseInvoice",
   "purchase bills": "purchaseInvoice",
   "purchase bill": "purchaseInvoice",
+  inventory: "inventory",
 };
 
 const MODULE_API_BASES: Record<string, string> = {
@@ -924,6 +1934,8 @@ const MODULE_API_BASES: Record<string, string> = {
   bom: "/bom",
   "stock entry": "/stock-entry",
   item: "/item",
+  "product item": "/item",
+  "raw item": "/item",
   "item group": "/item-group",
   warehouse: "/warehouse",
   workstation: "/workstation",
@@ -940,12 +1952,16 @@ const MODULE_API_BASES: Record<string, string> = {
   "sales invoice": "/sales-invoice",
   "tax invoice": "/sales-invoice",
   company: "/company",
+  customer: "/customer",
+  employee: "/employee",
+  supplier: "/supplier",
   "purchase order": "/purchase-order",
   grn: "/grn",
   "goods receipt order": "/grn",
   "purchase invoice": "/purchase-invoice",
   "purchase bills": "/purchase-invoice",
   "purchase bill": "/purchase-invoice",
+  inventory: "/inventory",
 };
 
 const NAV_KEYWORDS = [
@@ -972,7 +1988,15 @@ function detectNavigationTarget(question: string): {
   return null;
 }
 
-function detectGenericDetailNavigation(question: string): string | null {
+interface GenericDetailNav {
+  id: string;
+  moduleHint: string | null;
+  endpointHint: string | null;
+}
+
+function detectGenericDetailNavigation(
+  question: string
+): GenericDetailNav | null {
   const q = question.toLowerCase();
   if (!isNavigationQuestion(question)) return null;
 
@@ -983,10 +2007,65 @@ function detectGenericDetailNavigation(question: string): string | null {
   if (!hasPage) return null;
 
   const id = extractAlphanumericId(question);
-  if (id && !STOP_WORDS.has(id.toLowerCase())) {
-    return id;
+  if (!id || STOP_WORDS.has(id.toLowerCase())) return null;
+
+  const detailKeys = Object.keys(MODULE_DETAIL_ROUTES).sort(
+    (a, b) => b.length - a.length
+  );
+
+  let moduleHint: string | null = null;
+  for (const key of detailKeys) {
+    if (AMBIGUOUS_MODULE_KEYS.has(key)) {
+      const wordBoundary = new RegExp(`(^|\\s)${key}(\\s|$)`);
+      if (!wordBoundary.test(q)) continue;
+    }
+    if (q.includes(key) || fuzzyContains(q, key)) {
+      moduleHint = key;
+      break;
+    }
   }
-  return null;
+
+  if (!moduleHint) {
+    const aliasKeys = Object.keys(MODULE_ROUTES).sort(
+      (a, b) => b.length - a.length
+    );
+    for (const key of aliasKeys) {
+      if (AMBIGUOUS_MODULE_KEYS.has(key)) {
+        const wordBoundary = new RegExp(`(^|\\s)${key}(\\s|$)`);
+        if (!wordBoundary.test(q)) continue;
+      }
+      if (q.includes(key) || fuzzyContains(q, key)) {
+        const endpointKey = MODULE_TO_ENDPOINT_KEY[key];
+        if (endpointKey) {
+          const detailKey = Object.keys(MODULE_DETAIL_ROUTES).find(
+            (k) => MODULE_TO_ENDPOINT_KEY[k] === endpointKey
+          );
+          if (detailKey) {
+            moduleHint = detailKey;
+            break;
+          }
+        }
+      }
+    }
+  }
+
+  let endpointHint: string | null = null;
+  if (moduleHint) {
+    endpointHint = MODULE_TO_ENDPOINT_KEY[moduleHint] || null;
+  } else {
+    const ep = matchEndpoint(question);
+    if (ep) {
+      endpointHint =
+        Object.keys(ERP_ENDPOINTS).find((k) => ERP_ENDPOINTS[k] === ep) ||
+        null;
+    }
+  }
+
+  console.log(
+    `🧭 Generic detail nav → id="${id}", moduleHint="${moduleHint}", endpointHint="${endpointHint}"`
+  );
+
+  return { id, moduleHint, endpointHint };
 }
 
 function detectDetailNavigationTarget(question: string): {
@@ -1009,13 +2088,11 @@ function detectDetailNavigationTarget(question: string): {
     }
 
     if (q.includes(key) || fuzzyContains(q, key)) {
-      // 1) Try explicit ID (12abc, BOM-00123, WO-00286…)
       const id = extractAlphanumericId(question);
       if (id && id.toLowerCase() !== key.toLowerCase()) {
         console.log(`🧭 Detail nav detected: ${key} · ID "${id}"`);
         return { moduleKey: key, label: key, searchId: id };
       }
-      // 2) Fall back to a word token like "bolt" (but never a doc prefix)
       const word = extractWordToken(question, key);
       if (word) {
         console.log(`🧭 Detail nav detected: ${key} · word "${word}"`);
@@ -1488,18 +2565,18 @@ const PAGE_CHIPS: Array<{ prefix: string; chips: string[] }> = [
   { prefix: "/dashboard/organization", chips: ["Organization Dashboard Summary", "How many companies?", "Show me flow of this page", "Summary"] },
   { prefix: "/dashboard/quality", chips: ["Quality Dashboard Summary", "How many quality inspections?", "Show me flow of this page", "Summary"] },
   { prefix: "/settings", chips: ["What is the current theme?", "What date format is set?", "Settings help", "Summary"] },
-  { prefix: "/sales-order", chips: ["How many sales orders?", "Sales orders today", "Show latest sales orders", "Total sales revenue", "Show me flow of this page", "Summary"] },
-  { prefix: "/quotation", chips: ["How many quotations?", "Show latest quotations", "Show me flow of this page", "Summary"] },
+  { prefix: "/sales-order", chips: ["How many sales orders?", "Sales orders today", "Show latest sales orders", "Show me completed sales orders", "Show me draft sales orders", "Total sales revenue", "Show me flow of this page", "Summary"] },
+  { prefix: "/quotation", chips: ["How many quotations?", "Show latest quotations", "Show me sent quotations", "Show me accepted quotations", "Show me draft quotations", "Show me flow of this page", "Summary"] },
   { prefix: "/proforma-invoice", chips: ["How many proforma invoices?", "Show latest proforma invoices", "Show me flow of this page", "Summary"] },
-  { prefix: "/delivery-challan", chips: ["How many delivery challans?", "Show latest delivery challans", "Show me flow of this page", "Summary"] },
-  { prefix: "/sales-bill", chips: ["How many sales bills?", "Show latest sales bills", "Show me flow of this page", "Summary"] },
+  { prefix: "/delivery-challan", chips: ["How many delivery challans?", "Show latest delivery challans", "Show me submitted delivery challans", "Show me draft delivery challans", "Show me cancelled delivery challans", "Show me flow of this page", "Summary"] },
+  { prefix: "/sales-bill", chips: ["How many sales bills?", "Show latest sales bills", "Show me paid sales bills", "Show me partially paid sales bills", "Show me draft sales bills", "Show me cancelled sales bills", "Show me overdue sales bills", "Show me flow of this page", "Summary"] },
   { prefix: "/lead", chips: ["How many leads?", "Show latest leads", "Show me flow of this page", "Summary"] },
-  { prefix: "/work-order", chips: ["How many work orders?", "Work orders in process", "Work orders completed", "Show me flow of this page", "Summary"] },
+  { prefix: "/work-order", chips: ["How many work orders?", "Work orders in process", "Work orders completed", "Show latest work orders", "Show me flow of this page", "Summary"] },
   { prefix: "/job-card", chips: ["How many job cards?", "Show latest job cards", "Show me flow of this page", "Summary"] },
   { prefix: "/bom", chips: ["How many BOMs?", "Show latest BOMs", "Show me flow of this page", "Summary"] },
   { prefix: "/stock-entry", chips: ["How many stock entries?", "Show latest stock entries", "Show me flow of this page", "Summary"] },
   { prefix: "/item-group", chips: ["How many item groups?", "Show latest item groups", "Show me flow of this page", "Summary"] },
-  { prefix: "/item", chips: ["How many items?", "Show latest items", "Show me flow of this page", "Summary"] },
+  { prefix: "/item", chips: ["How many items?", "Show latest items", "Show me raw items", "Show me product items", "Show me active items", "Show me inactive items", "Show me flow of this page", "Summary"] },
   { prefix: "/InventoryList", chips: ["How many inventory?", "Inventory value", "Show me flow of this page", "Summary"] },
   { prefix: "/warehouse", chips: ["How many warehouses?", "Show latest warehouses", "Show me flow of this page", "Summary"] },
   { prefix: "/Workstation", chips: ["How many workstations?", "Show latest workstations", "Show me flow of this page", "Summary"] },
@@ -1511,6 +2588,36 @@ const PAGE_CHIPS: Array<{ prefix: string; chips: string[] }> = [
   { prefix: "/grn", chips: ["How many goods receipt orders?", "Show latest GRNs", "Show me flow of this page", "Summary"] },
   { prefix: "/purchase-invoice", chips: ["How many purchase invoices?", "Show latest purchase invoices", "Show me flow of this page", "Summary"] },
 ];
+
+const ENDPOINT_CHIPS: Record<string, string[]> = {
+  workOrder: ["How many work orders?", "Work orders in process", "Work orders completed", "Show latest work orders", "Summary"],
+  jobCard: ["How many job cards?", "Show latest job cards", "Summary"],
+  inventory: ["How many inventory?", "Inventory value", "Show latest inventory", "Summary"],
+  bom: ["How many BOMs?", "Show latest BOMs", "Show me flow of this page", "Summary"],
+  stockEntry: ["How many stock entries?", "Show latest stock entries", "Summary"],
+  item: ["How many items?", "Show latest items", "Show me raw items", "Show me product items", "Show me active items", "Show me inactive items", "Summary"],
+  itemProduct: ["How many product items?", "Show latest product items", "Show me active product items", "Summary"],
+  itemRaw: ["How many raw items?", "Show latest raw items", "Show me active raw items", "Summary"],
+  itemGroup: ["How many item groups?", "Show latest item groups", "Summary"],
+  warehouse: ["How many warehouses?", "Show latest warehouses", "Summary"],
+  workstation: ["How many workstations?", "Show latest workstations", "Summary"],
+  operation: ["How many operations?", "Show latest operations", "Summary"],
+  uom: ["How many UOMs?", "Show latest UOMs", "Summary"],
+  qualityInspection: ["How many quality inspections?", "Show latest quality inspections", "Summary"],
+  lead: ["How many leads?", "Show latest leads", "Summary"],
+  quotation: ["How many quotations?", "Show latest quotations", "Show me sent quotations", "Show me accepted quotations", "Show me draft quotations", "Summary"],
+  salesOrder: ["How many sales orders?", "Show latest sales orders", "Show me completed sales orders", "Show me draft sales orders", "Summary"],
+  proformaInvoice: ["How many proforma invoices?", "Show latest proforma invoices", "Summary"],
+  deliveryNote: ["How many delivery challans?", "Show latest delivery challans", "Show me submitted delivery challans", "Show me draft delivery challans", "Show me cancelled delivery challans", "Summary"],
+  salesInvoice: ["How many sales bills?", "Show latest sales bills", "Show me paid sales bills", "Show me partially paid sales bills", "Show me draft sales bills", "Show me cancelled sales bills", "Show me overdue sales bills", "Summary"],
+  company: ["How many companies?", "Show latest companies", "Summary"],
+  customer: ["How many customers?", "Show latest customers", "Summary"],
+  employee: ["How many employees?", "Show latest employees", "Summary"],
+  supplier: ["How many suppliers?", "Show latest suppliers", "Summary"],
+  purchaseOrder: ["How many purchase orders?", "Show latest purchase orders", "Show me submitted purchase orders", "Show me draft purchase orders", "Summary"],
+  grn: ["How many GRNs?", "Show latest GRNs", "Show me submitted GRNs", "Show me completed GRNs", "Summary"],
+  purchaseInvoice: ["How many purchase invoices?", "Show latest purchase invoices", "Show me paid purchase invoices", "Show me partially paid purchase invoices", "Summary"],
+};
 
 const DEFAULT_CHIPS = [
   "Summary", "Show me flow of this page", "How many sales orders?",
@@ -1547,6 +2654,9 @@ function needsAiAnalysis(question: string): boolean {
 type AnswerResult = {
   text: string;
   navigateTo?: string;
+  navigateLabel?: string;
+  rowActions?: Array<{ label: string; route: string }>;
+  suggestionKey?: string;
 };
 
 async function answerQuestion(
@@ -1558,7 +2668,77 @@ async function answerQuestion(
   const isCount = has("how many", "count", "number of", "total number");
 
   // ════════════════════════════════════════════════════════════════════
-  // 0. FLOW DETECTION
+  // 0. ITEM TYPE QUERY
+  // ════════════════════════════════════════════════════════════════════
+  const itemTypeFilter = detectItemTypeFilter(question);
+  const itemEndpoint = matchEndpoint(question);
+
+  if (itemTypeFilter && itemEndpoint) {
+    const endpointKey = Object.keys(ERP_ENDPOINTS).find(
+      (k) => ERP_ENDPOINTS[k] === itemEndpoint
+    );
+
+    if (
+      endpointKey === "item" ||
+      endpointKey === "itemProduct" ||
+      endpointKey === "itemRaw"
+    ) {
+      const wantsList = isStatusListQuery(question) || !isStatusCountQuery(question);
+      console.log(
+        `🆕 Item type query detected: ${endpointKey} → "${itemTypeFilter}" (list=${wantsList})`
+      );
+      return await answerItemTypeQuery(itemTypeFilter, wantsList);
+    }
+  }
+
+  // ════════════════════════════════════════════════════════════════════
+  // 0a. STATUS QUERY
+  // ════════════════════════════════════════════════════════════════════
+  const statusQuery = detectStatusQuery(question);
+  if (statusQuery) {
+    console.log(
+      `🔢 Status query detected: ${statusQuery.endpointKey} → "${statusQuery.status}" ` +
+      `(list=${statusQuery.wantsList})`
+    );
+    return await answerStatusQuery(
+      statusQuery.endpointKey,
+      statusQuery.status,
+      statusQuery.wantsList
+    );
+  }
+
+  // ════════════════════════════════════════════════════════════════════
+  // 0b. LATEST-LIST QUERY
+  // ════════════════════════════════════════════════════════════════════
+  const latestResult = await answerLatestListQuery(question);
+  if (latestResult) {
+    console.log("🆕 Latest-list answer returned with navigation button");
+    return latestResult;
+  }
+
+  // ════════════════════════════════════════════════════════════════════
+  // 0b-bis. "show me listing of X" — per-row buttons
+  // ════════════════════════════════════════════════════════════════════
+  if (has("listing", "show me list", "show list", "list of", "show me the list", "list all")) {
+    const endpointForListing = matchEndpoint(question);
+    if (endpointForListing) {
+      const endpointKey = Object.keys(ERP_ENDPOINTS).find(
+        (k) => ERP_ENDPOINTS[k] === endpointForListing
+      );
+      if (endpointKey) {
+        console.log(
+          `🆕 Listing query detected: ${endpointKey} — building row-action list`
+        );
+        const listingResult = await answerListingWithRowActions(endpointKey);
+        if (listingResult) {
+          return listingResult;
+        }
+      }
+    }
+  }
+
+  // ════════════════════════════════════════════════════════════════════
+  // 0c. FLOW DETECTION
   // ════════════════════════════════════════════════════════════════════
   if (
     has(
@@ -1573,7 +2753,7 @@ async function answerQuestion(
   }
 
   // ════════════════════════════════════════════════════════════════════
-  // 0b. SETTINGS
+  // 0d. SETTINGS
   // ════════════════════════════════════════════════════════════════════
   if (isOnSettings(currentPath)) {
     const settingsReply = answerSettingsQuestion(question);
@@ -1587,7 +2767,6 @@ async function answerQuestion(
   // 1. NAVIGATION
   // ════════════════════════════════════════════════════════════════════
   if (isNavigationQuestion(question)) {
-    // 1a. Named-module detail navigation
     const detailTarget = detectDetailNavigationTarget(question);
     if (detailTarget) {
       console.log(
@@ -1601,12 +2780,13 @@ async function answerQuestion(
 
       let navTo: string | undefined;
       let resolvedId: string = detailTarget.searchId;
+      let resolvedRecord: any = null;
       let recordFound = false;
 
-      // 1) Resolve search term → actual record (so we get the numeric ID)
       if (apiBase) {
         const record = await resolveRecord(apiBase, detailTarget.searchId);
         if (record) {
+          resolvedRecord = record;
           resolvedId = getRecordNavId(record, detailTarget.searchId);
           recordFound = true;
         }
@@ -1623,16 +2803,28 @@ async function answerQuestion(
         };
       }
 
-      const detailRoute = MODULE_DETAIL_ROUTES[moduleKey] || "";
-      navTo = detailRoute
-        ? detailRoute + encodeURIComponent(resolvedId)
-        : undefined;
-
-      // 2) Fetch the FULL detail payload (master + related lists)
       const endpointKey = MODULE_TO_ENDPOINT_KEY[moduleKey];
+      if (endpointKey === "inventory") {
+        navTo = buildInventoryDetailRoute(
+          getInventoryNavKey(resolvedRecord, resolvedId),
+          resolvedRecord
+        );
+      } else {
+        const detailRoute = MODULE_DETAIL_ROUTES[moduleKey] || "";
+        navTo = detailRoute
+          ? detailRoute + encodeURIComponent(resolvedId)
+          : undefined;
+      }
+
       let fullDetail: any = null;
 
-      if (endpointKey && DETAIL_PAGE_APIS[endpointKey] && resolvedId) {
+      const isNumericResolvedId = /^\d+$/.test(String(resolvedId));
+      if (
+        endpointKey &&
+        DETAIL_PAGE_APIS[endpointKey] &&
+        resolvedId &&
+        isNumericResolvedId
+      ) {
         console.log(`📄 Fetching full detail payload for ${endpointKey} #${resolvedId}`);
         try {
           fullDetail = await fetchDetailPageData(endpointKey, resolvedId);
@@ -1641,7 +2833,6 @@ async function answerQuestion(
         }
       }
 
-      // 3) Stash the payload so the destination page can read it immediately
       if (fullDetail && endpointKey && navTo) {
         stashDetailHandoff({
           endpointKey,
@@ -1654,33 +2845,94 @@ async function answerQuestion(
         });
       }
 
-      // 4) Compose reply
-      const summaryBits: string[] = [];
-      if (fullDetail?.master) summaryBits.push(`✅ master record loaded`);
-      if (fullDetail?.related) {
-        const keys = Object.keys(fullDetail.related);
-        if (keys.length > 0) {
-          summaryBits.push(
-            `✅ related lists loaded: ${keys.join(", ")}`
-          );
-        }
-      }
-      if (fullDetail?.errors?.length) {
-        summaryBits.push(`⚠️ ${fullDetail.errors.length} fetch error(s)`);
-      }
-
       return {
-        text:
-          `🧭 Navigating to **${prettyField(detailTarget.label)} ${resolvedId}** detail page...` +
-          (summaryBits.length ? `\n\n${summaryBits.join("\n")}` : ""),
+        text: `🧭 Navigating to **${prettyField(detailTarget.label)} ${resolvedId}** detail page...`,
         navigateTo: navTo,
+        suggestionKey: endpointKey || undefined,
       };
     }
 
-    // 1b. Generic detail navigation (module not named)
-    const genericId = detectGenericDetailNavigation(question);
-    if (genericId) {
-      console.log(`🧭 Generic detail navigation → search all modules for "${genericId}"`);
+    const generic = detectGenericDetailNavigation(question);
+    if (generic) {
+      const { id: genericId, moduleHint, endpointHint } = generic;
+
+      console.log(
+        `🧭 Generic detail nav → id="${genericId}", moduleHint="${moduleHint}", endpointHint="${endpointHint}"`
+      );
+
+      if (moduleHint) {
+        const apiBase =
+          MODULE_API_BASES[moduleHint] ||
+          (endpointHint ? ERP_ENDPOINTS[endpointHint]?.url : undefined);
+
+        if (!apiBase) {
+          console.warn(
+            `⚠️ No API base for module "${moduleHint}" — falling back to search-all`
+          );
+        } else {
+          const record = await resolveRecord(apiBase, genericId);
+          if (record) {
+            const resolvedId = getRecordNavId(record, genericId);
+            const epKey = MODULE_TO_ENDPOINT_KEY[moduleHint] || endpointHint;
+
+            let navTo: string | undefined;
+            if (epKey === "inventory") {
+              navTo = buildInventoryDetailRoute(
+                getInventoryNavKey(record, resolvedId),
+                record
+              );
+            } else {
+              const detailRoute = MODULE_DETAIL_ROUTES[moduleHint] || "";
+              navTo = detailRoute
+                ? detailRoute + encodeURIComponent(resolvedId)
+                : undefined;
+            }
+
+            const isNumericResolvedId = /^\d+$/.test(String(resolvedId));
+
+            if (
+              epKey &&
+              DETAIL_PAGE_APIS[epKey] &&
+              navTo &&
+              isNumericResolvedId
+            ) {
+              try {
+                const fullDetail = await fetchDetailPageData(epKey, resolvedId);
+                stashDetailHandoff({
+                  endpointKey: epKey,
+                  id: String(resolvedId),
+                  route: navTo,
+                  master: fullDetail.master,
+                  related: fullDetail.related,
+                  errors: fullDetail.errors || [],
+                  storedAt: Date.now(),
+                });
+              } catch (e: any) {
+                console.warn(`⚠️ fetchDetailPageData failed: ${e?.message || e}`);
+              }
+            }
+
+            const prettyLabel = prettyField(moduleHint);
+            console.log(
+              `✅ Found "${genericId}" in ${prettyLabel} → ${navTo}`
+            );
+
+            return {
+              text: `🧭 Navigating to **${prettyLabel} ${resolvedId}** detail page...`,
+              navigateTo: navTo,
+              suggestionKey: epKey || undefined,
+            };
+          }
+
+          return {
+            text: `🔍 I couldn't find a **${prettyField(moduleHint)}** matching **"${genericId}"**.`,
+          };
+        }
+      }
+
+      console.log(
+        `🧭 No module hint → searching ALL modules for "${genericId}"`
+      );
 
       const found = await searchAllModulesForRecord(genericId);
       if (found) {
@@ -1689,12 +2941,28 @@ async function answerQuestion(
         const { route: detailRoute, moduleKey: matchedModuleKey } =
           resolveDetailRouteForRecord(found.endpointKey, found.endpoint);
 
-        const navTo = detailRoute
-          ? detailRoute + encodeURIComponent(resolvedId)
-          : undefined;
+        const endpointKey =
+          MODULE_TO_ENDPOINT_KEY[matchedModuleKey] || found.endpointKey;
 
-        const endpointKey = MODULE_TO_ENDPOINT_KEY[matchedModuleKey] || found.endpointKey;
-        if (endpointKey && DETAIL_PAGE_APIS[endpointKey] && navTo) {
+        let navTo: string | undefined;
+        if (endpointKey === "inventory") {
+          navTo = buildInventoryDetailRoute(
+            getInventoryNavKey(found.record, resolvedId),
+            found.record
+          );
+        } else {
+          navTo = detailRoute
+            ? detailRoute + encodeURIComponent(resolvedId)
+            : undefined;
+        }
+
+        const isNumericResolvedId = /^\d+$/.test(String(resolvedId));
+        if (
+          endpointKey &&
+          DETAIL_PAGE_APIS[endpointKey] &&
+          navTo &&
+          isNumericResolvedId
+        ) {
           try {
             const fullDetail = await fetchDetailPageData(endpointKey, resolvedId);
             stashDetailHandoff({
@@ -1711,14 +2979,10 @@ async function answerQuestion(
           }
         }
 
-        console.log(
-          `✅ Found "${genericId}" in ${found.endpoint.label} → ${navTo}`
-        );
-
         return {
-          text:
-            `🧭 Navigating to **${found.endpoint.label} ${resolvedId}** detail page...`,
+          text: `🧭 Navigating to **${found.endpoint.label} ${resolvedId}** detail page...`,
           navigateTo: navTo,
+          suggestionKey: endpointKey || undefined,
         };
       }
 
@@ -1732,7 +2996,6 @@ async function answerQuestion(
       };
     }
 
-    // 1c. List-page navigation
     const target = detectNavigationTarget(question);
     if (target) {
       const current = currentPath.replace(/\/$/, "");
@@ -1740,7 +3003,6 @@ async function answerQuestion(
       if (current === dest || current.startsWith(dest + "/")) {
         return { text: `📍 You're already on the **${target.label}** page.` };
       }
-      console.log(`🧭 List navigation → ${target.route}`);
       return {
         text: `🧭 Navigating to **${target.label}**...`,
         navigateTo: target.route,
@@ -1825,6 +3087,8 @@ async function answerQuestion(
     );
     lines.push("");
 
+    const tableRows: (string | number)[][] = [];
+
     if (show("sales") && (soRes || qRes || leadRes)) {
       const soCount = soRes ? getTotalCount(soRes) : 0;
       const qCount = qRes ? getTotalCount(qRes) : 0;
@@ -1833,11 +3097,9 @@ async function answerQuestion(
       const qs = qRes ? unwrap(qRes) : [];
       const rev = so.reduce((s: number, o: any) => s + (o.grand_total || 0), 0);
       const quoteVal = qs.reduce((s: number, x: any) => s + (x.grand_total || 0), 0);
-      lines.push(`**🛒 Sales**`);
-      if (leadRes) lines.push(`• Leads: **${leadCount}**`);
-      if (qRes) lines.push(`• Quotations: **${qCount}** · ${fmtLakh(quoteVal)}`);
-      if (soRes) lines.push(`• Sales Orders: **${soCount}** · ${fmtLakh(rev)}`);
-      lines.push("");
+      if (leadRes) tableRows.push(["🛒 Sales", "Leads", leadCount, "—"]);
+      if (qRes) tableRows.push(["🛒 Sales", "Quotations", qCount, fmtLakh(quoteVal)]);
+      if (soRes) tableRows.push(["🛒 Sales", "Sales Orders", soCount, fmtLakh(rev)]);
     }
 
     if (show("purchasing") && (piRes || poRes || grnRes)) {
@@ -1846,63 +3108,52 @@ async function answerQuestion(
       const grnCount = grnRes ? getTotalCount(grnRes) : 0;
       const pi = piRes ? unwrap(piRes) : [];
       const spend = pi.reduce((s: number, i: any) => s + (i.grand_total || i.total || 0), 0);
-      lines.push(`**🛍️ Purchasing**`);
-      if (poRes) lines.push(`• Purchase Orders: **${poCount}**`);
-      if (grnRes) lines.push(`• GRNs: **${grnCount}**`);
-      if (piRes) lines.push(`• Purchase Invoices: **${piCount}** · ${fmtLakh(spend)}`);
-      lines.push("");
+      if (poRes) tableRows.push(["🛍️ Purchasing", "Purchase Orders", poCount, "—"]);
+      if (grnRes) tableRows.push(["🛍️ Purchasing", "GRNs", grnCount, "—"]);
+      if (piRes) tableRows.push(["🛍️ Purchasing", "Purchase Invoices", piCount, fmtLakh(spend)]);
     }
 
     if (show("manufacturing") && (woRes || jcRes || bomRes)) {
       const woCount = woRes ? getTotalCount(woRes) : 0;
       const jcCount = jcRes ? getTotalCount(jcRes) : 0;
       const bomCount = bomRes ? getTotalCount(bomRes) : 0;
-      const wo = woRes ? unwrap(woRes) : [];
-      const jcs = jcRes ? unwrap(jcRes) : [];
-      const wip = wo.filter((w: any) => w.status === "In Process").length;
-      const wc = wo.filter((w: any) => w.status === "Completed").length;
-      const jcOpen = jcs.filter((j: any) => j.status === "Open").length;
-      const jcDone = jcs.filter((j: any) => j.status === "Completed").length;
-      lines.push(`**🏭 Manufacturing**`);
-      if (bomRes) lines.push(`• BOMs: **${bomCount}**`);
-      if (woRes) lines.push(`• Work Orders: **${woCount}** · ${wip} in process · ${wc} completed`);
-      if (jcRes) lines.push(`• Job Cards: **${jcCount}** · ${jcOpen} open · ${jcDone} completed`);
-      lines.push("");
+      if (bomRes) tableRows.push(["🏭 Manufacturing", "BOMs", bomCount, "—"]);
+      if (woRes) tableRows.push(["🏭 Manufacturing", "Work Orders", woCount, "—"]);
+      if (jcRes) tableRows.push(["🏭 Manufacturing", "Job Cards", jcCount, "—"]);
     }
 
     if (show("inventory") && invRes) {
       const invCount = getTotalCount(invRes);
       const inv = unwrap(invRes);
       const stockVal = inv.reduce((s: number, i: any) => s + (i.stock_value || 0), 0);
-      const lowStock = inv.filter((i: any) => (i.actual_qty || 0) < 10).length;
-      lines.push(`**📦 Inventory**`);
-      lines.push(`• Items: **${invCount}** · ${fmtLakh(stockVal)} · ${lowStock} low stock`);
-      lines.push("");
+      tableRows.push(["📦 Inventory", "Items", invCount, fmtLakh(stockVal)]);
     }
 
     if (show("setup") && (itemRes || igRes || whRes)) {
       const itemCount = itemRes ? getTotalCount(itemRes) : 0;
       const igCount = igRes ? getTotalCount(igRes) : 0;
       const whCount = whRes ? getTotalCount(whRes) : 0;
-      lines.push(`**⚙️ Setup**`);
-      if (itemRes) lines.push(`• Items: **${itemCount}**`);
-      if (igRes) lines.push(`• Item Groups: **${igCount}**`);
-      if (whRes) lines.push(`• Warehouses: **${whCount}**`);
-      lines.push("");
+      if (itemRes) tableRows.push(["⚙️ Setup", "Items", itemCount, "—"]);
+      if (igRes) tableRows.push(["⚙️ Setup", "Item Groups", igCount, "—"]);
+      if (whRes) tableRows.push(["⚙️ Setup", "Warehouses", whCount, "—"]);
     }
 
     if (show("quality") && qiRes) {
       const qiCount = getTotalCount(qiRes);
-      lines.push(`**✅ Quality**`);
-      lines.push(`• Quality Inspections: **${qiCount}**`);
-      lines.push("");
+      tableRows.push(["✅ Quality", "Inspections", qiCount, "—"]);
     }
 
     if (show("organization") && coRes) {
       const coCount = getTotalCount(coRes);
-      lines.push(`**🏢 Organization**`);
-      lines.push(`• Companies: **${coCount}**`);
-      lines.push("");
+      tableRows.push(["🏢 Organization", "Companies", coCount, "—"]);
+    }
+
+    if (tableRows.length > 0) {
+      lines.push(
+        renderTable(["Module", "Metric", "Count", "Value"], tableRows)
+      );
+    } else {
+      lines.push("_No summary data available._");
     }
 
     return { text: lines.join("\n").trim() };
@@ -1915,6 +3166,7 @@ async function answerQuestion(
     const total = orders.reduce((s: number, o: any) => s + (o.grand_total || 0), 0);
     return {
       text: `💰 **Total Sales Revenue:** ₹${fmt(total)}\n\nFrom **${getTotalCount(res)}** orders.`,
+      suggestionKey: "salesOrder",
     };
   }
 
@@ -1928,35 +3180,16 @@ async function answerQuestion(
     return {
       text:
         `📦 **Inventory Summary**\n\n` +
-        `• Items: **${totalCount}**\n` +
-        `• Total Value: **${fmtLakh(totalValue)}**\n` +
-        `• Low Stock Alerts: **${lowStock}** items`,
+        renderTable(
+          ["Metric", "Value"],
+          [
+            ["Items", totalCount],
+            ["Total Value", fmtLakh(totalValue)],
+            ["Low Stock Alerts", lowStock],
+          ]
+        ),
+      suggestionKey: "inventory",
     };
-  }
-
-  // ── WORK ORDER STATUS ──────────────────────────────────────────────
-  if (has("work order", "work orders", "production order", "manufacturing order")) {
-    if (
-      has("in process", "inprogress", "ongoing", "running") ||
-      has("completed", "done", "finished") ||
-      has("open", "not started", "pending")
-    ) {
-      const res = await api.get("/work-order?page=1&limit=100");
-      const wos = unwrap(res);
-
-      if (has("in process", "inprogress", "ongoing", "running")) {
-        const n = wos.filter((w: any) => w.status === "In Process").length;
-        return { text: `🔄 **${n}** work orders are currently in process.` };
-      }
-      if (has("completed", "done", "finished")) {
-        const n = wos.filter((w: any) => w.status === "Completed").length;
-        return { text: `✅ **${n}** work orders are completed.` };
-      }
-      const n = wos.filter((w: any) =>
-        ["Open", "Not Started", "Draft"].includes(w.status)
-      ).length;
-      return { text: `📋 **${n}** work orders are open / not started.` };
-    }
   }
 
   // ── HELP ───────────────────────────────────────────────────────────
@@ -1968,6 +3201,20 @@ async function answerQuestion(
         "**📊 Counting & Lists**\n" +
         "• How many sales orders?\n" +
         "• Show latest warehouses\n\n" +
+        "**🔢 Status Counts / Filtered Lists**\n" +
+        "• How many work orders are completed?\n" +
+        "• Show me which work orders are in process\n" +
+        "• How many sales orders are draft?\n" +
+        "• Show me sent quotations\n" +
+        "• Show me submitted delivery challans\n" +
+        "• Show me paid sales bills\n" +
+        "• Show me partially paid sales bills\n" +
+        "• Show me completed job cards\n\n" +
+        "**🏷️ Item Type Filters**\n" +
+        "• Show me raw items\n" +
+        "• Show me product items\n" +
+        "• How many raw items?\n" +
+        "• Show me active items\n\n" +
         "**🔍 Detail Lookup**\n" +
         "• Detail about BOM-00123\n" +
         "• Detail of 12ABC item\n" +
@@ -1975,8 +3222,7 @@ async function answerQuestion(
         "**🧭 Navigate to Detail Page**\n" +
         "• Navigate on 12abc detail page\n" +
         "• Navigate on bolt bom detail page\n" +
-        "• Go to work order 294 detail page\n" +
-        "• Navigate on purchase bill 92 detail page\n\n" +
+        "• Go to work order 294 detail page\n\n" +
         "**🗺️ Page Flow**\n" +
         "• Show me flow of this page\n" +
         "• Where am I?\n\n" +
@@ -1990,7 +3236,7 @@ async function answerQuestion(
   }
 
   // ════════════════════════════════════════════════════════════════════
-  // 4. DETAIL VIEW (with optional auto-navigate)
+  // 4. DETAIL VIEW
   // ════════════════════════════════════════════════════════════════════
   const endpoint = matchEndpoint(question);
 
@@ -2030,22 +3276,34 @@ async function answerQuestion(
             ? `\n\n---\n🔗 Open the record in its detail page.`
             : `\n\n---\n🔗 Multiple records found. Open the list to view them.`;
 
-        const navTo = shouldNavigate && records.length === 1
-          ? (MODULE_DETAIL_ROUTES[moduleKey] || "")
-            + encodeURIComponent(getRecordNavId(records[0], identifier))
-          : undefined;
+        const endpointKey = MODULE_TO_ENDPOINT_KEY[moduleKey];
+        let navTo: string | undefined;
+        if (shouldNavigate && records.length === 1) {
+          if (endpointKey === "inventory") {
+            navTo = buildInventoryDetailRoute(
+              getInventoryNavKey(records[0], identifier),
+              records[0]
+            );
+          } else {
+            navTo = (MODULE_DETAIL_ROUTES[moduleKey] || "") +
+              encodeURIComponent(getRecordNavId(records[0], identifier));
+          }
+        }
 
-        if (navTo) {
-          const endpointKey = MODULE_TO_ENDPOINT_KEY[moduleKey];
-          if (endpointKey && DETAIL_PAGE_APIS[endpointKey]) {
+        if (navTo && endpointKey) {
+          const navId = getRecordNavId(records[0], identifier);
+          const isNumericNavId = /^\d+$/.test(String(navId));
+
+          if (
+            endpointKey !== "inventory" &&
+            DETAIL_PAGE_APIS[endpointKey] &&
+            isNumericNavId
+          ) {
             try {
-              const fullDetail = await fetchDetailPageData(
-                endpointKey,
-                getRecordNavId(records[0], identifier)
-              );
+              const fullDetail = await fetchDetailPageData(endpointKey, navId);
               stashDetailHandoff({
                 endpointKey,
-                id: String(getRecordNavId(records[0], identifier)),
+                id: String(navId),
                 route: navTo,
                 master: fullDetail.master,
                 related: fullDetail.related,
@@ -2102,9 +3360,20 @@ async function answerQuestion(
         const { route: detailRoute, moduleKey: matchedModuleKey } =
           resolveDetailRouteForRecord(found.endpointKey, found.endpoint);
 
-        const navTo = detailRoute
-          ? detailRoute + encodeURIComponent(recordId)
-          : undefined;
+        const endpointKey =
+          MODULE_TO_ENDPOINT_KEY[matchedModuleKey] || found.endpointKey;
+
+        let navTo: string | undefined;
+        if (endpointKey === "inventory") {
+          navTo = buildInventoryDetailRoute(
+            getInventoryNavKey(found.record, recordId),
+            found.record
+          );
+        } else {
+          navTo = detailRoute
+            ? detailRoute + encodeURIComponent(recordId)
+            : undefined;
+        }
         const shouldNavigate = isShowDetailAndNavigate(question);
 
         const breadcrumb = moduleBreadcrumb(
@@ -2119,9 +3388,13 @@ async function answerQuestion(
           ? `\n\n---\n🧭 **Auto-navigating to detail page...**`
           : "";
 
-        if (shouldNavigate && navTo) {
-          const endpointKey = MODULE_TO_ENDPOINT_KEY[matchedModuleKey] || found.endpointKey;
-          if (endpointKey && DETAIL_PAGE_APIS[endpointKey]) {
+        if (shouldNavigate && navTo && endpointKey) {
+          const isNumericRecordId = /^\d+$/.test(String(recordId));
+          if (
+            endpointKey !== "inventory" &&
+            DETAIL_PAGE_APIS[endpointKey] &&
+            isNumericRecordId
+          ) {
             try {
               const fullDetail = await fetchDetailPageData(endpointKey, recordId);
               stashDetailHandoff({
@@ -2156,19 +3429,27 @@ async function answerQuestion(
     console.log(`🤖 Analytical question → routing to AI with ERP context (${endpoint.label})`);
     const aiResult = await askAiWithErpContext(question);
     if (aiResult.ok && aiResult.reply) {
-      return { text: aiResult.reply };
+      return {
+        text: aiResult.reply,
+        navigateTo: aiResult.navigationRoute,
+      };
     }
     console.warn(`⚠️ AI failed — falling back to list: ${aiResult.error}`);
   }
 
   // ════════════════════════════════════════════════════════════════════
-  // 6. GENERIC LOOKUP
+  // 6. GENERIC LOOKUP (with table)
   // ════════════════════════════════════════════════════════════════════
   if (endpoint) {
     console.log(`📦 Generic lookup → ${endpoint.label}`);
     const range = detectDateRange(question);
     const text = await answerModuleGeneric(endpoint.label, endpoint.url, range, isCount);
-    return { text };
+
+    const endpointKey = Object.keys(ERP_ENDPOINTS).find(
+      (k) => ERP_ENDPOINTS[k] === endpoint
+    );
+
+    return { text, suggestionKey: endpointKey };
   }
 
   // ════════════════════════════════════════════════════════════════════
@@ -2177,7 +3458,10 @@ async function answerQuestion(
   console.log("🤖 Falling back to AI for:", question);
   const aiResult = await askAiWithErpContext(question);
   if (aiResult.ok && aiResult.reply) {
-    return { text: aiResult.reply };
+    return {
+      text: aiResult.reply,
+      navigateTo: aiResult.navigationRoute,
+    };
   }
 
   return {
@@ -2186,6 +3470,7 @@ async function answerQuestion(
       `Try asking:\n` +
       `• "How many sales orders?"\n` +
       `• "How many warehouses?"\n` +
+      `• "Show me raw items"\n` +
       `• "Navigate on 12abc detail page"\n` +
       `• "Show me flow of this page"\n` +
       `• "Summary"`,
@@ -2198,6 +3483,7 @@ export default function ChatBot() {
   const location = useLocation();
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState("");
+  const [wide, setWide] = useState(false);
   const [messages, setMessages] = useState<Msg[]>([
     {
       role: "bot",
@@ -2205,6 +3491,8 @@ export default function ChatBot() {
         "Hi 👋 I'm your ERP assistant.\n\n" +
         "I can help you with:\n" +
         "• 📊 Counting — *How many sales orders?*\n" +
+        "• 🔢 Status — *How many work orders are completed?*\n" +
+        "• 🏷️ Items — *Show me raw items*\n" +
         "• 🔍 Details — *Detail about 12ABC*\n" +
         "• 🧭 Navigate — *Navigate on 12abc detail page*\n" +
         "• 🗺️ Page Flow — *Show me flow of this page*\n" +
@@ -2215,7 +3503,12 @@ export default function ChatBot() {
   const [loading, setLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  const quickChips = getChipsForPath(location.pathname);
+  const [activeEndpointKey, setActiveEndpointKey] = useState<string | null>(null);
+
+  const pageChips = getChipsForPath(location.pathname);
+  const quickChips = activeEndpointKey && ENDPOINT_CHIPS[activeEndpointKey]
+    ? ENDPOINT_CHIPS[activeEndpointKey]
+    : pageChips;
 
   useEffect(() => {
     scrollRef.current?.scrollTo({
@@ -2239,10 +3532,16 @@ export default function ChatBot() {
           role: "bot",
           text: result.text,
           navigateTo: result.navigateTo,
+          navigateLabel: result.navigateLabel,
+          rowActions: result.rowActions,
         },
       ]);
 
-      if (result.navigateTo) {
+      if (result.suggestionKey) {
+        setActiveEndpointKey(result.suggestionKey);
+      }
+
+      if (result.navigateTo && !result.navigateLabel) {
         setTimeout(() => {
           navigate(result.navigateTo!);
           setOpen(false);
@@ -2266,12 +3565,81 @@ export default function ChatBot() {
   const send = () => runQuestion(input.trim(), true);
   const sendQuestion = (text: string) => runQuestion(text.trim(), false);
 
-  const formatText = (text: string): React.ReactNode => {
-    const lines = text.split("\n");
+  const handleNavigateClick = (msg: Msg) => {
+    if (msg.navigateTo) {
+      navigate(msg.navigateTo);
+      setOpen(false);
+    }
+  };
 
-    return lines.map((line, lineIdx) => {
+  const handleRowActionClick = (route: string) => {
+    if (route) {
+      navigate(route);
+      setOpen(false);
+    }
+  };
+
+  // ─── 🆕 TABLE-AWARE formatText ───────────────────────────────────
+  const formatText = (text: string): React.ReactNode => {
+    const rawLines = text.split("\n");
+    const out: React.ReactNode[] = [];
+    let tableBuffer: string[][] | null = null;
+    let tableKey = 0;
+
+    const flushTable = () => {
+      if (!tableBuffer || tableBuffer.length === 0) return;
+      const [header, ...body] = tableBuffer;
+      out.push(
+        <div key={`table-${tableKey++}`} className="chat-table-wrap">
+          <table className="chat-table">
+            <thead>
+              <tr>
+                {header.map((h, i) => (
+                  <th key={`th-${i}`}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {body.map((row, ri) => (
+                <tr key={`tr-${ri}`}>
+                  {row.map((c, ci) => (
+                    <td key={`td-${ri}-${ci}`}>{c}</td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      );
+      tableBuffer = null;
+    };
+
+    const isTableRow = (line: string) => /^\s*\|.*\|\s*$/.test(line);
+    const isTableSep = (line: string) =>
+      /^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)+\|?\s*$/.test(line);
+
+    for (let i = 0; i < rawLines.length; i++) {
+      const line = rawLines[i];
+
+      if (isTableSep(line)) continue;
+
+      if (isTableRow(line)) {
+        const cells = line
+          .trim()
+          .replace(/^\|/, "")
+          .replace(/\|$/, "")
+          .split("|")
+          .map((c) => c.trim());
+        if (!tableBuffer) tableBuffer = [];
+        tableBuffer.push(cells);
+        continue;
+      }
+
+      if (tableBuffer) flushTable();
+
       if (line.trim() === "") {
-        return <br key={`br-${lineIdx}`} />;
+        out.push(<br key={`br-${i}`} />);
+        continue;
       }
 
       const parts: React.ReactNode[] = [];
@@ -2284,7 +3652,7 @@ export default function ChatBot() {
           parts.push(line.slice(lastIndex, match.index));
         }
         parts.push(
-          <strong key={`bold-${lineIdx}-${match.index}`} className="chat-bold">
+          <strong key={`bold-${i}-${match.index}`} className="chat-bold">
             {match[1]}
           </strong>
         );
@@ -2294,18 +3662,22 @@ export default function ChatBot() {
         parts.push(line.slice(lastIndex));
       }
 
-      return (
-        <div key={`line-${lineIdx}`} className="chat-line">
+      out.push(
+        <div key={`line-${i}`} className="chat-line">
           {parts.length > 0 ? parts : line}
         </div>
       );
-    });
+    }
+
+    if (tableBuffer) flushTable();
+
+    return out;
   };
 
   return (
     <>
       <button
-        className="chat-fab"
+        className="chat-fab chat-fab--small"
         onClick={() => setOpen((o) => !o)}
         aria-label="Open chat"
         title="Ask ERP Assistant"
@@ -2314,10 +3686,18 @@ export default function ChatBot() {
       </button>
 
       {open && (
-        <div className="chat-window">
+        <div className={`chat-window ${wide ? "chat-window--wide" : "chat-window--compact"}`}>
           <div className="chat-header">
             <FaRobot />
             <span>ERP Assistant</span>
+            <button
+              className="chat-header-expand"
+              onClick={() => setWide((w) => !w)}
+              title={wide ? "Collapse" : "Expand"}
+              aria-label={wide ? "Collapse" : "Expand"}
+            >
+              {wide ? <FaCompressArrowsAlt /> : <FaExpandArrowsAlt />}
+            </button>
             <button
               className="chat-header-close"
               onClick={() => setOpen(false)}
@@ -2335,6 +3715,32 @@ export default function ChatBot() {
                 </div>
                 <div className="chat-bubble">
                   {formatText(m.text)}
+
+                  {m.rowActions && m.rowActions.length > 0 && (
+                    <div className="chat-row-actions">
+                      {m.rowActions.map((a, idx) => (
+                        <button
+                          key={`row-${idx}`}
+                          className="chat-row-btn"
+                          onClick={() => handleRowActionClick(a.route)}
+                          title={a.route || "No route available"}
+                          disabled={!a.route}
+                        >
+                          {a.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {m.navigateTo && m.navigateLabel && (
+                    <button
+                      className="chat-nav-btn"
+                      onClick={() => handleNavigateClick(m)}
+                      title={m.navigateTo}
+                    >
+                      {m.navigateLabel} →
+                    </button>
+                  )}
                 </div>
               </div>
             ))}
