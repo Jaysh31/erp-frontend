@@ -12,7 +12,6 @@ import {
   matchEndpoint,
   extractSearchToken,
   searchAllModulesForRecord,
-  detectSmartNavigation,
   fetchDetailPageData,
   DETAIL_PAGE_APIS,
   ERP_ENDPOINTS,

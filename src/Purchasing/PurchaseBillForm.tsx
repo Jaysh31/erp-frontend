@@ -173,24 +173,11 @@ const parseTaxRateFromTemplate = (template: string | null | undefined): number =
   return match ? parseFloat(match[1]) : 0;
 };
 
-// 🆕 FIX: shared response unwrapper so we don't depend on `success === 1`.
-// Handles { success:1, data:... }, { data:... }, { records:[...] }, arrays, etc.
-const unwrapApi = (body: any): any => {
-  if (body == null) return null;
-  if (Array.isArray(body)) return body;
-  if (body.success === 1 && body.data !== undefined) return body.data;
-  if (body.data !== undefined) return body.data;
-  if (body.records !== undefined) return body.records;
-  return body;
-};
-
-const unwrapList = (body: any): any[] => {
-  const d = unwrapApi(body);
-  if (Array.isArray(d)) return d;
-  if (Array.isArray(d?.records)) return d.records;
-  if (Array.isArray(d?.data)) return d.data;
-  if (Array.isArray(d?.items)) return d.items;
-  return [];
+// ✅ NEW: extracts the numeric rate from tax_type strings like "GST18", "GST12", "IGST18"
+//    (the old `parseInt(t.replace('GST',''))` returned NaN for "IGST18")
+const getRateFromTaxType = (taxType?: string): number => {
+  const m = (taxType || '').match(/(\d+(?:\.\d+)?)/);
+  return m ? parseFloat(m[1]) : 0;
 };
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -308,11 +295,69 @@ export default function PurchaseInvoiceForm() {
   const [selectedItemRowId, setSelectedItemRowId] = useState<string | null>(null);
   const itemSearchRef = useRef<HTMLDivElement>(null);
 
+  // ✅ NEW: the item-code dropdown is rendered with `position: fixed` so it is not
+  //    clipped by the table's overflow container (it used to disappear below the table).
+  const [itemDropdownPos, setItemDropdownPos] = useState<{
+    top?: number; bottom?: number; left: number; width: number; maxHeight: number;
+  } | null>(null);
+  const itemDropdownRef = useRef<HTMLDivElement>(null);
+  const itemInputElRef = useRef<HTMLInputElement | null>(null);
+
+  const computeItemDropdownPos = (el: HTMLInputElement) => {
+    const r = el.getBoundingClientRect();
+    const spaceBelow = window.innerHeight - r.bottom - 12;
+    const spaceAbove = r.top - 12;
+    const openUp = spaceBelow < 200 && spaceAbove > spaceBelow;
+    const width = Math.max(300, r.width);
+    const left = Math.max(8, Math.min(r.left, window.innerWidth - width - 8));
+    const maxHeight = Math.max(120, Math.min(280, openUp ? spaceAbove : spaceBelow));
+    setItemDropdownPos(
+      openUp
+        ? { bottom: window.innerHeight - r.top + 4, left, width, maxHeight }
+        : { top: r.bottom + 4, left, width, maxHeight }
+    );
+  };
+
+  const openItemDropdown = (el: HTMLInputElement, rowId: string, search: string) => {
+    itemInputElRef.current = el;
+    computeItemDropdownPos(el);
+    setSelectedItemRowId(rowId);
+    setItemSearch(search);
+    setShowItemDropdown(true);
+  };
+
+  // Keep the dropdown glued to its input while the page / table scrolls or resizes
+  useEffect(() => {
+    if (!showItemDropdown) return;
+    const reposition = (e: Event) => {
+      if (
+        e.target instanceof Node &&
+        itemDropdownRef.current &&
+        itemDropdownRef.current.contains(e.target)
+      ) return; // scrolling inside the dropdown list itself
+      if (itemInputElRef.current) computeItemDropdownPos(itemInputElRef.current);
+    };
+    window.addEventListener('scroll', reposition, true);
+    window.addEventListener('resize', reposition);
+    return () => {
+      window.removeEventListener('scroll', reposition, true);
+      window.removeEventListener('resize', reposition);
+    };
+  }, [showItemDropdown]);
+
   // ── Note popover state ───────────────────────────────────────────────────────
   const [notePopoverRowId, setNotePopoverRowId] = useState<string | null>(null);
 
   // ── Tax state ───────────────────────────────────────────────────────────────
   const [taxes, setTaxes] = useState<Tax[]>([]);
+
+  // ✅ NEW: tax lookup helpers (id is the source of truth; rate is derived from it)
+  const findTaxById = (taxId?: number | null): Tax | undefined =>
+    taxId == null ? undefined : (taxes || []).find(t => t.tax_id === taxId);
+
+  // For PO items that only carry a rate: prefer plain GST over IGST
+  const findTaxByRate = (rate: number): Tax | undefined =>
+    (taxes || []).find(t => (t.tax_type || '').startsWith('GST') && getRateFromTaxType(t.tax_type) === rate);
 
   // ── UI state ────────────────────────────────────────────────────────────────
   const [loading, setLoading] = useState(false);
@@ -487,6 +532,35 @@ export default function PurchaseInvoiceForm() {
     }
   }, [pendingWarehouseId, warehouses]);
 
+  // ─── ✅ NEW: Sync tax_rate from tax_id once BOTH taxes and items are loaded.
+  //     - If a row has a tax_id  → rate is derived from the tax master.
+  //     - If a row has no tax_id → try to resolve it from the rate.
+  //     The `changed` guard prevents an infinite render loop.
+  useEffect(() => {
+    if (!taxes.length || !items.length) return;
+    let changed = false;
+    const next = items.map(r => {
+      if (r.tax_id != null) {
+        const tax = findTaxById(r.tax_id);
+        if (!tax) return r;
+        const rate = getRateFromTaxType(tax.tax_type);
+        if (rate !== r.tax_rate) {
+          changed = true;
+          return { ...r, tax_rate: rate };
+        }
+        return r;
+      }
+      const byRate = findTaxByRate(r.tax_rate || 0);
+      if (byRate) {
+        changed = true;
+        return { ...r, tax_id: byRate.tax_id };
+      }
+      return r;
+    });
+    if (changed) setItems(next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [taxes, items]);
+
   // ─── Calculate GST ──────────────────────────────────────────────────────────
   useEffect(() => {
     calculateGST();
@@ -558,9 +632,9 @@ export default function PurchaseInvoiceForm() {
   };
 
   // ─── Fetch Suppliers ────────────────────────────────────────────────────────
-  // 🆕 FIX: no longer gated on res.data.success === 1.
+  // ✅ FIX: no `isViewMode` guard — the supplier list is needed in view mode too,
+  //    otherwise the supplier can never be resolved and stays on "Loading supplier…"
   const fetchSuppliers = async () => {
-    if (isViewMode) return;
     setLoadingSuppliers(true);
     try {
       const res = await api.get('/supplier?limit=200');
@@ -591,9 +665,9 @@ export default function PurchaseInvoiceForm() {
   };
 
   // ─── Fetch Taxes ────────────────────────────────────────────────────────────
-  // 🆕 FIX: no longer gated on res.data.success === 1.
+  // ✅ FIX: removed the `if (isViewMode) return;` guard. Taxes are needed in view
+  //    mode too, otherwise the Tax% dropdown has no options to bind to.
   const fetchTaxes = async () => {
-    if (isViewMode) return;
     try {
       const res = await api.get('/item/get-tax');
       const list = unwrapApi(res.data);
@@ -889,10 +963,8 @@ export default function PurchaseInvoiceForm() {
         const unbilledQty = Math.max(0, totalReceived - alreadyBilledQty);
         const taxRate = parseFloat(pi.item_tax_rate || '0') || 0;
 
-        const tax = (taxes || []).find(t => {
-          const rate = parseInt((t.tax_type || '').replace('GST', ''));
-          return rate === taxRate;
-        });
+        // ✅ FIX: rate → tax lookup that handles GST/IGST; no forced fallback to id 1
+        const tax = findTaxByRate(taxRate);
 
         return {
           id: makeRowId(),
@@ -911,7 +983,7 @@ export default function PurchaseInvoiceForm() {
           amount: Math.round(unbilledQty * (pi.rate || 0) * 100) / 100,
           grn_refs: rec.grnNums || [],
           tax_rate: taxRate,
-          tax_id: tax?.tax_id || 1,
+          tax_id: tax?.tax_id, // ✅ FIX: was `tax?.tax_id || 1`
           note: '',
         };
       });
@@ -926,7 +998,8 @@ export default function PurchaseInvoiceForm() {
         const billableQty = gi.accepted_qty || gi.received_qty || 0;
         const key = gi.item_code || `item-${gi.item_id}`;
         if (!merged[key]) {
-          const tax = (taxes || []).find(t => t.tax_id === 1);
+          // GRN items carry no tax info → default to the 0% tax entry (GST0)
+          const tax = findTaxByRate(0);
           merged[key] = {
             id: makeRowId(),
             grn_item_id: gi.id,
@@ -943,7 +1016,7 @@ export default function PurchaseInvoiceForm() {
             amount: Math.round(billableQty * (gi.rate || 0) * 100) / 100,
             grn_refs: grn.grn_number ? [grn.grn_number] : [],
             tax_rate: 0,
-            tax_id: tax?.tax_id || 1,
+            tax_id: tax?.tax_id,
             note: '',
           };
         } else {
@@ -965,7 +1038,7 @@ export default function PurchaseInvoiceForm() {
   const buildInvoiceItemsFromPOOnly = (poDetail: PODetail) => {
     const invoiceRows: InvoiceItem[] = (poDetail.items || []).map(pi => {
       const taxRate = parseFloat(pi.item_tax_rate || '0') || 0;
-      const tax = (taxes || []).find(t => parseInt((t.tax_type || '').replace('GST', '')) === taxRate);
+      const tax = findTaxByRate(taxRate);
       return {
         id: makeRowId(),
         po_item_id: pi.id,
@@ -982,7 +1055,7 @@ export default function PurchaseInvoiceForm() {
         amount: Math.round((pi.qty || 0) * (pi.rate || 0) * 100) / 100,
         grn_refs: [],
         tax_rate: taxRate,
-        tax_id: tax?.tax_id || 1,
+        tax_id: tax?.tax_id, // ✅ FIX: was `tax?.tax_id || 1`
         note: '',
       };
     });
@@ -992,6 +1065,7 @@ export default function PurchaseInvoiceForm() {
   // ─── Manual entry functions ────────────────────────────────────────────────
   const handleAddManualItem = () => {
     if (isViewMode) return;
+    const defaultTax = findTaxByRate(0);
     const newItem: InvoiceItem = {
       id: makeRowId(),
       item_code: '',
@@ -1006,7 +1080,7 @@ export default function PurchaseInvoiceForm() {
       amount: 0,
       grn_refs: [],
       tax_rate: 0,
-      tax_id: 1,
+      tax_id: defaultTax?.tax_id,
       note: '',
     };
     setItems([...items, newItem]);
@@ -1035,10 +1109,22 @@ export default function PurchaseInvoiceForm() {
     }));
   };
 
+  // ✅ NEW: changing the Tax% dropdown updates BOTH tax_id and tax_rate together
+  const handleTaxChange = (rowId: string, taxId: number) => {
+    if (isViewMode) return;
+    const tax = findTaxById(taxId);
+    setItems(prev => prev.map(r =>
+      r.id === rowId
+        ? { ...r, tax_id: taxId, tax_rate: tax ? getRateFromTaxType(tax.tax_type) : 0 }
+        : r
+    ));
+  };
+
   const handleSelectItem = (item: Item, rowId: string) => {
     if (isViewMode) return;
-    const tax = (taxes || []).find(t => t.tax_id === item.tax_id);
-    const taxRate = tax ? parseInt((tax.tax_type || '').replace('GST', '')) : 0;
+    // ✅ FIX: look up by id and parse the rate safely (works for IGST too)
+    const tax = findTaxById(item.tax_id);
+    const taxRate = tax ? getRateFromTaxType(tax.tax_type) : 0;
 
     setItems(prev => prev.map(row => {
       if (row.id !== rowId) return row;
@@ -1146,19 +1232,68 @@ export default function PurchaseInvoiceForm() {
             if (g) nextCache[g.id] = g;
           });
 
-          setGrnDetailCache(nextCache);
+        // Supplier: resolved once the supplier list itself has loaded
+        if (inv.supplier != null) {
+          const sid = Number(inv.supplier);
+          const sname = inv.supplier_name || '';
+          // ✅ FIX: show the supplier immediately from the invoice's own data, so it
+          //    never depends on the supplier list (limit=200 may not even contain it).
+          //    The pending-id effect below upgrades it to the full record when found.
+          setSelectedSupplier(prev => prev ?? {
+            id: sid,
+            supplier_name: sname,
+            supplier_type: '',
+            supplier_group: '',
+            country: '',
+            mobile_no: '',
+            email_id: '',
+            disabled: 0,
+          });
+          setSupplierSearch(sname);
+          setPendingSupplierId(sid);
+        } else if (inv.supplier_name) {
+          setSupplierSearch(inv.supplier_name);
         }
       }
 
-      // 🆕 FIX: supplier binding — numeric id OR name fallback.
-      if (inv.supplier != null && inv.supplier !== '' && !Number.isNaN(Number(inv.supplier))) {
-        setPendingSupplierId(Number(inv.supplier));
-      }
-      if (inv.supplier_name) {
-        setPendingSupplierName(String(inv.supplier_name));
-        // Also seed the search box so the field isn't blank while we resolve
-        setSupplierSearch(prev => prev || String(inv.supplier_name));
-      }
+        if (itemsFromApi.length) {
+          const rows: InvoiceItem[] = itemsFromApi.map((it: any) => {
+            // ✅ FIX: the API returns `item_tax_id` on each item (not `tax_id`).
+            //    It does NOT return a rate, so tax_rate starts at 0 (or whatever the API
+            //    gives) and the sync effect fills it from the tax master once taxes load.
+            const taxId: number | undefined =
+              it.item_tax_id != null ? Number(it.item_tax_id)
+              : it.tax_id != null ? Number(it.tax_id)
+              : undefined;
+
+            const resolvedTaxRate = it.item_tax_rate
+              ? parseFloat(it.item_tax_rate)
+              : (it.tax_rate ?? parseTaxRateFromTemplate(it.item_tax_template));
+
+            return {
+              id: makeRowId(),
+              db_item_id: it.id ? Number(it.id) : undefined,
+              po_item_id: it.po_detail ?? undefined,
+              grn_item_id: it.pr_detail ?? undefined,
+              item_id: it.item_id ?? undefined,
+              item_code: it.item_code || '',
+              item_name: it.item_name || '',
+              uom: it.uom || 'Nos',
+              rate: it.rate || 0,
+              ordered_rate: it.ordered_rate ?? (it.rate || 0),
+              ordered_qty: it.qty || 0,
+              total_received_qty: it.qty || 0,
+              unbilled_qty: it.qty || 0,
+              bill_qty: it.qty || 0,
+              amount: it.amount || 0,
+              grn_refs: it.grn_refs || [],
+              tax_rate: resolvedTaxRate || 0,
+              tax_id: taxId,
+              HSN: it.hsn_code || it.HSN || '',
+              note: it.note || '',
+            };
+          });
+          setItems(rows);
 
       if (itemsFromApi.length) {
         const rows: InvoiceItem[] = itemsFromApi.map((it: any) => {
@@ -1986,26 +2121,33 @@ export default function PurchaseInvoiceForm() {
       is_create_from_grn: formData.isCreateFromGrn,
       grn_ids: formData.isCreateFromGrn === 1 ? formData.grnIds : [],
 
-      items: billableItems.map((r, idx) => ({
-        ...(isEdit && r.db_item_id ? { id: r.db_item_id } : {}),
-        name: `item-${idx + 1}`,
-        item_id: r.item_id ?? undefined,
-        po_detail: r.po_item_id ?? undefined,
-        pr_detail: r.grn_item_id ?? undefined,
-        item_code: r.item_code || '',
-        item_name: r.item_name || '',
-        warehouse: resolvedWarehouseId,
-        qty: r.bill_qty || 0,
-        uom: r.uom || 'Nos',
-        rate: r.rate || 0,
-        ordered_rate: r.ordered_rate || 0,
-        amount: r.amount || 0,
-        item_tax_rate: String(r.tax_rate || 0),
-        item_tax_template: getItemTaxTemplate(r.tax_rate || 0),
-        tax_id: r.tax_id || undefined,
-        hsn_code: r.HSN || undefined,
-        note: r.note || undefined,
-      })),
+      items: billableItems.map((r, idx) => {
+        // ✅ FIX: derive template from the tax master so id / rate / template always agree
+        const tax = findTaxById(r.tax_id);
+        return {
+          ...(isEdit && r.db_item_id ? { id: r.db_item_id } : {}),
+          name: `item-${idx + 1}`,
+          item_id: r.item_id ?? undefined,
+          po_detail: r.po_item_id ?? undefined,
+          pr_detail: r.grn_item_id ?? undefined,
+          item_code: r.item_code || '',
+          item_name: r.item_name || '',
+          warehouse: resolvedWarehouseId,
+          qty: r.bill_qty || 0,
+          uom: r.uom || 'Nos',
+          rate: r.rate || 0,
+          ordered_rate: r.ordered_rate || 0,
+          amount: r.amount || 0,
+          // ✅ FIX: backend column is `item_tax_id` (was being sent as `tax_id`)
+          item_tax_id: r.tax_id || undefined,
+          item_tax_rate: String(r.tax_rate || 0),
+          item_tax_template: tax
+            ? `${tax.tax_type} ${r.tax_rate || 0}%`
+            : getItemTaxTemplate(r.tax_rate || 0),
+          hsn_code: r.HSN || undefined,
+          note: r.note || undefined,
+        };
+      }),
     };
 
     try {
@@ -2874,7 +3016,7 @@ export default function PurchaseInvoiceForm() {
                           <th className="pif-ith">UOM</th>
                           <th className="pif-ith pif-ith-num">Ordered Rate</th>
                           <th className="pif-ith pif-ith-num">Rate</th>
-                          <th className="pif-ith pif-ith-num">Amount</th>
+                          <th className="pif-ith pif-ith-num pif-ith-amount-wide">Amount</th>
                           <th className="pif-ith pif-ith-num">Tax%</th>
                           <th className="pif-ith pif-ith-note">Note</th>
                           {isManual && <th className="pif-ith">Action</th>}
@@ -2894,15 +3036,11 @@ export default function PurchaseInvoiceForm() {
                                     type="text"
                                     value={row.item_code || ''}
                                     onChange={e => {
-                                      setItemSearch(e.target.value);
-                                      setSelectedItemRowId(row.id);
-                                      setShowItemDropdown(true);
+                                      openItemDropdown(e.currentTarget, row.id, e.target.value);
                                       handleItemFieldChange(row.id, 'item_code', e.target.value);
                                     }}
-                                    onFocus={() => {
-                                      setSelectedItemRowId(row.id);
-                                      setShowItemDropdown(true);
-                                      setItemSearch(row.item_code || '');
+                                    onFocus={e => {
+                                      openItemDropdown(e.currentTarget, row.id, row.item_code || '');
                                     }}
                                     onBlur={() => {
                                       setTimeout(() => {
@@ -2915,7 +3053,20 @@ export default function PurchaseInvoiceForm() {
                                   />
                                   {showItemDropdown && selectedItemRowId === row.id && (
                                     <div className="pif-dropdown-wrapper">
-                                      <div className="pif-dropdown-down">
+                                      <div
+                                        className="pif-dropdown-down"
+                                        ref={itemDropdownRef}
+                                        onMouseDown={e => e.preventDefault()}
+                                        style={itemDropdownPos ? {
+                                          position: 'fixed',
+                                          top: itemDropdownPos.top,
+                                          bottom: itemDropdownPos.bottom,
+                                          left: itemDropdownPos.left,
+                                          width: itemDropdownPos.width,
+                                          maxHeight: itemDropdownPos.maxHeight,
+                                          zIndex: 10050,
+                                        } : undefined}
+                                      >
                                         {filteredItems.length > 0 ? (
                                           <ul className="pif-dropdown-list">
                                             {filteredItems.map(item => (
@@ -3036,26 +3187,25 @@ export default function PurchaseInvoiceForm() {
                                 step="0.01"
                               />
                             </td>
-                            <td className="pif-itd pof-itd pif-itd-num" data-label="Amount">
-                            <td className=" pif-amount pof-itd-amount pif-itd-amount" >
+                            {/* ✅ FIX: removed the <td> that was nested inside another <td> (invalid HTML) */}
+                            <td className="pif-itd pof-itd pif-itd-num pif-amount pof-itd-amount pif-itd-amount pif-itd-amount-wide" data-label="Amount">
                               ₹ {(row.amount || 0).toFixed(2)}
                             </td>
-                            </td>
+                            {/* ✅ FIX: dropdown is now bound to tax_id (not the rate), so GST18 / IGST18
+                                 are distinct options and the selected id is what gets saved */}
                             <td className="pif-itd pof-itd pif-itd-num" data-label="Tax %">
                               <select
-                                value={row.tax_rate || 0}
-                                onChange={e => handleItemFieldChange(row.id, 'tax_rate', parseFloat(e.target.value) || 0)}
+                                value={row.tax_id ?? ''}
+                                onChange={e => handleTaxChange(row.id, Number(e.target.value))}
                                 className="pif-cell-input pof-cell-select pof-tax-select"
+                                disabled={isViewMode}
                               >
-                                {(taxes || []).map(tax => {
-                                  const parsed = parseInt((tax.tax_type || '').replace('GST', ''));
-                                  const rate = isNaN(parsed) ? 0 : parsed;
-                                  return (
-                                    <option key={tax.tax_id} value={rate}>
-                                      {tax.tax_type || ''}
-                                    </option>
-                                  );
-                                })}
+                                {row.tax_id == null && <option value="">Select tax</option>}
+                                {(taxes || []).map(tax => (
+                                  <option key={tax.tax_id} value={tax.tax_id}>
+                                    {tax.tax_type || ''}
+                                  </option>
+                                ))}
                               </select>
                             </td>
                             <td className="pif-itd pof-itd pif-itd-note pof-itd-note" data-label="Note" style={{ position: 'relative' }}>

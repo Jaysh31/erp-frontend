@@ -282,6 +282,8 @@ interface SalesBillPayload {
     discount_percentage: number;
     weight_per_unit: number;
     weight_uom: string;
+    item_tax_id?: number;
+    item_tax_rate: string;
     serial_no?: string;
     batch_no?: string;
   }>;
@@ -372,10 +374,12 @@ const DEFAULT_TAX_OPTIONS: TaxOption[] = [
   { tax_id: 5, tax_type: 'GST 28%' },
 ];
 
+// ✅ CHANGED: several entries can share a rate (GST18 / IGST18) → prefer plain GST
 const getTaxIdFromRate = (taxRate: number, taxOpts: TaxOption[] = []): number | undefined => {
   const opts = taxOpts && taxOpts.length > 0 ? taxOpts : DEFAULT_TAX_OPTIONS;
-  const taxOption = opts.find(t => extractTaxValue(t.tax_type) === taxRate);
-  return taxOption?.tax_id;
+  const matches = opts.filter(t => extractTaxValue(t.tax_type) === taxRate);
+  const preferred = matches.find(t => !/^\s*IGST/i.test(t.tax_type)) || matches[0];
+  return preferred?.tax_id;
 };
 
 const getTaxRateFromItem = (item: any, taxOpts: TaxOption[] = []): { rate: number; tax_id?: number; tax_type?: string } => {
@@ -2878,9 +2882,16 @@ const [loadingQCMap, setLoadingQCMap] = useState<boolean>(false);
         const discountPercentage = Number(it.discount_percentage ?? 0);
         const discountAmount = Number(it.discount_amount ?? 0);
 
-        // The sample API response does not return a per-item tax rate.
-        // If a tax rate is supplied, use it; otherwise keep tax at 0.
-        const itemTaxRate = Number(it.tax_rate ?? it.gst_rate ?? 0);
+        // ✅ CHANGED: tax comes back as item_tax_id (GST master id) and/or item_tax_rate.
+        //    The rate is re-derived from the id once the tax list has loaded
+        //    (see the "sync tax rate from tax_id" effect below).
+        const apiTaxId =
+          it.item_tax_id !== undefined && it.item_tax_id !== null && it.item_tax_id !== ''
+            ? Number(it.item_tax_id)
+            : (it.tax_id !== undefined && it.tax_id !== null && it.tax_id !== ''
+                ? Number(it.tax_id)
+                : undefined);
+        const itemTaxRate = Number(it.item_tax_rate ?? it.tax_rate ?? it.gst_rate ?? 0) || 0;
         const taxAmount = Number(
           it.tax_amount ??
           (it.net_amount !== undefined && it.amount !== undefined
@@ -2899,7 +2910,7 @@ const [loadingQCMap, setLoadingQCMap] = useState<boolean>(false);
           rate: rate,
           amount: amount,
           tax: itemTaxRate,
-          tax_id: undefined,
+          tax_id: apiTaxId,
           taxAmount: taxAmount,
           totalAmount: amount + taxAmount,
           type: 'product',
@@ -3122,6 +3133,33 @@ const [loadingQCMap, setLoadingQCMap] = useState<boolean>(false);
       }));
     }
   }, [taxOptions]);
+
+  // ✅ NEW: sync tax rate from tax_id.
+  //    The invoice and the tax list are fetched on mount in any order, so once BOTH
+  //    are available make every row's rate follow its tax_id (and fill a missing
+  //    id from the rate). The `changed` guard prevents an infinite render loop.
+  useEffect(() => {
+    if (taxOptions.length === 0 || items.length === 0) return;
+    let changed = false;
+
+    const next = items.map(it => {
+      if (it.tax_id != null) {
+        const opt = taxOptions.find(t => t.tax_id === it.tax_id);
+        if (!opt) return it;
+        const rate = extractTaxValue(opt.tax_type);
+        if (rate === it.tax) return it;
+        changed = true;
+        const taxAmount = ((it.amount || 0) * rate) / 100;
+        return { ...it, tax: rate, taxAmount, totalAmount: (it.amount || 0) + taxAmount };
+      }
+      const idFromRate = getTaxIdFromRate(it.tax || 0, taxOptions);
+      if (idFromRate == null) return it;
+      changed = true;
+      return { ...it, tax_id: idFromRate };
+    });
+
+    if (changed) setItems(next);
+  }, [taxOptions, items]);
 
   // Update payment amounts when grand total changes
   useEffect(() => {
@@ -3822,6 +3860,21 @@ const fetchDeliveryNoteQCStatus = async (customerId: string) => {
     );
   };
 
+  // ✅ NEW: the Tax dropdown is bound to the GST master *id* (not the rate), so
+  //    GST18 and IGST18 stay distinct. Updates id, rate and the row totals together.
+  const updateItemTax = (rowId: string, taxId: number) => {
+    const opts = taxOptions.length > 0 ? taxOptions : DEFAULT_TAX_OPTIONS;
+    const opt = opts.find(t => t.tax_id === taxId);
+    const rate = opt ? extractTaxValue(opt.tax_type) : 0;
+
+    setItems(prev => prev.map(it => {
+      if (it.id !== rowId) return it;
+      const amount = (it.quantity || 0) * (it.rate || 0);
+      const taxAmount = (amount * rate) / 100;
+      return { ...it, tax_id: taxId, tax: rate, amount, taxAmount, totalAmount: amount + taxAmount };
+    }));
+  };
+
   const getTotalQty = () => items.reduce((sum, item) => sum + (item.quantity || 0), 0);
   const getTotalAmount = () => items.reduce((sum, item) => sum + (item.amount || 0), 0);
   const getTotalTax = () => items.reduce((sum, item) => sum + (item.taxAmount || 0), 0);
@@ -3875,6 +3928,9 @@ const fetchDeliveryNoteQCStatus = async (customerId: string) => {
           discount_percentage: item.discountPercentage || 0,
           weight_per_unit: item.weightPerUnit || 0,
           weight_uom: item.weightUom || 'kg',
+          // ✅ NEW: GST master id + its rate, e.g. item_tax_id: 1, item_tax_rate: "18"
+          item_tax_id: item.tax_id ?? getTaxIdFromRate(item.tax || 0, taxOptions),
+          item_tax_rate: String(item.tax || 0),
           ...(item.serialNo && { serial_no: item.serialNo }),
           ...(item.batchNo && { batch_no: item.batchNo })
         })),
@@ -5193,25 +5249,21 @@ if (isEditMode && id) {
                         />
                       </td>
                       <td className="nsb-col-tax">
+                        {/* ✅ CHANGED: bound to tax_id (GST master id), not the rate */}
                         <select
-                          value={item.tax}
-                          onChange={(e) => updateItem(item.id, 'tax', parseFloat(e.target.value) || 0)}
+                          value={item.tax_id ?? ''}
+                          onChange={(e) => updateItemTax(item.id, Number(e.target.value))}
                           className="nsb-table-input"
                           disabled={loadingTaxOptions}
                         >
-                          {(taxOptions.length > 0 ? taxOptions : DEFAULT_TAX_OPTIONS).map((tax) => {
-                            const rateVal = extractTaxValue(tax.tax_type);
-                            return (
-                              <option key={tax.tax_id} value={rateVal}>
-                                {tax.tax_type}
-                              </option>
-                            );
-                          })}
-                          {item.tax > 0 && !(taxOptions.length > 0 ? taxOptions : DEFAULT_TAX_OPTIONS).some(t => extractTaxValue(t.tax_type) === item.tax) && (
-                            <option key={`custom-${item.tax}`} value={item.tax}>
-                              GST {item.tax}%
-                            </option>
+                          {item.tax_id == null && (
+                            <option value="">{item.tax > 0 ? `GST ${item.tax}%` : 'Select tax'}</option>
                           )}
+                          {(taxOptions.length > 0 ? taxOptions : DEFAULT_TAX_OPTIONS).map((tax) => (
+                            <option key={tax.tax_id} value={tax.tax_id}>
+                              {tax.tax_type}
+                            </option>
+                          ))}
                         </select>
                       </td>
                       <td className="nsb-col-tax-amount" style={{ textAlign: 'right' }}>
