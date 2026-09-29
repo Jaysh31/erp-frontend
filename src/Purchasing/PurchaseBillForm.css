@@ -676,7 +676,7 @@
 }
 
 .pif-ith-num {
-  text-align: right;
+  text-align: center;
 }
 
 .pif-itr {
@@ -1821,4 +1821,129 @@
 
 .pif-fields-row .warehouse-dropdown {
   width: 100%;
+}
+/* =====================================================================
+   APPEND THIS BLOCK TO THE END OF PurchaseBillForm.css
+   ===================================================================== */
+
+/* ─── 1. Search icon overlapping the placeholder / typed text ─────────
+   Another global `.form-field { padding: ... }` was winning over
+   `.warehouse-search-input`, so the 32px left padding was never applied.
+   Higher specificity + !important makes it stick for Supplier, PO and GRN. */
+   .pif-page .warehouse-search-input-wrap .form-field.warehouse-search-input {
+    padding-left: 34px !important;
+  }
+  
+  .pif-page .warehouse-search-input-wrap .warehouse-search-icon {
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    pointer-events: none;
+    z-index: 1;
+  }
+  
+  /* ─── 2. Select boxes showing a row of repeated down-arrows ───────────
+     The arrow image was tiling across the whole select (background-repeat
+     defaulted to `repeat`). Use one arrow, no-repeat, pinned to the right. */
+  .pif-page select.form-field {
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E") !important;
+    background-repeat: no-repeat !important;
+    background-position: right 12px center !important;
+    background-size: 12px 12px !important;
+    padding-right: 32px;
+  }
+  
+  /* Table selects (UOM / Tax%) — same tiling protection */
+  .pif-page select.pif-cell-input,
+  .pif-page select.pof-cell-select {
+    background-repeat: no-repeat !important;
+    background-position: right 6px center !important;
+    background-size: 10px 10px !important;
+  }
+  
+  /* ─── 3. Item-code search dropdown ────────────────────────────────────
+     Position/size are now set inline (position: fixed) from the input's
+     bounding box, so it is no longer clipped by the table's overflow. */
+  .pif-dropdown-down {
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  /* =====================================================================
+   APPEND THIS BLOCK TO THE END OF PurchaseBillForm.css
+   ===================================================================== */
+
+/* ─── 1. Search icon overlapping the placeholder / typed text ─────────
+   Another global `.form-field { padding: ... }` was winning over
+   `.warehouse-search-input`, so the 32px left padding was never applied.
+   Higher specificity + !important makes it stick for Supplier, PO and GRN. */
+.pif-page .warehouse-search-input-wrap .form-field.warehouse-search-input {
+  padding-left: 34px !important;
+}
+
+.pif-page .warehouse-search-input-wrap .warehouse-search-icon {
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* ─── 2. Select boxes showing a row of repeated down-arrows ───────────
+   The arrow image was tiling across the whole select (background-repeat
+   defaulted to `repeat`). Use one arrow, no-repeat, pinned to the right. */
+.pif-page select.form-field {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E") !important;
+  background-repeat: no-repeat !important;
+  background-position: right 12px center !important;
+  background-size: 12px 12px !important;
+  padding-right: 32px;
+}
+
+/* Table selects (UOM / Tax%) — same tiling protection */
+.pif-page select.pif-cell-input,
+.pif-page select.pof-cell-select {
+  background-repeat: no-repeat !important;
+  background-position: right 6px center !important;
+  background-size: 10px 10px !important;
+}
+
+/* ─── 3. Item-code search dropdown ────────────────────────────────────
+   Position/size are now set inline (position: fixed) from the input's
+   bounding box, so it is no longer clipped by the table's overflow. */
+.pif-dropdown-down {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* ─── 4. Amount column: keep "₹" and the number on ONE line ───────────
+   The cell was too narrow, so the rupee sign wrapped above the number. */
+.pif-page .pif-ith-amount-wide,
+.pif-page .pif-itd-amount-wide {
+  width: 140px;
+  min-width: 140px;
+}
+
+.pif-page .pif-inline-table td.pif-amount,
+.pif-page .pif-inline-table td.pof-itd-amount,
+.pif-page .pif-inline-table td.pif-itd-amount {
+  white-space: nowrap !important;
+  min-width: 140px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 768px) {
+  /* on mobile cards the cell fills its grid column, so no forced min-width */
+  .pif-page .pif-inline-table td.pif-amount,
+  .pif-page .pif-inline-table td.pof-itd-amount,
+  .pif-page .pif-inline-table td.pif-itd-amount {
+    min-width: 0;
+    text-align: left;
+  }
 }

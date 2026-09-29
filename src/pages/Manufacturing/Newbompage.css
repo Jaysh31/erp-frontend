@@ -3100,3 +3100,191 @@ select.nbom-input {
 
 
 
+/* =========================================================
+   SEARCHABLE SELECT – floating menu (portal, position: fixed)
+   ========================================================= */
+
+   .nbom-ss-dropdown {
+    z-index: 99999;
+    overflow-x: hidden;
+    overflow-y: auto;
+    box-sizing: border-box;
+    background: var(--ss-bg, #ffffff);
+    color: var(--ss-text, #111827);
+    border: 1px solid var(--ss-border, #e5e7eb);
+    border-radius: 8px;
+    padding: 4px;
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.16), 0 3px 8px rgba(0, 0, 0, 0.08);
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  .nbom-ss-item {
+    padding: 8px 10px;
+    font-size: 13px;
+    line-height: 1.35;
+    border-radius: 6px;
+    cursor: pointer;
+    color: var(--ss-text, #111827);
+    border-left: 3px solid transparent;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    transition: background 0.12s ease;
+  }
+  
+  /* hover / keyboard highlight = very soft tint */
+  .nbom-ss-item.is-highlighted {
+    background: rgba(127, 127, 127, 0.12);
+  }
+  
+  /* selected = soft tint + accent bar (NOT solid blue) */
+  .nbom-ss-item.is-selected {
+    background: color-mix(in srgb, var(--ss-primary, #2563eb) 10%, transparent);
+    border-left-color: var(--ss-primary, #2563eb);
+    font-weight: 600;
+  }
+  
+  .nbom-ss-item.is-selected.is-highlighted {
+    background: color-mix(in srgb, var(--ss-primary, #2563eb) 16%, transparent);
+  }
+  
+  .nbom-ss-empty {
+    padding: 10px 12px;
+    font-size: 13px;
+    text-align: center;
+    color: var(--ss-muted, #6b7280);
+  }
+  
+  /* =========================================================
+     NUMBER INPUT – one single box (no box-in-box)
+     ========================================================= */
+  
+  .nbom-num {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    min-width: 0;
+    height: 38px;
+    padding: 0 10px;
+    box-sizing: border-box;
+    background: var(--c-bg, #ffffff);
+    border: 1px solid var(--c-border, #e5e7eb);
+    border-radius: 6px;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+  
+  .nbom-num:hover {
+    border-color: var(--c-border-hover, #d1d5db);
+  }
+  
+  .nbom-num:focus-within {
+    border-color: var(--c-primary, #2563eb);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+  }
+  
+  .nbom-num--disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+  
+  /* hard reset so no global input style can draw a second border */
+  .nbom-num .nbom-num__field {
+    flex: 1 1 auto;
+    width: 100%;
+    min-width: 0;
+    height: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    outline: 0 !important;
+    box-shadow: none !important;
+    background: transparent !important;
+    color: var(--c-text, #111827);
+    font-family: inherit;
+    font-size: 13px;
+    -webkit-appearance: none;
+    -moz-appearance: textfield;
+    appearance: none;
+  }
+  
+  .nbom-num .nbom-num__field::placeholder {
+    color: var(--c-text-hint, #9ca3af);
+  }
+  
+  .nbom-num__label {
+    font-size: 12px;
+    color: var(--c-text-muted, #6b7280);
+    margin-right: 6px;
+  }
+  
+  /* inside tables: slightly more compact */
+  .nbom-table .nbom-num {
+    height: 34px;
+    min-width: 80px;
+  }
+  
+  .nbom-table .nbom-num .nbom-num__field {
+    font-size: 12px;
+  }
+  
+  /* =========================================================
+     TABLE INPUTS (UOM / Seq / Read-only cells) – single box
+     ========================================================= */
+  
+  .nbom-table .nbom-table-input {
+    height: 34px;
+    border: 1px solid var(--c-border, #e5e7eb);
+    border-radius: 6px;
+    background: var(--c-bg, #ffffff);
+    box-shadow: none;
+    outline: none;
+  }
+  
+  .nbom-table .nbom-table-input:focus {
+    border-color: var(--c-primary, #2563eb);
+    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1);
+  }
+  
+  .nbom-table .nbom-table-input--readonly {
+    background: var(--c-bg-muted, #f3f4f6);
+    color: var(--c-text-muted, #6b7280);
+    cursor: default;
+  }
+  
+  .nbom-table .nbom-table-input--readonly:focus {
+    border-color: var(--c-border, #e5e7eb);
+    box-shadow: none;
+  }
+  
+  /* the searchable select input inside a table cell */
+  .nbom-table td .nbom-searchable-select input {
+    height: 34px;
+    font-size: 12px;
+  }
+  
+  /* dark theme */
+  .admin-theme.dark-theme .nbom-num {
+    background: var(--input-bg, #1e293b);
+    border-color: var(--border-color, #334155);
+  }
+  
+  .admin-theme.dark-theme .nbom-num .nbom-num__field {
+    color: var(--text-primary, #f8fafc);
+  }
+  
+  .admin-theme.dark-theme .nbom-table .nbom-table-input--readonly {
+    background: var(--layout-bg, #0f172a) !important;
+    color: var(--text-secondary, #94a3b8) !important;
+    border-color: var(--border-color, #334155) !important;
+  }
+  
+  /* mobile */
+  @media (max-width: 768px) {
+    .nbom-table .nbom-num {
+      height: 36px;
+      min-width: 0;
+    }
+    .nbom-table .nbom-table-input--readonly {
+      background: var(--c-bg-muted, #f3f4f6) !important;
+    }
+  }

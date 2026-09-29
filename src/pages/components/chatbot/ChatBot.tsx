@@ -11,7 +11,6 @@ import {
   matchEndpoint,
   extractSearchToken,
   searchAllModulesForRecord,
-  detectSmartNavigation,
   fetchDetailPageData,
   DETAIL_PAGE_APIS,
 } from "../../../services/erpApi";

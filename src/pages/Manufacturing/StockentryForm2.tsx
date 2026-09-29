@@ -1182,7 +1182,6 @@ export default function StockEntryForm2() {
       ) {
         console.log("📦 Chatbot handoff → hydrating Stock Entry", id);
         const d = parsed.master;
-        const related = parsed.related || {};
 
         // 1) Master record — hydrate the flat Stock Entry fields.
         const itemCode = d.production_item || d.item_code || "";
