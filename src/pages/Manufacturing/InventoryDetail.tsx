@@ -154,7 +154,6 @@ interface Summary {
   daily_movement: Record<string, { received: number; sold: number; net: number }>;
 }
 
-
 export default function InventoryDetail() {
   const { itemCode } = useParams<{ itemCode: string }>();
   const navigate = useNavigate();
@@ -183,9 +182,14 @@ export default function InventoryDetail() {
   // ─── 🆕 Chatbot handoff: hydrate from sessionStorage when /inventory/.../:code ─
   // The chatbot calls fetchInventoryHistory(itemCode) which hits
   // /inventory/history?item_code=..., stashes the payload under
-  // sessionStorage["erp-detail-handoff"], then navigates here. This effect
-  // maps that payload into the shape InventoryDetail expects so the page
-  // renders immediately without waiting for the API roundtrip.
+  // sessionStorage["erp-detail-handoff"], then navigates here.
+  //
+  // ✅ FIXED: accept BOTH possible payload shapes:
+  //   (a) The rich shape returned by the real ERP:
+  //       { item_details, current_inventory, grn_history, ... }
+  //   (b) A flat list of movement rows (what fetchAllPages returns).
+  //   In case (b) we simply let the normal fetch effect run — the handoff
+  //   is only a *shortcut* to avoid a duplicate request, not a requirement.
   useEffect(() => {
     if (!itemCode || handoffApplied.current) return;
 
@@ -198,18 +202,25 @@ export default function InventoryDetail() {
         parsed?.endpointKey === "inventory" &&
         String(parsed.id) === String(itemCode)
       ) {
-        console.log("📦 Chatbot handoff → hydrating Inventory", itemCode);
-
-        // The chatbot stashes the raw response under `master` (because
-        // fetchDetailPageData treats the endpoint's first result as the master).
-        // The inventory history endpoint returns a rich payload with
-        // item_details, current_inventory, grn_history, etc. — so we use
-        // that directly if it matches the expected shape.
         const m = parsed.master;
+
+        // Shape (a): the real ERP payload
         if (m && m.item_details && m.current_inventory) {
+          console.log("📦 Chatbot handoff → hydrating Inventory (rich shape)", itemCode);
           setData(m as InventoryDetailResponse['data']);
           setLoading(false);
           handoffApplied.current = true;
+          sessionStorage.removeItem("erp-detail-handoff");
+          return;
+        }
+
+        // Shape (b): flat movement list — log it, drop the handoff, and
+        // let the normal fetch effect below do the real API call.
+        if (m) {
+          console.log(
+            "📦 Chatbot handoff present but not in rich shape — falling back to API fetch",
+            itemCode
+          );
           sessionStorage.removeItem("erp-detail-handoff");
         }
       }
@@ -223,14 +234,14 @@ export default function InventoryDetail() {
   useEffect(() => {
     const fetchInventoryDetail = async () => {
       if (!itemCode) return;
-      
+
       setLoading(true);
       setError(null);
       try {
         const response = await api.get<InventoryDetailResponse>(
           `/inventory/history?item_code=${encodeURIComponent(itemCode)}`
         );
-        
+
         if (response.data.success === 1) {
           setData(response.data.data);
         } else {
@@ -254,7 +265,6 @@ export default function InventoryDetail() {
       [section]: !prev[section]
     }));
   };
-  
 
   // Check if item is a Product (not Raw Material)
   const isProduct = (itemGroup: string): boolean => {
@@ -325,8 +335,8 @@ export default function InventoryDetail() {
   if (loading) {
     return (
       <div className={`p-6 max-w-7xl mx-auto ${theme}`}>
-        <PageLoader 
-          message="Loading Manufacturing  & Inventory List..." 
+        <PageLoader
+          message="Loading Manufacturing  & Inventory List..."
         />
       </div>
     );
@@ -357,13 +367,20 @@ export default function InventoryDetail() {
   } = data;
 
   // ─── Type-filtered records ──────────────────────────────────────────
+  // ✅ FIXED: guard against undefined arrays in case the API omits them
+  // for items with no inventory / GRN rows.
+  const safeCurrentInventory = current_inventory ?? [];
+  const safeGrnHistory = grn_history ?? [];
+  const safePurchaseOrderHistory = purchase_order_history ?? [];
+  const safeSalesInvoiceHistory = sales_invoice_history ?? [];
+
   const filteredCurrentInventory = filterType
-    ? current_inventory.filter((inv) => inv.type === filterType)
-    : current_inventory;
+    ? safeCurrentInventory.filter((inv) => inv.type === filterType)
+    : safeCurrentInventory;
 
   const filteredGrnHistory = filterType
-    ? grn_history.filter((grn) => grn.type === filterType)
-    : grn_history;
+    ? safeGrnHistory.filter((grn) => grn.type === filterType)
+    : safeGrnHistory;
 
   const filteredCurrentStock = filteredCurrentInventory.reduce(
     (sum, inv) => sum + inv.actual_qty,
@@ -453,7 +470,7 @@ export default function InventoryDetail() {
               <span>{filteredCurrentStock} {item_details.stock_uom}</span>
             </div>
           </div>
-          
+
           <div className="inv-detail-stat-card">
             <div className="inv-detail-stat-icon" style={{ background: '#d1fae5', color: '#10b981' }}>
               <FaDollarSign size={20} />
@@ -463,7 +480,7 @@ export default function InventoryDetail() {
               <span>{formatCurrency(totalStockValue)}</span>
             </div>
           </div>
-          
+
           <div className="inv-detail-stat-card">
             <div className="inv-detail-stat-icon" style={{ background: '#fef3c7', color: '#f59e0b' }}>
               <FaDollarSign size={20} />
@@ -473,21 +490,21 @@ export default function InventoryDetail() {
               <span>{formatCurrency(displayValuationRate)}</span>
             </div>
           </div>
-          
+
           <div className="inv-detail-stat-card">
             <div className="inv-detail-stat-icon" style={{ background: '#fce7f3', color: '#ec4899' }}>
               <FaHistory size={20} />
             </div>
             <div className="inv-detail-stat-info">
               <label>Total Transactions</label>
-              <span>{purchase_order_history.length + filteredGrnHistory.length + sales_invoice_history.length}</span>
+              <span>{safePurchaseOrderHistory.length + filteredGrnHistory.length + safeSalesInvoiceHistory.length}</span>
             </div>
           </div>
         </div>
 
         {/* Item Details Section */}
         <div className="inv-detail-section">
-          <div 
+          <div
             className="inv-detail-section-header"
             onClick={() => toggleSection('itemDetails')}
           >
@@ -498,7 +515,7 @@ export default function InventoryDetail() {
               {expandedSections.itemDetails !== false ? <FaChevronUp /> : <FaChevronDown />}
             </button>
           </div>
-          
+
           {expandedSections.itemDetails !== false && (
             <div className="inv-detail-section-content">
               <div className="inv-item-details-grid">
@@ -630,21 +647,21 @@ export default function InventoryDetail() {
         {/* Purchase Order History Section - Only for Raw Materials */}
         {isRawMaterialItem && (
           <div className="inv-detail-section">
-            <div 
+            <div
               className="inv-detail-section-header"
               onClick={() => toggleSection('purchaseOrders')}
             >
               <h2>
-                <FaFileInvoice size={18} /> Purchase Order History ({purchase_order_history.length})
+                <FaFileInvoice size={18} /> Purchase Order History ({safePurchaseOrderHistory.length})
               </h2>
               <button className="inv-detail-toggle">
                 {expandedSections.purchaseOrders !== false ? <FaChevronUp /> : <FaChevronDown />}
               </button>
             </div>
-            
+
             {expandedSections.purchaseOrders !== false && (
               <div className="inv-detail-section-content">
-                {purchase_order_history.length === 0 ? (
+                {safePurchaseOrderHistory.length === 0 ? (
                   <div className="inv-detail-empty">
                     <FaFileInvoice size={40} />
                     <p>No purchase orders found</p>
@@ -665,7 +682,7 @@ export default function InventoryDetail() {
                         </tr>
                       </thead>
                       <tbody>
-                        {purchase_order_history.map((po) => (
+                        {safePurchaseOrderHistory.map((po) => (
                           <tr key={po.po_id}>
                             <td className="inv-td-code">{po.po_number}</td>
                             <td>{formatDate(po.order_date)}</td>
@@ -679,7 +696,7 @@ export default function InventoryDetail() {
                             <td>{formatCurrency(po.rate)}</td>
                             <td className="inv-td-amount">{formatCurrency(po.amount)}</td>
                             <td>
-                              <span 
+                              <span
                                 className="inv-status-pill"
                                 style={{ backgroundColor: getStatusColor(po.status) + '20', color: getStatusColor(po.status) }}
                               >
@@ -700,7 +717,7 @@ export default function InventoryDetail() {
         {/* GRN History Section - Only for Raw Materials — filtered by type */}
         {isRawMaterialItem && (
           <div className="inv-detail-section">
-            <div 
+            <div
               className="inv-detail-section-header"
               onClick={() => toggleSection('grnHistory')}
             >
@@ -711,7 +728,7 @@ export default function InventoryDetail() {
                 {expandedSections.grnHistory !== false ? <FaChevronUp /> : <FaChevronDown />}
               </button>
             </div>
-            
+
             {expandedSections.grnHistory !== false && (
               <div className="inv-detail-section-content">
                 {filteredGrnHistory.length === 0 ? (
@@ -747,7 +764,7 @@ export default function InventoryDetail() {
                             pending: { bg: '#6b728020', color: '#6b7280', label: 'Pending' },
                           };
                           const statusInfo = statusColors[status];
-                          
+
                           return (
                             <tr key={grn.grn_id}>
                               <td className="inv-td-code">{grn.grn_number}</td>
@@ -793,7 +810,7 @@ export default function InventoryDetail() {
                                 </span>
                               </td>
                               <td>
-                                <span 
+                                <span
                                   className="inv-status-pill"
                                   style={{ backgroundColor: statusInfo.bg, color: statusInfo.color }}
                                 >
@@ -815,21 +832,21 @@ export default function InventoryDetail() {
         {/* Sales Invoice History Section - Only for Products */}
         {isProductItem && (
           <div className="inv-detail-section">
-            <div 
+            <div
               className="inv-detail-section-header"
               onClick={() => toggleSection('salesInvoices')}
             >
               <h2>
-                <FaReceipt size={18} /> Sales Invoice History ({sales_invoice_history.length})
+                <FaReceipt size={18} /> Sales Invoice History ({safeSalesInvoiceHistory.length})
               </h2>
               <button className="inv-detail-toggle">
                 {expandedSections.salesInvoices !== false ? <FaChevronUp /> : <FaChevronDown />}
               </button>
             </div>
-            
+
             {expandedSections.salesInvoices !== false && (
               <div className="inv-detail-section-content">
-                {sales_invoice_history.length === 0 ? (
+                {safeSalesInvoiceHistory.length === 0 ? (
                   <div className="inv-detail-empty">
                     <FaReceipt size={40} />
                     <p>No sales invoices found</p>
@@ -850,7 +867,7 @@ export default function InventoryDetail() {
                         </tr>
                       </thead>
                       <tbody>
-                        {sales_invoice_history.map((invoice) => (
+                        {safeSalesInvoiceHistory.map((invoice) => (
                           <tr key={invoice.sales_id}>
                             <td className="inv-td-code">SI-{invoice.sales_id}</td>
                             <td>{formatDateShort(invoice.transaction_date)}</td>
@@ -873,7 +890,7 @@ export default function InventoryDetail() {
                               </span>
                             </td>
                             <td>
-                              <span 
+                              <span
                                 className="inv-status-pill"
                                 style={{ backgroundColor: getStatusColor(invoice.status) + '20', color: getStatusColor(invoice.status) }}
                               >
@@ -888,13 +905,13 @@ export default function InventoryDetail() {
                           <td colSpan={3} className="inv-table-footer-label">Total</td>
                           <td>
                             <strong>
-                              {sales_invoice_history.reduce((sum, inv) => sum + inv.qty, 0)} {item_details.stock_uom}
+                              {safeSalesInvoiceHistory.reduce((sum, inv) => sum + inv.qty, 0)} {item_details.stock_uom}
                             </strong>
                           </td>
                           <td></td>
                           <td className="inv-td-amount">
                             <strong>
-                              {formatCurrency(sales_invoice_history.reduce((sum, inv) => sum + inv.amount, 0))}
+                              {formatCurrency(safeSalesInvoiceHistory.reduce((sum, inv) => sum + inv.amount, 0))}
                             </strong>
                           </td>
                           <td colSpan={2}></td>
@@ -910,7 +927,7 @@ export default function InventoryDetail() {
 
         {/* Summary Section */}
         <div className="inv-detail-section">
-          <div 
+          <div
             className="inv-detail-section-header"
             onClick={() => toggleSection('summary')}
           >
@@ -921,7 +938,7 @@ export default function InventoryDetail() {
               {expandedSections.summary !== false ? <FaChevronUp /> : <FaChevronDown />}
             </button>
           </div>
-          
+
           {expandedSections.summary !== false && (
             <div className="inv-detail-section-content">
               {/* Transactions by Source */}
@@ -934,9 +951,9 @@ export default function InventoryDetail() {
                         <span className="inv-summary-label">{source}</span>
                         <span className="inv-summary-value">{count} {item_details.stock_uom}</span>
                         <div className="inv-summary-bar">
-                          <div 
+                          <div
                             className="inv-summary-bar-fill"
-                            style={{ 
+                            style={{
                               width: `${(count / (summary.total_received + summary.total_sold || 1)) * 100}%`,
                               backgroundColor: '#4f46e5'
                             }}
@@ -972,11 +989,11 @@ export default function InventoryDetail() {
                           </div>
                         </div>
                         <div className="inv-daily-movement-bar">
-                          <div 
+                          <div
                             className="inv-daily-bar-segment received"
                             style={{ width: `${(movement.received / (movement.received + movement.sold || 1)) * 100}%` }}
                           />
-                          <div 
+                          <div
                             className="inv-daily-bar-segment sold"
                             style={{ width: `${(movement.sold / (movement.received + movement.sold || 1)) * 100}%` }}
                           />

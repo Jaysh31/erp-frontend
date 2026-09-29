@@ -43,6 +43,8 @@
   overflow: hidden;
   z-index: 9998;
   animation: chatSlideUp 0.3s ease;
+
+  transition: width 0.25s ease, height 0.25s ease;
 }
 
 @keyframes chatSlideUp {
@@ -56,6 +58,14 @@
   }
 }
 
+/* ─── 🆕 Wide mode ────────────────────────────────────────────────── */
+.chat-window--wide {
+  width: 860px;
+  max-width: calc(100vw - 40px);
+  height: 78vh;
+  max-height: calc(100vh - 130px);
+}
+
 /* ─── Header ──────────────────────────────────────────────────────── */
 .chat-header {
   display: flex;
@@ -67,6 +77,8 @@
   font-weight: 600;
   font-size: 16px;
   flex-shrink: 0;
+  position: relative;
+  z-index: 2;
 }
 
 .chat-header svg {
@@ -75,6 +87,29 @@
 
 .chat-header span {
   flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chat-header-expand {
+  background: rgba(255, 255, 255, 0.2);
+  border: none;
+  color: #fff;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  transition: background 0.2s;
+  flex-shrink: 0;
+}
+
+.chat-header-expand:hover {
+  background: rgba(255, 255, 255, 0.35);
 }
 
 .chat-header-close {
@@ -90,6 +125,7 @@
   justify-content: center;
   font-size: 13px;
   transition: background 0.2s;
+  flex-shrink: 0;
 }
 
 .chat-header-close:hover {
@@ -107,12 +143,10 @@
   gap: 12px;
   scroll-behavior: smooth;
 
-  /* Firefox */
   scrollbar-width: thin;
   scrollbar-color: #a78bfa #e8e0f5;
 }
 
-/* WebKit (Chrome, Safari, Edge) — colorful scrollbar */
 .chat-body::-webkit-scrollbar {
   width: 8px;
 }
@@ -183,6 +217,8 @@
   line-height: 1.55;
   white-space: pre-wrap;
   word-break: break-word;
+
+  transition: max-width 0.25s ease;
 }
 
 .chat-msg.bot .chat-bubble {
@@ -200,10 +236,16 @@
   box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
 }
 
+.chat-window--wide .chat-bubble {
+  max-width: 82%;
+  font-size: 14.5px;
+}
+
 /* ─── AI-style formatted answer ───────────────────────────────────── */
 .chat-line {
   margin: 1px 0;
   min-height: 4px;
+  font-family: inherit;
 }
 
 .chat-bold {
@@ -324,7 +366,202 @@
   cursor: not-allowed;
 }
 
-/* ─── Dark theme ──────────────────────────────────────────────────── */
+/* ─── Clickable navigation button inside a bot bubble ─────────────── */
+.chat-nav-btn {
+  display: inline-block;
+  margin-top: 10px;
+  padding: 8px 14px;
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.35);
+}
+
+.chat-nav-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 10px rgba(37, 99, 235, 0.5);
+}
+
+.chat-nav-btn:active {
+  transform: translateY(0);
+}
+
+/* ─── Container for per-row action buttons inside a bot bubble ────── */
+.chat-row-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed #d8d3f0;
+}
+
+/* ─── One per-row button — compact, left-aligned ──────────────────── */
+.chat-row-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: #ffffff;
+  color: #5b21b6;
+  border: 1px solid #c4b5fd;
+  border-radius: 8px;
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chat-row-btn:hover {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: #ffffff;
+  border-color: transparent;
+  box-shadow: 0 3px 10px rgba(102, 126, 234, 0.35);
+  transform: translateX(2px);
+}
+
+/* ─── Optional: monospace for fenced blocks ───────────────────────── */
+.chat-mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11.5px;
+  white-space: pre;
+  overflow-x: auto;
+  background: #f8f9fe;
+  border-radius: 6px;
+  padding: 6px 8px;
+  margin: 2px 0;
+}
+
+/* ============================================================
+   🆕 CHATBOT TABLE RENDERING
+   ============================================================ */
+
+.chat-table-wrap {
+  margin: 10px 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  border-radius: 10px;
+  border: 1px solid #e0e7ff;
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(102, 126, 234, 0.06);
+  max-width: 100%;
+}
+
+.chat-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+  min-width: 100%;
+  background: transparent;
+  table-layout: auto;
+}
+
+/* ─── Header row ─────────────────────────────────────────────── */
+.chat-table thead th {
+  background: linear-gradient(180deg, #eef2ff 0%, #e0e7ff 100%);
+  color: #3730a3;
+  font-weight: 700;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  text-align: left;
+  padding: 9px 12px;
+  border-bottom: 2px solid #c7d2fe;
+  white-space: nowrap;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+/* ─── Body cells ─────────────────────────────────────────────── */
+.chat-table tbody td {
+  padding: 8px 12px;
+  border-bottom: 1px solid #eef2ff;
+  color: #1f2937;
+  vertical-align: middle;
+  word-break: normal;
+  overflow-wrap: break-word;
+  max-width: 220px;
+  font-size: 12.5px;
+  line-height: 1.4;
+}
+
+.chat-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.chat-table tbody tr:nth-child(even) {
+  background: #fafbff;
+}
+
+.chat-table tbody tr:hover {
+  background: #eef2ff;
+  transition: background 0.15s ease;
+}
+
+/* ─── First column: # counter (FIXED — stays on one line) ───── */
+.chat-table tbody td:first-child,
+.chat-table thead th:first-child {
+  font-weight: 700;
+  color: #4f46e5;
+  width: 44px;
+  min-width: 44px;
+  max-width: 44px;
+  text-align: right;
+  padding-right: 10px;
+  padding-left: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: visible;
+  letter-spacing: 0;
+}
+
+/* ─── Second column: keep names/IDs on one line if short ────── */
+.chat-table tbody td:nth-child(2) {
+  white-space: nowrap;
+}
+
+/* ─── Scrollbar for the table wrapper ────────────────────────── */
+.chat-table-wrap::-webkit-scrollbar {
+  height: 6px;
+}
+
+.chat-table-wrap::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 6px;
+}
+
+.chat-table-wrap::-webkit-scrollbar-thumb {
+  background: linear-gradient(90deg, #a78bfa 0%, #667eea 100%);
+  border-radius: 6px;
+}
+
+.chat-table-wrap::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(90deg, #8b5cf6 0%, #5568d3 100%);
+}
+
+/* ─── Wider chat bubbles when they contain a table ───────────── */
+.chat-msg.bot .chat-bubble:has(.chat-table-wrap) {
+  max-width: 96%;
+  padding: 14px 16px;
+}
+
+.chat-window--wide .chat-msg.bot .chat-bubble:has(.chat-table-wrap) {
+  max-width: 92%;
+}
+
+/* ============================================================
+   DARK THEME
+   ============================================================ */
 .dark-theme .chat-window {
   background: #0f172a;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
@@ -399,13 +636,78 @@
   border-color: transparent;
 }
 
-/* ─── Responsive ──────────────────────────────────────────────────── */
+.dark-theme .chat-row-actions {
+  border-top-color: #334155;
+}
+
+.dark-theme .chat-row-btn {
+  background: #1e293b;
+  color: #c4b5fd;
+  border-color: #334155;
+}
+
+.dark-theme .chat-row-btn:hover {
+  background: linear-gradient(135deg, #3b82f6 0%, #6366f1 100%);
+  color: #ffffff;
+  border-color: transparent;
+}
+
+.dark-theme .chat-mono {
+  background: #0b1220;
+}
+
+/* 🆕 Dark theme table overrides */
+.dark-theme .chat-table-wrap {
+  border-color: #334155;
+  background: #0f172a;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+.dark-theme .chat-table thead th {
+  background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+  color: #a5b4fc;
+  border-bottom: 2px solid #4f46e5;
+}
+
+.dark-theme .chat-table tbody td {
+  border-bottom: 1px solid #1e293b;
+  color: #e2e8f0;
+}
+
+.dark-theme .chat-table tbody tr:nth-child(even) {
+  background: rgba(30, 41, 59, 0.4);
+}
+
+.dark-theme .chat-table tbody tr:hover {
+  background: rgba(79, 70, 229, 0.15);
+}
+
+.dark-theme .chat-table tbody td:first-child {
+  color: #a5b4fc;
+}
+
+.dark-theme .chat-table-wrap::-webkit-scrollbar-track {
+  background: #1e293b;
+}
+
+.dark-theme .chat-table-wrap::-webkit-scrollbar-thumb {
+  background: linear-gradient(90deg, #6366f1 0%, #4c1d95 100%);
+}
+
+/* ============================================================
+   RESPONSIVE
+   ============================================================ */
 @media (max-width: 520px) {
   .chat-window {
     width: calc(100vw - 24px);
     height: calc(100vh - 140px);
     right: 12px;
     bottom: 90px;
+  }
+
+  .chat-window--wide {
+    width: calc(100vw - 24px);
+    height: calc(100vh - 140px);
   }
 
   .chat-fab {
@@ -418,5 +720,67 @@
 
   .chat-bubble {
     max-width: 88%;
+  }
+
+  .chat-table {
+    font-size: 11px;
+    min-width: 100%;
+  }
+
+  .chat-table thead th {
+    padding: 7px 8px;
+    font-size: 10px;
+    letter-spacing: 0.2px;
+  }
+
+  .chat-table tbody td {
+    padding: 6px 8px;
+    font-size: 11px;
+    max-width: 140px;
+  }
+
+  /* 🆕 Keep # column on one line even on mobile */
+  .chat-table tbody td:first-child,
+  .chat-table thead th:first-child {
+    width: 36px;
+    min-width: 36px;
+    max-width: 36px;
+    padding-right: 8px;
+    padding-left: 8px;
+    font-size: 11px;
+    white-space: nowrap;
+  }
+
+  .chat-msg.bot .chat-bubble:has(.chat-table-wrap) {
+    max-width: 100%;
+    padding: 10px 12px;
+  }
+}
+
+@media (max-width: 380px) {
+  .chat-table {
+    font-size: 10px;
+  }
+
+  .chat-table thead th {
+    padding: 6px 6px;
+    font-size: 9.5px;
+  }
+
+  .chat-table tbody td {
+    padding: 5px 6px;
+    font-size: 10px;
+    max-width: 110px;
+  }
+
+  /* 🆕 Slightly narrower on tiny screens, still fits 2-digit numbers */
+  .chat-table tbody td:first-child,
+  .chat-table thead th:first-child {
+    width: 32px;
+    min-width: 32px;
+    max-width: 32px;
+    padding-right: 6px;
+    padding-left: 6px;
+    font-size: 10px;
   }
 }
