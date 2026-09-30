@@ -1,5 +1,6 @@
+
 import { useState, useEffect, useCallback } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import {
   FaSearch,
   FaFilter,
@@ -111,44 +112,6 @@ const STATUS_LABELS: Record<Status, string> = {
   Cancelled: "Cancelled",
 };
 
-// 🆕 Map chatbot status keywords → Job Card status values
-const URL_STATUS_TO_JC_STATUS: Record<string, Status> = {
-  "completed":    "Completed",
-  "complete":     "Completed",
-  "done":         "Completed",
-  "finished":     "Completed",
-  "closed":       "Completed",
-  "open":         "Open",
-  "draft":        "Open",
-  "in process":   "Work In Progress",
-  "in-process":   "Work In Progress",
-  "in progress":  "Work In Progress",
-  "in-progress":  "Work In Progress",
-  "processing":   "Work In Progress",
-  "ongoing":      "Work In Progress",
-  "running":      "Work In Progress",
-  "work in progress": "Work In Progress",
-  "pending":      "On Hold",
-  "on hold":      "On Hold",
-  "on-hold":      "On Hold",
-  "hold":         "On Hold",
-  "cancelled":    "Cancelled",
-  "canceled":     "Cancelled",
-  "cancel":       "Cancelled",
-};
-
-function resolveJobCardStatus(rawStatus: string): Status | null {
-  if (!rawStatus) return null;
-  const norm = rawStatus.toLowerCase().trim();
-  if (URL_STATUS_TO_JC_STATUS[norm]) return URL_STATUS_TO_JC_STATUS[norm];
-
-  // Fallback: check if any known value includes the raw status or vice versa
-  for (const [key, val] of Object.entries(URL_STATUS_TO_JC_STATUS)) {
-    if (norm.includes(key) || key.includes(norm)) return val;
-  }
-  return null;
-}
-
 const formatDuration = (ms: number): string => {
   const totalSeconds = Math.max(0, Math.floor(ms / 1000));
   const days = Math.floor(totalSeconds / 86400);
@@ -196,13 +159,7 @@ const getTimerInfo = (row: JobCardDisplay, now: Date): TimerInfo => {
 
 export default function JobCardManagement() {
   const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useSearchParams();
-
-  // 🆕 URL-driven status filter
-  const urlStatus = searchParams.get("status") || "";
-  const urlAutoFilter = searchParams.get("autoFilter") === "1";
-  const isUrlFiltered = !!urlStatus && urlAutoFilter;
-
+  
   // ✅ GET THE DATE FORMAT FUNCTION FROM CONTEXT
   const { theme, formatDate } = useAdminTheme();
 
@@ -235,17 +192,6 @@ export default function JobCardManagement() {
     if (!dateString) return '';
     return formatDate(dateString);
   };
-
-  // 🆕 Sync URL status → statusFilter dropdown
-  useEffect(() => {
-    if (isUrlFiltered && urlStatus) {
-      const mapped = resolveJobCardStatus(urlStatus);
-      if (mapped) {
-        setStatusFilter(mapped);
-        setCurrentPage(1);
-      }
-    }
-  }, [isUrlFiltered, urlStatus]);
 
   // ✅ NEW: Format date for API (YYYY-MM-DD)
 
@@ -677,15 +623,6 @@ export default function JobCardManagement() {
     setCurrentPage(1);
   };
 
-  // 🆕 Clears the URL-driven status filter
-  const clearUrlStatusFilter = () => {
-    const next = new URLSearchParams(searchParams);
-    next.delete("status");
-    next.delete("autoFilter");
-    setSearchParams(next);
-    setCurrentPage(1);
-  };
-
     // ─── Loading Screen ─────────────────────────────────────────────────────
       if (loading) {
         return (
@@ -700,27 +637,6 @@ export default function JobCardManagement() {
 
   return (
     <div className={`jc-page ${theme}`}>
-
-      {/* 🆕 URL-driven status filter banner */}
-      {isUrlFiltered && (
-        <div className="jc-url-filter-banner">
-          <FaFilter size={12} />
-          <span>
-            Showing Job Cards with status: <strong>{resolveJobCardStatus(urlStatus) || urlStatus}</strong>
-          </span>
-          <span className="jc-url-filter-count">
-            ({totalItems} record{totalItems === 1 ? "" : "s"})
-          </span>
-          <button
-            className="jc-url-filter-clear"
-            onClick={clearUrlStatusFilter}
-            title="Clear status filter"
-          >
-            <FaTimes size={10} /> Clear
-          </button>
-        </div>
-      )}
-
       {/* Search and Filter Bar */}
       <div className="jc-filter-bar">
         <div className="jc-filter-left">
@@ -842,15 +758,10 @@ export default function JobCardManagement() {
         </div>
       </div>
 
-      {(searchTerm || statusFilter !== "all" || (fromDate && toDate) || isUrlFiltered) && (
+      {(searchTerm || statusFilter !== "all" || (fromDate && toDate)) && (
         <div className="jc-active-filters">
           <FaFilter size={12} style={{ color: "var(--primary-color)" }} />
           <span style={{ color: "var(--text-primary)" }}>Active filters:</span>
-          {isUrlFiltered && (
-            <span style={{ color: "var(--text-primary)" }}>
-              <strong>Status (URL):</strong> {resolveJobCardStatus(urlStatus) || urlStatus}
-            </span>
-          )}
           {searchTerm && (
             <span style={{ color: "var(--text-primary)" }}>
               <strong>Search:</strong> "{searchTerm}"
@@ -866,13 +777,7 @@ export default function JobCardManagement() {
               <strong>Date Range:</strong> {formatDateDisplay(fromDate)} - {formatDateDisplay(toDate)}
             </span>
           )}
-          <button
-            onClick={() => {
-              clearFilters();
-              if (isUrlFiltered) clearUrlStatusFilter();
-            }}
-            className="jc-clear-filters"
-          >
+          <button onClick={clearFilters} className="jc-clear-filters">
             <FaTimes size={10} /> Clear All
           </button>
         </div>
@@ -933,7 +838,7 @@ export default function JobCardManagement() {
                         )}
                       </div>
                       <div className="jc-group-header-right">
-                      нет
+                     
                         <div className="jc-group-progress">
                           <div className="jc-group-progress-bar">
                             <div
@@ -1193,64 +1098,6 @@ export default function JobCardManagement() {
         }
         .spinning {
           animation: spin 1s linear infinite;
-        }
-
-        /* 🆕 URL-driven status filter banner */
-        .jc-url-filter-banner {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          margin: 12px 0 4px;
-          padding: 10px 14px;
-          background: linear-gradient(135deg, #dbeafe, #eff6ff);
-          border: 1px solid #93c5fd;
-          border-radius: 8px;
-          color: #1e40af;
-          font-size: 13px;
-          font-weight: 500;
-        }
-
-        .jc-url-filter-banner svg {
-          color: #2563eb;
-          flex-shrink: 0;
-        }
-
-        .jc-url-filter-count {
-          color: #64748b;
-          font-weight: 400;
-        }
-
-        .jc-url-filter-clear {
-          margin-left: auto;
-          display: inline-flex;
-          align-items: center;
-          gap: 4px;
-          padding: 4px 10px;
-          background: #2563eb;
-          color: #fff;
-          border: none;
-          border-radius: 6px;
-          font-size: 12px;
-          font-weight: 600;
-          cursor: pointer;
-          transition: background 0.15s ease;
-        }
-
-        .jc-url-filter-clear:hover {
-          background: #1d4ed8;
-        }
-
-        /* Dark theme support */
-        .dark-theme .jc-url-filter-banner,
-        [data-theme="dark"] .jc-url-filter-banner {
-          background: linear-gradient(135deg, #1e3a8a, #1e40af);
-          border-color: #3b82f6;
-          color: #dbeafe;
-        }
-
-        .dark-theme .jc-url-filter-count,
-        [data-theme="dark"] .jc-url-filter-count {
-          color: #93c5fd;
         }
 
         /* ─── Lighter Subcontracting Styles ─── */

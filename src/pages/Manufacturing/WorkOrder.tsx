@@ -1,6 +1,6 @@
 // WorkOrderList.tsx
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import {
   FaSearch,
   FaTimes,
@@ -109,55 +109,10 @@ const TYPE_ICONS: Record<string, React.ReactNode> = {
   internal: <FaBox size={11} />,
   external: <FaWrench size={11} />,
 };
-
-// 🆕 Map chatbot status keywords → Work Order status values
-const URL_STATUS_TO_WO_STATUS: Record<string, Status> = {
-  "completed":       "Completed",
-  "complete":        "Completed",
-  "done":            "Completed",
-  "finished":        "Completed",
-  "closed":          "Completed",
-  "draft":           "Draft",
-  "open":            "Not Started",
-  "not started":     "Not Started",
-  "pending":         "Not Started",
-  "in process":      "In Process",
-  "in-process":      "In Process",
-  "in progress":     "In Process",
-  "in-progress":     "In Process",
-  "processing":      "In Process",
-  "ongoing":         "In Process",
-  "running":         "In Process",
-  "work in progress":"In Process",
-  "stopped":         "Stopped",
-  "on hold":         "Stopped",
-  "on-hold":         "Stopped",
-  "hold":            "Stopped",
-  "cancelled":       "Stopped",
-  "canceled":        "Stopped",
-  "cancel":          "Stopped",
-};
-
-function resolveWorkOrderStatus(rawStatus: string): Status | null {
-  if (!rawStatus) return null;
-  const norm = rawStatus.toLowerCase().trim();
-  if (URL_STATUS_TO_WO_STATUS[norm]) return URL_STATUS_TO_WO_STATUS[norm];
-
-  for (const [key, val] of Object.entries(URL_STATUS_TO_WO_STATUS)) {
-    if (norm.includes(key) || key.includes(norm)) return val;
-  }
-  return null;
-}
-
+  
 export default function WorkOrderList() {
   const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useSearchParams();
-
-  // 🆕 URL-driven status filter
-  const urlStatus = searchParams.get("status") || "";
-  const urlAutoFilter = searchParams.get("autoFilter") === "1";
-  const isUrlFiltered = !!urlStatus && urlAutoFilter;
-
+  
   const { theme } = useAdminTheme();
 
   const [loading, setLoading] = useState(false);
@@ -180,17 +135,6 @@ export default function WorkOrderList() {
   const [showDatePicker, setShowDatePicker] = useState<boolean>(false);
   const [currentMonth, setCurrentMonth] = useState<Date>(new Date());
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
-
-  // 🆕 Sync URL status → statusFilter dropdown
-  useEffect(() => {
-    if (isUrlFiltered && urlStatus) {
-      const mapped = resolveWorkOrderStatus(urlStatus);
-      if (mapped) {
-        setStatusFilter(mapped);
-        setCurrentPage(1);
-      }
-    }
-  }, [isUrlFiltered, urlStatus]);
 
   const toggleRowExpand = (id: string, e?: React.MouseEvent) => {
     if (e) {
@@ -239,6 +183,8 @@ export default function WorkOrderList() {
     const date = new Date(dateString);
     return isNaN(date.getTime()) ? dateString : date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
   };
+
+  // ✅ NEW: Format date for API (YYYY-MM-DD)
 
   const calculateJobCardProgress = (total: number = 0, completed: number = 0): number => {
     if (total === 0) return 0;
@@ -315,6 +261,7 @@ export default function WorkOrderList() {
       canComplete: canCompleteWorkOrder(item.status, totalJobCards, completedJobCards),
       type,
       supplierName: item.supplier_name || '',
+      // ✅ ADD FORMATTED DATES FOR DISPLAY
       displayStartDate: formatDisplayDate(item.planned_start_date),
       displayEndDate: formatDisplayDate(item.planned_end_date),
     };
@@ -600,15 +547,6 @@ export default function WorkOrderList() {
     setCurrentPage(1);
   };
 
-  // 🆕 Clears the URL-driven status filter
-  const clearUrlStatusFilter = () => {
-    const next = new URLSearchParams(searchParams);
-    next.delete("status");
-    next.delete("autoFilter");
-    setSearchParams(next);
-    setCurrentPage(1);
-  };
-
   const getStatusIcon = (status: Status) => {
     switch (status) {
       case 'Completed': return <FaCheckCircle size={14} />;
@@ -641,27 +579,6 @@ export default function WorkOrderList() {
 
   return (
     <div className={`wo-page ${theme}`}>
-
-      {/* 🆕 URL-driven status filter banner */}
-      {isUrlFiltered && (
-        <div className="wo-url-filter-banner">
-          <FaFilter size={12} />
-          <span>
-            Showing Work Orders with status: <strong>{resolveWorkOrderStatus(urlStatus) || urlStatus}</strong>
-          </span>
-          <span className="wo-url-filter-count">
-            ({displayTotalItems} record{displayTotalItems === 1 ? "" : "s"})
-          </span>
-          <button
-            className="wo-url-filter-clear"
-            onClick={clearUrlStatusFilter}
-            title="Clear status filter"
-          >
-            <FaTimes size={10} /> Clear
-          </button>
-        </div>
-      )}
-
       {/* Tabs */}
       <div className="wo-tabs">
         <button
@@ -832,15 +749,10 @@ export default function WorkOrderList() {
       </div>
 
       {/* Active filters indicator */}
-      {(searchTerm || statusFilter !== 'all' || dateFilter !== 'all' || activeTab !== 'all' || (fromDate && toDate) || isUrlFiltered) && (
+      {(searchTerm || statusFilter !== 'all' || dateFilter !== 'all' || activeTab !== 'all' || (fromDate && toDate)) && (
         <div className="wo-active-filters">
           <FaFilter size={12} style={{ color: 'var(--primary-color)' }} />
           <span style={{ color: 'var(--text-primary)' }}>Active filters:</span>
-          {isUrlFiltered && (
-            <span style={{ color: 'var(--text-primary)' }}>
-              <strong>Status (URL):</strong> {resolveWorkOrderStatus(urlStatus) || urlStatus}
-            </span>
-          )}
           {activeTab !== 'all' && (
             <span style={{ color: 'var(--text-primary)' }}>
               <strong>Type:</strong> {activeTab === 'internal' ? 'Products' : 'Services'}
@@ -866,13 +778,7 @@ export default function WorkOrderList() {
               <strong>Date:</strong> {dateFilterOptions.find(o => o.value === dateFilter)?.label}
             </span>
           )}
-          <button
-            onClick={() => {
-              clearFilters();
-              if (isUrlFiltered) clearUrlStatusFilter();
-            }}
-            className="wo-clear-filters"
-          >
+          <button onClick={clearFilters} className="wo-clear-filters">
             <FaTimes size={10} /> Clear All
           </button>
         </div>

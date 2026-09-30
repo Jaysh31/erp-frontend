@@ -255,10 +255,6 @@ export default function PurchaseInvoiceForm() {
   const [pendingSupplierId, setPendingSupplierId] = useState<number | null>(null);
   const [pendingWarehouseId, setPendingWarehouseId] = useState<number | null>(null);
 
-  // 🆕 FIX: also remember the supplier NAME so we can bind when the numeric
-  //         FK is missing or non-numeric.
-  const [pendingSupplierName, setPendingSupplierName] = useState<string | null>(null);
-
   // ── PO + GRN linked state (GRN bill source) ─────────────────────────────────
   const [allGRNs, setAllGRNs] = useState<GRNSummary[]>([]);
   const [loadingGRNList, setLoadingGRNList] = useState(false);
@@ -436,7 +432,6 @@ export default function PurchaseInvoiceForm() {
           setSelectedSupplier(newSupplierData);
           setSupplierSearch(supplierName);
           setPendingSupplierId(null);
-          setPendingSupplierName(null);
         }
       } else {
         toast.error(response.data?.message || 'Failed to create supplier');
@@ -493,35 +488,16 @@ export default function PurchaseInvoiceForm() {
 
   // ─── EDIT-MODE BINDING FIX: resolve the supplier once BOTH the invoice load
   //     and the supplier list have finished
-  // 🆕 FIX: also fall back to binding by supplier NAME when the numeric FK
-  //         is missing or NaN.
   useEffect(() => {
-    if (suppliers.length === 0) return;
-
-    if (pendingSupplierId != null && !Number.isNaN(pendingSupplierId)) {
+    if (pendingSupplierId != null && suppliers.length > 0) {
       const supplier = suppliers.find(s => s.id === pendingSupplierId);
-      if (supplier) {
-        setSelectedSupplier(supplier);
-        setSupplierSearch(supplier.supplier_name || '');
-        setPendingSupplierId(null);
-        setPendingSupplierName(null);
-        return;
-      }
-    }
-
-    if (pendingSupplierName) {
-      const needle = pendingSupplierName.toLowerCase();
-      const supplier = suppliers.find(
-        s => (s.supplier_name || '').toLowerCase() === needle
-      );
       if (supplier) {
         setSelectedSupplier(supplier);
         setSupplierSearch(supplier.supplier_name || '');
       }
       setPendingSupplierId(null);
-      setPendingSupplierName(null);
     }
-  }, [pendingSupplierId, pendingSupplierName, suppliers]);
+  }, [pendingSupplierId, suppliers]);
 
   // ─── Same fix for warehouse ──────────────────────────────────────────────
   useEffect(() => {
@@ -616,14 +592,15 @@ export default function PurchaseInvoiceForm() {
   }, [selectedGRNIds, selectedPO, formData.billSource]);
 
   // ─── Fetch PO list ──────────────────────────────────────────────────────────
-  // 🆕 FIX: no longer gated on res.data.success === 1 — uses unwrapList.
   const fetchPOList = async () => {
     if (isViewMode) return;
     setLoadingPOList(true);
     try {
       const res = await api.get('/purchase-order?limit=200');
-      const records = unwrapList(res.data);
-      setPoList(records);
+      if (res.data?.success === 1) {
+        const records = res.data.data?.records || res.data.data || [];
+        setPoList(records);
+      }
     } catch (err) {
       console.error('Error fetching PO list:', err);
     } finally {
@@ -638,8 +615,10 @@ export default function PurchaseInvoiceForm() {
     setLoadingSuppliers(true);
     try {
       const res = await api.get('/supplier?limit=200');
-      const records = unwrapList(res.data);
-      setSuppliers(records);
+      if (res.data?.success === 1) {
+        const records = res.data.data?.records || res.data.data || [];
+        setSuppliers(records);
+      }
     } catch (err) {
       console.error('Error fetching suppliers:', err);
     } finally {
@@ -648,14 +627,15 @@ export default function PurchaseInvoiceForm() {
   };
 
   // ─── Fetch Items ────────────────────────────────────────────────────────────
-  // 🆕 FIX: no longer gated on res.data.success === 1.
   const fetchItems = async () => {
     if (isViewMode) return;
     setLoadingItems(true);
     try {
       const res = await api.get('/item?limit=200');
-      const records = unwrapList(res.data);
-      setItemsList(records);
+      if (res.data?.success === 1) {
+        const records = res.data.data?.records || res.data.data || [];
+        setItemsList(records);
+      }
     } catch (err) {
       console.error('Error fetching items:', err);
       toast.error('Failed to load items');
@@ -670,21 +650,21 @@ export default function PurchaseInvoiceForm() {
   const fetchTaxes = async () => {
     try {
       const res = await api.get('/item/get-tax');
-      const list = unwrapApi(res.data);
-      setTaxes(Array.isArray(list) ? list : []);
+      if (res.data?.success === 1) {
+        setTaxes(res.data.data || []);
+      }
     } catch (err) {
       console.error('Error fetching taxes:', err);
     }
   };
 
   // ─── Fetch Warehouses ───────────────────────────────────────────────────────
-  // 🆕 FIX: no longer gated on res.data.success === 1.
   const fetchWarehouses = async () => {
     if (isViewMode) return;
     setLoadingWarehouses(true);
     try {
       const res = await api.get('/warehouse?limit=200');
-      const records = unwrapList(res.data);
+      const records = res.data?.success === 1 ? (res.data.data?.records || res.data.data || []) : [];
       if (records.length) {
         setWarehouses(records);
         if (selectedWarehouseId === '' && !isEdit) {
@@ -718,14 +698,16 @@ export default function PurchaseInvoiceForm() {
   };
 
   // ─── Fetch all GRNs ─────────────────────────────────────────────────────────
-  // 🆕 FIX: no longer gated on res.data.success === 1.
   const fetchGRNList = async () => {
     if (isViewMode) return;
     setLoadingGRNList(true);
     try {
       const res = await api.get('/grn?page=1&limit=200&is_completed=0');
-      const records: GRNSummary[] = unwrapList(res.data);
-      setAllGRNs(records);
+      if (res.data?.success === 1) {
+        const raw = res.data.data;
+        const records: GRNSummary[] = Array.isArray(raw) ? raw : (raw?.data || raw?.records || []);
+        setAllGRNs(records);
+      }
     } catch (err) {
       console.error('Error fetching GRN list:', err);
       toast.error('Failed to load GRNs');
@@ -735,13 +717,13 @@ export default function PurchaseInvoiceForm() {
   };
 
   // ─── Fetch GRNs linked to a specific PO ────────────────────────────────────
-  // 🆕 FIX: no longer gated on res.data.success === 1.
   const fetchGRNsForPurchaseOrder = async (poId: number): Promise<GRNSummary[]> => {
     if (isViewMode) return [];
     try {
       const res = await api.get(`/grn/get-grn-by-purchase-order/${poId}`);
-      const list = unwrapList(res.data);
-      return list;
+      if (res.data?.success === 1) {
+        return res.data.data || [];
+      }
     } catch (err) {
       console.error('Error fetching GRNs for PO:', err);
       toast.error('Failed to load GRNs for this PO');
@@ -750,13 +732,13 @@ export default function PurchaseInvoiceForm() {
   };
 
   // ─── Fetch full detail for a single GRN ─────────────────────────────────────
-  // 🆕 FIX: no longer gated on res.data.success === 1.
   const fetchGRNDetail = async (grnId: number): Promise<GRNRecord | null> => {
     if (isViewMode) return null;
     try {
       const res = await api.get(`/grn/${grnId}`);
-      const d = unwrapApi(res.data);
-      return (d as GRNRecord) || null;
+      if (res.data?.success === 1) {
+        return res.data.data as GRNRecord;
+      }
     } catch (err) {
       console.error('Error fetching GRN detail:', err);
       toast.error('Failed to load GRN details');
@@ -765,13 +747,13 @@ export default function PurchaseInvoiceForm() {
   };
 
   // ─── Fetch full PO detail ───────────────────────────────────────────────────
-  // 🆕 FIX: no longer gated on res.data.success === 1.
   const fetchPODetail = async (poId: number): Promise<PODetail | null> => {
     if (isViewMode) return null;
     try {
       const res = await api.get(`/purchase-order/${poId}`);
-      const d = unwrapApi(res.data);
-      return (d as PODetail) || null;
+      if (res.data?.success === 1) {
+        return res.data.data as PODetail;
+      }
     } catch (err) {
       console.error('Error fetching PO detail:', err);
       toast.error('Failed to load Purchase Order details');
@@ -1161,11 +1143,6 @@ export default function PurchaseInvoiceForm() {
   };
 
   // ─── Load existing invoice ──────────────────────────────────────────────────
-  // 🆕 FIX (this is the main bug): no longer gated on res.data.success === 1.
-  //     Uses unwrapApi() so it works with { data }, { success:1, data },
-  //     arrays, etc. Also handles non-numeric `supplier` FK by falling back
-  //     to `supplier_name`, and reads bill_qty/rate/amount from the record
-  //     with safe fallbacks.
   const loadExistingInvoice = async (invoiceId: string) => {
     // ✅ FIX: Guard against bad ids reaching the API.
     if (!invoiceId || String(invoiceId).startsWith(':') || !/^\d+$/.test(String(invoiceId))) {
@@ -1176,61 +1153,57 @@ export default function PurchaseInvoiceForm() {
     setPageLoading(true);
     try {
       const res = await api.get(`/purchase-invoice/${invoiceId}`);
-      console.log('📥 /purchase-invoice/' + invoiceId + ' raw response:', res.data);
+      if (res.data?.success === 1) {
+        const inv = res.data.data;
 
-      // 🆕 FIX: use unwrapApi instead of requiring success === 1.
-      const inv = unwrapApi(res.data);
+        // ── NEW: Read is_create_from_grn and grn_ids from API ──
+        const isCreateFromGrn = inv.is_create_from_grn || 0;
+        const grnIds = inv.grn_ids || [];
 
-      if (!inv || typeof inv !== 'object') {
-        console.warn('⚠️ Empty/invalid purchase-invoice payload:', res.data);
-        toast.error('Invoice not found or malformed response');
-        return;
-      }
+        // ── BILL SOURCE FIX: determine bill source from is_create_from_grn ──
+        const resolvedBillSource: BillSource = isCreateFromGrn === 1 ? 'GRN' : 'Without GRN';
 
-      // ── NEW: Read is_create_from_grn and grn_ids from API ──
-      const isCreateFromGrn = inv.is_create_from_grn || 0;
-      const grnIds = inv.grn_ids || [];
+        const itemsFromApi: any[] = Array.isArray(inv.items) ? inv.items : [];
 
-      // ── BILL SOURCE FIX: determine bill source from is_create_from_grn ──
-      const resolvedBillSource: BillSource = isCreateFromGrn === 1 ? 'GRN' : 'Without GRN';
+        setFormData(prev => ({
+          ...prev,
+          invoiceNumber: inv.name || '',
+          status: inv.status || 'Draft',
+          date: inv.posting_date ? inv.posting_date.split('T')[0] : prev.date,
+          billNo: inv.bill_no || '',
+          billDate: inv.bill_date ? inv.bill_date.split('T')[0] : '',
+          notes: inv.remarks || '',
+          billSource: resolvedBillSource,
+          // NEW: Set GRN fields
+          isCreateFromGrn: isCreateFromGrn,
+          grnIds: grnIds,
+        }));
 
-      const itemsFromApi: any[] = Array.isArray(inv.items) ? inv.items : [];
+        // Restore selected GRN IDs
+        if (grnIds.length > 0) {
+          setSelectedGRNIds(new Set(grnIds));
 
-      setFormData(prev => ({
-        ...prev,
-        invoiceNumber: inv.name || '',
-        status: inv.status || 'Draft',
-        date: inv.posting_date ? inv.posting_date.split('T')[0] : prev.date,
-        billNo: inv.bill_no || '',
-        billDate: inv.bill_date ? inv.bill_date.split('T')[0] : '',
-        notes: inv.remarks || '',
-        billSource: resolvedBillSource,
-        // NEW: Set GRN fields
-        isCreateFromGrn: isCreateFromGrn,
-        grnIds: grnIds,
-      }));
-
-      // Restore selected GRN IDs
-      if (grnIds.length > 0) {
-        setSelectedGRNIds(new Set(grnIds));
-
-        // Load GRN details for these IDs
-        const missingIds = grnIds.filter(
-          (gid: string | number) => !grnDetailCache[Number(gid)]
-        );
-
-        if (missingIds.length && !isViewMode) {
-          const fetched = await Promise.all(
-            missingIds.map((gid: string | number) =>
-              fetchGRNDetail(Number(gid))
-            )
+          // Load GRN details for these IDs
+          const missingIds = grnIds.filter(
+            (gid: string | number) => !grnDetailCache[Number(gid)]
           );
 
-          const nextCache = { ...grnDetailCache };
+          if (missingIds.length && !isViewMode) {
+            const fetched = await Promise.all(
+              missingIds.map((gid: string | number) =>
+                fetchGRNDetail(Number(gid))
+              )
+            );
 
-          fetched.forEach((g) => {
-            if (g) nextCache[g.id] = g;
-          });
+            const nextCache = { ...grnDetailCache };
+
+            fetched.forEach((g) => {
+              if (g) nextCache[g.id] = g;
+            });
+
+            setGrnDetailCache(nextCache);
+          }
+        }
 
         // Supplier: resolved once the supplier list itself has loaded
         if (inv.supplier != null) {
@@ -1254,7 +1227,6 @@ export default function PurchaseInvoiceForm() {
         } else if (inv.supplier_name) {
           setSupplierSearch(inv.supplier_name);
         }
-      }
 
         if (itemsFromApi.length) {
           const rows: InvoiceItem[] = itemsFromApi.map((it: any) => {
@@ -1295,50 +1267,10 @@ export default function PurchaseInvoiceForm() {
           });
           setItems(rows);
 
-      if (itemsFromApi.length) {
-        const rows: InvoiceItem[] = itemsFromApi.map((it: any) => {
-          const resolvedTaxRate = it.item_tax_rate
-            ? parseFloat(it.item_tax_rate)
-            : (it.tax_rate ?? parseTaxRateFromTemplate(it.item_tax_template));
-
-          // 🆕 FIX: read qty from bill_qty OR qty, whichever the API sent.
-          const rowQty =
-            it.bill_qty != null ? Number(it.bill_qty) :
-            it.qty != null ? Number(it.qty) :
-            0;
-          const rowRate = Number(it.rate ?? it.ordered_rate ?? 0);
-          const rowAmount =
-            it.amount != null ? Number(it.amount) :
-            Math.round(rowQty * rowRate * 100) / 100;
-
-          return {
-            id: makeRowId(),
-            db_item_id: it.id ? Number(it.id) : undefined,
-            po_item_id: it.po_detail ?? it.po_item_id ?? undefined,
-            grn_item_id: it.pr_detail ?? it.grn_item_id ?? undefined,
-            item_id: it.item_id ?? undefined,
-            item_code: it.item_code || '',
-            item_name: it.item_name || '',
-            uom: it.uom || 'Nos',
-            rate: rowRate,
-            ordered_rate: Number(it.ordered_rate ?? rowRate),
-            ordered_qty: Number(it.ordered_qty ?? it.qty ?? rowQty),
-            total_received_qty: Number(it.total_received_qty ?? it.qty ?? rowQty),
-            unbilled_qty: Number(it.unbilled_qty ?? it.qty ?? rowQty),
-            bill_qty: rowQty,
-            amount: rowAmount,
-            grn_refs: it.grn_refs || [],
-            tax_rate: resolvedTaxRate || 0,
-            tax_id: it.tax_id || 1,
-            HSN: it.hsn_code || it.HSN || '',
-            note: it.note || '',
-          };
-        });
-        setItems(rows);
-
-        const firstWarehouse = itemsFromApi.find((it: any) => it.warehouse)?.warehouse;
-        if (firstWarehouse != null && !Number.isNaN(Number(firstWarehouse))) {
-          setPendingWarehouseId(Number(firstWarehouse));
+          const firstWarehouse = itemsFromApi.find((it: any) => it.warehouse)?.warehouse;
+          if (firstWarehouse != null) {
+            setPendingWarehouseId(Number(firstWarehouse));
+          }
         }
       }
     } catch (err) {
@@ -2452,7 +2384,7 @@ export default function PurchaseInvoiceForm() {
                               ? "Loading…"
                               : "Search supplier by name or mobile…"
                           }
-                          disabled={loadingSuppliers || isViewMode}
+                          disabled={loadingSuppliers || isEdit || isViewMode}
                         />
 
                         {selectedSupplier && (

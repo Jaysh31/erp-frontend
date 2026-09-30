@@ -1,6 +1,4 @@
 import React, { useEffect, useRef, useState, useMemo, useCallback } from "react";
-import { useSearchParams, useNavigate } from "react-router-dom";
-
 import {
   ChevronDown,
   Plus,
@@ -45,7 +43,6 @@ interface BOMRecord {
   total_cost: number;
   creation: string;
   type: string;
-  status?: string;
 }
 
 interface BOMListResponse {
@@ -93,47 +90,10 @@ interface DeleteModal {
   bomType: string;
 }
 
-// ─── Status helpers ──────────────────────────────────────────────────────────
-const STATUS_FIELD_NAMES = [
-  "status", "bom_status", "document_status", "state", "status_name",
-  "current_status",
-];
-
-function getRecordStatus(record: any): string {
-  for (const f of STATUS_FIELD_NAMES) {
-    const v = record?.[f];
-    if (v !== undefined && v !== null && String(v).trim() !== "") {
-      return String(v).trim();
-    }
-  }
-  // Fall back to is_active flag
-  if (record?.is_active === 1) return "Active";
-  if (record?.is_active === 0) return "Disabled";
-  return "";
-}
-
-function statusMatches(recordStatus: string, target: string): boolean {
-  if (!recordStatus || !target) return false;
-  const r = recordStatus.toLowerCase().trim();
-  const t = target.toLowerCase().trim();
-  if (r === t) return true;
-  const words = t.split(/\s+/);
-  if (words.length > 1) return words.every((w) => r.includes(w));
-  return r.includes(t) || t.includes(r);
-}
-
 // ─── Main component ───────────────────────────────────────────────────────────
 
 const BOMPage: React.FC = () => {
   const { theme } = useAdminTheme();
-  const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useSearchParams();
-
-  // 🆕 URL-driven status filter
-  const urlStatus = searchParams.get("status") || "";
-  const urlAutoFilter = searchParams.get("autoFilter") === "1";
-  const isUrlFiltered = !!urlStatus && urlAutoFilter;
-
   const [showNewBOM, setShowNewBOM] = useState(false);
   const [showViewBOM, setShowViewBOM] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -303,7 +263,12 @@ const BOMPage: React.FC = () => {
 
       // Search by BOM ID, Item Name, or Supplier Name
       if (searchTerm.trim()) {
+        // Check if search term matches supplier name pattern
+        // This will search across multiple fields: BOM ID, item name, and supplier name
         params.append('search', searchTerm.trim());
+        // Also add a separate parameter for supplier name search
+        // The backend should handle searching across multiple fields
+         // This tells backend to search across all fields
       }
 
       if (statusFilter !== 'all') {
@@ -350,15 +315,10 @@ const BOMPage: React.FC = () => {
     }
   };
 
-  // ─── Filter BOMs based on active tab + URL status + paginate ────────────────
+  // ─── Filter BOMs based on active tab and paginate ─────────────────────────
 
   useEffect(() => {
     let filtered = [...allBomData];
-
-    // 🆕 URL-driven status filter (highest priority)
-    if (isUrlFiltered && urlStatus) {
-      filtered = filtered.filter(bom => statusMatches(getRecordStatus(bom), urlStatus));
-    }
 
     if (activeTab === 'internal') {
       filtered = filtered.filter(bom => bom.type === 'Internal');
@@ -372,7 +332,7 @@ const BOMPage: React.FC = () => {
     const paginatedData = filtered.slice(startIndex, startIndex + itemsPerPage);
     
     setBomData(paginatedData);
-  }, [allBomData, activeTab, currentPage, itemsPerPage, isUrlFiltered, urlStatus]);
+  }, [allBomData, activeTab, currentPage, itemsPerPage]);
 
   // ─── Fetch single BOM for viewing ────────────────────────────────────────
 
@@ -472,22 +432,12 @@ const BOMPage: React.FC = () => {
     setCurrentPage(1);
   };
 
-  // 🆕 Clears the URL-driven status filter
-  const clearUrlStatusFilter = () => {
-    const next = new URLSearchParams(searchParams);
-    next.delete("status");
-    next.delete("autoFilter");
-    setSearchParams(next);
-    setCurrentPage(1);
-  };
-
   // ─── Transform API data to table rows ────────────────────────────────────
 
   const transformToRows = (records: BOMRecord[]): BOMRow[] => {
     return records.map(record => ({
       id: String(record.id),
-      status: (getRecordStatus(record) as BOMRow["status"]) || 
-              (record.is_active === 1 ? "Active" : "Disabled"),
+      status: record.is_active === 1 ? "Active" : "Disabled",
       itemToManufacture: record.item_name || record.item,
       totalCost: `₹ ${(record.total_cost || 0).toFixed(2)}`,
       createdOn: new Date(record.creation).toLocaleDateString('en-US', {
@@ -726,27 +676,6 @@ const BOMPage: React.FC = () => {
 
       {!showNewBOM && !showViewBOM && (
         <div className={`bom-page ${theme}`} ref={rootRef}>
-
-          {/* 🆕 URL-driven status filter banner */}
-          {isUrlFiltered && (
-            <div className="bom-url-filter-banner">
-              <FilterIcon size={14} />
-              <span>
-                Showing BOMs with status: <strong>{urlStatus}</strong>
-              </span>
-              <span className="bom-url-filter-count">
-                ({totalRecords} record{totalRecords === 1 ? "" : "s"})
-              </span>
-              <button
-                className="bom-url-filter-clear"
-                onClick={clearUrlStatusFilter}
-                title="Clear status filter"
-              >
-                <X size={12} /> Clear
-              </button>
-            </div>
-          )}
-
           {/* ── Tabs ──────────────────────────────────────────────────────── */}
           <div className="bom-tabs">
             <button
@@ -950,13 +879,10 @@ const BOMPage: React.FC = () => {
           </div>
 
           {/* ── Active filters indicator ──────────────────────────────────── */}
-          {(searchTerm || statusFilter !== 'all' || activeTab !== 'all' || (fromDate && toDate) || isUrlFiltered) && (
+          {(searchTerm || statusFilter !== 'all' || activeTab !== 'all' || (fromDate && toDate)) && (
             <div className="bom-active-filters">
               <FilterIcon size={12} style={{ color: 'var(--primary-color)' }} />
               <span>Active filters:</span>
-              {isUrlFiltered && (
-                <span><strong>Status (URL):</strong> {urlStatus}</span>
-              )}
               {activeTab !== 'all' && (
                 <span><strong>Type:</strong> {activeTab === 'internal' ? 'Internal (Products)' : 'External (Services)'}</span>
               )}
@@ -970,10 +896,7 @@ const BOMPage: React.FC = () => {
                 <span><strong>Date Range:</strong> {formatDateDisplay(fromDate)} - {formatDateDisplay(toDate)}</span>
               )}
               <button 
-                onClick={() => {
-                  clearFilters();
-                  if (isUrlFiltered) clearUrlStatusFilter();
-                }}
+                onClick={clearFilters}
                 className="bom-clear-filters"
               >
                 <X size={10} /> Clear All
@@ -1020,7 +943,7 @@ const BOMPage: React.FC = () => {
                           <FileStack size={48} />
                           <p>No {activeTab !== 'all' ? activeTab + ' ' : ''}BOMs found</p>
                           <span>
-                            {searchTerm || statusFilter !== 'all' || (fromDate && toDate) || isUrlFiltered
+                            {searchTerm || statusFilter !== 'all' || (fromDate && toDate)
                               ? 'Try adjusting your search criteria' 
                               : `Create your first ${activeTab !== 'all' ? activeTab + ' ' : ''}BOM by clicking "Add BOM"`}
                           </span>
@@ -1109,7 +1032,7 @@ const BOMPage: React.FC = () => {
                   <FileStack size={48} />
                   <p>No {activeTab !== 'all' ? activeTab + ' ' : ''}BOMs found</p>
                   <span>
-                    {searchTerm || statusFilter !== 'all' || (fromDate && toDate) || isUrlFiltered
+                    {searchTerm || statusFilter !== 'all' || (fromDate && toDate)
                       ? 'Try adjusting your search criteria' 
                       : `Create your first ${activeTab !== 'all' ? activeTab + ' ' : ''}BOM by clicking "Add BOM"`}
                   </span>
