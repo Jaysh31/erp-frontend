@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { 
   FaSearch, FaPlus, FaEdit, FaTrash, FaFilter, 
   FaTimes, FaSpinner, FaEye,
@@ -36,6 +36,41 @@ const formatDisplayDate = (iso: string): string => {
 };
 
 const WEEKDAY_LABELS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+
+// ─── 🆕 STATUS NORMALIZATION ─────────────────────────────────────
+// Maps chatbot status strings → dropdown values for Purchase Invoice
+function normalizeStatusForPIDropdown(raw: string | null): string | null {
+  if (!raw) return null;
+  const s = raw.toLowerCase().trim();
+  switch (s) {
+    case 'draft': return 'Draft';
+    case 'submitted':
+    case 'submit':
+      return 'Submitted';
+    case 'partially paid':
+    case 'partially-paid':
+    case 'partial paid':
+    case 'partial':
+    case 'part payment':
+      return 'Partially Paid';
+    case 'fully paid':
+    case 'paid':
+    case 'complete':
+    case 'completed':
+    case 'done':
+      return 'Fully Paid';
+    case 'overdue':
+    case 'over due':
+      return 'Overdue';
+    case 'cancelled':
+    case 'canceled':
+    case 'cancel':
+    case 'rejected':
+      return 'Cancelled';
+    default:
+      return null;
+  }
+}
 
 // ─── Range Calendar Component ────────────────────────────────────
 
@@ -201,6 +236,7 @@ interface ApiResponse {
 
 export default function PurchaseInvoice() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   
   let theme = 'light';
   try {
@@ -254,6 +290,89 @@ export default function PurchaseInvoice() {
       return next;
     });
   };
+
+  // ====================================================================
+  // 🆕 READ FILTERS FROM URL QUERY PARAMS (chatbot navigation support)
+  // ====================================================================
+  useEffect(() => {
+    const urlStatus = searchParams.get('status');
+    const urlSupplier = searchParams.get('supplier');
+    const urlSearch = searchParams.get('search');
+    const urlDateFrom = searchParams.get('date_from');
+    const urlDateTo = searchParams.get('date_to');
+    const autoFilter = searchParams.get('autoFilter');
+
+    let hasUrlFilters = false;
+
+    if (urlStatus) {
+      const normalized = normalizeStatusForPIDropdown(urlStatus);
+      if (normalized) {
+        setSelectedStatus(normalized);
+        hasUrlFilters = true;
+      }
+    }
+
+    if (urlSupplier) {
+      setSelectedSupplier(urlSupplier);
+      hasUrlFilters = true;
+    }
+
+    if (urlSearch) {
+      setFilterText(urlSearch);
+      hasUrlFilters = true;
+    }
+
+    if (urlDateFrom) {
+      setDateFrom(urlDateFrom);
+      hasUrlFilters = true;
+    }
+    if (urlDateTo) {
+      setDateTo(urlDateTo);
+      hasUrlFilters = true;
+    }
+
+    if (hasUrlFilters) {
+      console.log('🔗 URL filters detected on PurchaseInvoice:', {
+        status: urlStatus,
+        supplier: urlSupplier,
+        search: urlSearch,
+        dateFrom: urlDateFrom,
+        dateTo: urlDateTo,
+        autoFilter,
+      });
+      setCurrentPage(1);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // run once on mount
+
+  // Also react to URL changes after mount (chatbot navigates while already on this page)
+  useEffect(() => {
+    const urlStatus = searchParams.get('status');
+    const urlSupplier = searchParams.get('supplier');
+    const urlSearch = searchParams.get('search');
+    const urlDateFrom = searchParams.get('date_from');
+    const urlDateTo = searchParams.get('date_to');
+
+    if (urlStatus) {
+      const normalized = normalizeStatusForPIDropdown(urlStatus);
+      if (normalized && selectedStatus !== normalized) {
+        setSelectedStatus(normalized);
+      }
+    }
+    if (urlSupplier && selectedSupplier !== urlSupplier) {
+      setSelectedSupplier(urlSupplier);
+    }
+    if (urlSearch && filterText !== urlSearch) {
+      setFilterText(urlSearch);
+    }
+    if (urlDateFrom && dateFrom !== urlDateFrom) {
+      setDateFrom(urlDateFrom);
+    }
+    if (urlDateTo && dateTo !== urlDateTo) {
+      setDateTo(urlDateTo);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
   
   // ─── Click outside handler ──────────────────────────────────────
 
@@ -354,7 +473,7 @@ export default function PurchaseInvoice() {
         
         const transformedInvoices: PurchaseInvoice[] = records.map((item: ApiPurchaseInvoice) => ({
           id: String(item.id),
-          invoiceNumber: `PINV-${String(item.id).padStart(5, '0')}`,
+          invoiceNumber: `PI-${String(item.id).padStart(5, '0')}`,
           supplier: item.supplier_name || item.supplier || 'N/A',
           supplierCode: item.supplier || 'N/A',
           purchaseOrder: item.purchase_order || 'N/A',
@@ -522,6 +641,9 @@ export default function PurchaseInvoice() {
     setDateTo('');
     setCurrentPage(1);
     setShowDateFilterDropdown(false);
+
+    // 🆕 Clear URL query params too
+    setSearchParams({});
   };
 
   const statusOptions = ['Draft', 'Submitted', 'Partially Paid', 'Fully Paid', 'Overdue', 'Cancelled'];

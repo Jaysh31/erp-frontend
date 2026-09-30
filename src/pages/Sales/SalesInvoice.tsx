@@ -30,7 +30,7 @@ import {
   FaQrcode,
   FaRupeeSign
 } from 'react-icons/fa';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
 import api from '../../services/api';
 import './SalesMobileTable.css';
@@ -169,10 +169,42 @@ const UPI_ID = 'jayeshwakle10@okicici';
 const UPI_PAYEE_NAME = 'Jayesh Wakle';
 
 // ===== FORMAT INVOICE NUMBER =====
-const formatInvoiceNumber = (id: string | number): string => {
-  const numId = typeof id === 'string' ? parseInt(id, 10) : id;
-  const paddedId = String(numId).padStart(5, '0');
-  return `SINV-${paddedId}`;
+// 🆕 Always renders "SI-<zero-padded-to-5-digits>", e.g. SI-00070
+// Handles null / undefined / non-numeric / already-prefixed ids gracefully.
+const SALES_INVOICE_PREFIX = 'SI-';
+const formatInvoiceNumber = (id: string | number | null | undefined): string => {
+  if (id === null || id === undefined) return '';
+  const s = String(id).trim();
+  if (!s) return '';
+  // Already prefixed (e.g. "SI-00070") → leave untouched
+  if (s.toUpperCase().startsWith(SALES_INVOICE_PREFIX)) return s;
+  const n = Number(s);
+  if (Number.isNaN(n)) return s; // non-numeric fallback
+  return SALES_INVOICE_PREFIX + String(n).padStart(5, '0');
+};
+
+// 🆕 Normalize a status string from the URL query param into the exact
+// casing the dropdown uses.
+//   "draft"           → "Draft"
+//   "submitted"       → "Submitted"
+//   "cancelled"       → "Cancelled"
+//   "paid"            → "Paid"
+//   "partially paid"  → "Partially Paid"
+//   "partially-paid"  → "Partially Paid"
+//   "overdue"         → "Overdue"
+const normalizeStatusParam = (raw: string): string => {
+  if (!raw) return 'All';
+  const s = raw.trim();
+  if (!s) return 'All';
+  const lower = s.toLowerCase();
+  if (lower === 'partially paid' || lower === 'partially-paid') return 'Partially Paid';
+  if (lower === 'cancelled' || lower === 'canceled' || lower === 'cancel') return 'Cancelled';
+  if (lower === 'submitted' || lower === 'submit') return 'Submitted';
+  if (lower === 'overdue') return 'Overdue';
+  if (lower === 'paid') return 'Paid';
+  if (lower === 'draft') return 'Draft';
+  // Fallback: capitalize first letter
+  return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
 };
 
 // ===== AMOUNT IN WORDS HELPER =====
@@ -242,6 +274,9 @@ const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
 // ===== MAIN COMPONENT =====
 const SalesInvoice: React.FC = () => {
   const navigate = useNavigate();
+  // 🆕 Read URL query params (?status=...&autoFilter=1) sent by the chatbot
+  const [searchParams, setSearchParams] = useSearchParams();
+
   const menuRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
   const printWindowRef = useRef<Window | null>(null);
 
@@ -283,6 +318,33 @@ const SalesInvoice: React.FC = () => {
     if (!dateString) return '';
     return formatDate(dateString);
   };
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // 🆕 On mount (and whenever the URL query string changes), read the
+  //    status / autoFilter params sent by the chatbot and apply them to
+  //    the local filter state. After applying, strip them from the URL so
+  //    a refresh doesn't re-trigger the filter.
+  // ═══════════════════════════════════════════════════════════════════════
+  useEffect(() => {
+    const statusParam = searchParams.get('status');
+    const autoFilter = searchParams.get('autoFilter');
+
+    if (statusParam) {
+      const normalized = normalizeStatusParam(statusParam);
+      console.log(`🎯 SalesInvoice: applying URL status filter → "${normalized}"`);
+      setSelectedStatus(normalized);
+      setCurrentPage(1);
+
+      if (autoFilter === '1') {
+        const next = new URLSearchParams(searchParams);
+        next.delete('status');
+        next.delete('autoFilter');
+        setSearchParams(next, { replace: true });
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
 
   // ===== FETCH COMPANY DETAILS =====
   const fetchCompanyDetails = async () => {
@@ -773,11 +835,14 @@ const SalesInvoice: React.FC = () => {
 
     const hasPaymentSchedule = invoice.payment_schedule && invoice.payment_schedule.length > 0;
 
+    // Always print the SI-<padded-id> form.
+    const printInvoiceNumber = formatInvoiceNumber(invoice.id);
+
     return `<!DOCTYPE html>
 <html>
 <head>
 <meta charset="UTF-8" />
-<title>${escapeHtml(invoice.displayInvoiceNumber || 'Sales Invoice')}</title>
+<title>${escapeHtml(printInvoiceNumber || 'Sales Invoice')}</title>
 <style>
   * { box-sizing: border-box; }
   body { font-family: Arial, Helvetica, sans-serif; font-size: 12px; color: #1a1a1a; margin: 0; padding: 24px; }
@@ -865,7 +930,7 @@ const SalesInvoice: React.FC = () => {
         <div class="pq-meta-row">
           <div class="pq-meta-cell">
             <div class="pq-meta-label">Invoice No.</div>
-            <div class="pq-meta-value">${escapeHtml(invoice.displayInvoiceNumber || invoice.id || '')}</div>
+            <div class="pq-meta-value">${escapeHtml(printInvoiceNumber)}</div>
           </div>
           <div class="pq-meta-cell" style="border-right:none;">
             <div class="pq-meta-label">Date</div>
@@ -1020,8 +1085,8 @@ const SalesInvoice: React.FC = () => {
       rows.push([`GSTIN: ${companyDetails.gstin || ''}`]);
       rows.push([`State Name: ${companyDetails.stateName}, Code: ${companyDetails.stateCode}`]);
       rows.push([]);
-
-      rows.push(['Invoice No.', invoice.displayInvoiceNumber || invoice.id || '']);
+      
+      rows.push(['Invoice No.', formatInvoiceNumber(invoice.id)]);
       rows.push(['Date', formatDisplayDate(invoice.posting_date)]);
       rows.push(['Due Date', formatDisplayDate(invoice.due_date)]);
       rows.push(['Currency', invoice.currency || 'INR']);
@@ -1341,6 +1406,13 @@ const SalesInvoice: React.FC = () => {
     setSelectedQuickFilter('');
     setCurrentPage(1);
     setShowDatePicker(false);
+
+    // 🆕 Also strip any leftover status/autoFilter params from the URL
+    // so clear-filters actually clears everything.
+    const next = new URLSearchParams(searchParams);
+    next.delete('status');
+    next.delete('autoFilter');
+    setSearchParams(next, { replace: true });
   };
 
   // ─── Loading Screen ─────────────────────────────────────────────────────
@@ -1875,109 +1947,102 @@ const SalesInvoice: React.FC = () => {
       {!loading && !error && (
         <>
           <div className="qt-table-wrap sales-desktop-table-wrap">
-            {loading && invoices.length === 0 ? (
-              <div className="qt-loading">
-                <FaSpinner className="spinning" size={30} style={{ display: 'block', margin: '0 auto 12px' }} />
-                <p>Loading sales invoices...</p>
-              </div>
-            ) : error ? (
-              <div className="qt-error">
-                <FaExclamationTriangle size={30} style={{ display: 'block', margin: '0 auto 12px' }} />
-                <p>{error}</p>
-                <button onClick={handleRefresh} className="qt-retry-btn">
-                  <FaSync size={12} style={{ marginRight: '6px' }} /> Retry
-                </button>
-              </div>
-            ) : invoices.length === 0 ? (
-              <div className="qt-empty-state">
-                <div className="qt-empty-content">
-                  <FaFileInvoice size={48} />
-                  <p>No sales invoices found</p>
-                  <span>Try adjusting your search criteria or create a new one</span>
-                  <button className="qt-btn-new" onClick={handleCreate} style={{ marginTop: '12px' }}>
-                    <FaPlus size={12} /> New Sales Bill
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <table className="qt-table">
-                <thead>
-                  <tr>
-                    <th className="qt-th">Invoice No</th>
-                    <th className="qt-th">Customer</th>
-                    <th className="qt-th">Date</th>
-                    <th className="qt-th">Amount</th>
-                    <th className="qt-th">Paid</th>
-                    <th className="qt-th">Status</th>
-                    <th className="qt-th">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {invoices.map((item) => {
-                    const isPaid = item.status === 'Paid';
-                    const isPartial = item.status === 'Partially Paid';
-                    const outstanding = item.outstanding_amount || item.grand_total || 0;
+        {loading && invoices.length === 0 ? (
+          <div className="qt-loading">
+            <FaSpinner className="spinning" size={30} style={{ display: 'block', margin: '0 auto 12px' }} />
+            <p>Loading sales invoices...</p>
+          </div>
+        ) : error ? (
+          <div className="qt-error">
+            <FaExclamationTriangle size={30} style={{ display: 'block', margin: '0 auto 12px' }} />
+            <p>{error}</p>
+            <button onClick={handleRefresh} className="qt-retry-btn">
+              <FaSync size={12} style={{ marginRight: '6px' }} /> Retry
+            </button>
+          </div>
+        ) : invoices.length === 0 ? (
+          <div className="qt-empty-state">
+            <div className="qt-empty-content">
+              <FaFileInvoice size={48} />
+              <p>No sales invoices found</p>
+              <span>Try adjusting your search criteria or create a new one</span>
+              <button className="qt-btn-new" onClick={handleCreate} style={{ marginTop: '12px' }}>
+                <FaPlus size={12} /> New Sales Bill
+              </button>
+            </div>
+          </div>
+        ) : (
+          <table className="qt-table">
+            <thead>
+              <tr>
+                <th className="qt-th">Invoice No</th>
+                <th className="qt-th">Customer</th>
+                <th className="qt-th">Date</th>
+                <th className="qt-th">Amount</th>
+                <th className="qt-th">Paid</th>
+                <th className="qt-th">Status</th>
+                <th className="qt-th">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {invoices.map((item) => {
+                const isPaid = item.status === 'Paid';
+                const isPartial = item.status === 'Partially Paid';
+                const outstanding = item.outstanding_amount || item.grand_total || 0;
+                
+                let outstandingClass = 'qt-td-outstanding';
+                if (isPaid) outstandingClass += ' paid';
+                else if (isPartial) outstandingClass += ' partial';
+                else if (outstanding > 0) outstandingClass += ' unpaid';
 
-                    let outstandingClass = 'qt-td-outstanding';
-                    if (isPaid) outstandingClass += ' paid';
-                    else if (isPartial) outstandingClass += ' partial';
-                    else if (outstanding > 0) outstandingClass += ' unpaid';
-
-                    return (
-                      <tr key={item.id} className="qt-tr">
-                        <td className="qt-td qt-td-id">
-                          {item.displayInvoiceNumber || item.id || '-'}
-                        </td>
-                        <td className="qt-td">
-                          <span className="qt-td-customer" onClick={() => handleView(item.id)}>
-                            {item.customer_name || '-'}
-                          </span>
-                        </td>
-                        <td className="qt-td">{formatDateDisplay(item.posting_date)}</td>
-                        <td className="qt-td qt-td-amount">
-                          ₹{item.grand_total?.toLocaleString() || '0'}
-                        </td>
-                        <td className="qt-td">
-                          <span className={outstandingClass}>
-                            ₹{item.paid_amount?.toLocaleString() || '0'}
-                          </span>
-                        </td>
-                        <td className="qt-td">
-                          <StatusBadge status={item.status || 'Draft'} />
-                        </td>
-                        <td className="qt-td">
-                          <div className="qt-action-buttons">
-                            <button
-                              className="qt-action-btn qt-action-upi"
-                              onClick={() => openUpiModal(item)}
-                              title="Pay via UPI (QR Code)"
-                            >
-                              <FaQrcode size={14} />
-                            </button>
-                            <button
-                              className="qt-action-btn qt-action-print"
-                              onClick={() => handlePrint(item)}
-                              title="Print"
-                              disabled={printLoadingId === String(item.id)}
-                            >
-                              {printLoadingId === String(item.id) ? <FaSpinner className="spinning" size={12} /> : <FaPrintIcon size={12} />}
-                            </button>
-                            <div
-                              className="qt-more-menu-container"
-                              ref={(el) => { menuRefs.current[String(item.id)] = el }}
-                            >
-                              <button
-                                className="qt-action-btn qt-action-more"
-                                onClick={() => toggleMenu(item.id)}
-                                title="More"
-                              >
-                                <FaEllipsisV size={14} />
+                return (
+                  <tr key={item.id} className="qt-tr">
+                    <td className="qt-td qt-td-id">
+                      {formatInvoiceNumber(item.id)}
+                    </td>
+                    <td className="qt-td">
+                      <span className="qt-td-customer" onClick={() => handleView(item.id)}>
+                        {item.customer_name || '-'}
+                      </span>
+                    </td>
+                    <td className="qt-td">{formatDateDisplay(item.posting_date)}</td>
+                    <td className="qt-td qt-td-amount">
+                      ₹{item.grand_total?.toLocaleString() || '0'}
+                    </td>
+                    <td className="qt-td">
+                      <span className={outstandingClass}>
+                        ₹{item.paid_amount?.toLocaleString() || '0'}
+                      </span>
+                    </td>
+                    <td className="qt-td">
+                      <StatusBadge status={item.status || 'Draft'} />
+                    </td>
+                    <td className="qt-td">
+                      <div className="qt-action-buttons">
+                        <button 
+                          className="qt-action-btn qt-action-print" 
+                          onClick={() => handlePrint(item)} 
+                          title="Print"
+                          disabled={printLoadingId === String(item.id)}
+                        >
+                          {printLoadingId === String(item.id) ? <FaSpinner className="spinning" size={12} /> : <FaPrintIcon size={12} />}
+                        </button>
+                        <div 
+                          className="qt-more-menu-container" 
+                          ref={(el) => { menuRefs.current[String(item.id)] = el }}
+                        >
+                          <button 
+                            className="qt-action-btn qt-action-more" 
+                            onClick={() => toggleMenu(item.id)} 
+                            title="More"
+                          >
+                            <FaEllipsisV size={14} />
+                          </button>
+                          {showMoreMenu === String(item.id) && (
+                            <div className="qt-more-menu-dropdown">
+                              <button onClick={() => handleView(item.id)}>
+                                <FaEye size={12} /> View
                               </button>
-                              {showMoreMenu === String(item.id) && (
-                                <div className="qt-more-menu-dropdown">
-                                  <button onClick={() => handleView(item.id)}>
-                                    <FaEye size={12} /> View
-                                  </button>
                                   {item.status === 'Draft' && (
                                     <>
                                       <button onClick={() => handleEdit(item.id)}>
@@ -2008,10 +2073,10 @@ const SalesInvoice: React.FC = () => {
                                       <FaBan size={12} /> Cancel
                                     </button>
                                   )}
-                                </div>
-                              )}
                             </div>
+                          )}
                           </div>
+                        </div>
                         </td>
                       </tr>
                     );
@@ -2066,12 +2131,7 @@ const SalesInvoice: React.FC = () => {
                           <div className="sales-mobile-card-primary-row">
                             <span className="sales-mobile-header-badge">
                               <span className="qt-td qt-td-id">
-                                {item.displayInvoiceNumber || item.id || '-'}
-                              </span>
-                            </span>
-                            <span className="sales-mobile-item-name">
-                              <span className="qt-td-customer" onClick={() => handleView(item.id)}>
-                                {item.customer_name || '-'}
+                      {formatInvoiceNumber(item.id)}
                               </span>
                             </span>
                           </div>
@@ -2121,7 +2181,12 @@ const SalesInvoice: React.FC = () => {
                           </div>
 
                           <div className="sales-mobile-detail-footer">
-                            <span className="sales-mobile-card-meta-text"></span>
+                            <span className="sales-mobile-card-meta-text">
+                              {/*rowNumber} of {totalRecords*/}
+                            </span>
+                             
+                             
+
 
                             <div className="sales-mobile-action-buttons">
                               <button

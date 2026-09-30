@@ -136,6 +136,18 @@ interface BankDetail {
   is_primary: number;
 }
 
+// ═══════════════════════════════════════════════════════════════════════
+// 🆕 PROFORMA INVOICE ID DISPLAY HELPER
+//    Always renders "PI-<zero-padded-to-5-digits>", e.g. PI-00070
+// ═══════════════════════════════════════════════════════════════════════
+const PROFORMA_INVOICE_PREFIX = 'PI-';
+function formatProformaInvoiceId(id: string | number | null | undefined): string {
+  if (id === null || id === undefined) return '';
+  const n = Number(String(id).trim());
+  if (Number.isNaN(n)) return String(id);
+  return PROFORMA_INVOICE_PREFIX + String(n).padStart(5, '0');
+}
+
 const companyDetails = {
   name: 'Sculptor Tech Pvt Ltd',
   address: 'c-1006, gc, Pune, Maharashtra 411028, India',
@@ -267,15 +279,6 @@ const useDebounce = (value: string, delay: number) => {
 
   return debouncedValue;
 };
-
-/* ─────────────────────── Logged-in user helper ───────────────────────
-   This component doesn't receive an auth/user context today, so this
-   reads a handful of common localStorage keys your login flow might
-   already be writing to, and falls back to a generic placeholder if
-   none are found. If your app has a real AuthContext/useAuth() hook,
-   swap this out for that and delete this helper — the topbar UI below
-   will keep working unchanged, it just needs { name, role }.
------------------------------------------------------------------------- */
 
 
 
@@ -867,6 +870,9 @@ export default function ProformaInvoice() {
       return formatDisplayDate(dateStr);
     };
 
+    // Always print the PI-<padded-id> form.
+    const printProformaInvoiceNumber = formatProformaInvoiceId(order.id);
+
     const itemRows = validItems.map((item, idx) => `
       <tr>
         <td class="pq-col-sl">${idx + 1}</td>
@@ -944,7 +950,7 @@ export default function ProformaInvoice() {
 <html>
 <head>
 <meta charset="UTF-8" />
-<title>PROFORMA INVOICE - ${escapeHtml(order.salesOrderNumber)}</title>
+<title>PROFORMA INVOICE - ${escapeHtml(printProformaInvoiceNumber)}</title>
 <style>
   * { box-sizing: border-box; }
   body { font-family: Arial, Helvetica, sans-serif; font-size: 12px; color: #1a1a1a; margin: 0; padding: 24px; }
@@ -1032,7 +1038,7 @@ export default function ProformaInvoice() {
         <div class="pq-meta-row">
           <div class="pq-meta-cell">
             <div class="pq-meta-label">Proforma Invoice No.</div>
-            <div class="pq-meta-value">PI-${escapeHtml(order.salesOrderNumber)}</div>
+            <div class="pq-meta-value">${escapeHtml(printProformaInvoiceNumber)}</div>
           </div>
           <div class="pq-meta-cell" style="border-right:none;">
             <div class="pq-meta-label">Dated</div>
@@ -2489,8 +2495,9 @@ export default function ProformaInvoice() {
                   <tbody>
                     {salesOrders.map((order, index) => (
                       <tr key={order.id || `so-${index}`} className="pq-tr">
+                        {/* Display PI-<padded-id> via helper */}
                         <td className="pq-td pq-td-id">
-                          {order.salesOrderNumber}
+                          {formatProformaInvoiceId(order.id)}
                         </td>
                         <td className="pq-td">
                           <div>
@@ -2570,6 +2577,7 @@ export default function ProformaInvoice() {
                         onClick={() => toggleRowExpand(orderId)}
                       >
                         <div className="sales-mobile-card-primary">
+                          {/* Display PI-<padded-id> via helper */}
                           <span
                             className="sales-mobile-item-code"
                             onClick={(e) => {
@@ -2578,7 +2586,7 @@ export default function ProformaInvoice() {
                             }}
                             title="View Proforma"
                           >
-                            {order.salesOrderNumber}
+                            {formatProformaInvoiceId(order.id)}
                           </span>
                           <span
                             className="sales-mobile-item-name"
@@ -2752,7 +2760,6 @@ export default function ProformaInvoice() {
       {/* Footer */}
       
         
-      
 
       {/* ====== DELETE MODAL ====== */}
       {showDeleteModal && selectedOrder && (
@@ -2767,7 +2774,7 @@ export default function ProformaInvoice() {
             <div className="pq-modal-body">
               <p>Are you sure you want to delete this proforma invoice?</p>
               <p className="pq-modal-item-name">
-                <strong>{selectedOrder.salesOrderNumber}</strong> - {selectedOrder.customerName}
+                <strong>{formatProformaInvoiceId(selectedOrder.id)}</strong> - {selectedOrder.customerName}
               </p>
               <p className="pq-modal-warning">This action cannot be undone.</p>
             </div>
@@ -2787,7 +2794,7 @@ export default function ProformaInvoice() {
         <div className="pq-modal-overlay" onClick={() => setShowPdfModal(false)}>
           <div className="pq-modal pq-modal-lg" onClick={(e) => e.stopPropagation()}>
             <div className="pq-modal-header">
-              <span className="pq-modal-title">{selectedOrder.salesOrderNumber} - Proforma Invoice Preview</span>
+              <span className="pq-modal-title">{formatProformaInvoiceId(selectedOrder.id)} - Proforma Invoice Preview</span>
               <button className="pq-modal-close" onClick={() => setShowPdfModal(false)}>
                 <FaTimes size={16} />
               </button>
@@ -2801,7 +2808,7 @@ export default function ProformaInvoice() {
               <div style={{ background: 'white', padding: '32px', borderRadius: '8px', boxShadow: '0 2px 8px rgba(0,0,0,0.08)', fontFamily: "'Times New Roman', serif" }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px solid #1f2433', paddingBottom: '12px', marginBottom: '20px' }}>
                   <div style={{ fontSize: '24px', fontWeight: 700, color: '#1f2433', letterSpacing: '2px' }}>PROFORMA INVOICE</div>
-                  <div style={{ fontSize: '14px', color: '#6b7280' }}>{selectedOrder.salesOrderNumber}</div>
+                  <div style={{ fontSize: '14px', color: '#6b7280' }}>{formatProformaInvoiceId(selectedOrder.id)}</div>
                 </div>
                 <div style={{ textAlign: 'center', marginBottom: '24px' }}>
                   <h2 style={{ fontSize: '20px', fontWeight: 700, color: '#1f2433', margin: 0 }}>{getCompanyDetails().name}</h2>

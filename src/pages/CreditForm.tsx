@@ -1,862 +1,704 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { FaCalendarAlt, FaChevronDown, FaSave, FaTimes } from "react-icons/fa";
-import { useNavigate } from "react-router-dom";
-import toast from "react-hot-toast";
-import api from "../services/api";
+import React, { useState, useEffect, useRef } from "react";
 import "./CreditForm.css";
+import api from "../services/api";
 
-interface SalesInvoice {
-  id: string | number;
-  customer: string;
-  customer_name: string;
-  posting_date: string;
-  due_date?: string;
-  currency?: string;
-  total?: number;
-  net_total?: number;
+interface Supplier {
+  id: number;
+  name: string;
+  supplier_name: string;
+  supplier_group: string;
+  mobile_no: string;
+  email_id: string;
+  primary_address: string;
+  country: string;
+}
+
+interface PurchaseInvoice {
+  id: number;
+  name: string;
   grand_total: number;
-  outstanding_amount?: number;
-  paid_amount?: number;
-  status?: string;
-  company?: string;
-  creation?: string;
-  modified?: string;
+  posting_date: string;
+  supplier: string;
+  supplier_name: string;
+  company: string;
+  currency: string;
+  purchase_order?: string;
+  grn_no?: string;
 }
 
-
-interface SalesBillDraftPayload {
-  selectedCustomer: string;
-  selectedSalesOrder: string;
-  isService: boolean;
-  hasDeliveryChallan: boolean;
-  billDate: string;
-  dueDate: string;
-  warehouse: string;
-  invoiceNumber: string;
-  invoiceDate: string;
-  paymentMode: string;
-  invoiceStatus: string;
-  remarks: string;
-  customerData: Customer | null;
-  isCustomerDisabled: boolean;
-  selectedPaymentTemplate: string;
+interface CreditFormData {
+  creditDate: string;
+  supplierId: number | "";
+  supplierName: string;
+  referenceType: string;
+  purchaseInvoiceId: number | "";
+  purchaseInvoiceNo: string;
+  purchaseInvoiceDate: string;
+  grandTotal: number | "";
+  purchaseOrderNo: string;
+  grnNo: string;
+  paymentType: string;
+  amount: string;
+  narration: string;
 }
 
-interface CustomerDropdownProps {
-  value: string;
-  onChange: (value: string, customerData?: Customer) => void;
-  placeholder?: string;
-  disabled?: boolean;
-  error?: boolean;
-  presetCustomer?: Customer | null;
-
-  onAddNew: (searchTerm: string) => void;
-}
-
-interface ApiResponse {
-  success: number;
-  data: {
-    total: number;
-    page: number;
-    limit: number;
-    records: SalesInvoice[];
-  };
-}
-
-interface CustomerOption {
-  customerId: string;
-  customerName: string;
-  invoice: SalesInvoice;
-}
-
-type Customer = Record<string, unknown>;
-
-const formatInvoiceNumber = (id: string | number) => {
-  const numId = typeof id === "string" ? parseInt(id, 10) : id;
-
-  if (Number.isNaN(numId)) {
-    return String(id);
-  }
-
-  return `SINV-${String(numId).padStart(5, "0")}`;
+const initialFormData: CreditFormData = {
+  creditDate: new Date().toISOString().split("T")[0],
+  supplierId: "",
+  supplierName: "",
+  referenceType: "Purchase Invoice",
+  purchaseInvoiceId: "",
+  purchaseInvoiceNo: "",
+  purchaseInvoiceDate: "",
+  grandTotal: "",
+  purchaseOrderNo: "",
+  grnNo: "",
+  paymentType: "Bank Transfer",
+  amount: "",
+  narration: "",
 };
 
-const formatDateForInput = (dateString?: string) => {
-  if (!dateString) return "";
-
-  return dateString.substring(0, 10);
-};
-
-const formatDateForDisplay = (dateString?: string) => {
-  if (!dateString) return "";
-
-  const date = new Date(dateString);
-
-  if (Number.isNaN(date.getTime())) {
-    return dateString;
+// ─── Helper: convert any date to YYYY-MM-DD ────────────────────────
+const toYMD = (value: string | Date | null | undefined): string => {
+  if (!value) return "";
+  if (typeof value === "string") {
+    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+    const d = new Date(value);
+    if (isNaN(d.getTime())) return "";
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
   }
-
-  return date.toLocaleDateString("en-GB");
+  const y = value.getFullYear();
+  const m = String(value.getMonth() + 1).padStart(2, "0");
+  const day = String(value.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 };
 
 const CreditForm: React.FC = () => {
-  const navigate = useNavigate();
-
-  // ============================================================
-  // SALES INVOICES
-  // ============================================================
-
-  const [invoices, setInvoices] = useState<SalesInvoice[]>([]);
+  const [formData, setFormData] = useState<CreditFormData>(initialFormData);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [purchaseInvoices, setPurchaseInvoices] = useState<PurchaseInvoice[]>([]);
+  const [loadingSuppliers, setLoadingSuppliers] = useState(false);
   const [loadingInvoices, setLoadingInvoices] = useState(false);
-
-  // ============================================================
-  // FORM STATE
-  // ============================================================
-
-  const [receiptNo, setReceiptNo] = useState("");
-  const [creditDate, setCreditDate] = useState(
-    new Date().toISOString().split("T")[0]
-  );
-
-  const [customer, setCustomer] = useState("");
-  const [invoiceNo, setInvoiceNo] = useState("");
-  const [invoiceDate, setInvoiceDate] = useState("");
-  const [amount, setAmount] = useState("");
-
-  const [referenceType, setReferenceType] = useState("");
-  const [referenceNo, setReferenceNo] = useState("");
-
-  const [paymentType, setPaymentType] = useState("Bank Transfer");
-
-  const [bankName, setBankName] = useState("");
-  const [accountNo, setAccountNo] = useState("");
-  const [ifscCode, setIfscCode] = useState("");
-  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
-  const [narration, setNarration] = useState("");
-
   const [saving, setSaving] = useState(false);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [errors, setErrors] = useState<
+    Partial<Record<keyof CreditFormData, string>>
+  >({});
 
-  // ============================================================
-  // FETCH SALES INVOICES
-  // ============================================================
+  // ─── Searchable dropdown state ────────────────────────────────
+  const [supplierSearch, setSupplierSearch] = useState("");
+  const [showSupplierDropdown, setShowSupplierDropdown] = useState(false);
+  const [invoiceSearch, setInvoiceSearch] = useState("");
+  const [showInvoiceDropdown, setShowInvoiceDropdown] = useState(false);
 
-  const fetchInvoices = async () => {
-    try {
-      setLoadingInvoices(true);
+  const supplierRef = useRef<HTMLDivElement>(null);
+  const invoiceRef = useRef<HTMLDivElement>(null);
 
-      const response = await api.get<ApiResponse>(
-        "/sales-invoice?page=1&limit=1000"
-      );
+  // ─── Fetch suppliers on mount ─────────────────────────────────
+  useEffect(() => {
+    fetchSuppliers();
+  }, []);
 
-      if (
-        response.data?.success === 1 &&
-        response.data?.data?.records
-      ) {
-        setInvoices(response.data.data.records);
-      } else {
-        setInvoices([]);
-        toast.error("No sales invoices found");
+  // ─── Fetch purchase invoices when supplier changes ────────────
+  useEffect(() => {
+    if (formData.supplierId) {
+      fetchPurchaseInvoices(formData.supplierId as number);
+    } else {
+      setPurchaseInvoices([]);
+    }
+  }, [formData.supplierId]);
+
+  // ─── Close dropdowns on outside click ─────────────────────────
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (supplierRef.current && !supplierRef.current.contains(e.target as Node)) {
+        setShowSupplierDropdown(false);
       }
-    } catch (error) {
-      console.error("Error fetching sales invoices:", error);
-      toast.error("Failed to load customers");
-      setInvoices([]);
+      if (invoiceRef.current && !invoiceRef.current.contains(e.target as Node)) {
+        setShowInvoiceDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const fetchSuppliers = async () => {
+    setLoadingSuppliers(true);
+    try {
+      const response = await api.get("/supplier?limit=1000");
+      if (response.data.success === 1) {
+        const data = response.data.data;
+        let records: Supplier[] = [];
+        if (Array.isArray(data)) records = data;
+        else if (data && typeof data === "object" && data.records)
+          records = data.records;
+        setSuppliers(records);
+      }
+    } catch (err: any) {
+      console.error("Error fetching suppliers:", err);
+    } finally {
+      setLoadingSuppliers(false);
+    }
+  };
+
+  const fetchPurchaseInvoices = async (supplierId: number) => {
+    setLoadingInvoices(true);
+    try {
+      const response = await api.get("/purchase-invoice?page=1&limit=10");
+      if (response.data.success === 1) {
+        const data = response.data.data;
+        let records: PurchaseInvoice[] = [];
+        if (Array.isArray(data)) records = data;
+        else if (data && typeof data === "object" && data.records)
+          records = data.records;
+
+        const selectedSupplier = suppliers.find((s) => s.id === supplierId);
+        const supplierName =
+          selectedSupplier?.supplier_name || selectedSupplier?.name || "";
+
+        const filtered = records.filter(
+          (inv) =>
+            inv.supplier === supplierName || inv.supplier_name === supplierName
+        );
+
+        setPurchaseInvoices(filtered.length > 0 ? filtered : records);
+      }
+    } catch (err: any) {
+      console.error("Error fetching purchase invoices:", err);
     } finally {
       setLoadingInvoices(false);
     }
   };
 
-  useEffect(() => {
-    fetchInvoices();
-  }, []);
-
-  // ============================================================
-  // CUSTOMER DROPDOWN
-  // ============================================================
-
-  const customers = useMemo<CustomerOption[]>(() => {
-    const map = new Map<string, CustomerOption>();
-
-    invoices.forEach((invoice) => {
-      const customerId = String(
-        invoice.customer || invoice.customer_name || ""
-      ).trim();
-
-      const customerName = String(
-        invoice.customer_name || invoice.customer || ""
-      ).trim();
-
-      if (!customerId || !customerName) return;
-
-      /*
-       * If one customer has multiple invoices,
-       * keep the latest invoice for auto-fill.
-       */
-      const existing = map.get(customerId);
-
-      if (!existing) {
-        map.set(customerId, {
-          customerId,
-          customerName,
-          invoice,
-        });
-        return;
-      }
-
-      const existingDate = new Date(
-        existing.invoice.posting_date || existing.invoice.creation || ""
-      ).getTime();
-
-      const currentDate = new Date(
-        invoice.posting_date || invoice.creation || ""
-      ).getTime();
-
-      if (currentDate > existingDate) {
-        map.set(customerId, {
-          customerId,
-          customerName,
-          invoice,
-        });
-      }
-    });
-
-    return Array.from(map.values()).sort((a, b) =>
-      a.customerName.localeCompare(b.customerName)
-    );
-  }, [invoices]);
-
-  // ============================================================
-  // CUSTOMER CHANGE
-  // ============================================================
-
-  const handleCustomerChange = (
-    event: React.ChangeEvent<HTMLSelectElement>
+  const handleChange = (
+    field: keyof CreditFormData,
+    value: string | number
   ) => {
-    const customerId = event.target.value;
-
-    setCustomer(customerId);
-
-    if (!customerId) {
-      setInvoiceNo("");
-      setInvoiceDate("");
-      setAmount("");
-      setReferenceNo("");
-      return;
-    }
-
-    const selectedCustomer = customers.find(
-      (item) => item.customerId === customerId
-    );
-
-    if (!selectedCustomer) {
-      return;
-    }
-
-    const invoice = selectedCustomer.invoice;
-
-    // Auto-fill invoice number
-    setInvoiceNo(formatInvoiceNumber(invoice.id));
-
-    // Auto-fill invoice date
-    setInvoiceDate(formatDateForInput(invoice.posting_date));
-
-    // Auto-fill amount
-    const invoiceAmount =
-      invoice.grand_total ??
-      invoice.net_total ??
-      invoice.total ??
-      0;
-
-    setAmount(String(invoiceAmount));
-
-    // Auto-fill reference number
-    setReferenceNo(formatInvoiceNumber(invoice.id));
-
-    // Default reference type
-    setReferenceType("Sales Invoice");
+    setFormData((prev) => ({ ...prev, [field]: value }));
+    setErrors((prev) => ({ ...prev, [field]: "" }));
   };
 
-  // ============================================================
-  // REFERENCE TYPE
-  // ============================================================
-
-  const handleReferenceTypeChange = (
-    event: React.ChangeEvent<HTMLSelectElement>
-  ) => {
-    setReferenceType(event.target.value);
+  const handleSupplierSelect = (supplier: Supplier) => {
+    setFormData((prev) => ({
+      ...prev,
+      supplierId: supplier.id,
+      supplierName: supplier.supplier_name || supplier.name,
+      purchaseInvoiceId: "",
+      purchaseInvoiceNo: "",
+      purchaseInvoiceDate: "",
+      grandTotal: "",
+      purchaseOrderNo: "",
+      grnNo: "",
+      amount: "",
+    }));
+    setSupplierSearch(supplier.supplier_name || supplier.name);
+    setShowSupplierDropdown(false);
+    setErrors((prev) => ({ ...prev, supplierId: "" }));
   };
 
-  // ============================================================
-  // PAYMENT TYPE
-  // ============================================================
-
-  const handlePaymentTypeChange = (type: string) => {
-    setPaymentType(type);
-
-    if (type !== "Bank Transfer") {
-      setBankName("");
-      setAccountNo("");
-      setIfscCode("");
-    }
+  const handleInvoiceSelect = (invoice: PurchaseInvoice) => {
+    setFormData((prev) => ({
+      ...prev,
+      purchaseInvoiceId: invoice.id,
+      purchaseInvoiceNo: invoice.name,
+      purchaseInvoiceDate: toYMD(invoice.posting_date),
+      grandTotal: invoice.grand_total || "",
+      purchaseOrderNo: invoice.purchase_order || "",
+      grnNo: invoice.grn_no || "",
+      amount: invoice.grand_total?.toString() || "",
+    }));
+    setInvoiceSearch(invoice.name);
+    setShowInvoiceDropdown(false);
+    setErrors((prev) => ({
+      ...prev,
+      purchaseInvoiceId: "",
+      amount: "",
+    }));
   };
 
-  // ============================================================
-  // SAVE DATA
-  // ============================================================
+  const clearSupplier = () => {
+    setFormData((prev) => ({
+      ...prev,
+      supplierId: "",
+      supplierName: "",
+      purchaseInvoiceId: "",
+      purchaseInvoiceNo: "",
+      purchaseInvoiceDate: "",
+      grandTotal: "",
+      purchaseOrderNo: "",
+      grnNo: "",
+      amount: "",
+    }));
+    setSupplierSearch("");
+    setInvoiceSearch("");
+    setPurchaseInvoices([]);
+  };
+
+  const clearInvoice = () => {
+    setFormData((prev) => ({
+      ...prev,
+      purchaseInvoiceId: "",
+      purchaseInvoiceNo: "",
+      purchaseInvoiceDate: "",
+      grandTotal: "",
+      purchaseOrderNo: "",
+      grnNo: "",
+      amount: "",
+    }));
+    setInvoiceSearch("");
+  };
+
+  // ─── Filtered lists for dropdowns ─────────────────────────────
+  const filteredSuppliers = suppliers.filter((s) => {
+    const label = (s.supplier_name || s.name || "").toLowerCase();
+    return label.includes(supplierSearch.toLowerCase());
+  });
+
+  const filteredInvoices = purchaseInvoices.filter((inv) => {
+    const label = `${inv.name} ${inv.grand_total}`.toLowerCase();
+    return label.includes(invoiceSearch.toLowerCase());
+  });
 
   const validateForm = () => {
-    if (!receiptNo.trim()) {
-      toast.error("Receipt No. is required");
-      return false;
-    }
+    const newErrors: Partial<Record<keyof CreditFormData, string>> = {};
 
-    if (!creditDate) {
-      toast.error("Date is required");
-      return false;
-    }
+    if (!formData.creditDate) newErrors.creditDate = "Credit date is required";
+    if (!formData.supplierId) newErrors.supplierId = "Supplier is required";
+    if (!formData.referenceType)
+      newErrors.referenceType = "Reference type is required";
+    if (!formData.purchaseInvoiceId)
+      newErrors.purchaseInvoiceId = "Purchase invoice is required";
+    if (!formData.paymentType)
+      newErrors.paymentType = "Payment type is required";
+    if (!formData.amount || Number(formData.amount) <= 0)
+      newErrors.amount = "Enter a valid amount";
+    if (!formData.narration.trim())
+      newErrors.narration = "Narration is required";
 
-    if (!customer) {
-      toast.error("Please select customer");
-      return false;
-    }
-
-    if (!referenceType) {
-      toast.error("Please select reference type");
-      return false;
-    }
-
-    if (!referenceNo.trim()) {
-      toast.error("Reference No. is required");
-      return false;
-    }
-
-    if (!invoiceDate) {
-      toast.error("Invoice Date is required");
-      return false;
-    }
-
-    if (!amount || Number(amount) <= 0) {
-      toast.error("Enter a valid amount");
-      return false;
-    }
-
-    if (!narration.trim()) {
-      toast.error("Narration is required");
-      return false;
-    }
-
-    if (paymentType === "Bank Transfer") {
-      if (!bankName.trim()) {
-        toast.error("Bank Name is required");
-        return false;
-      }
-
-      if (!accountNo.trim()) {
-        toast.error("Account No. is required");
-        return false;
-      }
-
-      if (!ifscCode.trim()) {
-        toast.error("IFSC Code is required");
-        return false;
-      }
-    }
-
-    return true;
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
   };
 
-  const buildPayload = () => {
-    return {
-      receipt_no: receiptNo,
-      credit_date: creditDate,
-
-      customer,
-
-      reference_type: referenceType,
-      reference_no: referenceNo,
-
-      invoice_no: invoiceNo,
-      invoice_date: invoiceDate,
-
-      payment_type: paymentType,
-
-      bank_name:
-        paymentType === "Bank Transfer" ? bankName : null,
-
-      account_no:
-        paymentType === "Bank Transfer" ? accountNo : null,
-
-      ifsc_code:
-        paymentType === "Bank Transfer" ? ifscCode : null,
-
-      amount: Number(amount),
-
-      narration,
+  const saveCreditDetails = async () => {
+    const payload = {
+      entry_date: toYMD(formData.creditDate),
+      entry_type: "Debit",
+      company_id: 1,
+      party_type: "Supplier",
+      party_id: formData.supplierId,
+      reference_type: formData.referenceType,
+      reference_id: formData.purchaseInvoiceId,
+      reference_no: formData.purchaseInvoiceNo,
+      reference_date: toYMD(formData.purchaseInvoiceDate),
+      purchase_invoice_no: formData.purchaseInvoiceNo,
+      purchase_order_no: formData.purchaseOrderNo,
+      grn_no: formData.grnNo,
+      currency: "INR",
+      total_amount: Number(formData.amount),
+      payment_type: formData.paymentType,
+      narration: formData.narration,
+      status: "Draft",
+      created_by: 1,
+      modified_by: 1,
     };
+
+    console.log("Account Entry Payload:", payload);
+    const response = await api.post("/account_entry", payload);
+    console.log("Account entry saved:", response.data);
+    return response.data;
   };
 
-  const saveCredit = async (closeAfterSave: boolean) => {
+  const handleSaveContinue = async () => {
     if (!validateForm()) return;
-
+    setSaving(true);
+    setSuccessMessage(null);
     try {
-      setSaving(true);
+      const result = await saveCreditDetails();
 
-      const payload = buildPayload();
-
-      console.log("Credit Payload:", payload);
-
-      /*
-       * Change this endpoint if your backend uses another
-       * Credit Entry API endpoint.
-       */
-      await api.post("/credit-note", payload);
-
-      toast.success("Credit Entry saved successfully");
-
-      if (closeAfterSave) {
-        navigate(-1);
-      } else {
-        // Reset form for next entry
-        setReceiptNo("");
-        setCustomer("");
-        setInvoiceNo("");
-        setInvoiceDate("");
-        setReferenceNo("");
-        setReferenceType("");
-        setAmount("");
-        setBankName("");
-        setAccountNo("");
-        setIfscCode("");
-        setNarration("");
-
-        setCreditDate(
-          new Date().toISOString().split("T")[0]
-        );
-      }
-    } catch (error: any) {
-      console.error("Error saving credit entry:", error);
-
-      toast.error(
-        error?.response?.data?.message ||
-          "Failed to save Credit Entry"
+      // ✅ Show success message
+      const entryNo = result?.data?.entry_no || "ACC-XXXXX";
+      setSuccessMessage(
+        `✅ Account entry ${entryNo} created successfully for invoice ${formData.purchaseInvoiceNo}.`
       );
+
+      // Reset form
+      setFormData({
+        ...initialFormData,
+        creditDate: new Date().toISOString().split("T")[0],
+      });
+      setSupplierSearch("");
+      setInvoiceSearch("");
+      setPurchaseInvoices([]);
+      setErrors({});
+
+      // Auto hide success message after 5s
+      setTimeout(() => setSuccessMessage(null), 5000);
+    } catch (err: any) {
+      console.error("Failed to save:", err);
+      alert(err.response?.data?.message || "Failed to save credit details");
     } finally {
       setSaving(false);
     }
   };
 
-  // ============================================================
-  // RENDER
-  // ============================================================
+  const handleSaveClose = async () => {
+    if (!validateForm()) return;
+    setSaving(true);
+    setSuccessMessage(null);
+    try {
+      const result = await saveCreditDetails();
+      const entryNo = result?.data?.entry_no || "ACC-XXXXX";
+      setSuccessMessage(
+        `✅ Account entry ${entryNo} created successfully.`
+      );
+      setTimeout(() => {
+        window.history.back();
+      }, 1200);
+    } catch (err: any) {
+      console.error("Failed to save:", err);
+      alert(err.response?.data?.message || "Failed to save credit details");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
-    <div className="credit-page">
-
-      {/* ========================================================
-          HEADER
-      ======================================================== */}
-
-      <div className="credit-header">
-        <h2>CREDIT ENTRY</h2>
-      </div>
-
-      {/* ========================================================
-          MAIN FORM
-      ======================================================== */}
-
-      <div className="credit-form-card">
-
-        <div className="credit-form-grid">
-
-          {/* Receipt No */}
-          <div className="credit-field">
-            <label>
-              Receipt No. <span>*</span>
-            </label>
-
-            <input
-              type="text"
-              value={receiptNo}
-              onChange={(e) => setReceiptNo(e.target.value)}
-              placeholder="Enter receipt number"
-            />
-          </div>
-
-          {/* Date */}
-          <div className="credit-field">
-            <label>
-              Date <span>*</span>
-            </label>
-
-            <div className="credit-date-input">
-              <input
-                type="date"
-                value={creditDate}
-                onChange={(e) => setCreditDate(e.target.value)}
-              />
-
-              <FaCalendarAlt />
-            </div>
-          </div>
-
-          {/* Customer */}
-          <div className="credit-field">
-            <label>
-              Customer <span>*</span>
-            </label>
-
-            {/*<div className="credit-select-wrapper">
-              <select
-                value={customer}
-                onChange={handleCustomerChange}
-                disabled={loadingInvoices}
-              >
-                <option value="">
-                  {loadingInvoices
-                    ? "Loading customers..."
-                    : "Select customer"}
-                </option>
-
-                {customers.map((item) => (
-                  <option
-                    key={item.customerId}
-                    value={item.customerId}
-                  >
-                    {item.customerName}
-                  </option>
-                ))}
-              </select>
-
-              <FaChevronDown />*/}
-
-                  <div className="credit-select-wrapper">
-                    <select
-                      value={customer}
-                      onChange={handleCustomerChange}
-                      disabled={loadingInvoices}
-                    >
-                      <option value="">
-                        {loadingInvoices ? "Loading customers..." : "Select customer"}
-                      </option>
-                      {customers.map((item) => (
-                        <option key={item.customerId} value={item.customerId}>
-                          {item.customerName}
-                        </option>
-                      ))}
-                    </select>
-                    <FaChevronDown />
-                  </div>
-
-            </div>
-          
-
-          {/* Reference Type */}
-          <div className="credit-field">
-            <label>
-              Reference Type <span>*</span>
-            </label>
-
-            <div className="credit-select-wrapper">
-              <select
-                value={referenceType}
-                onChange={handleReferenceTypeChange}
-              >
-                <option value="">
-                  Select reference type
-                </option>
-                <option value="Sales Invoice">
-                  Sales Invoice
-                </option>
-                <option value="Credit Note">
-                  Credit Note
-                </option>
-                <option value="Journal Entry">
-                  Journal Entry
-                </option>
-              </select>
-
-              <FaChevronDown />
-            </div>
-          </div>
-
-          {/* Invoice No 
-          <div className="credit-field">
-            <label>
-              Invoice No. <span>*</span>
-            </label>
-
-            <input
-              type="text"
-              value={invoiceNo}
-              readOnly
-              placeholder="Auto-filled invoice number"
-            />
-          </div>*/}
-
-           {/* Reference No */}
-          <div className="credit-field">
-            <label>
-              Reference No. <span>*</span>
-            </label>
-
-            <input
-              type="text"
-              value={referenceNo}
-              onChange={(e) =>
-                setReferenceNo(e.target.value)
-              }
-              placeholder="Enter reference number"
-            />
-          </div>
-
-      
-
-
-          {/* Invoice Date */}
-          <div className="credit-field">
-            <label>
-              Invoice Date <span>*</span>
-            </label>
-
-            <div className="credit-date-input">
-              <input
-                type="date"
-                value={invoiceDate}
-                readOnly
-              />
-
-              <FaCalendarAlt />
-            </div>
-          </div>
-</div>
-         
-        {/* ======================================================
-            PAYMENT TYPE
-        ====================================================== */}
-
-        <div className="payment-type-row">
-
-          <label>
-            Payment Type <span>*</span>
-          </label>
-
-          <div className="payment-options">
-
-            <label className="payment-option">
-              <input
-                type="radio"
-                name="paymentType"
-                checked={paymentType === "Bank Transfer"}
-                onChange={() =>
-                  handlePaymentTypeChange("Bank Transfer")
-                }
-              />
-              <span>Bank Transfer</span>
-            </label>
-
-            <label className="payment-option">
-              <input
-                type="radio"
-                name="paymentType"
-                checked={paymentType === "Cash"}
-                onChange={() =>
-                  handlePaymentTypeChange("Cash")
-                }
-              />
-              <span>Cash</span>
-            </label>
-
-            <label className="payment-option">
-              <input
-                type="radio"
-                name="paymentType"
-                checked={paymentType === "UPI"}
-                onChange={() =>
-                  handlePaymentTypeChange("UPI")
-                }
-              />
-              <span>UPI</span>
-            </label>
-
-          </div>
+    <div className="rd-credit-page">
+      <div className="rd-credit-card">
+        {/* HEADER */}
+        <div className="rd-credit-header">
+          <h2>REFERENCE DETAILS – CREDIT FORM</h2>
         </div>
 
-        {/* ======================================================
-            BANK DETAILS
-        ====================================================== */}
-
-        {paymentType === "Bank Transfer" && (
-          <div className="bank-details">
-
-            <div className="bank-details-header">
-              Bank Details
-            </div>
-
-            <div className="bank-details-body">
-
-              {/* Bank Name */}
-              <div className="credit-field">
-                <label>
-                  Bank Name <span>*</span>
-                </label>
-
-                <div className="credit-select-wrapper">
-                  <select
-                    value={bankName}
-                    onChange={(e) =>
-                      setBankName(e.target.value)
-                    }
-                  >
-                    <option value="">
-                      Select bank
-                    </option>
-                    <option value="State Bank of India">
-                      State Bank of India
-                    </option>
-                    <option value="HDFC Bank">
-                      HDFC Bank
-                    </option>
-                    <option value="ICICI Bank">
-                      ICICI Bank
-                    </option>
-                    <option value="Axis Bank">
-                      Axis Bank
-                    </option>
-                    <option value="Kotak Mahindra Bank">
-                      Kotak Mahindra Bank
-                    </option>
-                  </select>
-
-                  <FaChevronDown />
-                </div>
-              </div>
-
-              {/* Account No */}
-              <div className="credit-field">
-                <label>
-                  Account No. <span>*</span>
-                </label>
-
-                <input
-                  type="text"
-                  value={accountNo}
-                  onChange={(e) =>
-                    setAccountNo(e.target.value)
-                  }
-                  placeholder="Enter account number"
-                />
-              </div>
-
-              {/* IFSC */}
-              <div className="credit-field">
-                <label>
-                  IFSC Code <span>*</span>
-                </label>
-
-                <input
-                  type="text"
-                  value={ifscCode}
-                  onChange={(e) =>
-                    setIfscCode(
-                      e.target.value.toUpperCase()
-                    )
-                  }
-                  placeholder="Enter IFSC code"
-                />
-              </div>
-
-            </div>
+        {/* SUCCESS MESSAGE */}
+        {successMessage && (
+          <div className="rd-credit-success">
+            <span>{successMessage}</span>
           </div>
         )}
 
-        {/* ======================================================
-            AMOUNT + NARRATION
-        ====================================================== */}
-
-        <div className="credit-bottom-section">
-
-          {/* Amount */}
-          <div className="credit-field amount-field">
-
-            <label>
-              Amount <span>*</span>
-            </label>
-
-            <div className="amount-input-wrapper">
-
-              <span className="rupee-symbol">
-                ₹
-              </span>
-
+        <div className="rd-credit-form">
+          {/* ROW 1 - Credit Date */}
+          <div className="rd-credit-row">
+            <div className="rd-credit-field">
+              <label>
+                Credit Date <span>*</span>
+              </label>
               <input
-                type="number"
-                min="0"
-                step="0.01"
-                value={amount}
-                onChange={(e) =>
-                  setAmount(e.target.value)
-                }
-                placeholder="Enter amount"
+                type="date"
+                value={formData.creditDate}
+                onChange={(e) => handleChange("creditDate", e.target.value)}
               />
+              {errors.creditDate && (
+                <small className="rd-credit-error">{errors.creditDate}</small>
+              )}
+            </div>
+          </div>
 
+          {/* ROW 2 - Supplier + Reference Type */}
+          <div className="rd-credit-row two-column">
+            {/* Supplier Searchable Dropdown */}
+            <div className="rd-credit-field">
+              <label>
+                Supplier <span>*</span>
+              </label>
+
+              <div className="rd-credit-searchable" ref={supplierRef}>
+                <div className="rd-credit-searchable-input">
+                  <input
+                    type="text"
+                    placeholder={
+                      loadingSuppliers
+                        ? "Loading suppliers..."
+                        : "Search or select supplier"
+                    }
+                    value={supplierSearch}
+                    onChange={(e) => {
+                      setSupplierSearch(e.target.value);
+                      setShowSupplierDropdown(true);
+                    }}
+                    onFocus={() => setShowSupplierDropdown(true)}
+                    disabled={loadingSuppliers}
+                  />
+                  {supplierSearch && (
+                    <button
+                      type="button"
+                      className="rd-credit-searchable-clear"
+                      onClick={clearSupplier}
+                      title="Clear"
+                    >
+                      ✕
+                    </button>
+                  )}
+                  <span className="rd-credit-searchable-chevron">▾</span>
+                </div>
+
+                {showSupplierDropdown && (
+                  <div className="rd-credit-searchable-menu">
+                    {filteredSuppliers.length === 0 ? (
+                      <div className="rd-credit-searchable-empty">
+                        No suppliers found
+                      </div>
+                    ) : (
+                      filteredSuppliers.slice(0, 100).map((supplier) => (
+                        <div
+                          key={supplier.id}
+                          className={`rd-credit-searchable-item ${
+                            formData.supplierId === supplier.id
+                              ? "active"
+                              : ""
+                          }`}
+                          onClick={() => handleSupplierSelect(supplier)}
+                        >
+                          <span className="rd-credit-searchable-name">
+                            {supplier.supplier_name || supplier.name}
+                          </span>
+                          {supplier.supplier_group && (
+                            <span className="rd-credit-searchable-tag">
+                              {supplier.supplier_group}
+                            </span>
+                          )}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {errors.supplierId && (
+                <small className="rd-credit-error">{errors.supplierId}</small>
+              )}
             </div>
 
+            {/* Reference Type */}
+            <div className="rd-credit-field">
+              <label>
+                Reference Type <span>*</span>
+              </label>
+              <select
+                value={formData.referenceType}
+                onChange={(e) => handleChange("referenceType", e.target.value)}
+              >
+                <option value="Purchase Invoice">Purchase Invoice</option>
+                <option value="Purchase Order">Purchase Order</option>
+                <option value="Payment">Payment</option>
+                <option value="Expense">Expense</option>
+                <option value="Other">Other</option>
+              </select>
+              {errors.referenceType && (
+                <small className="rd-credit-error">{errors.referenceType}</small>
+              )}
+            </div>
           </div>
 
-          {/* Narration */}
-          <div className="credit-field narration-field">
+          {/* ROW 3 - Invoice Searchable Dropdown */}
+          <div className="rd-credit-row">
+            <div className="rd-credit-field">
+              <label>
+                Invoice Number (Purchase Bill) <span>*</span>
+              </label>
 
-            <label>
-              Narration <span>*</span>
-            </label>
+              <div className="rd-credit-searchable" ref={invoiceRef}>
+                <div className="rd-credit-searchable-input">
+                  <input
+                    type="text"
+                    placeholder={
+                      !formData.supplierId
+                        ? "Select supplier first"
+                        : loadingInvoices
+                        ? "Loading invoices..."
+                        : "Search or select purchase invoice"
+                    }
+                    value={invoiceSearch}
+                    onChange={(e) => {
+                      setInvoiceSearch(e.target.value);
+                      setShowInvoiceDropdown(true);
+                    }}
+                    onFocus={() => setShowInvoiceDropdown(true)}
+                    disabled={!formData.supplierId || loadingInvoices}
+                  />
+                  {invoiceSearch && (
+                    <button
+                      type="button"
+                      className="rd-credit-searchable-clear"
+                      onClick={clearInvoice}
+                      title="Clear"
+                    >
+                      ✕
+                    </button>
+                  )}
+                  <span className="rd-credit-searchable-chevron">▾</span>
+                </div>
 
-            <textarea
-              value={narration}
-              onChange={(e) =>
-                setNarration(e.target.value)
-              }
-              placeholder="Add narration"
-              rows={4}
-            />
+                {showInvoiceDropdown && (
+                  <div className="rd-credit-searchable-menu">
+                    {filteredInvoices.length === 0 ? (
+                      <div className="rd-credit-searchable-empty">
+                        {purchaseInvoices.length === 0
+                          ? "No invoices found"
+                          : "No matching invoices"}
+                      </div>
+                    ) : (
+                      filteredInvoices.slice(0, 100).map((invoice) => (
+                        <div
+                          key={invoice.id}
+                          className={`rd-credit-searchable-item ${
+                            formData.purchaseInvoiceId === invoice.id
+                              ? "active"
+                              : ""
+                          }`}
+                          onClick={() => handleInvoiceSelect(invoice)}
+                        >
+                          <div className="rd-credit-searchable-row">
+                            <span className="rd-credit-searchable-name">
+                              {invoice.name}
+                            </span>
+                            <span className="rd-credit-searchable-amount">
+                              ₹
+                              {invoice.grand_total?.toLocaleString("en-IN")}
+                            </span>
+                          </div>
+                          <span className="rd-credit-searchable-sub">
+                            {new Date(invoice.posting_date).toLocaleDateString(
+                              "en-IN",
+                              {
+                                day: "2-digit",
+                                month: "short",
+                                year: "numeric",
+                              }
+                            )}
+                          </span>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
 
+              {errors.purchaseInvoiceId && (
+                <small className="rd-credit-error">
+                  {errors.purchaseInvoiceId}
+                </small>
+              )}
+            </div>
           </div>
 
+          {/* ROW 4 - Payment Type */}
+          <div className="rd-credit-row">
+            <div className="rd-credit-field payment-field">
+              <label>
+                Payment Type <span>*</span>
+              </label>
+              <div className="rd-credit-radio-group">
+                <label className="rd-credit-radio">
+                  <input
+                    type="radio"
+                    name="paymentType"
+                    value="Bank Transfer"
+                    checked={formData.paymentType === "Bank Transfer"}
+                    onChange={(e) =>
+                      handleChange("paymentType", e.target.value)
+                    }
+                  />
+                  <span>Bank Transfer</span>
+                </label>
+
+                <label className="rd-credit-radio">
+                  <input
+                    type="radio"
+                    name="paymentType"
+                    value="Cash"
+                    checked={formData.paymentType === "Cash"}
+                    onChange={(e) =>
+                      handleChange("paymentType", e.target.value)
+                    }
+                  />
+                  <span>Cash</span>
+                </label>
+
+                <label className="rd-credit-radio">
+                  <input
+                    type="radio"
+                    name="paymentType"
+                    value="UPI"
+                    checked={formData.paymentType === "UPI"}
+                    onChange={(e) =>
+                      handleChange("paymentType", e.target.value)
+                    }
+                  />
+                  <span>UPI</span>
+                </label>
+              </div>
+              {errors.paymentType && (
+                <small className="rd-credit-error">{errors.paymentType}</small>
+              )}
+            </div>
+          </div>
+
+          {/* ROW 5 - Amount */}
+          <div className="rd-credit-row">
+            <div className="rd-credit-field">
+              <label>
+                Amount <span>*</span>
+              </label>
+              <div className="rd-credit-amount">
+                <span>₹</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="Enter amount"
+                  value={formData.amount}
+                  onChange={(e) => handleChange("amount", e.target.value)}
+                />
+              </div>
+              {errors.amount && (
+                <small className="rd-credit-error">{errors.amount}</small>
+              )}
+            </div>
+          </div>
+
+          {/* ROW 6 - Narration */}
+          <div className="rd-credit-row">
+            <div className="rd-credit-field">
+              <label>
+                Narration <span>*</span>
+              </label>
+              <textarea
+                placeholder="Add narration"
+                value={formData.narration}
+                onChange={(e) => handleChange("narration", e.target.value)}
+              />
+              {errors.narration && (
+                <small className="rd-credit-error">{errors.narration}</small>
+              )}
+            </div>
+          </div>
+
+          {/* ACTIONS */}
+          <div className="rd-credit-actions">
+            <button
+              type="button"
+              className="rd-credit-save-continue"
+              onClick={handleSaveContinue}
+              disabled={saving}
+            >
+              {saving ? "Saving..." : "Save"}
+            </button>
+
+            {/* <button
+              type="button"
+              className="rd-credit-save-close"
+              onClick={handleSaveClose}
+              disabled={saving}
+            > */}
+              {/* {saving ? "Saving..." : ""} */}
+            {/* </button> */}
+          </div>
         </div>
-
-        {/* ======================================================
-            BUTTONS
-        ====================================================== */}
-
-        <div className="credit-footer">
-
-          <button
-            type="button"
-            className="credit-btn credit-btn-primary"
-            disabled={saving}
-            onClick={() => saveCredit(false)}
-          >
-            <FaSave />
-
-            {saving
-              ? "Saving..."
-              : "Save Continue"}
-          </button>
-
-          <button
-            type="button"
-            className="credit-btn credit-btn-primary"
-            disabled={saving}
-            onClick={() => saveCredit(true)}
-          >
-            <FaSave />
-
-            {saving
-              ? "Saving..."
-              : "Save Close"}
-          </button>
-
-        </div>
-
       </div>
     </div>
   );

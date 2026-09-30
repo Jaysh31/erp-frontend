@@ -1,27 +1,543 @@
+/* ═══════════════════════════════════════════════════════════════════
+   DEBIT FORM — Fully theme-aware
+   All colors resolve from admin-theme CSS variables set by
+   AdminThemeContext. Fallbacks are the default blue palette.
+   ═══════════════════════════════════════════════════════════════════ */
+
+   * {
+    box-sizing: border-box;
+  }
+  
+  .rd-debit-page {
+    --rd-bg: var(--bg-color, #ffffff);
+    --rd-card-bg: var(--card-bg, #ffffff);
+    --rd-text-primary: var(--text-primary, #14284d);
+    --rd-text-secondary: var(--text-secondary, #455d7b);
+    --rd-border: var(--border-color, #c8dff4);
+    --rd-input-border: var(--input-border, #c8dced);
+    --rd-hover-bg: var(--hover-bg, #f7fbff);
+    --rd-primary: var(--primary-color, #3188d5);
+    --rd-primary-hover: var(--primary-color-hover, #086abe);
+    --rd-primary-light: var(--primary-color-light, rgba(49, 136, 213, 0.08));
+    --rd-primary-soft: var(--primary-color-soft, #eff6ff);
+    --rd-primary-contrast: var(--primary-contrast, #ffffff);
+    --rd-success-bg: var(--success-bg, #ecfdf5);
+    --rd-success-border: var(--success-border, #a7f3d0);
+    --rd-success-text: var(--success-text, #065f46);
+    --rd-error: var(--error-color, #dc2626);
+  
+    width: 100%;
+    min-height: 100vh;
+    padding: 10px;
+    background: var(--rd-bg);
+    font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI",
+      sans-serif;
+    color: var(--rd-text-primary);
+    transition: background 0.2s ease, color 0.2s ease;
+  }
+  
+  .rd-debit-card {
+    width: 100%;
+    border: 1px solid var(--rd-border);
+    border-radius: 6px;
+    background: var(--rd-card-bg);
+    overflow: hidden;
+    transition: background 0.2s ease, border-color 0.2s ease;
+  }
+  
+  /* ================= HEADER ================= */
+  
+  .rd-debit-header {
+    height: 43px;
+    display: flex;
+    align-items: center;
+    padding: 0 14px;
+    background: linear-gradient(
+      90deg,
+      var(--rd-primary),
+      var(--rd-primary)
+    );
+    transition: background 0.2s ease;
+  }
+  
+  .rd-debit-header h2 {
+    margin: 0;
+    color: var(--rd-primary-contrast);
+    font-size: 17px;
+    font-weight: 700;
+    letter-spacing: 0.1px;
+  }
+  
+  /* ================= FORM ================= */
+  
+  .rd-debit-form {
+    padding: 13px 18px 15px;
+  }
+  
+  .rd-debit-field {
+    width: 100%;
+    min-height: 40px;
+    display: grid;
+    grid-template-columns: 165px minmax(0, 1fr);
+    align-items: center;
+    column-gap: 14px;
+  }
+  
+  .rd-debit-field label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--rd-text-primary);
+  }
+  
+  .rd-debit-field label span {
+    color: var(--rd-error);
+    margin-left: 2px;
+  }
+  
+  .rd-debit-field input,
+  .rd-debit-field select,
+  .rd-debit-field textarea {
+    width: 100%;
+    min-height: 32px;
+    padding: 0 10px;
+    border: 1px solid var(--rd-input-border);
+    border-radius: 4px;
+    background: var(--rd-card-bg);
+    color: var(--rd-text-primary);
+    font-family: inherit;
+    font-size: 13px;
+    outline: none;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease,
+      background 0.15s ease, color 0.15s ease;
+  }
+  
+  .rd-debit-field textarea {
+    padding: 8px 10px;
+    min-height: 70px;
+    resize: vertical;
+  }
+  
+  .rd-debit-field input:focus,
+  .rd-debit-field select:focus,
+  .rd-debit-field textarea:focus {
+    border-color: var(--rd-primary);
+    box-shadow: 0 0 0 2px var(--rd-primary-light);
+  }
+  
+  .rd-debit-field select {
+    cursor: pointer;
+  }
+  
+  .rd-debit-error {
+    color: var(--rd-error);
+    font-size: 12px;
+    font-weight: 500;
+    grid-column: 2;
+    margin-top: 2px;
+  }
+  
+  /* ================= AMOUNT ================= */
+  
+  .rd-debit-amount {
+    width: 100%;
+    height: 32px;
+    display: grid;
+    grid-template-columns: 38px minmax(0, 1fr);
+  }
+  
+  .rd-debit-amount span {
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--rd-input-border);
+    border-right: none;
+    border-radius: 4px 0 0 4px;
+    background: var(--rd-hover-bg);
+    color: var(--rd-text-secondary);
+    font-size: 13px;
+  }
+  
+  .rd-debit-amount input {
+    height: 32px;
+    border-radius: 0 4px 4px 0;
+    text-align: left;
+  }
+  
+  /* ================= BUTTONS ================= */
+  
+  .rd-debit-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+  }
+  
+  .rd-debit-actions button {
+    height: 34px;
+    min-width: 106px;
+    padding: 0 18px;
+    border: none;
+    border-radius: 4px;
+    color: var(--rd-primary-contrast);
+    background: var(--rd-primary);
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.15s ease, transform 0.1s ease;
+  }
+  
+  .rd-debit-actions button:hover {
+    background: var(--rd-primary-hover);
+  }
+  
+  .rd-debit-actions button:active {
+    transform: translateY(1px);
+  }
+  
+  .rd-debit-actions button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+  }
+  
+  .rd-debit-save {
+    background: var(--rd-primary);
+  }
+  
+  .rd-debit-submit {
+    background: var(--rd-primary);
+  }
+  
+  /* ================= RESPONSIVE ================= */
+  
+  @media (max-width: 768px) {
+    .rd-debit-page {
+      padding: 8px;
+    }
+  
+    .rd-debit-header {
+      height: 42px;
+      padding: 0 12px;
+    }
+  
+    .rd-debit-header h2 {
+      font-size: 15px;
+    }
+  
+    .rd-debit-form {
+      padding: 12px;
+    }
+  
+    .rd-debit-field {
+      grid-template-columns: 1fr;
+      gap: 5px;
+      margin-bottom: 10px;
+    }
+  
+    .rd-debit-field label {
+      font-size: 13px;
+    }
+  
+    .rd-debit-field input,
+    .rd-debit-field select {
+      height: 36px;
+    }
+  
+    .rd-debit-amount {
+      height: 36px;
+    }
+  
+    .rd-debit-amount span,
+    .rd-debit-amount input {
+      height: 36px;
+    }
+  
+    .rd-debit-error {
+      grid-column: 1;
+    }
+  
+    .rd-debit-actions {
+      width: 100%;
+    }
+  
+    .rd-debit-actions button {
+      flex: 1;
+    }
+  }
+  
+  /* ─── Success Message ─────────────────────────────────────────── */
+  .rd-debit-success {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 12px 18px 0 18px;
+    padding: 12px 16px;
+    background: var(--rd-success-bg);
+    border: 1px solid var(--rd-success-border);
+    border-left: 4px solid #10b981;
+    border-radius: 6px;
+    color: var(--rd-success-text);
+    font-size: 13.5px;
+    font-weight: 500;
+    animation: rd-debit-slide-in 0.3s ease-out;
+  }
+  
+  @keyframes rd-debit-slide-in {
+    from {
+      opacity: 0;
+      transform: translateY(-6px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  
+  /* ─── Searchable Dropdown ─────────────────────────────────────── */
+  .rd-debit-searchable {
+    position: relative;
+    width: 100%;
+  }
+  
+  .rd-debit-searchable-input {
+    position: relative;
+    display: flex;
+    align-items: center;
+    width: 100%;
+    border: 1px solid var(--rd-input-border);
+    border-radius: 4px;
+    background: var(--rd-card-bg);
+    transition: border-color 0.15s ease, box-shadow 0.15s ease,
+      background 0.15s ease;
+  }
+  
+  .rd-debit-searchable-input:focus-within {
+    border-color: var(--rd-primary);
+    box-shadow: 0 0 0 2px var(--rd-primary-light);
+  }
+  
+  .rd-debit-searchable-input input {
+    flex: 1;
+    height: 32px;
+    border: none;
+    outline: none;
+    background: transparent;
+    padding: 0 60px 0 10px;
+    font-size: 13px;
+    color: var(--rd-text-primary);
+    width: 100%;
+    border-radius: 4px;
+  }
+  
+  .rd-debit-searchable-input input::placeholder {
+    color: var(--rd-text-secondary);
+    opacity: 0.65;
+  }
+  
+  .rd-debit-searchable-input input:disabled {
+    background: var(--rd-hover-bg);
+    color: var(--rd-text-secondary);
+    cursor: not-allowed;
+  }
+  
+  .rd-debit-searchable-chevron {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--rd-text-secondary);
+    font-size: 12px;
+    pointer-events: none;
+  }
+  
+  .rd-debit-searchable-clear {
+    position: absolute;
+    right: 30px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: none;
+    background: var(--rd-hover-bg);
+    color: var(--rd-text-secondary);
+    font-size: 10px;
+    font-weight: 700;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s ease, color 0.15s ease;
+  }
+  
+  .rd-debit-searchable-clear:hover {
+    background: var(--rd-primary-light);
+    color: var(--rd-primary);
+  }
+  
+  /* ─── Dropdown menu ──────────────────────────────────────────── */
+  .rd-debit-searchable-menu {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    z-index: 100;
+    background: var(--rd-card-bg);
+    border: 1px solid var(--rd-border);
+    border-radius: 6px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.12);
+    max-height: 260px;
+    overflow-y: auto;
+    padding: 4px;
+    animation: rd-debit-dropdown-in 0.12s ease-out;
+  }
+  
+  @keyframes rd-debit-dropdown-in {
+    from {
+      opacity: 0;
+      transform: translateY(-4px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  
+  .rd-debit-searchable-menu::-webkit-scrollbar {
+    width: 6px;
+  }
+  .rd-debit-searchable-menu::-webkit-scrollbar-track {
+    background: var(--rd-hover-bg);
+    border-radius: 10px;
+  }
+  .rd-debit-searchable-menu::-webkit-scrollbar-thumb {
+    background: var(--rd-input-border);
+    border-radius: 10px;
+  }
+  .rd-debit-searchable-menu::-webkit-scrollbar-thumb:hover {
+    background: var(--rd-text-secondary);
+  }
+  
+  /* ─── Dropdown item ──────────────────────────────────────────── */
+  .rd-debit-searchable-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 8px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--rd-text-primary);
+    transition: background 0.1s ease, color 0.1s ease;
+    flex-direction: row;
+  }
+  
+  .rd-debit-searchable-item:hover {
+    background: var(--rd-hover-bg);
+  }
+  
+  .rd-debit-searchable-item.active {
+    background: var(--rd-primary-soft);
+    color: var(--rd-primary);
+    font-weight: 600;
+  }
+  
+  .rd-debit-searchable-name {
+    font-weight: 500;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  
+  .rd-debit-searchable-tag {
+    font-size: 10.5px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: var(--rd-primary-light);
+    color: var(--rd-primary);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    flex-shrink: 0;
+  }
+  
+  .rd-debit-searchable-amount {
+    font-size: 12.5px;
+    font-weight: 700;
+    color: #059669;
+    flex-shrink: 0;
+  }
+  
+  .rd-debit-searchable-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    width: 100%;
+  }
+  
+  .rd-debit-searchable-sub {
+    font-size: 11px;
+    color: var(--rd-text-secondary);
+  }
+  
+  .rd-debit-searchable-item:has(.rd-debit-searchable-row) {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
+  }
+  
+  /* ─── Empty state ────────────────────────────────────────────── */
+  .rd-debit-searchable-empty {
+    padding: 12px;
+    text-align: center;
+    font-size: 12.5px;
+    color: var(--rd-text-secondary);
+  }/* ═══════════════════════════════════════════════════════════════════
+   DEBIT FORM — Theme-aware, compact
+   ═══════════════════════════════════════════════════════════════════ */
+
 * {
   box-sizing: border-box;
 }
 
 .rd-debit-page {
+  --rd-bg: var(--bg-color, #ffffff);
+  --rd-card-bg: var(--card-bg, #ffffff);
+  --rd-text-primary: var(--text-primary, #14284d);
+  --rd-text-secondary: var(--text-secondary, #455d7b);
+  --rd-border: var(--border-color, #c8dff4);
+  --rd-input-border: var(--input-border, #c8dced);
+  --rd-hover-bg: var(--hover-bg, #f7fbff);
+  --rd-primary: var(--primary-color, #3188d5);
+  --rd-primary-hover: var(--primary-color-hover, #086abe);
+  --rd-primary-light: var(--primary-color-light, rgba(49, 136, 213, 0.08));
+  --rd-primary-soft: var(--primary-color-soft, #eff6ff);
+  --rd-primary-contrast: var(--primary-contrast, #ffffff);
+  --rd-success-bg: var(--success-bg, #ecfdf5);
+  --rd-success-border: var(--success-border, #a7f3d0);
+  --rd-success-text: var(--success-text, #065f46);
+  --rd-error: var(--error-color, #dc2626);
+
   width: 100%;
   min-height: 100vh;
   padding: 10px;
-  background: #ffffff;
-  font-family:
-    Inter,
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    sans-serif;
-  color: #14284d;
+  background: var(--rd-bg);
+  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: var(--rd-text-primary);
+  transition: background 0.2s ease, color 0.2s ease;
 }
 
 .rd-debit-card {
   width: 100%;
-  border: 1px solid #c8dff4;
+  border: 1px solid var(--rd-border);
   border-radius: 6px;
-  background: #ffffff;
+  background: var(--rd-card-bg);
   overflow: hidden;
+  transition: background 0.2s ease, border-color 0.2s ease;
 }
 
 /* ================= HEADER ================= */
@@ -31,19 +547,12 @@
   display: flex;
   align-items: center;
   padding: 0 14px;
-
-  background: linear-gradient(
-    90deg,
-    #3188d5,
-    #3c91d9
-  );
+  background: linear-gradient(90deg, var(--rd-primary), var(--rd-primary));
 }
 
 .rd-debit-header h2 {
   margin: 0;
-
-  color: #ffffff;
-
+  color: var(--rd-primary-contrast);
   font-size: 17px;
   font-weight: 700;
   letter-spacing: 0.1px;
@@ -55,54 +564,78 @@
   padding: 13px 18px 15px;
 }
 
+.rd-debit-row {
+  display: flex;
+  gap: 18px;
+  width: 100%;
+}
+
+.rd-debit-row.two-column > .rd-debit-field {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
 .rd-debit-field {
   width: 100%;
   min-height: 40px;
-
   display: grid;
   grid-template-columns: 165px minmax(0, 1fr);
-
   align-items: center;
-
   column-gap: 14px;
+  margin-bottom: 6px;
 }
 
 .rd-debit-field label {
   font-size: 13px;
   font-weight: 600;
-  color: #172d51;
+  color: var(--rd-text-primary);
+}
+
+.rd-debit-field label span {
+  color: var(--rd-error);
+  margin-left: 2px;
 }
 
 .rd-debit-field input,
-.rd-debit-field select {
+.rd-debit-field select,
+.rd-debit-field textarea {
   width: 100%;
-  height: 32px;
-
+  min-height: 32px;
   padding: 0 10px;
-
-  border: 1px solid #c8dced;
+  border: 1px solid var(--rd-input-border);
   border-radius: 4px;
-
-  background: #ffffff;
-
-  color: #243b5d;
-
+  background: var(--rd-card-bg);
+  color: var(--rd-text-primary);
   font-family: inherit;
   font-size: 13px;
-
   outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease,
+    background 0.15s ease, color 0.15s ease;
+}
+
+.rd-debit-field textarea {
+  padding: 8px 10px;
+  min-height: 70px;
+  resize: vertical;
 }
 
 .rd-debit-field input:focus,
-.rd-debit-field select:focus {
-  border-color: #3c91d9;
-
-  box-shadow:
-    0 0 0 2px rgba(49, 136, 213, 0.08);
+.rd-debit-field select:focus,
+.rd-debit-field textarea:focus {
+  border-color: var(--rd-primary);
+  box-shadow: 0 0 0 2px var(--rd-primary-light);
 }
 
 .rd-debit-field select {
   cursor: pointer;
+}
+
+.rd-debit-error {
+  color: var(--rd-error);
+  font-size: 12px;
+  font-weight: 500;
+  grid-column: 2;
+  margin-top: 2px;
 }
 
 /* ================= AMOUNT ================= */
@@ -110,86 +643,328 @@
 .rd-debit-amount {
   width: 100%;
   height: 32px;
-
   display: grid;
   grid-template-columns: 38px minmax(0, 1fr);
 }
 
 .rd-debit-amount span {
   height: 32px;
-
   display: flex;
   align-items: center;
   justify-content: center;
-
-  border: 1px solid #c8dced;
+  border: 1px solid var(--rd-input-border);
   border-right: none;
-
   border-radius: 4px 0 0 4px;
-
-  background: #f7fbff;
-
-  color: #455d7b;
-
+  background: var(--rd-hover-bg);
+  color: var(--rd-text-secondary);
   font-size: 13px;
 }
 
 .rd-debit-amount input {
   height: 32px;
-
   border-radius: 0 4px 4px 0;
-
   text-align: left;
 }
 
-/* ================= BUTTONS ================= */
+/* ================= PAYMENT TYPE RADIOS ================= */
+
+.rd-debit-radio-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+  padding: 4px 0;
+}
+
+.rd-debit-radio {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--rd-text-primary);
+  cursor: pointer;
+  user-select: none;
+  line-height: 1;
+}
+
+.rd-debit-radio input[type="radio"] {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  accent-color: var(--rd-primary);
+  cursor: pointer;
+}
+
+/* ================= ACTIONS ================= */
 
 .rd-debit-actions {
   display: flex;
+  justify-content: flex-end;
   gap: 8px;
-
-  margin-top: 10px;
-}
-
-.rd-debit-actions button {
-  height: 34px;
-
-  min-width: 106px;
-
-  padding: 0 18px;
-
-  border: none;
-  border-radius: 4px;
-
-  color: #ffffff;
-
-  background: #147bd5;
-
-  font-family: inherit;
-  font-size: 13px;
-  font-weight: 700;
-
-  cursor: pointer;
-
-  transition:
-    background 0.15s ease,
-    transform 0.1s ease;
-}
-
-.rd-debit-actions button:hover {
-  background: #086abe;
-}
-
-.rd-debit-actions button:active {
-  transform: translateY(1px);
-}
-
-.rd-debit-save {
-  background: #147bd5;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--rd-border);
 }
 
 .rd-debit-submit {
-  background: #147bd5;
+  height: 34px;
+  min-width: 120px;
+  padding: 0 22px;
+  border: none;
+  border-radius: 4px;
+  color: var(--rd-primary-contrast);
+  background: var(--rd-primary);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.1s ease, opacity 0.15s ease;
+}
+
+.rd-debit-submit:hover:not(:disabled) {
+  background: var(--rd-primary-hover);
+}
+
+.rd-debit-submit:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.rd-debit-submit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* ================= SUCCESS MESSAGE ================= */
+
+.rd-debit-success {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 12px 18px 0 18px;
+  padding: 12px 16px;
+  background: var(--rd-success-bg);
+  border: 1px solid var(--rd-success-border);
+  border-left: 4px solid #10b981;
+  border-radius: 6px;
+  color: var(--rd-success-text);
+  font-size: 13.5px;
+  font-weight: 500;
+  animation: rd-debit-slide-in 0.3s ease-out;
+}
+
+@keyframes rd-debit-slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ================= SEARCHABLE DROPDOWN ================= */
+
+.rd-debit-searchable {
+  position: relative;
+  width: 100%;
+}
+
+.rd-debit-searchable-input {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  border: 1px solid var(--rd-input-border);
+  border-radius: 4px;
+  background: var(--rd-card-bg);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease,
+    background 0.15s ease;
+}
+
+.rd-debit-searchable-input:focus-within {
+  border-color: var(--rd-primary);
+  box-shadow: 0 0 0 2px var(--rd-primary-light);
+}
+
+.rd-debit-searchable-input input {
+  flex: 1;
+  height: 32px;
+  border: none;
+  outline: none;
+  background: transparent;
+  padding: 0 60px 0 10px;
+  font-size: 13px;
+  color: var(--rd-text-primary);
+  width: 100%;
+  border-radius: 4px;
+}
+
+.rd-debit-searchable-input input::placeholder {
+  color: var(--rd-text-secondary);
+  opacity: 0.65;
+}
+
+.rd-debit-searchable-input input:disabled {
+  background: var(--rd-hover-bg);
+  color: var(--rd-text-secondary);
+  cursor: not-allowed;
+}
+
+.rd-debit-searchable-chevron {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--rd-text-secondary);
+  font-size: 12px;
+  pointer-events: none;
+}
+
+.rd-debit-searchable-clear {
+  position: absolute;
+  right: 30px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: none;
+  background: var(--rd-hover-bg);
+  color: var(--rd-text-secondary);
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.rd-debit-searchable-clear:hover {
+  background: var(--rd-primary-light);
+  color: var(--rd-primary);
+}
+
+.rd-debit-searchable-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 100;
+  background: var(--rd-card-bg);
+  border: 1px solid var(--rd-border);
+  border-radius: 6px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.12);
+  max-height: 260px;
+  overflow-y: auto;
+  padding: 4px;
+  animation: rd-debit-dropdown-in 0.12s ease-out;
+}
+
+@keyframes rd-debit-dropdown-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.rd-debit-searchable-menu::-webkit-scrollbar {
+  width: 6px;
+}
+.rd-debit-searchable-menu::-webkit-scrollbar-track {
+  background: var(--rd-hover-bg);
+  border-radius: 10px;
+}
+.rd-debit-searchable-menu::-webkit-scrollbar-thumb {
+  background: var(--rd-input-border);
+  border-radius: 10px;
+}
+.rd-debit-searchable-menu::-webkit-scrollbar-thumb:hover {
+  background: var(--rd-text-secondary);
+}
+
+.rd-debit-searchable-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--rd-text-primary);
+  transition: background 0.1s ease, color 0.1s ease;
+  flex-direction: row;
+}
+
+.rd-debit-searchable-item:hover {
+  background: var(--rd-hover-bg);
+}
+
+.rd-debit-searchable-item.active {
+  background: var(--rd-primary-soft);
+  color: var(--rd-primary);
+  font-weight: 600;
+}
+
+.rd-debit-searchable-name {
+  font-weight: 500;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rd-debit-searchable-tag {
+  font-size: 10.5px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--rd-primary-light);
+  color: var(--rd-primary);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  flex-shrink: 0;
+}
+
+.rd-debit-searchable-amount {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #059669;
+  flex-shrink: 0;
+}
+
+.rd-debit-searchable-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+}
+
+.rd-debit-searchable-sub {
+  font-size: 11px;
+  color: var(--rd-text-secondary);
+}
+
+.rd-debit-searchable-item:has(.rd-debit-searchable-row) {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+}
+
+.rd-debit-searchable-empty {
+  padding: 12px;
+  text-align: center;
+  font-size: 12.5px;
+  color: var(--rd-text-secondary);
 }
 
 /* ================= RESPONSIVE ================= */
@@ -212,15 +987,19 @@
     padding: 12px;
   }
 
+  .rd-debit-row.two-column {
+    flex-direction: column;
+    gap: 0;
+  }
+
   .rd-debit-field {
     grid-template-columns: 1fr;
     gap: 5px;
-
     margin-bottom: 10px;
   }
 
-  .rd-debit-field label {
-    font-size: 13px;
+  .rd-debit-error {
+    grid-column: 1;
   }
 
   .rd-debit-field input,
@@ -237,11 +1016,19 @@
     height: 36px;
   }
 
-  .rd-debit-actions {
-    width: 100%;
+  .rd-debit-radio-group {
+    gap: 12px;
   }
 
-  .rd-debit-actions button {
-    flex: 1;
+  .rd-debit-radio {
+    font-size: 12px;
+  }
+
+  .rd-debit-actions {
+    justify-content: stretch;
+  }
+
+  .rd-debit-submit {
+    width: 100%;
   }
 }

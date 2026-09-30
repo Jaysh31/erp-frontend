@@ -14,7 +14,7 @@ type AccountRow = {
 };
 
 const GAEForm: React.FC = () => {
-  const [rows, setRows] = useState<AccountRow[]>([
+  const [rows, ] = useState<AccountRow[]>([
     {
       id: 1,
       account: "Purchase Account",
@@ -75,43 +75,8 @@ const GAEForm: React.FC = () => {
     }));
   };
 
-  const updateRow = (
-    id: number,
-    field: keyof AccountRow,
-    value: string | number
-  ) => {
-    setRows((prev) =>
-      prev.map((row) =>
-        row.id === id
-          ? {
-              ...row,
-              [field]: value,
-            }
-          : row
-      )
-    );
-  };
 
-  const addRow = () => {
-    setRows((prev) => [
-      ...prev,
-      {
-        id: Date.now(),
-        account: "",
-        type: "-",
-        party: "-",
-        reference: "-",
-        debit: 0,
-        credit: 0,
-        costCenter: "Main",
-        remarks: "",
-      },
-    ]);
-  };
 
-  const deleteRow = (id: number) => {
-    setRows((prev) => prev.filter((row) => row.id !== id));
-  };
 
   const totalDebit = useMemo(
     () => rows.reduce((sum, row) => sum + Number(row.debit || 0), 0),
@@ -125,12 +90,6 @@ const GAEForm: React.FC = () => {
 
   const difference = Math.abs(totalDebit - totalCredit);
 
-  const formatAmount = (amount: number) => {
-    return amount.toLocaleString("en-IN", {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    });
-  };
 
   const handleSaveDraft = () => {
     console.log("Saving Draft:", {

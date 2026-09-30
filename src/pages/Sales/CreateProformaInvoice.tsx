@@ -860,7 +860,6 @@ const CreateProformaInvoice: React.FC = () => {
   // ★ FIX: handoffAppliedRef declared ONCE at the top of the component,
   // so it is a valid hook call. Previously it was declared at module
   // scope AND inside loadExistingSalesOrderIntoForm, both illegal.
-  const handoffAppliedRef = useRef(false);
 
   const [loadingExistingRecord, setLoadingExistingRecord] = useState<boolean>(false);
   const [recordLoaded, setRecordLoaded] = useState<boolean>(false);
