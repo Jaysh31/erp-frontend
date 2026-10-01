@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   FaPlus, 
   FaSearch, 
@@ -246,6 +247,11 @@ const DeliveryChallans: React.FC = () => {
   const navigate = useNavigate();
   const menuRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
   const printWindowRef = useRef<Window | null>(null);
+
+  // 🆕 Portal dropdown refs & state
+  const portalMenuRef = useRef<HTMLDivElement | null>(null);
+  const activeButtonRef = useRef<HTMLElement | null>(null);
+  const [menuPosition, setMenuPosition] = useState<{ top: number; right: number } | null>(null);
   
   const { theme, formatDate, } = useAdminTheme();
   
@@ -433,21 +439,56 @@ const DeliveryChallans: React.FC = () => {
   };
 
   // ===== CLOSE MENU ON CLICK OUTSIDE =====
+  // 🆕 Updated to also ignore clicks inside the portal dropdown.
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (showMoreMenu === null) return;
       
       const target = event.target as Node;
+
+      // Click inside portal dropdown → ignore
+      if (portalMenuRef.current && portalMenuRef.current.contains(target)) return;
+
+      // Click inside the button container → ignore (its own handler toggles)
       const menuContainer = menuRefs.current[showMoreMenu];
-      
-      if (menuContainer && !menuContainer.contains(target)) {
-        setShowMoreMenu(null);
-      }
+      if (menuContainer && menuContainer.contains(target)) return;
+
+      setShowMoreMenu(null);
+      setMenuPosition(null);
+      activeButtonRef.current = null;
     };
     
     document.addEventListener('mousedown', handleClickOutside);
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showMoreMenu]);
+
+  // 🆕 Reposition (or close) the portal dropdown on scroll/resize
+  useLayoutEffect(() => {
+    if (!showMoreMenu || !activeButtonRef.current) return;
+
+    const updatePosition = () => {
+      const btn = activeButtonRef.current;
+      if (!btn) return;
+      const rect = btn.getBoundingClientRect();
+      // If the button has scrolled out of view, close the menu
+      if (rect.bottom < 0 || rect.top > window.innerHeight) {
+        setShowMoreMenu(null);
+        setMenuPosition(null);
+        activeButtonRef.current = null;
+        return;
+      }
+      const rightOffset = Math.max(8, window.innerWidth - rect.right);
+      setMenuPosition({ top: rect.bottom + 4, right: rightOffset });
+    };
+
+    updatePosition();
+    window.addEventListener('scroll', updatePosition, true);
+    window.addEventListener('resize', updatePosition);
+    return () => {
+      window.removeEventListener('scroll', updatePosition, true);
+      window.removeEventListener('resize', updatePosition);
     };
   }, [showMoreMenu]);
 
@@ -1521,9 +1562,16 @@ const DeliveryChallans: React.FC = () => {
   // ===== ACTIONS =====
   const handleCreate = () => navigate('/delivery-challan/new');
   const handleRefresh = () => fetchChallans();
-  const handleView = (id: string | number) => navigate(`/delivery-challan/view/${id}`);
+  const handleView = (id: string | number) => {
+    setShowMoreMenu(null);
+    setMenuPosition(null);
+    activeButtonRef.current = null;
+    navigate(`/delivery-challan/view/${id}`);
+  };
   const handleEdit = (id: string | number) => {
     setShowMoreMenu(null);
+    setMenuPosition(null);
+    activeButtonRef.current = null;
     navigate(`/delivery-challan/edit/${id}`);
   };
 
@@ -1595,6 +1643,8 @@ const DeliveryChallans: React.FC = () => {
       toast.error('Failed to cancel');
     }
     setShowMoreMenu(null);
+    setMenuPosition(null);
+    activeButtonRef.current = null;
   };
 
   const handleSubmit = async (id: string | number) => {
@@ -1607,10 +1657,27 @@ const DeliveryChallans: React.FC = () => {
       toast.error('Failed to submit');
     }
     setShowMoreMenu(null);
+    setMenuPosition(null);
+    activeButtonRef.current = null;
   };
 
-  const toggleMenu = (id: string | number) => {
-    setShowMoreMenu(showMoreMenu === String(id) ? null : String(id));
+  // 🆕 toggleMenu now takes the click event so we can measure the
+  //    button's position and render the dropdown via portal.
+  const toggleMenu = (id: string | number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const idStr = String(id);
+    if (showMoreMenu === idStr) {
+      setShowMoreMenu(null);
+      setMenuPosition(null);
+      activeButtonRef.current = null;
+      return;
+    }
+    const btn = e.currentTarget as HTMLElement;
+    activeButtonRef.current = btn;
+    const rect = btn.getBoundingClientRect();
+    const rightOffset = Math.max(8, window.innerWidth - rect.right);
+    setMenuPosition({ top: rect.bottom + 4, right: rightOffset });
+    setShowMoreMenu(idStr);
   };
 
 
@@ -1733,17 +1800,18 @@ const DeliveryChallans: React.FC = () => {
     return new Date(currentYear, month).toLocaleString('en-US', { month: 'long' });
   };
 
-    // ─── Loading Screen ─────────────────────────────────────────────────────
-  if (loading) {
-    return (
-      <div className={`p-6 max-w-7xl mx-auto ${theme}`}>
-        <PageLoader 
-          message="Loading Sales & Delivery Challans..." 
-          //subtitle="Calculating bill of materials, operations rates, and component structures"
-        />
-      </div>
-    );
-  }
+  // 🆕 The challan whose menu is currently open (used by the portal render)
+  const activeMenuItem = showMoreMenu
+    ? challans.find((ch) => String(ch.id) === showMoreMenu) || null
+    : null;
+
+  // ✅ FIX: The early `if (loading) return <PageLoader />` block has been
+  //    REMOVED. Previously, every debounced search triggered a fetch that
+  //    set `loading = true`, which unmounted the entire page (including the
+  //    search input) and caused focus/cursor loss while typing.
+  //    The inline loading state inside the table wrapper below now handles
+  //    the visual feedback, so the filter bar (and the search input) stays
+  //    mounted and keeps focus.
 
   // ===== RENDER =====
   return (
@@ -2357,18 +2425,16 @@ const DeliveryChallans: React.FC = () => {
           display: inline-block;
         }
 
+        /* 🆕 Base styling for the dropdown. The portal render overrides
+           position/top/right/zIndex via inline styles so it always
+           appears on top of the listing without being clipped. */
         .qt-more-menu-dropdown {
-          position: absolute;
-          right: 0;
-          top: 100%;
           background: #ffffff;
           border: 1px solid #e5e7eb;
           border-radius: 8px;
           box-shadow: 0 10px 40px rgba(0,0,0,0.15);
           min-width: 180px;
-          z-index: 100;
           padding: 4px 0;
-          margin-top: 4px;
         }
 
         .qt-more-menu-dropdown button {
@@ -3047,42 +3113,11 @@ const DeliveryChallans: React.FC = () => {
                       >
                         <button 
                           className="qt-action-btn qt-action-more" 
-                          onClick={() => toggleMenu(item.id)} 
+                          onClick={(e) => toggleMenu(item.id, e)} 
                           title="More"
                         >
                           <FaEllipsisV size={14} />
                         </button>
-                        {showMoreMenu === String(item.id) && (
-                          <div className="qt-more-menu-dropdown">
-                            <button onClick={() => handleView(item.id)}>
-                              <FaEye size={12} /> View
-                            </button>
-                            {item.status === 'Draft' && (
-                              <>
-                                <button onClick={() => handleEdit(item.id)}>
-                                  <FaEdit size={12} /> Edit
-                                </button>
-                                <button onClick={() => handleSubmit(item.id)}>
-                                  <FaPaperPlane size={12} /> Submit
-                                </button>
-                              </>
-                            )}
-                            <button onClick={() => handlePrint(item)} disabled={printLoadingId === String(item.id)}>
-                              <FaPrintIcon size={12} /> Print
-                            </button>
-                            <button onClick={handlePDFDownload}>
-                              <FaFilePdf size={12} /> Download PDF
-                            </button>
-                            <button onClick={handleExcelDownload}>
-                              <FaFileExcel size={12} /> Download Excel
-                            </button>
-                            {item.status !== 'Cancelled' && item.status !== 'Submitted' && (
-                              <button className="danger" onClick={() => handleCancel(item.id)}>
-                                <FaBan size={12} /> Cancel
-                              </button>
-                            )}
-                          </div>
-                        )}
                       </div>
                     </div>
                   </td>
@@ -3357,6 +3392,55 @@ const DeliveryChallans: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* ═══════════════════════════════════════════════════════════════
+          🆕 PORTAL-RENDERED 3-DOT DROPDOWN MENU
+          Rendered at document.body level with position: fixed so it is
+          NEVER clipped by the table wrapper's overflow rules, and always
+          appears on top of the listing rows.
+         ═══════════════════════════════════════════════════════════════ */}
+      {activeMenuItem && menuPosition &&
+        createPortal(
+          <div
+            ref={portalMenuRef}
+            className="qt-more-menu-dropdown"
+            style={{
+              position: 'fixed',
+              top: menuPosition.top,
+              right: menuPosition.right,
+              zIndex: 10000,
+            }}
+          >
+            <button onClick={() => handleView(activeMenuItem.id)}>
+              <FaEye size={12} /> View
+            </button>
+            {activeMenuItem.status === 'Draft' && (
+              <>
+                <button onClick={() => handleEdit(activeMenuItem.id)}>
+                  <FaEdit size={12} /> Edit
+                </button>
+                <button onClick={() => handleSubmit(activeMenuItem.id)}>
+                  <FaPaperPlane size={12} /> Submit
+                </button>
+              </>
+            )}
+            <button onClick={() => handlePrint(activeMenuItem)} disabled={printLoadingId === String(activeMenuItem.id)}>
+              <FaPrintIcon size={12} /> Print
+            </button>
+            <button onClick={handlePDFDownload}>
+              <FaFilePdf size={12} /> Download PDF
+            </button>
+            <button onClick={handleExcelDownload}>
+              <FaFileExcel size={12} /> Download Excel
+            </button>
+            {activeMenuItem.status !== 'Cancelled' && activeMenuItem.status !== 'Submitted' && (
+              <button className="danger" onClick={() => handleCancel(activeMenuItem.id)}>
+                <FaBan size={12} /> Cancel
+              </button>
+            )}
+          </div>,
+          document.body
+        )}
     </div>
   );
 };

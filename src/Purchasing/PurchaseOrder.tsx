@@ -11,7 +11,7 @@ import {
   FaCalendarAlt,
 } from 'react-icons/fa';
 import { useAdminTheme } from '../admin-theme/AdminThemeContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import api from '../services/api';
 import './PurchaseOrder.css';
@@ -86,6 +86,21 @@ interface ApiResponse {
     records: ApiPurchaseOrder[];
   };
 }
+
+// ─── 🆕 PURCHASE ORDER NUMBER FORMATTER ─────────────────────
+// Always renders "PO-<zero-padded-to-5-digits>", e.g. PO-00070
+// Handles null / undefined / non-numeric / already-prefixed ids gracefully.
+const PURCHASE_ORDER_PREFIX = 'PO-';
+const formatPurchaseOrderNumber = (id: string | number | null | undefined): string => {
+  if (id === null || id === undefined) return '';
+  const s = String(id).trim();
+  if (!s) return '';
+  // Already prefixed → leave untouched
+  if (s.toUpperCase().startsWith(PURCHASE_ORDER_PREFIX)) return s;
+  const n = Number(s);
+  if (Number.isNaN(n)) return s; // non-numeric fallback
+  return PURCHASE_ORDER_PREFIX + String(n).padStart(5, '0');
+};
 
 // ─── Date helpers (for the calendar picker) ───────────────────
 
@@ -210,11 +225,40 @@ function RangeCalendar({ month, onMonthChange, fromDate, toDate, onSelect }: Ran
   );
 }
 
+// ─── 🆕 STATUS NORMALIZATION ─────────────────────────────────
+// Maps chatbot status strings → dropdown values
+function normalizeStatusForDropdown(raw: string | null): string | null {
+  if (!raw) return null;
+  const s = raw.toLowerCase().trim();
+  switch (s) {
+    case 'draft': return 'Draft';
+    case 'submitted': return 'Submitted';
+    case 'partially received':
+    case 'partial':
+    case 'partially paid': // chatbot synonym
+      return 'Partially Received';
+    case 'fully received':
+    case 'received':
+    case 'completed':
+    case 'complete':
+    case 'done':
+      return 'Fully Received';
+    case 'cancelled':
+    case 'canceled':
+      return 'Cancelled';
+    case 'closed':
+      return 'Closed';
+    default:
+      return null;
+  }
+}
+
 // ─── Main Component ────────────────────────────────────────
 
 export default function PurchaseOrder() {
   const navigate = useNavigate();
-  
+  const [searchParams, setSearchParams] = useSearchParams();
+
   // ✅ GET THE DATE FORMAT FUNCTION FROM CONTEXT
   const { theme, formatDate } = useAdminTheme();
 
@@ -271,7 +315,88 @@ export default function PurchaseOrder() {
     return formatDate(dateString);
   };
 
-  // ✅ NEW: Format date for API (YYYY-MM-DD)
+  // ====================================================================
+  // 🆕 READ FILTERS FROM URL QUERY PARAMS (chatbot navigation support)
+  // ====================================================================
+  useEffect(() => {
+    const urlStatus = searchParams.get('status');
+    const urlSupplier = searchParams.get('supplier');
+    const urlSearch = searchParams.get('search');
+    const urlDateFrom = searchParams.get('date_from');
+    const urlDateTo = searchParams.get('date_to');
+    const autoFilter = searchParams.get('autoFilter');
+
+    let hasUrlFilters = false;
+
+    if (urlStatus) {
+      const normalized = normalizeStatusForDropdown(urlStatus);
+      if (normalized) {
+        setSelectedStatus(normalized);
+        hasUrlFilters = true;
+      }
+    }
+
+    if (urlSupplier) {
+      setSelectedSupplier(urlSupplier);
+      hasUrlFilters = true;
+    }
+
+    if (urlSearch) {
+      setFilterText(urlSearch);
+      hasUrlFilters = true;
+    }
+
+    if (urlDateFrom) {
+      setDateFrom(urlDateFrom);
+      hasUrlFilters = true;
+    }
+    if (urlDateTo) {
+      setDateTo(urlDateTo);
+      hasUrlFilters = true;
+    }
+
+    if (hasUrlFilters) {
+      console.log('🔗 URL filters detected on PurchaseOrder:', {
+        status: urlStatus,
+        supplier: urlSupplier,
+        search: urlSearch,
+        dateFrom: urlDateFrom,
+        dateTo: urlDateTo,
+        autoFilter,
+      });
+      setCurrentPage(1);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // run once on mount
+
+  // Also react to URL changes after mount (chatbot navigates while already on this page)
+  useEffect(() => {
+    const urlStatus = searchParams.get('status');
+    const urlSupplier = searchParams.get('supplier');
+    const urlSearch = searchParams.get('search');
+    const urlDateFrom = searchParams.get('date_from');
+    const urlDateTo = searchParams.get('date_to');
+
+    if (urlStatus) {
+      const normalized = normalizeStatusForDropdown(urlStatus);
+      if (normalized && selectedStatus !== normalized) {
+        setSelectedStatus(normalized);
+      }
+    }
+    if (urlSupplier && selectedSupplier !== urlSupplier) {
+      setSelectedSupplier(urlSupplier);
+    }
+    if (urlSearch && filterText !== urlSearch) {
+      setFilterText(urlSearch);
+    }
+    if (urlDateFrom && dateFrom !== urlDateFrom) {
+      setDateFrom(urlDateFrom);
+    }
+    if (urlDateTo && dateTo !== urlDateTo) {
+      setDateTo(urlDateTo);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   // ─── Click outside handler ──────────────────────────────
 
@@ -355,7 +480,8 @@ export default function PurchaseOrder() {
         // ✅ TRANSFORM DATA WITH FORMATTED DATES
         const transformedOrders: PurchaseOrder[] = records.map((item) => ({
           id: String(item.id),
-          poNumber: item.name || `PO-${String(item.id).padStart(5, '0')}`,
+          // 🆕 Always render as "PO-<padded-id>" via helper
+          poNumber: formatPurchaseOrderNumber(item.id),
           title: item.title || `PO-${item.name || item.id}`,
           supplier: item.supplier_name || item.supplier || 'N/A',
           supplierCode: item.supplier || 'N/A',
@@ -572,6 +698,9 @@ export default function PurchaseOrder() {
     setDateFrom('');
     setDateTo('');
     setShowDateFilterDropdown(false);
+
+    // 🆕 Clear URL query params too
+    setSearchParams({});
   };
 
   // ─── Data for filters ────────────────────────────────────
@@ -871,6 +1000,7 @@ export default function PurchaseOrder() {
             ) : (
               filteredOrders.map((po) => (
                 <tr key={po.id} className="po-tr" onClick={() => handleRowClick(po)} style={{ cursor: 'pointer' }}>
+                  {/* Display PO-<padded-id> via helper (poNumber is already formatted) */}
                   <td className="po-td po-td-id">{po.poNumber}</td>
                   {/* <td className="po-td">{po.title}</td> */}
                   <td className="po-td">{po.supplier}</td>
@@ -950,6 +1080,7 @@ export default function PurchaseOrder() {
                       onClick={() => toggleRowExpand(po.id)}
                     >
                       <div className="po-mobile-card-primary">
+                        {/* Display PO-<padded-id> via helper (poNumber is already formatted) */}
                         <span
                           className="po-mobile-item-code"
                           onClick={(e) => {

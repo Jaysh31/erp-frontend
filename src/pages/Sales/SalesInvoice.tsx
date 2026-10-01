@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef, type JSX } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef, type JSX } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   FaPlus, 
   FaSearch, 
@@ -26,19 +27,54 @@ import {
   FaTimesCircle,
   FaCalendarAlt,
   FaChevronDown,
-  FaTrash,
-  FaQrcode,
-  FaRupeeSign
+  FaTrash
 } from 'react-icons/fa';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
 import api from '../../services/api';
 import './SalesMobileTable.css';
 import toast from 'react-hot-toast';
 
 import * as XLSX from 'xlsx';
-import { QRCodeSVG } from 'qrcode.react';
 import { PageLoader } from '../components/PageLoader';
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🆕 Filter preservation helpers
+// ═══════════════════════════════════════════════════════════════════════
+const SI_PRESERVE_FLAG_KEY = "__si_preserve_filters__";
+const SI_FILTER_DATA_KEY = "__si_list_filters__";
+
+if (typeof window !== "undefined" && !(window as any).__siNavObserverInstalled) {
+  (window as any).__siNavObserverInstalled = true;
+
+  const clearFlagIfLeavingSalesBill = () => {
+    try {
+      const path = window.location.pathname;
+      if (!path.startsWith("/sales-bill")) {
+        sessionStorage.removeItem(SI_PRESERVE_FLAG_KEY);
+      }
+    } catch {
+      /* ignore */
+    }
+  };
+
+  clearFlagIfLeavingSalesBill();
+
+  const origPush = window.history.pushState;
+  const origReplace = window.history.replaceState;
+
+  window.history.pushState = function (...args: any[]) {
+    const r = origPush.apply(this as any, args as any);
+    clearFlagIfLeavingSalesBill();
+    return r;
+  };
+  window.history.replaceState = function (...args: any[]) {
+    const r = origReplace.apply(this as any, args as any);
+    clearFlagIfLeavingSalesBill();
+    return r;
+  };
+  window.addEventListener("popstate", clearFlagIfLeavingSalesBill);
+}
 
 // ===== INTERFACES =====
 
@@ -144,7 +180,6 @@ interface BankDetail {
   is_primary: number;
 }
 
-// ===== COMPANY DETAILS =====
 let companyDetails = {
   name: 'Sculptor Tech Pvt Ltd',
   address: 'c-1006, gc, Pune, Maharashtra 411028, India',
@@ -161,21 +196,31 @@ let companyDetails = {
   jurisdiction: 'PUNE',
 };
 
-// ===== UPI CONFIG =====
-// The payee name (pn) is included below because most third-party UPI apps
-// (PhonePe, Paytm, BHIM) require it to render correctly. Only GPay reliably
-// falls back to an NPCI lookup when pn is missing.
-const UPI_ID = 'jayeshwakle10@okicici';
-const UPI_PAYEE_NAME = 'Jayesh Wakle';
-
-// ===== FORMAT INVOICE NUMBER =====
-const formatInvoiceNumber = (id: string | number): string => {
-  const numId = typeof id === 'string' ? parseInt(id, 10) : id;
-  const paddedId = String(numId).padStart(5, '0');
-  return `SINV-${paddedId}`;
+const SALES_INVOICE_PREFIX = 'SI-';
+const formatInvoiceNumber = (id: string | number | null | undefined): string => {
+  if (id === null || id === undefined) return '';
+  const s = String(id).trim();
+  if (!s) return '';
+  if (s.toUpperCase().startsWith(SALES_INVOICE_PREFIX)) return s;
+  const n = Number(s);
+  if (Number.isNaN(n)) return s;
+  return SALES_INVOICE_PREFIX + String(n).padStart(5, '0');
 };
 
-// ===== AMOUNT IN WORDS HELPER =====
+const normalizeStatusParam = (raw: string): string => {
+  if (!raw) return 'All';
+  const s = raw.trim();
+  if (!s) return 'All';
+  const lower = s.toLowerCase();
+  if (lower === 'partially paid' || lower === 'partially-paid') return 'Partially Paid';
+  if (lower === 'cancelled' || lower === 'canceled' || lower === 'cancel') return 'Cancelled';
+  if (lower === 'submitted' || lower === 'submit') return 'Submitted';
+  if (lower === 'overdue') return 'Overdue';
+  if (lower === 'paid') return 'Paid';
+  if (lower === 'draft') return 'Draft';
+  return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
+};
+
 const ONES = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten',
   'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
 const TENS = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
@@ -219,7 +264,6 @@ const escapeHtml = (val: unknown): string => {
     .replace(/"/g, '&quot;');
 };
 
-// ===== STATUS BADGE =====
 const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
   const configs: Record<string, { color: string; bg: string; label: string; icon: JSX.Element }> = {
     'Draft': { color: '#6b7280', bg: '#f3f4f6', label: 'Draft', icon: <FaClock size={10} /> },
@@ -230,7 +274,7 @@ const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
     'Overdue': { color: '#dc2626', bg: '#fee2e2', label: 'Overdue', icon: <FaExclamationTriangle size={10} /> }
   };
   const config = configs[status] || configs['Draft'];
-
+  
   return (
     <span className="qt-status-badge" style={{ color: config.color, background: config.bg }}>
       {config.icon}
@@ -239,21 +283,26 @@ const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
   );
 };
 
-// ===== MAIN COMPONENT =====
 const SalesInvoice: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+
   const menuRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
   const printWindowRef = useRef<Window | null>(null);
 
+  // 🆕 Portal dropdown refs & state
+  const portalMenuRef = useRef<HTMLDivElement | null>(null);
+  const activeButtonRef = useRef<HTMLElement | null>(null);
+  const [menuPosition, setMenuPosition] = useState<{ top: number; right: number } | null>(null);
+  
   const { theme, formatDate } = useAdminTheme();
 
-  // ===== STATE =====
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedStatus, setSelectedStatus] = useState<string>('All');
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [showMoreMenu, setShowMoreMenu] = useState<string | null>(null);
-
+  
   const [invoices, setInvoices] = useState<SalesInvoice[]>([]);
   const [totalRecords, setTotalRecords] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -262,7 +311,6 @@ const SalesInvoice: React.FC = () => {
   const [, setDownloadLoading] = useState(false);
   const [, setCompanyData] = useState<Company | null>(null);
 
-  // ===== DATE FILTER STATES =====
   const [fromDate, setFromDate] = useState<string>('');
   const [toDate, setToDate] = useState<string>('');
   const [showDatePicker, setShowDatePicker] = useState<boolean>(false);
@@ -270,38 +318,137 @@ const SalesInvoice: React.FC = () => {
   const [tempToDate, setTempToDate] = useState<string>('');
   const [selectedQuickFilter, setSelectedQuickFilter] = useState<string>('');
 
-  // ===== CALENDAR STATE =====
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
 
-  // ===== UPI STATE =====
-  const [showUpiModal, setShowUpiModal] = useState(false);
-  const [upiAmount, setUpiAmount] = useState<string>('');
-  const [upiInvoice, setUpiInvoice] = useState<SalesInvoice | null>(null);
+  const [filtersReady, setFiltersReady] = useState(false);
+  const didInitRef = useRef(false);
+  const isRestoringRef = useRef(false);
 
   const formatDisplayDate = (dateString: string) => {
     if (!dateString) return '';
     return formatDate(dateString);
   };
 
-  // ===== FETCH COMPANY DETAILS =====
+  // ═════════════════════════════════════════════════════════════════════
+  // 🆕 RESTORE FILTERS ON MOUNT (runs exactly ONCE per mount)
+  // ═════════════════════════════════════════════════════════════════════
+  useEffect(() => {
+    if (didInitRef.current) return;
+    didInitRef.current = true;
+
+    let shouldPreserve = false;
+    try {
+      shouldPreserve = sessionStorage.getItem(SI_PRESERVE_FLAG_KEY) === "true";
+    } catch {
+      /* ignore */
+    }
+
+    console.log("🔵 [SI-Restore] shouldPreserve =", shouldPreserve);
+
+    if (shouldPreserve) {
+      try {
+        const saved = sessionStorage.getItem(SI_FILTER_DATA_KEY);
+        if (saved) {
+          const f = JSON.parse(saved);
+          isRestoringRef.current = true;
+          if (typeof f.searchTerm === "string") setSearchTerm(f.searchTerm);
+          if (typeof f.selectedStatus === "string") setSelectedStatus(f.selectedStatus);
+          if (typeof f.fromDate === "string") setFromDate(f.fromDate);
+          if (typeof f.toDate === "string") setToDate(f.toDate);
+          if (typeof f.selectedQuickFilter === "string") setSelectedQuickFilter(f.selectedQuickFilter);
+          if (typeof f.currentPage === "number") setCurrentPage(f.currentPage);
+          if (typeof f.itemsPerPage === "number") setItemsPerPage(f.itemsPerPage);
+          console.log("♻️ [SI-Restore] Restored filters:", f);
+        }
+      } catch (e) {
+        console.warn("⚠️ [SI-Restore] Failed to restore:", e);
+      }
+    } else {
+      try {
+        sessionStorage.removeItem(SI_FILTER_DATA_KEY);
+        console.log("🧹 [SI-Restore] Cleared saved filters (no preserve flag)");
+      } catch {
+        /* ignore */
+      }
+    }
+
+    setFiltersReady(true);
+  }, []);
+
+  // ═════════════════════════════════════════════════════════════════════
+  // 🆕 SAVE FILTERS ON EVERY CHANGE
+  // ═════════════════════════════════════════════════════════════════════
+  useEffect(() => {
+    if (!filtersReady) return;
+    try {
+      sessionStorage.setItem(
+        SI_FILTER_DATA_KEY,
+        JSON.stringify({
+          searchTerm,
+          selectedStatus,
+          fromDate,
+          toDate,
+          selectedQuickFilter,
+          currentPage,
+          itemsPerPage,
+        })
+      );
+    } catch {
+      /* ignore */
+    }
+  }, [
+    searchTerm,
+    selectedStatus,
+    fromDate,
+    toDate,
+    selectedQuickFilter,
+    currentPage,
+    itemsPerPage,
+    filtersReady,
+  ]);
+
+  const navigateWithPreserve = (path: string, opts?: any) => {
+    try {
+      sessionStorage.setItem(SI_PRESERVE_FLAG_KEY, "true");
+      console.log(`💾 [SI-Nav] Set preserve flag, navigating to ${path}`);
+    } catch {
+      /* ignore */
+    }
+    navigate(path, opts);
+  };
+
+  useEffect(() => {
+    const statusParam = searchParams.get('status');
+    const autoFilter = searchParams.get('autoFilter');
+
+    if (statusParam) {
+      const normalized = normalizeStatusParam(statusParam);
+      console.log(`🎯 SalesInvoice: applying URL status filter → "${normalized}"`);
+      setSelectedStatus(normalized);
+      setCurrentPage(1);
+
+      if (autoFilter === '1') {
+        const next = new URLSearchParams(searchParams);
+        next.delete('status');
+        next.delete('autoFilter');
+        setSearchParams(next, { replace: true });
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
   const fetchCompanyDetails = async () => {
     try {
       const response = await api.get('/company');
-      console.log('Company API Response:', response.data);
-
       if (response.data.success === 1) {
         const companies = response.data.data || [];
-        console.log('Companies:', companies);
-
-        const chandratara = companies.find((c: Company) =>
-          c.company_name.includes('ChandraTara') ||
+        const chandratara = companies.find((c: Company) => 
+          c.company_name.includes('ChandraTara') || 
           c.abbr === 'CT_IND' ||
           c.company_name.toLowerCase().includes('chandratara')
         );
-
         const selectedCompany = chandratara || (companies.length > 0 ? companies[0] : null);
-
         if (selectedCompany) {
           setCompanyData(selectedCompany);
           companyDetails = {
@@ -312,7 +459,6 @@ const SalesInvoice: React.FC = () => {
             email: selectedCompany.email || companyDetails.email,
             gstin: selectedCompany.tax_id || companyDetails.gstin,
           };
-
           if (selectedCompany.bank_details && selectedCompany.bank_details.length > 0) {
             const primaryBank = selectedCompany.bank_details.find((b: BankDetail) => b.is_primary === 1) || selectedCompany.bank_details[0];
             if (primaryBank) {
@@ -321,20 +467,13 @@ const SalesInvoice: React.FC = () => {
               companyDetails.bankBranchIfsc = primaryBank.ifsc_code || companyDetails.bankBranchIfsc;
             }
           }
-
-          console.log('Company loaded:', selectedCompany.company_name);
-        } else {
-          console.warn('No companies found, using default company details');
         }
-      } else {
-        console.warn('API returned success !== 1');
       }
     } catch (err) {
       console.error('Error fetching company details:', err);
     }
   };
 
-  // ─── Mobile expanded rows state ──────────────────────────────────
   const [expandedRows, setExpandedRows] = useState<Set<string | number>>(new Set());
 
   const toggleRowExpand = (id: string | number, e?: React.MouseEvent) => {
@@ -347,26 +486,57 @@ const SalesInvoice: React.FC = () => {
     });
   };
 
-  // ===== CLOSE MENU ON CLICK OUTSIDE =====
+  // 🆕 Updated click-outside handler — also ignores clicks inside portal
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (showMoreMenu === null) return;
-
       const target = event.target as Node;
+
+      // Click inside portal dropdown → ignore
+      if (portalMenuRef.current && portalMenuRef.current.contains(target)) return;
+
+      // Click inside the button container → ignore (button's own handler toggles)
       const menuContainer = menuRefs.current[showMoreMenu];
+      if (menuContainer && menuContainer.contains(target)) return;
 
-      if (menuContainer && !menuContainer.contains(target)) {
-        setShowMoreMenu(null);
-      }
+      setShowMoreMenu(null);
+      setMenuPosition(null);
+      activeButtonRef.current = null;
     };
-
     document.addEventListener('mousedown', handleClickOutside);
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [showMoreMenu]);
 
-  // ===== CLOSE DATE PICKER ON OUTSIDE CLICK =====
+  // 🆕 Reposition (or close) the portal dropdown on scroll/resize
+  useLayoutEffect(() => {
+    if (!showMoreMenu || !activeButtonRef.current) return;
+
+    const updatePosition = () => {
+      const btn = activeButtonRef.current;
+      if (!btn) return;
+      const rect = btn.getBoundingClientRect();
+      // If the button has scrolled out of view, close the menu
+      if (rect.bottom < 0 || rect.top > window.innerHeight) {
+        setShowMoreMenu(null);
+        setMenuPosition(null);
+        activeButtonRef.current = null;
+        return;
+      }
+      const rightOffset = Math.max(8, window.innerWidth - rect.right);
+      setMenuPosition({ top: rect.bottom + 4, right: rightOffset });
+    };
+
+    updatePosition();
+    window.addEventListener('scroll', updatePosition, true);
+    window.addEventListener('resize', updatePosition);
+    return () => {
+      window.removeEventListener('scroll', updatePosition, true);
+      window.removeEventListener('resize', updatePosition);
+    };
+  }, [showMoreMenu]);
+
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as HTMLElement;
@@ -375,14 +545,12 @@ const SalesInvoice: React.FC = () => {
         setShowDatePicker(false);
       }
     };
-
     document.addEventListener('mousedown', handleClickOutside);
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, []);
 
-  // ===== CLEAN UP PRINT WINDOW ON UNMOUNT =====
   useEffect(() => {
     return () => {
       if (printWindowRef.current && !printWindowRef.current.closed) {
@@ -392,7 +560,6 @@ const SalesInvoice: React.FC = () => {
     };
   }, []);
 
-  // ===== DATE HELPER FUNCTIONS =====
   const formatDateForDisplay = (dateStr: string): string => {
     if (!dateStr) return '';
     return formatDate(dateStr);
@@ -419,7 +586,6 @@ const SalesInvoice: React.FC = () => {
     return date.toISOString().split('T')[0];
   };
 
-  // ===== QUICK FILTER HANDLERS =====
   const applyQuickFilter = (filter: string) => {
     setSelectedQuickFilter(filter);
     let start = '';
@@ -447,7 +613,6 @@ const SalesInvoice: React.FC = () => {
     setTempToDate(end);
   };
 
-  // ===== CALENDAR FUNCTIONS =====
   const getDaysInMonth = (year: number, month: number): number => {
     return new Date(year, month + 1, 0).getDate();
   };
@@ -464,11 +629,9 @@ const SalesInvoice: React.FC = () => {
     for (let i = 0; i < firstDayIndex; i++) {
       days.push(null);
     }
-
     for (let i = 1; i <= daysInMonth; i++) {
       days.push(i);
     }
-
     return days;
   };
 
@@ -476,16 +639,11 @@ const SalesInvoice: React.FC = () => {
     if (!tempFromDate && !tempToDate) return false;
     const date = new Date(currentYear, currentMonth, day);
     const dateStr = date.toISOString().split('T')[0];
-
     if (tempFromDate && tempToDate) {
       return dateStr >= tempFromDate && dateStr <= tempToDate;
     }
-    if (tempFromDate) {
-      return dateStr >= tempFromDate;
-    }
-    if (tempToDate) {
-      return dateStr <= tempToDate;
-    }
+    if (tempFromDate) return dateStr >= tempFromDate;
+    if (tempToDate) return dateStr <= tempToDate;
     return false;
   };
 
@@ -498,7 +656,6 @@ const SalesInvoice: React.FC = () => {
   const handleDateClick = (day: number) => {
     const date = new Date(currentYear, currentMonth, day);
     const dateStr = date.toISOString().split('T')[0];
-
     if (!tempFromDate || (tempFromDate && tempToDate)) {
       setTempFromDate(dateStr);
       setTempToDate('');
@@ -531,7 +688,6 @@ const SalesInvoice: React.FC = () => {
     return new Date(currentYear, month).toLocaleString('en-US', { month: 'long' });
   };
 
-  // ===== DATE PICKER HANDLERS =====
   const openDatePicker = () => {
     setTempFromDate(fromDate);
     setTempToDate(toDate);
@@ -556,7 +712,6 @@ const SalesInvoice: React.FC = () => {
     setShowDatePicker(false);
   };
 
-  // ===== FETCH FULL INVOICE DETAILS =====
   const fetchFullSalesInvoice = async (id: string | number): Promise<SalesInvoice | null> => {
     try {
       const response = await api.get(`/sales-invoice/${id}`);
@@ -564,9 +719,7 @@ const SalesInvoice: React.FC = () => {
         const data = response.data.success === 1 ? response.data.data : response.data;
         const record = Array.isArray(data) ? data[0] : (data?.record ?? data);
         if (record && (record.id || record.name)) {
-          if (!record.items) {
-            record.items = [];
-          }
+          if (!record.items) record.items = [];
           return {
             ...record,
             displayInvoiceNumber: formatInvoiceNumber(record.id || record.name)
@@ -579,32 +732,23 @@ const SalesInvoice: React.FC = () => {
     return null;
   };
 
-  // ===== FETCH DATA WITH SERVER-SIDE PAGINATION =====
   const fetchInvoices = async () => {
     setLoading(true);
     setError(null);
     try {
       const params = new URLSearchParams();
-
       params.append('page', String(currentPage));
       params.append('limit', String(itemsPerPage));
-
-      if (searchTerm.trim()) {
-        params.append('search', searchTerm.trim());
-      }
-      if (selectedStatus !== 'All') {
-        params.append('status', selectedStatus);
-      }
-      if (fromDate) {
-        params.append('from_date', fromDate);
-      }
-      if (toDate) {
-        params.append('to_date', toDate);
-      }
-
+      
+      if (searchTerm.trim()) params.append('search', searchTerm.trim());
+      if (selectedStatus !== 'All') params.append('status', selectedStatus);
+      if (fromDate) params.append('from_date', fromDate);
+      if (toDate) params.append('to_date', toDate);
+      
       const query = params.toString() ? `?${params.toString()}` : '';
+      console.log("📡 [SI] Fetching /sales-invoice" + query);
       const response = await api.get<ApiResponse>(`/sales-invoice${query}`);
-
+      
       if (response.data?.data?.records) {
         const recordsWithDisplayNumber = response.data.data.records.map((record) => ({
           ...record,
@@ -625,31 +769,34 @@ const SalesInvoice: React.FC = () => {
     }
   };
 
-  // ===== EFFECTS =====
   useEffect(() => {
     fetchCompanyDetails();
-    fetchInvoices();
   }, []);
 
   useEffect(() => {
+    if (!filtersReady) return;
     fetchInvoices();
-  }, [searchTerm, selectedStatus, currentPage, itemsPerPage, fromDate, toDate]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchTerm, selectedStatus, currentPage, itemsPerPage, fromDate, toDate, filtersReady]);
 
   useEffect(() => {
+    if (!filtersReady) return;
+    if (isRestoringRef.current) {
+      isRestoringRef.current = false;
+      return;
+    }
     setCurrentPage(1);
-  }, [searchTerm, selectedStatus, fromDate, toDate]);
+  }, [searchTerm, selectedStatus, fromDate, toDate, filtersReady]);
 
-  // ===== HELPERS =====
   const formatDateDisplay = (date: string) => {
     if (!date) return '-';
     return formatDisplayDate(date);
   };
 
-  // ===== PAGINATION CALCULATIONS =====
   const totalFilteredItems = totalRecords;
   const totalPages = Math.ceil(totalFilteredItems / itemsPerPage) || 1;
   const validCurrentPage = Math.min(currentPage, totalPages || 1);
-
+  
   if (validCurrentPage !== currentPage && currentPage > 0) {
     setCurrentPage(validCurrentPage);
   }
@@ -665,9 +812,7 @@ const SalesInvoice: React.FC = () => {
   };
 
   const goToPage = (page: number) => {
-    if (page >= 1 && page <= totalPages) {
-      setCurrentPage(page);
-    }
+    if (page >= 1 && page <= totalPages) setCurrentPage(page);
   };
 
   const goToFirstPage = () => goToPage(1);
@@ -690,44 +835,6 @@ const SalesInvoice: React.FC = () => {
     return pages;
   };
 
-  // ===== UPI HELPERS =====
-  const openUpiModal = (invoice: SalesInvoice) => {
-    setUpiInvoice(invoice);
-    const outstanding = invoice.outstanding_amount || invoice.grand_total || 0;
-    setUpiAmount(outstanding > 0 ? String(outstanding) : '');
-    setShowUpiModal(true);
-    setShowMoreMenu(null);
-  };
-
-  const closeUpiModal = () => {
-    setShowUpiModal(false);
-    setUpiInvoice(null);
-    setUpiAmount('');
-  };
-
-  // Dynamic UPI URI — built manually with encodeURIComponent instead of
-  // URLSearchParams. URLSearchParams encodes spaces as "+" (form encoding),
-  // but GPay's UPI intent parser expects strict URI encoding ("%20") and can
-  // silently reject or mis-render links that use "+". Other apps (PhonePe,
-  // Paytm, BHIM) tend to tolerate "+", which is why this could look fine
-  // everywhere except GPay.
-  const buildUpiUri = (): string => {
-    const amount = parseFloat(upiAmount) || 0;
-    const invoiceNo = upiInvoice?.displayInvoiceNumber || upiInvoice?.id || '';
-    const note = `INV ${invoiceNo}`.slice(0, 50); // UPI note max 50 chars
-
-    const query = [
-      `pa=${encodeURIComponent(UPI_ID)}`,
-      `pn=${encodeURIComponent(UPI_PAYEE_NAME)}`,
-      `am=${encodeURIComponent(amount.toFixed(2))}`,
-      `cu=INR`,
-      `tn=${encodeURIComponent(note)}`
-    ].join('&');
-
-    return `upi://pay?${query}`;
-  };
-
-  // ===== BUILD PRINT HTML =====
   const buildSalesInvoicePrintHtml = (invoice: SalesInvoice): string => {
     const items = invoice.items || [];
     const totalQty = items.reduce((sum, item) => sum + (item.qty || 0), 0);
@@ -772,12 +879,13 @@ const SalesInvoice: React.FC = () => {
     `).join('');
 
     const hasPaymentSchedule = invoice.payment_schedule && invoice.payment_schedule.length > 0;
+    const printInvoiceNumber = formatInvoiceNumber(invoice.id);
 
     return `<!DOCTYPE html>
 <html>
 <head>
 <meta charset="UTF-8" />
-<title>${escapeHtml(invoice.displayInvoiceNumber || 'Sales Invoice')}</title>
+<title>${escapeHtml(printInvoiceNumber || 'Sales Invoice')}</title>
 <style>
   * { box-sizing: border-box; }
   body { font-family: Arial, Helvetica, sans-serif; font-size: 12px; color: #1a1a1a; margin: 0; padding: 24px; }
@@ -865,7 +973,7 @@ const SalesInvoice: React.FC = () => {
         <div class="pq-meta-row">
           <div class="pq-meta-cell">
             <div class="pq-meta-label">Invoice No.</div>
-            <div class="pq-meta-value">${escapeHtml(invoice.displayInvoiceNumber || invoice.id || '')}</div>
+            <div class="pq-meta-value">${escapeHtml(printInvoiceNumber)}</div>
           </div>
           <div class="pq-meta-cell" style="border-right:none;">
             <div class="pq-meta-label">Date</div>
@@ -1004,15 +1112,14 @@ const SalesInvoice: React.FC = () => {
 </html>`;
   };
 
-  // ===== GENERATE EXCEL DATA =====
   const generateExcelData = (invoices: SalesInvoice[]) => {
     const rows: any[] = [];
-
+    
     invoices.forEach((invoice, index) => {
       rows.push(['TAX INVOICE']);
       rows.push([`Status: ${invoice.status || 'Draft'}`]);
       rows.push([]);
-
+      
       rows.push([companyDetails.name]);
       rows.push([companyDetails.address]);
       rows.push([`Phone: ${companyDetails.contact}`]);
@@ -1020,22 +1127,22 @@ const SalesInvoice: React.FC = () => {
       rows.push([`GSTIN: ${companyDetails.gstin || ''}`]);
       rows.push([`State Name: ${companyDetails.stateName}, Code: ${companyDetails.stateCode}`]);
       rows.push([]);
-
-      rows.push(['Invoice No.', invoice.displayInvoiceNumber || invoice.id || '']);
+      
+      rows.push(['Invoice No.', formatInvoiceNumber(invoice.id)]);
       rows.push(['Date', formatDisplayDate(invoice.posting_date)]);
       rows.push(['Due Date', formatDisplayDate(invoice.due_date)]);
       rows.push(['Currency', invoice.currency || 'INR']);
       rows.push(['Total Qty', invoice.total_qty || 0]);
       rows.push(['Payment Status', invoice.status || 'Draft']);
       rows.push([]);
-
+      
       rows.push(['Bill To', invoice.customer_name || '']);
       rows.push(['Customer Code', invoice.customer || '']);
       rows.push(['Company', invoice.company || '']);
       rows.push([]);
-
+      
       rows.push(['#', 'Description', 'Group', 'Qty', 'Rate', 'CGST', 'SGST', 'Amount']);
-
+      
       const items = invoice.items || [];
       items.forEach((item, idx) => {
         rows.push([
@@ -1049,22 +1156,22 @@ const SalesInvoice: React.FC = () => {
           (item.amount || 0).toFixed(2)
         ]);
       });
-
+      
       const grandTotal = invoice.grand_total || invoice.total || 0;
       const totalQty = items.reduce((sum, item) => sum + (item.qty || 0), 0);
       rows.push(['Total', '', '', totalQty, '', '', '', grandTotal.toFixed(2)]);
       rows.push([]);
-
+      
       rows.push(['Amount Chargeable (in words)']);
       rows.push([`${invoice.currency || 'INR'} ${numberToIndianWords(grandTotal)} Only`]);
       rows.push([]);
-
+      
       rows.push(['Bank Details']);
       if (companyDetails.bankName) rows.push([`Bank Name: ${companyDetails.bankName}`]);
       if (companyDetails.bankAccountNo) rows.push([`Account No: ${companyDetails.bankAccountNo}`]);
       if (companyDetails.bankBranchIfsc) rows.push([`IFSC Code: ${companyDetails.bankBranchIfsc}`]);
       rows.push([]);
-
+      
       if (invoice.payment_schedule && invoice.payment_schedule.length > 0) {
         rows.push(['Payment Schedule']);
         rows.push(['#', 'Payment Term', 'Due Date', 'Days', 'Portion', 'Amount', 'Status']);
@@ -1081,27 +1188,26 @@ const SalesInvoice: React.FC = () => {
         });
         rows.push([]);
       }
-
+      
       rows.push(['Declaration']);
       rows.push(['We declare that this invoice shows the actual price of the goods described and that all particulars are true and correct.']);
       rows.push([]);
-
+      
       rows.push([`SUBJECT TO ${companyDetails.jurisdiction} JURISDICTION`]);
       rows.push(['This is a computer generated sales invoice.']);
       rows.push([]);
       rows.push([]);
       rows.push([]);
-
+      
       if (index < invoices.length - 1) {
         rows.push(['========================================']);
         rows.push([]);
       }
     });
-
+    
     return rows;
   };
 
-  // ===== HANDLE PRINT =====
   const handlePrint = (invoice: SalesInvoice) => {
     if (printWindowRef.current && !printWindowRef.current.closed) {
       printWindowRef.current.close();
@@ -1110,12 +1216,12 @@ const SalesInvoice: React.FC = () => {
 
     const printWindow = window.open('', '_blank', 'width=900,height=1000');
     printWindowRef.current = printWindow;
-
+    
     if (!printWindow) {
       toast.error('Please allow pop-ups to print this invoice');
       return;
     }
-
+    
     printWindow.document.write('<p style="font-family:sans-serif;padding:24px;color:#374151;">Loading invoice…</p>');
     setPrintLoadingId(String(invoice.id));
 
@@ -1124,16 +1230,14 @@ const SalesInvoice: React.FC = () => {
         let printData = invoice;
         if (!invoice.items || invoice.items.length === 0) {
           const fullData = await fetchFullSalesInvoice(invoice.id);
-          if (fullData) {
-            printData = fullData;
-          }
+          if (fullData) printData = fullData;
         }
-
+        
         printWindow.document.open();
         printWindow.document.write(buildSalesInvoicePrintHtml(printData));
         printWindow.document.close();
         printWindow.focus();
-
+        
         printWindow.onafterprint = () => {
           setTimeout(() => {
             if (printWindowRef.current && !printWindowRef.current.closed) {
@@ -1142,11 +1246,11 @@ const SalesInvoice: React.FC = () => {
             }
           }, 500);
         };
-
+        
         setTimeout(() => {
           printWindow.print();
         }, 800);
-
+        
       } catch (err) {
         console.error('Error printing invoice:', err);
         toast.error('Print failed. Please try again.');
@@ -1158,16 +1262,14 @@ const SalesInvoice: React.FC = () => {
         setPrintLoadingId(null);
       }
     };
-
+    
     loadAndPrint();
   };
 
-  // ===== EXCEL DOWNLOAD =====
   const handleExcelDownload = async () => {
     setDownloadLoading(true);
     try {
       const invoicesToDownload = invoices.length > 0 ? invoices : [];
-
       if (invoicesToDownload.length === 0) {
         toast.error('No invoices to download');
         setDownloadLoading(false);
@@ -1183,23 +1285,16 @@ const SalesInvoice: React.FC = () => {
       );
 
       const excelData = generateExcelData(fullInvoices);
-
       const wb = XLSX.utils.book_new();
       const ws = XLSX.utils.aoa_to_sheet(excelData);
-
+      
       ws['!cols'] = [
-        { wch: 20 },
-        { wch: 30 },
-        { wch: 15 },
-        { wch: 15 },
-        { wch: 15 },
-        { wch: 15 },
-        { wch: 15 },
-        { wch: 20 },
+        { wch: 20 }, { wch: 30 }, { wch: 15 }, { wch: 15 },
+        { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 20 },
       ];
-
+      
       XLSX.utils.book_append_sheet(wb, ws, 'Invoices');
-
+      
       const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
       const blob = new Blob([wbout], { type: 'application/octet-stream' });
       const url = URL.createObjectURL(blob);
@@ -1211,7 +1306,6 @@ const SalesInvoice: React.FC = () => {
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
       toast.success('Excel file downloaded successfully');
-
     } catch (err) {
       console.error('Download error:', err);
       toast.error('Failed to download');
@@ -1220,12 +1314,10 @@ const SalesInvoice: React.FC = () => {
     }
   };
 
-  // ===== PDF DOWNLOAD =====
   const handleDirectPDFDownload = async () => {
     setDownloadLoading(true);
     try {
       const invoicesToDownload = invoices.length > 0 ? invoices : [];
-
       if (invoicesToDownload.length === 0) {
         toast.error('No invoices to download');
         setDownloadLoading(false);
@@ -1241,25 +1333,25 @@ const SalesInvoice: React.FC = () => {
       );
 
       const allHtmlContent = fullInvoices.map(inv => buildSalesInvoicePrintHtml(inv)).join('<div style="page-break-after: always;"></div>');
-
+      
       if (printWindowRef.current && !printWindowRef.current.closed) {
         printWindowRef.current.close();
         printWindowRef.current = null;
       }
-
+      
       const printWindow = window.open('', '_blank', 'width=900,height=1000');
       printWindowRef.current = printWindow;
-
+      
       if (!printWindow) {
         toast.error('Please allow pop-ups to download PDF');
         setDownloadLoading(false);
         return;
       }
-
+      
       printWindow.document.write(allHtmlContent);
       printWindow.document.close();
       printWindow.focus();
-
+      
       printWindow.onafterprint = () => {
         setTimeout(() => {
           if (printWindowRef.current && !printWindowRef.current.closed) {
@@ -1268,11 +1360,10 @@ const SalesInvoice: React.FC = () => {
           }
         }, 500);
       };
-
+      
       setTimeout(() => {
         printWindow.print();
       }, 500);
-
     } catch (err) {
       console.error('PDF download error:', err);
       toast.error('Failed to download PDF');
@@ -1282,13 +1373,15 @@ const SalesInvoice: React.FC = () => {
   };
 
   // ===== ACTIONS =====
-  const handleCreate = () => navigate('/sales-bill/new');
+  const handleCreate = () => navigateWithPreserve('/sales-bill/new');
   const handleRefresh = () => fetchInvoices();
-
+  
   const handleView = (id: string | number) => {
     const invoiceId = String(id);
     setShowMoreMenu(null);
-    navigate(`/sales-bill/view/${invoiceId}`, {
+    setMenuPosition(null);
+    activeButtonRef.current = null;
+    navigateWithPreserve(`/sales-bill/view/${invoiceId}`, {
       state: { invoiceId, mode: 'view' }
     });
   };
@@ -1296,12 +1389,14 @@ const SalesInvoice: React.FC = () => {
   const handleEdit = (id: string | number) => {
     const invoiceId = String(id);
     setShowMoreMenu(null);
-    navigate(`/sales-bill/edit/${invoiceId}`, {
+    setMenuPosition(null);
+    activeButtonRef.current = null;
+    navigateWithPreserve(`/sales-bill/edit/${invoiceId}`, {
       state: { invoiceId, mode: 'edit' }
     });
   };
-
-  const handleDuplicate = (id: string | number) => navigate(`/sales-bill/duplicate/${id}`);
+  
+  const handleDuplicate = (id: string | number) => navigateWithPreserve(`/sales-bill/duplicate/${id}`);
 
   const handleCancelInvoice = async (id: string | number) => {
     if (!window.confirm('Are you sure you want to cancel this Sales Bill?')) return;
@@ -1313,6 +1408,8 @@ const SalesInvoice: React.FC = () => {
       toast.error('Failed to cancel');
     }
     setShowMoreMenu(null);
+    setMenuPosition(null);
+    activeButtonRef.current = null;
   };
 
   const handleSubmit = async (id: string | number) => {
@@ -1325,10 +1422,28 @@ const SalesInvoice: React.FC = () => {
       toast.error('Failed to submit');
     }
     setShowMoreMenu(null);
+    setMenuPosition(null);
+    activeButtonRef.current = null;
   };
 
-  const toggleMenu = (id: string | number) => {
-    setShowMoreMenu(showMoreMenu === String(id) ? null : String(id));
+  // 🆕 toggleMenu now takes the click event to measure the button position.
+  // The dropdown itself is rendered via portal at body level (see bottom of JSX),
+  // so it can never be clipped by the table wrapper's overflow rules.
+  const toggleMenu = (id: string | number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const idStr = String(id);
+    if (showMoreMenu === idStr) {
+      setShowMoreMenu(null);
+      setMenuPosition(null);
+      activeButtonRef.current = null;
+      return;
+    }
+    const btn = e.currentTarget as HTMLElement;
+    activeButtonRef.current = btn;
+    const rect = btn.getBoundingClientRect();
+    const rightOffset = Math.max(8, window.innerWidth - rect.right);
+    setMenuPosition({ top: rect.bottom + 4, right: rightOffset });
+    setShowMoreMenu(idStr);
   };
 
   const clearFilters = () => {
@@ -1341,18 +1456,25 @@ const SalesInvoice: React.FC = () => {
     setSelectedQuickFilter('');
     setCurrentPage(1);
     setShowDatePicker(false);
+
+    const next = new URLSearchParams(searchParams);
+    next.delete('status');
+    next.delete('autoFilter');
+    setSearchParams(next, { replace: true });
   };
 
-  // ─── Loading Screen ─────────────────────────────────────────────────────
-  if (loading) {
-    return (
-      <div className={`p-6 max-w-7xl mx-auto ${theme}`}>
-        <PageLoader
-          message="Loading Sales & Sales Bill List..."
-        />
-      </div>
-    );
-  }
+  // 🆕 The invoice whose menu is currently open (used by the portal render)
+  const activeMenuItem = showMoreMenu
+    ? invoices.find((inv) => String(inv.id) === showMoreMenu) || null
+    : null;
+
+  // ✅ FIX: The early `if (loading) return <PageLoader />` block has been
+  //    REMOVED. Previously, every search keystroke triggered a fetch that
+  //    set `loading = true`, which unmounted the entire page (including the
+  //    search input) and caused focus/cursor loss while typing.
+  //    The inline loading state inside the table wrapper below now handles
+  //    the visual feedback, so the filter bar (and the search input) stays
+  //    mounted and keeps focus.
 
   // ===== RENDER =====
   return (
@@ -1375,33 +1497,19 @@ const SalesInvoice: React.FC = () => {
         .quotation-page::-webkit-scrollbar-thumb { background: var(--border-color, #e5e7eb); border-radius: 3px; }
         .quotation-page::-webkit-scrollbar-thumb:hover { background: var(--primary-color, #6366f1); }
 
-        /* Date picker styles */
         .qt-date-picker-container { position: relative; display: inline-block; }
-        .qt-date-picker-trigger {
-          display: flex; align-items: center; gap: 8px;
-          background: var(--card-bg, #fff);
-          border: 1px solid var(--border-color, #e5e7eb);
-          border-radius: 8px; padding: 7px 14px; cursor: pointer;
-          transition: all 0.2s; color: var(--text-primary, #1e293b);
-          font-size: 13px; min-height: 38px;
-        }
+        .qt-date-picker-trigger { display: flex; align-items: center; gap: 8px; background: var(--card-bg, #fff); border: 1px solid var(--border-color, #e5e7eb); border-radius: 8px; padding: 7px 14px; cursor: pointer; transition: all 0.2s; color: var(--text-primary, #1e293b); font-size: 13px; min-height: 38px; }
         .qt-date-picker-trigger:hover { border-color: var(--primary-color, #2563eb); background: var(--hover-bg, #f8fafc); }
         .qt-date-picker-trigger.active { border-color: var(--primary-color, #2563eb); box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1); }
         .qt-date-picker-trigger .qt-calendar-icon { color: var(--primary-color, #2563eb); font-size: 16px; }
         .qt-date-picker-trigger .qt-date-label { font-weight: 500; }
         .qt-date-picker-trigger .qt-date-label.placeholder { color: var(--text-secondary, #6b7280); font-weight: 400; }
         .qt-date-picker-trigger .qt-date-range-display { color: var(--primary-color, #2563eb); font-weight: 500; }
-        .qt-date-picker-popup {
-          position: absolute; top: calc(100% + 8px); right: 0;
-          background: var(--card-bg, #fff);
-          border: 1px solid var(--border-color, #e5e7eb);
-          border-radius: 12px;
-          box-shadow: 0 10px 40px var(--shadow-color, rgba(0,0,0,0.15));
-          padding: 20px; z-index: 1000; min-width: 340px; width: 340px;
-        }
+        .qt-date-picker-popup { position: absolute; top: calc(100% + 8px); right: 0; background: var(--card-bg, #fff); border: 1px solid var(--border-color, #e5e7eb); border-radius: 12px; box-shadow: 0 10px 40px var(--shadow-color, rgba(0,0,0,0.15)); padding: 20px; z-index: 1000; min-width: 340px; width: 340px; }
         .qt-date-picker-popup .qt-popup-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
         .qt-date-picker-popup .qt-popup-header .qt-popup-title { font-size: 14px; font-weight: 600; color: var(--text-primary, #1e293b); }
         .qt-date-picker-popup .qt-popup-header .qt-popup-close { background: none; border: none; color: var(--text-secondary, #6b7280); cursor: pointer; font-size: 16px; padding: 4px; }
+        .qt-date-picker-popup .qt-popup-header .qt-popup-close:hover { color: var(--text-primary, #1e293b); }
         .qt-date-picker-popup .qt-quick-filters { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--border-color, #e5e7eb); }
         .qt-date-picker-popup .qt-quick-filter-btn { padding: 4px 14px; border: 1px solid var(--border-color, #e5e7eb); border-radius: 16px; background: var(--card-bg, #fff); color: var(--text-secondary, #6b7280); font-size: 12px; cursor: pointer; transition: all 0.2s; }
         .qt-date-picker-popup .qt-quick-filter-btn:hover { border-color: var(--primary-color, #2563eb); color: var(--primary-color, #2563eb); }
@@ -1430,7 +1538,6 @@ const SalesInvoice: React.FC = () => {
         .qt-date-picker-popup .qt-popup-actions .qt-btn-cancel { background: transparent; color: var(--text-secondary, #6b7280); }
         .qt-date-picker-popup .qt-popup-actions .qt-btn-cancel:hover { background: var(--hover-bg, #f3f4f6); }
 
-        /* Filter bar */
         .qt-filter-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; flex-shrink: 0; }
         .qt-filter-left { display: flex; align-items: center; flex: 1; min-width: 200px; }
         .qt-search-wrapper { position: relative; flex: 1; max-width: 400px; }
@@ -1446,14 +1553,17 @@ const SalesInvoice: React.FC = () => {
         .qt-btn-new:hover { background: var(--primary-hover, #4f46e5); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3); }
         .qt-btn-secondary { display: flex; align-items: center; gap: 6px; height: 38px; padding: 0 14px; border: 1px solid var(--border-color, #e5e7eb); border-radius: 8px; background: var(--card-bg, white); font-size: 13px; color: var(--text-primary, #374151); cursor: pointer; transition: all 0.15s; white-space: nowrap; }
         .qt-btn-secondary:hover { background: var(--nav-hover, #f9fafb); }
-
-        /* Active filters */
+        .qt-btn-download { display: flex; align-items: center; gap: 6px; height: 38px; padding: 0 16px; border: none; border-radius: 8px; background: #10b981; color: white; font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
+        .qt-btn-download:hover { background: #059669; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3); }
+        .qt-btn-download:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+        .qt-btn-download-pdf { display: flex; align-items: center; gap: 6px; height: 38px; padding: 0 16px; border: none; border-radius: 8px; background: #dc2626; color: white; font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
+        .qt-btn-download-pdf:hover { background: #b91c1c; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3); }
+        .qt-btn-download-pdf:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
         .qt-active-filters { display: flex; align-items: center; gap: 12px; padding: 8px 16px; background: color-mix(in srgb, var(--primary-color) 8%, transparent); border-radius: 8px; font-size: 12px; flex-wrap: wrap; border: 1px solid var(--border-color, #e5e7eb); flex-shrink: 0; }
         .qt-active-filters span { color: var(--text-primary, #111827); }
         .qt-clear-filters { margin-left: auto; padding: 4px 12px; background: var(--card-bg, white); border: 1px solid var(--border-color, #e5e7eb); border-radius: 6px; cursor: pointer; font-size: 11px; display: flex; align-items: center; gap: 4px; color: var(--text-secondary, #6b7280); transition: all 0.15s; }
         .qt-clear-filters:hover { background: var(--nav-hover, #f3f4f6); }
 
-        /* Table */
         .qt-table-wrap { background: var(--card-bg, #fff); border-radius: 12px; box-shadow: 0 1px 3px var(--shadow-color, rgba(0,0,0,0.05)); border: 1px solid var(--border-color, #e5e7eb); overflow-x: auto; overflow-y: visible; flex: 0 0 auto; }
         .qt-table-wrap::-webkit-scrollbar { width: 6px; height: 6px; }
         .qt-table-wrap::-webkit-scrollbar-track { background: var(--layout-bg, #f9fafb); border-radius: 3px; }
@@ -1473,43 +1583,30 @@ const SalesInvoice: React.FC = () => {
         .qt-td-outstanding.paid { color: #059669; }
         .qt-td-outstanding.partial { color: #d97706; }
         .qt-td-outstanding.unpaid { color: #dc2626; }
-
-        /* Status badge */
         .qt-status-badge { display: inline-flex; align-items: center; height: 24px; padding: 0 12px; border-radius: 99px; font-size: 12px; font-weight: 600; gap: 4px; }
-
-        /* Action buttons */
+        .qt-dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
         .qt-action-buttons { display: flex; align-items: center; gap: 4px; }
         .qt-action-btn { width: 32px; height: 32px; border: none; border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; transition: all 0.2s; background: transparent; color: var(--text-secondary, #6b7280); }
         .qt-action-btn:hover { background: var(--nav-hover, #f3f4f6); }
         .qt-action-print { color: #0d9488; }
         .qt-action-print:hover { background: rgba(13, 148, 136, 0.1); }
-        .qt-action-upi { color: #7c3aed; }
-        .qt-action-upi:hover { background: rgba(124, 58, 237, 0.1); }
         .qt-action-more { color: var(--text-secondary, #6b7280); }
         .qt-action-more:hover { background: var(--nav-hover, #f3f4f6); }
-
-        /* More menu */
         .qt-more-menu-container { position: relative; display: inline-block; }
-        .qt-more-menu-dropdown { position: absolute; right: 0; top: 100%; background: var(--card-bg, #fff); border: 1px solid var(--border-color, #e5e7eb); border-radius: 8px; box-shadow: 0 10px 40px var(--shadow-color, rgba(0,0,0,0.15)); min-width: 200px; z-index: 100; padding: 4px 0; margin-top: 4px; }
+        .qt-more-menu-dropdown { background: var(--card-bg, #fff); border: 1px solid var(--border-color, #e5e7eb); border-radius: 8px; box-shadow: 0 10px 40px var(--shadow-color, rgba(0,0,0,0.15)); min-width: 180px; padding: 4px 0; }
         .qt-more-menu-dropdown button { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 16px; border: none; background: transparent; color: var(--text-primary, #1e293b); font-size: 13px; cursor: pointer; transition: all 0.2s; text-align: left; }
         .qt-more-menu-dropdown button:hover { background: var(--nav-hover, #f8fafc); color: var(--primary-color, #2563eb); }
         .qt-more-menu-dropdown button.danger { color: var(--danger-color, #ef4444); }
         .qt-more-menu-dropdown button.danger:hover { background: #fef2f2; }
         .qt-more-menu-dropdown .menu-divider { height: 1px; background: var(--border-color, #e5e7eb); margin: 4px 0; }
-
-        /* Empty state */
         .qt-empty-state { padding: 60px 20px; text-align: center; display: flex; align-items: center; justify-content: center; height: 100%; }
         .qt-empty-content { display: flex; flex-direction: column; align-items: center; gap: 12px; }
         .qt-empty-content svg { color: var(--text-secondary, #9ca3af); }
         .qt-empty-content p { font-size: 18px; font-weight: 500; color: var(--text-primary, #111827); margin: 0; }
         .qt-empty-content span { font-size: 14px; color: var(--text-secondary, #6b7280); }
-
-        /* Loading & error */
         .qt-loading { padding: 40px; text-align: center; color: var(--text-secondary, #6b7280); display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; }
         .qt-error { padding: 40px; text-align: center; color: var(--danger-color, #ef4444); display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; }
         .qt-retry-btn { margin-top: 12px; padding: 8px 20px; background: var(--primary-color, #6366f1); color: white; border: none; border-radius: 6px; cursor: pointer; }
-
-        /* Pagination */
         .qt-pagination { display: flex; align-items: center; justify-content: space-between; padding: 12px 0 0 0; flex-wrap: wrap; gap: 12px; background: transparent; flex-shrink: 0; border-top: 1px solid var(--border-color, #e5e7eb); margin-top: 4px; }
         .qt-pagination-left, .qt-pagination-right { display: flex; align-items: center; gap: 8px; }
         .qt-pagination-center { display: flex; align-items: center; gap: 4px; }
@@ -1522,185 +1619,42 @@ const SalesInvoice: React.FC = () => {
         .qt-page-btn-active { background: var(--primary-color, #6366f1); color: white; border-color: var(--primary-color, #6366f1); }
         .qt-page-btn-active:hover { background: var(--primary-hover, #4f46e5); }
         .qt-pagination-info { font-size: 13px; color: var(--text-secondary, #6b7280); }
-
         .spinning { animation: spin 1s linear infinite; }
         @keyframes spin { to { transform: rotate(360deg); } }
 
-        /* ── UPI Modal ── */
-        .upi-modal-overlay {
-          position: fixed;
-          inset: 0;
-          background: rgba(0, 0, 0, 0.55);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          z-index: 9999;
-          padding: 16px;
-          backdrop-filter: blur(3px);
-          animation: upiFadeIn 0.2s ease;
-        }
-        @keyframes upiFadeIn { from { opacity: 0; } to { opacity: 1; } }
-        .upi-modal {
-          background: var(--card-bg, #fff);
-          border-radius: 16px;
-          width: 100%;
-          max-width: 440px;
-          max-height: 92vh;
-          overflow-y: auto;
-          box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
-          animation: upiSlideUp 0.25s ease;
-        }
-        @keyframes upiSlideUp { from { transform: translateY(24px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-        .upi-modal-header {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          padding: 16px 20px;
-          border-bottom: 1px solid var(--border-color, #e5e7eb);
-          background: linear-gradient(135deg, rgba(124, 58, 237, 0.08), rgba(37, 99, 235, 0.08));
-        }
-        .upi-modal-header h3 {
-          margin: 0;
-          font-size: 16px;
-          font-weight: 600;
-          color: var(--text-primary, #1e293b);
-          display: flex;
-          align-items: center;
-          gap: 8px;
-        }
-        .upi-modal-header h3 svg { color: #7c3aed; }
-        .upi-modal-close {
-          background: none;
-          border: none;
-          color: var(--text-secondary, #6b7280);
-          cursor: pointer;
-          padding: 6px;
-          border-radius: 6px;
-          display: flex;
-          align-items: center;
-          transition: all 0.2s;
-        }
-        .upi-modal-close:hover { background: var(--nav-hover, #f3f4f6); color: var(--text-primary, #1e293b); }
-        .upi-modal-body { padding: 20px; }
-        .upi-invoice-info { background: var(--layout-bg, #f9fafb); border-radius: 8px; padding: 12px; margin-bottom: 16px; border: 1px solid var(--border-color, #e5e7eb); }
-        .upi-info-row { display: flex; justify-content: space-between; font-size: 13px; padding: 4px 0; gap: 12px; }
-        .upi-info-label { color: var(--text-secondary, #6b7280); flex-shrink: 0; }
-        .upi-info-value { color: var(--text-primary, #1e293b); font-weight: 500; text-align: right; }
-        .upi-amount-input-group { margin-bottom: 20px; }
-        .upi-amount-input-group label { display: block; font-size: 13px; font-weight: 600; color: var(--text-primary, #1e293b); margin-bottom: 8px; }
-        .upi-input-wrapper { position: relative; display: flex; align-items: center; }
-        .upi-rupee-icon { position: absolute; left: 14px; color: var(--text-secondary, #6b7280); font-size: 15px; z-index: 1; }
-        .upi-amount-input {
-          width: 100%;
-          padding: 12px 12px 12px 36px;
-          border: 2px solid var(--border-color, #e5e7eb);
-          border-radius: 10px;
-          font-size: 20px;
-          font-weight: 700;
-          color: var(--text-primary, #1e293b);
-          background: var(--input-bg, #fff);
-          outline: none;
-          transition: border-color 0.2s;
-        }
-        .upi-amount-input:focus { border-color: #7c3aed; box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.12); }
-        .upi-amount-hint { display: block; margin-top: 6px; font-size: 12px; color: var(--text-secondary, #6b7280); }
-        .upi-qr-section {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          padding: 20px;
-          background: var(--layout-bg, #f9fafb);
-          border-radius: 12px;
-          border: 1px dashed var(--border-color, #e5e7eb);
-        }
-        .upi-qr-wrapper {
-          background: #fff;
-          padding: 12px;
-          border-radius: 12px;
-          box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
-          display: inline-block;
-        }
-        .upi-scan-text { margin: 14px 0 8px; font-size: 13px; color: var(--text-secondary, #6b7280); text-align: center; }
-        .upi-apps { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin-bottom: 14px; }
-        .upi-apps span { font-size: 11px; padding: 3px 10px; background: var(--card-bg, #fff); border: 1px solid var(--border-color, #e5e7eb); border-radius: 12px; color: var(--text-secondary, #6b7280); font-weight: 500; }
-        .upi-id-display { display: flex; align-items: center; gap: 6px; font-size: 12px; padding: 6px 12px; background: var(--card-bg, #fff); border-radius: 8px; border: 1px solid var(--border-color, #e5e7eb); }
-        .upi-id-label { color: var(--text-secondary, #6b7280); }
-        .upi-id-value { color: #7c3aed; font-weight: 600; font-family: monospace; }
-        .upi-copy-btn { background: none; border: none; color: var(--text-secondary, #6b7280); cursor: pointer; padding: 4px; display: flex; align-items: center; border-radius: 4px; transition: all 0.2s; }
-        .upi-copy-btn:hover { background: var(--nav-hover, #f3f4f6); color: #7c3aed; }
-        .upi-payable-amount { margin-top: 14px; font-size: 15px; color: var(--text-primary, #1e293b); padding: 8px 16px; background: rgba(16, 185, 129, 0.1); border-radius: 8px; }
-        .upi-payable-amount strong { color: #059669; font-size: 17px; }
-        .upi-qr-placeholder { display: flex; flex-direction: column; align-items: center; gap: 12px; color: var(--text-secondary, #9ca3af); padding: 30px 0; }
-        .upi-qr-placeholder p { margin: 0; font-size: 13px; text-align: center; }
-        .upi-modal-footer { display: flex; gap: 10px; padding: 16px 20px; border-top: 1px solid var(--border-color, #e5e7eb); }
-        .upi-btn-cancel {
-          flex: 1;
-          padding: 11px 16px;
-          border: 1px solid var(--border-color, #e5e7eb);
-          border-radius: 8px;
-          background: var(--card-bg, #fff);
-          color: var(--text-primary, #1e293b);
-          font-size: 14px;
-          font-weight: 500;
-          cursor: pointer;
-          transition: all 0.2s;
-        }
-        .upi-btn-cancel:hover { background: var(--nav-hover, #f9fafb); }
-        .upi-btn-pay {
-          flex: 1.5;
-          padding: 11px 16px;
-          border: none;
-          border-radius: 8px;
-          background: linear-gradient(135deg, #7c3aed, #2563eb);
-          color: #fff;
-          font-size: 14px;
-          font-weight: 600;
-          cursor: pointer;
-          text-decoration: none;
-          text-align: center;
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          gap: 6px;
-          transition: all 0.2s;
-        }
-        .upi-btn-pay:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(124, 58, 237, 0.35); }
-        .upi-btn-pay.disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
-
-        /* Dark theme */
         .dark-theme .quotation-page { background: var(--layout-bg, #0f172a); }
         .dark-theme .qt-search-input { background: var(--input-bg, #1e293b); border-color: var(--border-color, #334155); color: var(--text-primary, #f8fafc); }
         .dark-theme .qt-search-input::placeholder { color: var(--text-secondary, #64748b); }
         .dark-theme .qt-filter-select { background: var(--card-bg, #1e293b); border-color: var(--border-color, #334155); color: var(--text-primary, #f8fafc); }
         .dark-theme .qt-btn-secondary { background: var(--card-bg, #1e293b); border-color: var(--border-color, #334155); color: var(--text-primary, #f8fafc); }
+        .dark-theme .qt-btn-secondary:hover { background: var(--nav-hover, rgba(255,255,255,0.05)); }
+        .dark-theme .qt-btn-new { background: var(--primary-color, #3b82f6); }
+        .dark-theme .qt-btn-new:hover { background: var(--primary-hover, #2563eb); }
         .dark-theme .qt-table-wrap { background: var(--card-bg, #1e293b); border-color: var(--border-color, #334155); }
         .dark-theme .qt-th { background: var(--layout-bg, #0f172a); color: var(--text-secondary, #94a3b8); border-bottom-color: var(--border-color, #334155); }
         .dark-theme .qt-td { color: var(--text-primary, #f8fafc); border-top-color: var(--border-color, #334155); }
         .dark-theme .qt-tr:hover { background: var(--nav-hover, rgba(255,255,255,0.05)); }
+        .dark-theme .qt-td-amount { color: var(--text-primary, #f8fafc); }
+        .dark-theme .qt-empty-content p { color: var(--text-primary, #f8fafc); }
+        .dark-theme .qt-empty-content span { color: var(--text-secondary, #94a3b8); }
+        .dark-theme .qt-active-filters { background: rgba(99, 102, 241, 0.08); border-color: var(--border-color, #334155); }
+        .dark-theme .qt-active-filters span { color: var(--text-primary, #f8fafc); }
+        .dark-theme .qt-clear-filters { background: var(--card-bg, #1e293b); border-color: var(--border-color, #334155); color: var(--text-secondary, #94a3b8); }
+        .dark-theme .qt-page-btn { background: var(--card-bg, #1e293b); border-color: var(--border-color, #334155); color: var(--text-primary, #f8fafc); }
+        .dark-theme .qt-page-btn:hover:not(:disabled) { background: var(--nav-hover, rgba(255,255,255,0.05)); }
+        .dark-theme .qt-page-size-select { background: var(--card-bg, #1e293b); border-color: var(--border-color, #334155); color: var(--text-primary, #f8fafc); }
         .dark-theme .qt-more-menu-dropdown { background: var(--card-bg, #1e293b); border-color: var(--border-color, #334155); }
         .dark-theme .qt-more-menu-dropdown button { color: var(--text-primary, #f8fafc); }
         .dark-theme .qt-more-menu-dropdown button:hover { background: var(--nav-hover, rgba(255,255,255,0.05)); }
         .dark-theme .qt-date-picker-trigger { background: var(--card-bg, #1e293b); border-color: var(--border-color, #334155); color: var(--text-primary, #f8fafc); }
+        .dark-theme .qt-date-picker-trigger:hover { background: var(--nav-hover, rgba(255,255,255,0.05)); }
         .dark-theme .qt-date-picker-popup { background: var(--card-bg, #1e293b); border-color: var(--border-color, #334155); }
         .dark-theme .qt-date-picker-popup .qt-popup-title { color: var(--text-primary, #f8fafc); }
         .dark-theme .qt-date-picker-popup .qt-quick-filter-btn { background: var(--card-bg, #1e293b); border-color: var(--border-color, #334155); color: var(--text-secondary, #94a3b8); }
         .dark-theme .qt-date-picker-popup .qt-quick-filter-btn.active { background: var(--primary-color, #3b82f6); color: #fff; }
         .dark-theme .qt-date-picker-popup .qt-calendar-grid .qt-day-cell { color: var(--text-primary, #f8fafc); }
-        .dark-theme .qt-page-btn { background: var(--card-bg, #1e293b); border-color: var(--border-color, #334155); color: var(--text-primary, #f8fafc); }
-        .dark-theme .qt-page-size-select { background: var(--card-bg, #1e293b); border-color: var(--border-color, #334155); color: var(--text-primary, #f8fafc); }
+        .dark-theme .qt-date-picker-popup .qt-day-header { color: var(--text-secondary, #94a3b8); }
 
-        .dark-theme .upi-modal { background: var(--card-bg, #1e293b); }
-        .dark-theme .upi-invoice-info,
-        .dark-theme .upi-qr-section { background: var(--layout-bg, #0f172a); border-color: var(--border-color, #334155); }
-        .dark-theme .upi-amount-input { background: var(--input-bg, #0f172a); border-color: var(--border-color, #334155); color: var(--text-primary, #f8fafc); }
-        .dark-theme .upi-id-display,
-        .dark-theme .upi-apps span { background: var(--card-bg, #1e293b); border-color: var(--border-color, #334155); }
-        .dark-theme .upi-btn-cancel { background: var(--card-bg, #1e293b); border-color: var(--border-color, #334155); color: var(--text-primary, #f8fafc); }
-        .dark-theme .upi-modal-header { background: linear-gradient(135deg, rgba(124, 58, 237, 0.15), rgba(37, 99, 235, 0.15)); }
-        .dark-theme .upi-modal-header h3 { color: var(--text-primary, #f8fafc); }
-        .dark-theme .upi-amount-input-group label { color: var(--text-primary, #f8fafc); }
-
-        /* Responsive */
         @media (max-width: 768px) {
           .quotation-page { padding: 12px; gap: 12px; }
           .qt-filter-bar { flex-direction: column; align-items: stretch; }
@@ -1719,7 +1673,7 @@ const SalesInvoice: React.FC = () => {
         @media (max-width: 480px) {
           .qt-filter-right { flex-direction: column; width: 100%; }
           .qt-filter-right > * { width: 100%; }
-          .qt-btn-new, .qt-btn-secondary { justify-content: center; }
+          .qt-btn-new { justify-content: center; }
           .qt-pagination { padding: 8px 0 0 0; }
           .qt-pagination-center { flex-wrap: wrap; justify-content: center; }
         }
@@ -1744,7 +1698,7 @@ const SalesInvoice: React.FC = () => {
             )}
           </div>
         </div>
-        <div className="qt-filter-right">
+        <div className="bom-filter-right">
           <select
             value={selectedStatus}
             onChange={(e) => setSelectedStatus(e.target.value)}
@@ -1759,9 +1713,8 @@ const SalesInvoice: React.FC = () => {
             <option value="Overdue">Overdue</option>
           </select>
 
-          {/* DATE RANGE PICKER */}
           <div className="qt-date-picker-container">
-            <div
+            <div 
               className={`qt-date-picker-trigger ${showDatePicker ? 'active' : ''}`}
               onClick={openDatePicker}
             >
@@ -1776,7 +1729,7 @@ const SalesInvoice: React.FC = () => {
                 )}
               </span>
             </div>
-
+            
             {showDatePicker && (
               <div className="qt-date-picker-popup">
                 <div className="qt-popup-header">
@@ -1785,31 +1738,55 @@ const SalesInvoice: React.FC = () => {
                     <FaTimes size={14} />
                   </button>
                 </div>
-
+                
                 <div className="qt-quick-filters">
-                  <button className={`qt-quick-filter-btn ${selectedQuickFilter === 'today' ? 'active' : ''}`} onClick={() => applyQuickFilter('today')}>Today</button>
-                  <button className={`qt-quick-filter-btn ${selectedQuickFilter === 'last7' ? 'active' : ''}`} onClick={() => applyQuickFilter('last7')}>Last 7 Days</button>
-                  <button className={`qt-quick-filter-btn ${selectedQuickFilter === 'last30' ? 'active' : ''}`} onClick={() => applyQuickFilter('last30')}>Last 30 Days</button>
-                  <button className={`qt-quick-filter-btn ${selectedQuickFilter === 'thisMonth' ? 'active' : ''}`} onClick={() => applyQuickFilter('thisMonth')}>This Month</button>
+                  <button 
+                    className={`qt-quick-filter-btn ${selectedQuickFilter === 'today' ? 'active' : ''}`}
+                    onClick={() => applyQuickFilter('today')}
+                  >
+                    Today
+                  </button>
+                  <button 
+                    className={`qt-quick-filter-btn ${selectedQuickFilter === 'last7' ? 'active' : ''}`}
+                    onClick={() => applyQuickFilter('last7')}
+                  >
+                    Last 7 Days
+                  </button>
+                  <button 
+                    className={`qt-quick-filter-btn ${selectedQuickFilter === 'last30' ? 'active' : ''}`}
+                    onClick={() => applyQuickFilter('last30')}
+                  >
+                    Last 30 Days
+                  </button>
+                  <button 
+                    className={`qt-quick-filter-btn ${selectedQuickFilter === 'thisMonth' ? 'active' : ''}`}
+                    onClick={() => applyQuickFilter('thisMonth')}
+                  >
+                    This Month
+                  </button>
                 </div>
-
+                
                 <div className="qt-calendar-header">
                   <button className="qt-nav-btn" onClick={() => changeMonth(-1)}>
                     <FaChevronLeft size={12} />
                   </button>
-                  <span className="qt-month-year">{getMonthName(currentMonth)} {currentYear}</span>
+                  <span className="qt-month-year">
+                    {getMonthName(currentMonth)} {currentYear}
+                  </span>
                   <button className="qt-nav-btn" onClick={() => changeMonth(1)}>
                     <FaChevronRight size={12} />
                   </button>
                 </div>
-
+                
                 <div className="qt-calendar-grid">
                   {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map(day => (
                     <div key={day} className="qt-day-header">{day}</div>
                   ))}
                   {generateCalendarDays().map((day, index) => {
-                    if (day === null) return <div key={`empty-${index}`} className="qt-day-cell empty"></div>;
-
+                    if (day === null) {
+                      return <div key={`empty-${index}`} className="qt-day-cell empty"></div>;
+                    }
+                    
                     const dateObj = new Date(currentYear, currentMonth, day);
                     const dateStr = dateObj.toISOString().split('T')[0];
                     const isToday = dateStr === getTodayDate();
@@ -1817,7 +1794,7 @@ const SalesInvoice: React.FC = () => {
                     const isSelected = isDateSelected(day);
                     const isStart = dateStr === tempFromDate;
                     const isEnd = dateStr === tempToDate;
-
+                    
                     let className = 'qt-day-cell';
                     if (isToday) className += ' today';
                     if (isInRange && !isSelected) className += ' in-range';
@@ -1825,15 +1802,19 @@ const SalesInvoice: React.FC = () => {
                     if (isStart && tempToDate) className += ' selected-start';
                     if (isEnd && tempFromDate) className += ' selected-end';
                     if (isInRange && !isSelected && !isStart && !isEnd) className += ' range-middle';
-
+                    
                     return (
-                      <div key={day} className={className} onClick={() => handleDateClick(day)}>
+                      <div 
+                        key={day} 
+                        className={className}
+                        onClick={() => handleDateClick(day)}
+                      >
                         {day}
                       </div>
                     );
                   })}
                 </div>
-
+                
                 <div className="qt-popup-actions">
                   <button className="qt-btn-clear" onClick={clearDateFilters}>Clear</button>
                   <button className="qt-btn-cancel" onClick={() => setShowDatePicker(false)}>Cancel</button>
@@ -1862,7 +1843,7 @@ const SalesInvoice: React.FC = () => {
           {selectedStatus !== "All" && (<span><strong>Status:</strong> {selectedStatus}</span>)}
           {(fromDate || toDate) && (
             <span>
-              <strong>Date:</strong> {fromDate ? formatDateForDisplay(fromDate) : 'Any'} – {toDate ? formatDateForDisplay(toDate) : 'Any'}
+              <strong>Date:</strong> {fromDate ? formatDateForDisplay(fromDate) : 'Any'} – {toDate ? formatDateForDisplay(toDate) : 'End'}
             </span>
           )}
           <button onClick={clearFilters} className="qt-clear-filters">
@@ -1875,316 +1856,239 @@ const SalesInvoice: React.FC = () => {
       {!loading && !error && (
         <>
           <div className="qt-table-wrap sales-desktop-table-wrap">
-            {loading && invoices.length === 0 ? (
-              <div className="qt-loading">
-                <FaSpinner className="spinning" size={30} style={{ display: 'block', margin: '0 auto 12px' }} />
-                <p>Loading sales invoices...</p>
-              </div>
-            ) : error ? (
-              <div className="qt-error">
-                <FaExclamationTriangle size={30} style={{ display: 'block', margin: '0 auto 12px' }} />
-                <p>{error}</p>
-                <button onClick={handleRefresh} className="qt-retry-btn">
-                  <FaSync size={12} style={{ marginRight: '6px' }} /> Retry
-                </button>
-              </div>
-            ) : invoices.length === 0 ? (
-              <div className="qt-empty-state">
-                <div className="qt-empty-content">
-                  <FaFileInvoice size={48} />
-                  <p>No sales invoices found</p>
-                  <span>Try adjusting your search criteria or create a new one</span>
-                  <button className="qt-btn-new" onClick={handleCreate} style={{ marginTop: '12px' }}>
-                    <FaPlus size={12} /> New Sales Bill
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <table className="qt-table">
-                <thead>
-                  <tr>
-                    <th className="qt-th">Invoice No</th>
-                    <th className="qt-th">Customer</th>
-                    <th className="qt-th">Date</th>
-                    <th className="qt-th">Amount</th>
-                    <th className="qt-th">Paid</th>
-                    <th className="qt-th">Status</th>
-                    <th className="qt-th">Actions</th>
+        {loading && invoices.length === 0 ? (
+          <div className="qt-loading">
+            <FaSpinner className="spinning" size={30} style={{ display: 'block', margin: '0 auto 12px' }} />
+            <p>Loading sales invoices...</p>
+          </div>
+        ) : error ? (
+          <div className="qt-error">
+            <FaExclamationTriangle size={30} style={{ display: 'block', margin: '0 auto 12px' }} />
+            <p>{error}</p>
+            <button onClick={handleRefresh} className="qt-retry-btn">
+              <FaSync size={12} style={{ marginRight: '6px' }} /> Retry
+            </button>
+          </div>
+        ) : invoices.length === 0 ? (
+          <div className="qt-empty-state">
+            <div className="qt-empty-content">
+              <FaFileInvoice size={48} />
+              <p>No sales invoices found</p>
+              <span>Try adjusting your search criteria or create a new one</span>
+              <button className="qt-btn-new" onClick={handleCreate} style={{ marginTop: '12px' }}>
+                <FaPlus size={12} /> New Sales Bill
+              </button>
+            </div>
+          </div>
+        ) : (
+          <table className="qt-table">
+            <thead>
+              <tr>
+                <th className="qt-th">Invoice No</th>
+                <th className="qt-th">Customer</th>
+                <th className="qt-th">Date</th>
+                <th className="qt-th">Amount</th>
+                <th className="qt-th">Paid</th>
+                <th className="qt-th">Status</th>
+                <th className="qt-th">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {invoices.map((item) => {
+                const isPaid = item.status === 'Paid';
+                const isPartial = item.status === 'Partially Paid';
+                const outstanding = item.outstanding_amount || item.grand_total || 0;
+                
+                let outstandingClass = 'qt-td-outstanding';
+                if (isPaid) outstandingClass += ' paid';
+                else if (isPartial) outstandingClass += ' partial';
+                else if (outstanding > 0) outstandingClass += ' unpaid';
+
+                return (
+                  <tr key={item.id} className="qt-tr">
+                    <td className="qt-td qt-td-id">{formatInvoiceNumber(item.id)}</td>
+                    <td className="qt-td">
+                      <span className="qt-td-customer" onClick={() => handleView(item.id)}>
+                        {item.customer_name || '-'}
+                      </span>
+                    </td>
+                    <td className="qt-td">{formatDateDisplay(item.posting_date)}</td>
+                    <td className="qt-td qt-td-amount">₹{item.grand_total?.toLocaleString() || '0'}</td>
+                    <td className="qt-td">
+                      <span className={outstandingClass}>₹{item.paid_amount?.toLocaleString() || '0'}</span>
+                    </td>
+                    <td className="qt-td"><StatusBadge status={item.status || 'Draft'} /></td>
+                    <td className="qt-td">
+                      <div className="qt-action-buttons">
+                        <button 
+                          className="qt-action-btn qt-action-print" 
+                          onClick={() => handlePrint(item)} 
+                          title="Print"
+                          disabled={printLoadingId === String(item.id)}
+                        >
+                          {printLoadingId === String(item.id) ? <FaSpinner className="spinning" size={12} /> : <FaPrintIcon size={12} />}
+                        </button>
+                        <div 
+                          className="qt-more-menu-container" 
+                          ref={(el) => { menuRefs.current[String(item.id)] = el }}
+                        >
+                          <button 
+                            className="qt-action-btn qt-action-more" 
+                            onClick={(e) => toggleMenu(item.id, e)} 
+                            title="More"
+                          >
+                            <FaEllipsisV size={14} />
+                          </button>
+                        </div>
+                      </div>
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {invoices.map((item) => {
-                    const isPaid = item.status === 'Paid';
-                    const isPartial = item.status === 'Partially Paid';
-                    const outstanding = item.outstanding_amount || item.grand_total || 0;
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+      </div>
 
-                    let outstandingClass = 'qt-td-outstanding';
-                    if (isPaid) outstandingClass += ' paid';
-                    else if (isPartial) outstandingClass += ' partial';
-                    else if (outstanding > 0) outstandingClass += ' unpaid';
+      {/* Mobile Table */}
+      <div className="sales-mobile-list-wrap">
+        <div className="sales-mobile-list-header">
+          <div className="sales-mobile-th-primary">
+            <span className="sales-mobile-th-cell">Invoice No</span>
+            <span className="sales-mobile-th-sep">•</span>
+            <span className="sales-mobile-th-cell">Customer</span>
+          </div>
+          <div className="sales-mobile-th-right">
+            <span className="sales-count-label">{totalRecords}</span>
+          </div>
+        </div>
 
-                    return (
-                      <tr key={item.id} className="qt-tr">
-                        <td className="qt-td qt-td-id">
-                          {item.displayInvoiceNumber || item.id || '-'}
-                        </td>
-                        <td className="qt-td">
+        {loading && invoices.length === 0 ? (
+          <div className="qt-empty-state">
+            <div className="qt-empty-content">
+              <p>No Sales Invoices found</p>
+              <span>Try adjusting your search criteria</span>
+            </div>
+          </div>
+        ) : (
+          <div className="sales-mobile-cards">
+            {invoices.map((item) => {
+              const isExpanded = expandedRows.has(item.id);
+              const isPaid = item.status === 'Paid';
+              const isPartial = item.status === 'Partially Paid';
+              const outstanding = item.outstanding_amount || item.grand_total || 0;
+              let outstandingClass = 'qt-td-outstanding';
+              if (isPaid) outstandingClass += ' paid';
+              else if (isPartial) outstandingClass += ' partial';
+              else if (outstanding > 0) outstandingClass += ' unpaid';
+
+              return (
+                <div
+                  key={item.id}
+                  className={`sales-mobile-card ${isExpanded ? "sales-mobile-card-expanded" : ""}`}
+                >
+                  <div
+                    className="sales-mobile-card-header"
+                    onClick={() => toggleRowExpand(item.id)}
+                  >
+                    <div className="sales-mobile-card-primary">
+                      <div className="sales-mobile-card-primary-row">
+                        <span className="sales-mobile-header-badge">
+                          <span className="qt-td qt-td-id">{formatInvoiceNumber(item.id)}</span>
+                        </span>
+                        <span className="sales-mobile-item-name">
                           <span className="qt-td-customer" onClick={() => handleView(item.id)}>
                             {item.customer_name || '-'}
                           </span>
-                        </td>
-                        <td className="qt-td">{formatDateDisplay(item.posting_date)}</td>
-                        <td className="qt-td qt-td-amount">
-                          ₹{item.grand_total?.toLocaleString() || '0'}
-                        </td>
-                        <td className="qt-td">
-                          <span className={outstandingClass}>
-                            ₹{item.paid_amount?.toLocaleString() || '0'}
-                          </span>
-                        </td>
-                        <td className="qt-td">
-                          <StatusBadge status={item.status || 'Draft'} />
-                        </td>
-                        <td className="qt-td">
-                          <div className="qt-action-buttons">
-                            <button
-                              className="qt-action-btn qt-action-upi"
-                              onClick={() => openUpiModal(item)}
-                              title="Pay via UPI (QR Code)"
-                            >
-                              <FaQrcode size={14} />
-                            </button>
-                            <button
-                              className="qt-action-btn qt-action-print"
-                              onClick={() => handlePrint(item)}
-                              title="Print"
-                              disabled={printLoadingId === String(item.id)}
-                            >
-                              {printLoadingId === String(item.id) ? <FaSpinner className="spinning" size={12} /> : <FaPrintIcon size={12} />}
-                            </button>
-                            <div
-                              className="qt-more-menu-container"
-                              ref={(el) => { menuRefs.current[String(item.id)] = el }}
-                            >
-                              <button
-                                className="qt-action-btn qt-action-more"
-                                onClick={() => toggleMenu(item.id)}
-                                title="More"
-                              >
-                                <FaEllipsisV size={14} />
-                              </button>
-                              {showMoreMenu === String(item.id) && (
-                                <div className="qt-more-menu-dropdown">
-                                  <button onClick={() => handleView(item.id)}>
-                                    <FaEye size={12} /> View
-                                  </button>
-                                  {item.status === 'Draft' && (
-                                    <>
-                                      <button onClick={() => handleEdit(item.id)}>
-                                        <FaEdit size={12} /> Edit
-                                      </button>
-                                      <button onClick={() => handleSubmit(item.id)}>
-                                        <FaPaperPlane size={12} /> Submit
-                                      </button>
-                                    </>
-                                  )}
-                                  <button onClick={() => openUpiModal(item)}>
-                                    <FaQrcode size={12} /> Pay via UPI
-                                  </button>
-                                  <button onClick={() => handleDuplicate(item.id)}>
-                                    <FaCopy size={12} /> Duplicate
-                                  </button>
-                                  <button onClick={() => handlePrint(item)} disabled={printLoadingId === String(item.id)}>
-                                    <FaPrintIcon size={12} /> Print
-                                  </button>
-                                  <button onClick={handleDirectPDFDownload}>
-                                    <FaFilePdf size={12} /> Download PDF
-                                  </button>
-                                  <button onClick={handleExcelDownload}>
-                                    <FaFileExcel size={12} /> Download Excel
-                                  </button>
-                                  {item.status !== 'Cancelled' && item.status !== 'Paid' && (
-                                    <button className="danger" onClick={() => handleCancelInvoice(item.id)}>
-                                      <FaBan size={12} /> Cancel
-                                    </button>
-                                  )}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            )}
-          </div>
+                        </span>
+                      </div>
+                    </div>
 
-          {/* Mobile Table Section */}
-          <div className="sales-mobile-list-wrap">
-            <div className="sales-mobile-list-header">
-              <div className="sales-mobile-th-primary">
-                <span className="sales-mobile-th-cell">Invoice No</span>
-                <span className="sales-mobile-th-sep">•</span>
-                <span className="sales-mobile-th-cell">Customer</span>
-              </div>
-              <div className="sales-mobile-th-right">
-                <span className="sales-count-label">{totalRecords}</span>
-              </div>
-            </div>
-
-            {loading && invoices.length === 0 ? (
-              <div className="qt-empty-state">
-                <div className="qt-empty-content">
-                  <p>No Sales Invoices found</p>
-                  <span>Try adjusting your search criteria</span>
-                </div>
-              </div>
-            ) : (
-              <div className="sales-mobile-cards">
-                {invoices.map((item) => {
-                  const isExpanded = expandedRows.has(item.id);
-                  const isPaid = item.status === 'Paid';
-                  const isPartial = item.status === 'Partially Paid';
-                  const outstanding = item.outstanding_amount || item.grand_total || 0;
-                  let outstandingClass = 'qt-td-outstanding';
-                  if (isPaid) outstandingClass += ' paid';
-                  else if (isPartial) outstandingClass += ' partial';
-                  else if (outstanding > 0) outstandingClass += ' unpaid';
-
-                  return (
-                    <div
-                      key={item.id}
-                      className={`sales-mobile-card ${isExpanded ? "sales-mobile-card-expanded" : ""}`}
+                    <button
+                      type="button"
+                      className={`sales-mobile-dropdown-btn ${isExpanded ? "expanded" : ""}`}
+                      onClick={(e) => toggleRowExpand(item.id, e)}
+                      aria-label={isExpanded ? "Collapse" : "Expand"}
                     >
-                      <div
-                        className="sales-mobile-card-header"
-                        onClick={() => toggleRowExpand(item.id)}
-                      >
-                        <div className="sales-mobile-card-primary">
-                          <div className="sales-mobile-card-primary-row">
-                            <span className="sales-mobile-header-badge">
-                              <span className="qt-td qt-td-id">
-                                {item.displayInvoiceNumber || item.id || '-'}
-                              </span>
-                            </span>
-                            <span className="sales-mobile-item-name">
-                              <span className="qt-td-customer" onClick={() => handleView(item.id)}>
-                                {item.customer_name || '-'}
-                              </span>
-                            </span>
-                          </div>
-                        </div>
+                      <FaChevronDown size={13} className="sales-mobile-chevron" />
+                    </button>
+                  </div>
 
-                        <button
-                          type="button"
-                          className={`sales-mobile-dropdown-btn ${isExpanded ? "expanded" : ""}`}
-                          onClick={(e) => toggleRowExpand(item.id, e)}
-                          aria-label={isExpanded ? "Collapse quotation details" : "Expand quotation details"}
-                          title={isExpanded ? "Collapse" : "Expand"}
-                        >
-                          <FaChevronDown size={13} className="sales-mobile-chevron" />
-                        </button>
+                  {isExpanded && (
+                    <div className="sales-mobile-card-details">
+                      <div className="sales-mobile-detail-row">
+                        <span className="sales-mobile-detail-label">Date</span>
+                        <span className="sales-mobile-detail-value">
+                          {formatDateDisplay(item.posting_date)}
+                        </span>
                       </div>
 
-                      {isExpanded && (
-                        <div className="sales-mobile-card-details">
-                          <div className="sales-mobile-detail-row">
-                            <span className="sales-mobile-detail-label">Date</span>
-                            <span className="sales-mobile-detail-value">
-                              {formatDateDisplay(item.posting_date)}
-                            </span>
-                          </div>
+                      <div className="sales-mobile-detail-row">
+                        <span className="sales-mobile-detail-label">Amount</span>
+                        <span className="sales-mobile-detail-value sales-amount-highlight">
+                          ₹{item.grand_total?.toLocaleString() || '0'}
+                        </span>
+                      </div>
 
-                          <div className="sales-mobile-detail-row">
-                            <span className="sales-mobile-detail-label">Amount</span>
-                            <span className="sales-mobile-detail-value sales-amount-highlight">
-                              ₹{item.grand_total?.toLocaleString() || '0'}
-                            </span>
-                          </div>
+                      <div className="sales-mobile-detail-row">
+                        <span className="sales-mobile-detail-label">Paid</span>
+                        <span className="sales-mobile-detail-value">
+                          <span className={outstandingClass}>₹{item.paid_amount?.toLocaleString() || '0'}</span>
+                        </span>
+                      </div>
+                      
+                      <div className="sales-mobile-detail-row">
+                        <span className="sales-mobile-detail-label">Status</span>
+                        <span className="sales-mobile-detail-value">
+                          <StatusBadge status={item.status || 'Draft'} />
+                        </span>
+                      </div>
 
-                          <div className="sales-mobile-detail-row">
-                            <span className="sales-mobile-detail-label">Paid</span>
-                            <span className="sales-mobile-detail-value">
-                              <span className={outstandingClass}>
-                                ₹{item.paid_amount?.toLocaleString() || '0'}
-                              </span>
-                            </span>
-                          </div>
-
-                          <div className="sales-mobile-detail-row">
-                            <span className="sales-mobile-detail-label">Status</span>
-                            <span className="sales-mobile-detail-value">
-                              <StatusBadge status={item.status || 'Draft'} />
-                            </span>
-                          </div>
-
-                          <div className="sales-mobile-detail-footer">
-                            <span className="sales-mobile-card-meta-text"></span>
-
-                            <div className="sales-mobile-action-buttons">
-                              <button
-                                className="qt-action-btn qt-action-upi"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  openUpiModal(item);
-                                }}
-                                title="Pay via UPI"
-                              >
-                                <FaQrcode size={14} />
-                              </button>
-                              <button
-                                className="qt-action-btn qt-action-view"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleView(item.id);
-                                }}
-                                title="View"
-                              >
-                                <FaEye size={12} />
-                              </button>
-                              <button
-                                className="qt-action-btn qt-action-print"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handlePrint(item);
-                                }}
-                                title="Print"
-                                disabled={printLoadingId === String(item.id)}
-                              >
-                                {printLoadingId === String(item.id) ? <FaSpinner className="spinning" size={12} /> : <FaPrintIcon size={12} />}
-                              </button>
-                              <button
-                                className="qt-action-btn qt-action-edit"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleEdit(item.id);
-                                }}
-                                title="Edit"
-                              >
-                                <FaEdit size={12} />
-                              </button>
-                              <button
-                                className="qt-action-btn qt-action-delete"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleCancelInvoice(item.id);
-                                }}
-                                title="Cancel"
-                              >
-                                <FaTrash size={12} />
-                              </button>
-                            </div>
-                          </div>
+                      <div className="sales-mobile-detail-footer">
+                        <span className="sales-mobile-card-meta-text"></span>
+                        <div className="sales-mobile-action-buttons">
+                          <button className="qt-more-menu-dropdown" onClick={() => handleView(item.id)}>
+                            <FaEye size={12} /> View
+                          </button>
+                          <button
+                            className="qt-action-btn qt-action-view"
+                            onClick={(e) => { e.stopPropagation(); handleView(item.id); }}
+                            title="View"
+                          >
+                            <FaEye size={12} />
+                          </button>
+                          <button
+                            className="qt-action-btn qt-action-print" 
+                            onClick={() => handlePrint(item)} 
+                            title="Print"
+                            disabled={printLoadingId === String(item.id)}
+                          >
+                            {printLoadingId === String(item.id) ? <FaSpinner className="spinning" size={12} /> : <FaPrintIcon size={12} />}
+                          </button>
+                          <button
+                            className="qt-action-btn qt-action-edit"
+                            onClick={() => handleEdit(item.id)}
+                            title="Edit"
+                          >
+                            <FaEdit size={12} />
+                          </button>
+                          <button
+                            className="qt-action-btn qt-action-delete"
+                            onClick={(e) => { e.stopPropagation(); handleCancelInvoice(item.id); }}
+                            title="Delete"
+                          >
+                            <FaTrash size={12} />
+                          </button>
                         </div>
-                      )}
+                      </div>
                     </div>
-                  );
-                })}
-              </div>
-            )}
+                  )}
+                </div>
+              );
+            })}
           </div>
+        )}
+      </div>
         </>
       )}
 
@@ -2236,121 +2140,60 @@ const SalesInvoice: React.FC = () => {
         </div>
       )}
 
-      {/* ===== UPI QR MODAL ===== */}
-      {showUpiModal && upiInvoice && (
-        <div className="upi-modal-overlay" onClick={closeUpiModal}>
-          <div className="upi-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="upi-modal-header">
-              <h3>
-                <FaQrcode size={20} /> Scan & Pay via UPI
-              </h3>
-              <button className="upi-modal-close" onClick={closeUpiModal}>
-                <FaTimes size={16} />
+      {/* ═══════════════════════════════════════════════════════════════
+          🆕 PORTAL-RENDERED 3-DOT DROPDOWN MENU
+          Rendered at document.body level with position:fixed so it is
+          NEVER clipped by the table wrapper's overflow rules, and always
+          appears on top of the listing rows.
+         ═══════════════════════════════════════════════════════════════ */}
+      {activeMenuItem && menuPosition &&
+        createPortal(
+          <div
+            ref={portalMenuRef}
+            className="qt-more-menu-dropdown"
+            style={{
+              position: 'fixed',
+              top: menuPosition.top,
+              right: menuPosition.right,
+              zIndex: 10000,
+            }}
+          >
+            <button onClick={() => handleView(activeMenuItem.id)}>
+              <FaEye size={12} /> View
+            </button>
+            {activeMenuItem.status === 'Draft' && (
+              <>
+                <button onClick={() => handleEdit(activeMenuItem.id)}>
+                  <FaEdit size={12} /> Edit
+                </button>
+                <button onClick={() => handleSubmit(activeMenuItem.id)}>
+                  <FaPaperPlane size={12} /> Submit
+                </button>
+              </>
+            )}
+            <button onClick={() => handleDuplicate(activeMenuItem.id)}>
+              <FaCopy size={12} /> Duplicate
+            </button>
+            <button
+              onClick={() => handlePrint(activeMenuItem)}
+              disabled={printLoadingId === String(activeMenuItem.id)}
+            >
+              <FaPrintIcon size={12} /> Print
+            </button>
+            <button onClick={handleDirectPDFDownload}>
+              <FaFilePdf size={12} /> Download PDF
+            </button>
+            <button onClick={handleExcelDownload}>
+              <FaFileExcel size={12} /> Download Excel
+            </button>
+            {activeMenuItem.status !== 'Cancelled' && activeMenuItem.status !== 'Paid' && (
+              <button className="danger" onClick={() => handleCancelInvoice(activeMenuItem.id)}>
+                <FaBan size={12} /> Cancel
               </button>
-            </div>
-
-            <div className="upi-modal-body">
-              <div className="upi-invoice-info">
-                <div className="upi-info-row">
-                  <span className="upi-info-label">Invoice No:</span>
-                  <span className="upi-info-value">
-                    {upiInvoice.displayInvoiceNumber || upiInvoice.id}
-                  </span>
-                </div>
-                <div className="upi-info-row">
-                  <span className="upi-info-label">Customer:</span>
-                  <span className="upi-info-value">{upiInvoice.customer_name || '-'}</span>
-                </div>
-              </div>
-
-              <div className="upi-amount-input-group">
-                <label htmlFor="upi-amount">Enter Amount (₹)</label>
-                <div className="upi-input-wrapper">
-                  <FaRupeeSign className="upi-rupee-icon" />
-                  <input
-                    id="upi-amount"
-                    type="number"
-                    min="1"
-                    step="0.01"
-                    placeholder="Enter amount to pay"
-                    value={upiAmount}
-                    onChange={(e) => setUpiAmount(e.target.value)}
-                    autoFocus
-                    className="upi-amount-input"
-                  />
-                </div>
-                <small className="upi-amount-hint">
-                  Outstanding: ₹{(upiInvoice.outstanding_amount || upiInvoice.grand_total || 0).toFixed(2)}
-                </small>
-              </div>
-
-              <div className="upi-qr-section">
-                {parseFloat(upiAmount) > 0 ? (
-                  <>
-                    <div className="upi-qr-wrapper">
-                      <QRCodeSVG
-                        value={buildUpiUri()}
-                        size={220}
-                        level="H"
-                        includeMargin={true}
-                        bgColor="#ffffff"
-                        fgColor="#1e293b"
-                      />
-                    </div>
-                    <p className="upi-scan-text">Scan this QR code with any UPI app</p>
-                    <div className="upi-apps">
-                      <span>GPay</span>
-                      <span>PhonePe</span>
-                      <span>Paytm</span>
-                      <span>BHIM</span>
-                    </div>
-                    <div className="upi-id-display">
-                      <span className="upi-id-label">UPI ID:</span>
-                      <span className="upi-id-value">{UPI_ID}</span>
-                      <button
-                        className="upi-copy-btn"
-                        onClick={() => {
-                          navigator.clipboard.writeText(UPI_ID);
-                          toast.success('UPI ID copied!');
-                        }}
-                        title="Copy UPI ID"
-                      >
-                        <FaCopy size={12} />
-                      </button>
-                    </div>
-                    <div className="upi-payable-amount">
-                      Payable: <strong>₹{parseFloat(upiAmount).toFixed(2)}</strong>
-                    </div>
-                  </>
-                ) : (
-                  <div className="upi-qr-placeholder">
-                    <FaQrcode size={64} />
-                    <p>Enter an amount above to generate the QR code</p>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="upi-modal-footer">
-              <button className="upi-btn-cancel" onClick={closeUpiModal}>
-                Close
-              </button>
-              <a
-                href={parseFloat(upiAmount) > 0 ? buildUpiUri() : '#'}
-                className={`upi-btn-pay ${parseFloat(upiAmount) > 0 ? '' : 'disabled'}`}
-                onClick={(e) => {
-                  if (!(parseFloat(upiAmount) > 0)) {
-                    e.preventDefault();
-                    toast.error('Please enter a valid amount');
-                  }
-                }}
-              >
-                <FaPaperPlane size={12} /> Pay via UPI App
-              </a>
-            </div>
-          </div>
-        </div>
-      )}
+            )}
+          </div>,
+          document.body
+        )}
     </div>
   );
 };

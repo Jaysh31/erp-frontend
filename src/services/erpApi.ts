@@ -7,6 +7,8 @@ export interface ErpEndpoint {
   label: string;
   module: string;
   keywords: string[];
+  /** Optional: base URL without query params for filtering */
+  filterBase?: string;
 }
 
 export const ERP_ENDPOINTS: Record<string, ErpEndpoint> = {
@@ -15,13 +17,13 @@ export const ERP_ENDPOINTS: Record<string, ErpEndpoint> = {
     url: `${ERP_BASE_URL}/api/work-order?page=1&limit=100`,
     label: 'Work Orders',
     module: 'manufacturing',
-    keywords: ['work order', 'work-order', 'workorder', 'work orders'],
+    keywords: ['work order', 'work-order', 'workorder', 'work orders', 'workorders'],
   },
   jobCard: {
     url: `${ERP_BASE_URL}/api/job-card?page=1&limit=100`,
     label: 'Job Cards',
     module: 'manufacturing',
-    keywords: ['job card', 'job-card', 'jobcard', 'job cards'],
+    keywords: ['job card', 'job-card', 'jobcard', 'job cards', 'jobcards'],
   },
   inventory: {
     url: `${ERP_BASE_URL}/api/inventory?page=1&limit=100`,
@@ -33,13 +35,15 @@ export const ERP_ENDPOINTS: Record<string, ErpEndpoint> = {
     url: `${ERP_BASE_URL}/api/bom?page=1&limit=100`,
     label: 'BOM',
     module: 'manufacturing',
-    keywords: ['bom', 'bill of material', 'bill of materials'],
+    keywords: ['bom', 'boms', 'bill of material', 'bill of materials'],
+    // 🆕 filterBase for filtered BOM queries (matches item/salesOrder pattern)
+    filterBase: `${ERP_BASE_URL}/api/bom`,
   },
   stockEntry: {
     url: `${ERP_BASE_URL}/api/stock-entry?page=1&limit=100`,
     label: 'Stock Entries',
     module: 'manufacturing',
-    keywords: ['stock entry', 'stock-entry', 'stock entries', 'stock movement'],
+    keywords: ['stock entry', 'stock-entry', 'stock entries', 'stock movements', 'stock movement'],
   },
 
   // ── SETUP ─────────────────────────────────────────────────
@@ -48,18 +52,21 @@ export const ERP_ENDPOINTS: Record<string, ErpEndpoint> = {
     label: 'Items',
     module: 'setup',
     keywords: ['item', 'items', 'item list'],
+    filterBase: `${ERP_BASE_URL}/api/item`,
   },
   itemProduct: {
     url: `${ERP_BASE_URL}/api/item?page=1&limit=200&group=Product`,
     label: 'Product Items',
     module: 'setup',
     keywords: ['product item', 'product items', 'product list'],
+    filterBase: `${ERP_BASE_URL}/api/item`,
   },
   itemRaw: {
     url: `${ERP_BASE_URL}/api/item?type=raw&limit=200`,
     label: 'Raw Items',
     module: 'setup',
     keywords: ['raw item', 'raw items', 'raw material', 'raw materials'],
+    filterBase: `${ERP_BASE_URL}/api/item`,
   },
   itemGroup: {
     url: `${ERP_BASE_URL}/api/item-group?page=1&limit=100`,
@@ -111,17 +118,27 @@ export const ERP_ENDPOINTS: Record<string, ErpEndpoint> = {
     url: `${ERP_BASE_URL}/api/quotation?page=1&limit=100`,
     label: 'Quotations',
     module: 'sales',
-    keywords: ['quotation', 'quotations', 'quote'],
+    keywords: ['quotation', 'quotations', 'quote', 'quotes'],
   },
   salesOrder: {
     url: `${ERP_BASE_URL}/api/sales-order?page=1&limit=100`,
     label: 'Sales Orders',
     module: 'sales',
-    keywords: ['sales order', 'sales-order', 'sales orders', 'salesorder'],
+    keywords: [
+      'sales order',
+      'sales-order',
+      'sales orders',
+      'salesorder',
+      'salesorders',
+      'sale order',
+      'sale-order',
+      'sale orders',
+    ],
+    filterBase: `${ERP_BASE_URL}/api/sales-order`,
   },
- proformaInvoice: {
-  url: `${ERP_BASE_URL}/api/sales-order?page=1&limit=100`,
-  label: 'Proforma Invoices',
+  proformaInvoice: {
+    url: `${ERP_BASE_URL}/api/sales-order?page=1&limit=100`,
+    label: 'Proforma Invoices',
     module: 'sales',
     keywords: [
       'proforma invoice',
@@ -129,6 +146,7 @@ export const ERP_ENDPOINTS: Record<string, ErpEndpoint> = {
       'proforma invoices',
       'proforma',
       'pi ',
+      'pi-',
     ],
   },
   deliveryNote: {
@@ -342,7 +360,8 @@ export const DETAIL_LOOKUP_FIELDS: Record<string, string[]> = {
   supplier:          ['name', 'supplier_name', 'id'],
   employee:          ['name', 'employee_name', 'id'],
 
-  // ── Transactional modules ────────────────────────────────
+  inventory:         ['item_code', 'name', 'id'],
+
   salesOrder:        ['name', 'sales_order_no', 'order_no', 'id'],
   quotation:         ['name', 'quotation_no', 'id'],
   proformaInvoice:   ['name', 'proforma_invoice_no', 'id'],
@@ -359,6 +378,120 @@ export const DETAIL_LOOKUP_FIELDS: Record<string, string[]> = {
 };
 
 // ============================================================
+// INVENTORY DETAIL ROUTE BUILDER
+// ============================================================
+export function buildInventoryDetailRoute(
+  itemCode: string,
+  record?: any
+): string {
+  const item = itemCode ?? record?.item_code ?? '';
+  const type =
+    record?.type ??
+    record?.stock_type ??
+    record?.warehouse_type ??
+    'Internal';
+  const warehouseId =
+    record?.warehouse_id ??
+    record?.warehouse ??
+    record?.warehouseId ??
+    '';
+
+  const params = new URLSearchParams();
+  params.set('type', String(type));
+  if (warehouseId !== '' && warehouseId !== undefined && warehouseId !== null) {
+    params.set('warehouse_id', String(warehouseId));
+  }
+
+  return `/inventory/detail/${encodeURIComponent(String(item))}?${params.toString()}`;
+}
+
+// ============================================================
+// SALES ORDER FILTER URL BUILDER
+// ============================================================
+export function buildSalesOrderFilterUrl(params: {
+  status?: string;
+  customer?: string;
+  from_date?: string;
+  to_date?: string;
+  page?: number;
+  limit?: number;
+  search?: string;
+  [key: string]: any;
+}): string {
+  const url = new URL(`${ERP_BASE_URL}/api/sales-order`);
+  const { page = 1, limit = 100, ...rest } = params;
+
+  url.searchParams.set('page', String(page));
+  url.searchParams.set('limit', String(limit));
+
+  for (const [k, v] of Object.entries(rest)) {
+    if (v === undefined || v === null || v === '') continue;
+    url.searchParams.set(k, String(v));
+  }
+
+  return url.toString();
+}
+
+// ============================================================
+// ITEM FILTER URL BUILDER
+// ============================================================
+export function buildItemFilterUrl(params: {
+  status?: string;
+  type?: string;
+  group?: string;
+  search?: string;
+  page?: number;
+  limit?: number;
+  [key: string]: any;
+}): string {
+  const url = new URL(`${ERP_BASE_URL}/api/item`);
+  const { page = 1, limit = 200, ...rest } = params;
+
+  url.searchParams.set('page', String(page));
+  url.searchParams.set('limit', String(limit));
+
+  for (const [k, v] of Object.entries(rest)) {
+    if (v === undefined || v === null || v === '') continue;
+    url.searchParams.set(k, String(v));
+  }
+
+  return url.toString();
+}
+
+// ============================================================
+// 🆕 BOM FILTER URL BUILDER
+// ============================================================
+/**
+ * Builds a filtered BOM API URL.
+ * Supports item, type, search, and pagination.
+ *
+ * Example:
+ *   buildBOMFilterUrl({ item: 'wooden study table', page: 1, limit: 200 })
+ *   → https://erp.sculptortechpvtltd.com/api/bom?page=1&limit=200&item=wooden%20study%20table
+ */
+export function buildBOMFilterUrl(params: {
+  item?: string;
+  type?: string;
+  search?: string;
+  page?: number;
+  limit?: number;
+  [key: string]: any;
+}): string {
+  const url = new URL(`${ERP_BASE_URL}/api/bom`);
+  const { page = 1, limit = 200, ...rest } = params;
+
+  url.searchParams.set('page', String(page));
+  url.searchParams.set('limit', String(limit));
+
+  for (const [k, v] of Object.entries(rest)) {
+    if (v === undefined || v === null || v === '') continue;
+    url.searchParams.set(k, String(v));
+  }
+
+  return url.toString();
+}
+
+// ============================================================
 // DETAIL PAGE APIs
 // ============================================================
 export interface DetailRelatedApi {
@@ -373,7 +506,6 @@ export interface DetailPageConfig {
 }
 
 export const DETAIL_PAGE_APIS: Record<string, DetailPageConfig> = {
-  // ── BOM detail page ───────────────────────────────────────
   bom: {
     masterBase: '/bom',
     related: [
@@ -386,7 +518,6 @@ export const DETAIL_PAGE_APIS: Record<string, DetailPageConfig> = {
     ],
   },
 
-  // ── Work Order detail page ────────────────────────────────
   workOrder: {
     masterBase: '/work-order',
     related: [
@@ -399,7 +530,6 @@ export const DETAIL_PAGE_APIS: Record<string, DetailPageConfig> = {
     ],
   },
 
-  // ── Job Card detail page ──────────────────────────────────
   jobCard: {
     masterBase: '/job-card',
     related: [
@@ -409,7 +539,6 @@ export const DETAIL_PAGE_APIS: Record<string, DetailPageConfig> = {
     ],
   },
 
-  // ── Stock Entry detail page ───────────────────────────────
   stockEntry: {
     masterBase: '/stock-entry',
     related: [
@@ -419,7 +548,6 @@ export const DETAIL_PAGE_APIS: Record<string, DetailPageConfig> = {
     ],
   },
 
-  // ── Quality Inspection detail page ────────────────────────
   qualityInspection: {
     masterBase: '/quality-inspection',
     related: [
@@ -433,17 +561,12 @@ export const DETAIL_PAGE_APIS: Record<string, DetailPageConfig> = {
     ],
   },
 
-  // ── Inventory detail page ─────────────────────────────────
   inventory: {
     masterBase: '/inventory/history',
     related: [
       { key: 'warehouses', label: 'Warehouses', url: `${ERP_BASE_URL}/api/warehouse` },
     ],
   },
-
-  // ══════════════════════════════════════════════════════════
-  // SETUP MODULE DETAIL PAGES
-  // ══════════════════════════════════════════════════════════
 
   itemGroup: {
     masterBase: '/item-group',
@@ -471,9 +594,6 @@ export const DETAIL_PAGE_APIS: Record<string, DetailPageConfig> = {
     ],
   },
 
-  // NOTE: operation's detail endpoint is /api/workstation on this ERP.
-  // The list endpoint is still /api/operation, but the master fetch uses
-  // /api/workstation/:name. This matches the API you gave me.
   operation: {
     masterBase: '/workstation',
     related: [
@@ -489,10 +609,6 @@ export const DETAIL_PAGE_APIS: Record<string, DetailPageConfig> = {
       { key: 'items', label: 'Items',            url: `${ERP_BASE_URL}/api/item?page=1&limit=200` },
     ],
   },
-
-  // ══════════════════════════════════════════════════════════
-  // SALES MODULE DETAIL PAGES
-  // ══════════════════════════════════════════════════════════
 
   quotation: {
     masterBase: '/quotation',
@@ -547,10 +663,6 @@ export const DETAIL_PAGE_APIS: Record<string, DetailPageConfig> = {
       { key: 'inventory',       label: 'Inventory',     url: `${ERP_BASE_URL}/api/inventory?limit=1000` },
     ],
   },
-
-  // ══════════════════════════════════════════════════════════
-  // PURCHASING MODULE DETAIL PAGES
-  // ══════════════════════════════════════════════════════════
 
   purchaseOrder: {
     masterBase: '/purchase-order',
@@ -625,8 +737,7 @@ export const QUALITY_DETAIL_APIS: Record<string, { label: string; masterBase: st
 };
 
 // ============================================================
-// LIST URL BUILDERS — use these in components instead of
-// hand-building URLs like "/workstation?".
+// LIST URL BUILDERS
 // ============================================================
 export function buildListUrl(
   endpointKey: keyof typeof ERP_ENDPOINTS,
@@ -637,7 +748,6 @@ export function buildListUrl(
     throw new Error(`Unknown endpoint key: ${String(endpointKey)}`);
   }
   const url = new URL(`${ERP_BASE_URL}/api${base}`);
-  // Only add page/limit if not already provided
   if (!url.searchParams.has('page')) url.searchParams.set('page', '1');
   if (!url.searchParams.has('limit')) url.searchParams.set('limit', '200');
   for (const [k, v] of Object.entries(extraParams)) {
@@ -670,8 +780,6 @@ export function getQualityInspectionListUrl(): string {
   return buildListUrl('qualityInspection');
 }
 
-// 🆕 NEW: dedicated item list URL builder for components that need
-//         a full item list at limit=200.
 export function getItemListUrl(extraParams: Record<string, string | number> = {}): string {
   const url = new URL(`${ERP_BASE_URL}/api/item`);
   url.searchParams.set('limit', '200');
@@ -694,13 +802,14 @@ export function getDetailRoute(
   endpointKey: keyof typeof ERP_ENDPOINTS,
   id: string | number
 ): string | null {
+  if (endpointKey === 'inventory') {
+    return buildInventoryDetailRoute(String(id));
+  }
   const route = ENDPOINT_ROUTES[endpointKey];
   if (!route) return null;
   return `${route}/${encodeURIComponent(String(id))}`;
 }
 
-// FIXED: skip action segments (edit / view / new / create / detail)
-// so "/purchase-invoice/edit/92" resolves to id "92" instead of "edit".
 export function parseDetailRoute(pathname: string): ParsedDetailRoute | null {
   const ACTION_SEGMENTS = new Set(['edit', 'view', 'new', 'create', 'detail']);
 
@@ -1072,7 +1181,6 @@ export async function fetchRecordById(
     Authorization: `Bearer ${token}`,
   };
 
-  // 1. Try direct fetch
   const directUrl = `${ERP_BASE_URL}/api${base}/${encodeURIComponent(id)}`;
   console.log(`📡 Direct fetch: /api${base}/${id}`);
 
@@ -1093,7 +1201,6 @@ export async function fetchRecordById(
     console.log(`↪️ Direct fetch ${base}/${id} threw:`, err?.message || err);
   }
 
-  // 2. Fallback: resolve from list
   console.log(`↪️ Resolving ${endpointKey}/${id} from list`);
   return resolveRecordFromList(endpointKey, id);
 }
@@ -1140,32 +1247,40 @@ export async function fetchDetailPageData(
     Authorization: `Bearer ${token}`,
   };
 
-  const masterUrl =
-    endpointKey === 'inventory'
-      ? `${ERP_BASE_URL}/api/inventory/history?item_code=${encodeURIComponent(id)}`
-      : `${ERP_BASE_URL}/api${config.masterBase}/${encodeURIComponent(id)}`;
-
-  console.log(`📄 Detail page: fetching master ${masterUrl.replace(ERP_BASE_URL, '')}`);
-
-  // Helper: parse a fetch response into a record.
-  const parseRecord = (json: any): any => {
-    const raw = json?.data ?? json;
-    if (Array.isArray(raw)) return raw[0] ?? null;
-    if (raw && typeof raw === 'object') return raw;
-    return null;
-  };
-
-  const masterPromise = (async () => {
+  const masterPromise = (async (): Promise<{ ok: boolean; data: any; status?: number; error?: string }> => {
     try {
-      // For name-keyed modules, skip the direct ID-based URL and go straight
-      // to the list-lookup to avoid a guaranteed 404 + error log.
+      if (endpointKey === 'inventory') {
+        const historyResult = await fetchInventoryHistory(id);
+        if (historyResult.ok && historyResult.records.length > 0) {
+          const first = historyResult.records[0] as any;
+          const master = {
+            ...first,
+            item_code: id,
+            total_movements: historyResult.records.length,
+            history: historyResult.records,
+          };
+          return { ok: true, data: master };
+        }
+        const fromList = await resolveRecordFromList('inventory', id);
+        if (fromList) return { ok: true, data: fromList };
+        return { ok: false, data: null, status: 404 };
+      }
+
+      const masterUrl = `${ERP_BASE_URL}/api${config.masterBase}/${encodeURIComponent(id)}`;
+      console.log(`📄 Detail page: fetching master ${masterUrl.replace(ERP_BASE_URL, '')}`);
+
+      const parseRecord = (json: any): any => {
+        const raw = json?.data ?? json;
+        if (Array.isArray(raw)) return raw[0] ?? null;
+        if (raw && typeof raw === 'object') return raw;
+        return null;
+      };
+
       const isNameKeyed = NAME_KEYED_MODULES.has(endpointKey);
 
       if (isNameKeyed) {
         const fromList = await resolveRecordFromList(endpointKey, id);
         if (fromList) {
-          // Try a detail fetch with the resolved key, but don't log an error
-          // if it fails — just use the list record.
           const resolvedKey =
             fromList?.name ??
             fromList?.item_code ??
@@ -1195,12 +1310,9 @@ export async function fetchDetailPageData(
         }
       }
 
-      // Non-name-keyed (or name-keyed with no list match): try direct URL.
       let res = await fetch(masterUrl, { method: 'GET', headers: authHeaders });
 
-      // Fallback for quality-inspection / any module where direct fetch
-      // fails (any non-OK status, not just 404).
-      if (!res.ok && endpointKey !== 'inventory') {
+      if (!res.ok) {
         console.log(
           `↪️ /api${config.masterBase}/${id} failed (${res.status}) — resolving from list`
         );
@@ -1493,7 +1605,6 @@ export async function fetchPurchasingDetailPageData(
   const masterUrl = `${ERP_BASE_URL}/api${config.masterBase}/${encodeURIComponent(id)}`;
   console.log(`📄 Purchasing detail (${endpointKey}): fetching master ${masterUrl.replace(ERP_BASE_URL, '')}`);
 
-  // Item list at limit=200 for the purchase order line-item picker.
   const relatedUrls: Record<string, string> = {
     rawItems:       `${ERP_BASE_URL}/api/item?type=raw&limit=200`,
     items:          `${ERP_BASE_URL}/api/item?limit=200`,
@@ -1708,6 +1819,199 @@ export async function fetchBOMDetailPageData(
   );
 
   return out;
+}
+
+// ============================================================
+// 🆕 BOM DETAIL (single) — thin wrapper around /api/bom/{id}
+// ============================================================
+/**
+ * Fetches a single BOM by ID (calls `/api/bom/{bomId}`).
+ *
+ * Example:
+ *   const bom = await fetchBOMDetail('91');
+ *   // → GET https://erp.sculptortechpvtltd.com/api/bom/91
+ */
+export async function fetchBOMDetail(bomId: string | number): Promise<any | null> {
+  if (bomId === undefined || bomId === null || String(bomId).trim() === '') {
+    return null;
+  }
+
+  const token = getAuthToken();
+  if (!token) {
+    console.warn('⚠️ fetchBOMDetail: no auth token');
+    return null;
+  }
+
+  const url = `${ERP_BASE_URL}/api/bom/${encodeURIComponent(String(bomId))}`;
+  console.log(`📡 fetchBOMDetail: ${url.replace(ERP_BASE_URL, '')}`);
+
+  try {
+    const res = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (!res.ok) {
+      console.warn(`⚠️ fetchBOMDetail: ${res.status}`);
+      return null;
+    }
+
+    const json = await res.json();
+    const raw = json?.data ?? json;
+    if (Array.isArray(raw)) return raw[0] ?? null;
+    if (Array.isArray(raw?.data)) return raw.data[0] ?? null;
+    if (Array.isArray(raw?.records)) return raw.records[0] ?? null;
+    if (raw && typeof raw === 'object') return raw;
+    return null;
+  } catch (err: any) {
+    console.error('❌ fetchBOMDetail exception:', err?.message || err);
+    return null;
+  }
+}
+
+// ============================================================
+// 🆕 PRODUCTION CAPACITY CHECK
+// ============================================================
+export interface ProductionCapacityComponent {
+  itemCode: string;
+  itemName: string;
+  requiredPerUnit: number;
+  availableStock: number;
+  uom: string;
+  maxUnits: number;
+}
+
+export interface ProductionCapacityResult {
+  ok: boolean;
+  bomId: string;
+  bomName: string;
+  productionItem: string;
+  bomQuantity: number;
+  /** How many finished units can be made from current stock. Infinity = all components available. */
+  capacity: number;
+  /** The component that limits production (lowest maxUnits). */
+  limitingComponent: ProductionCapacityComponent | null;
+  components: ProductionCapacityComponent[];
+  error?: string;
+}
+
+/**
+ * Mirrors the dashboard's "Production Capacity Check" widget.
+ *
+ * Steps:
+ *   1. Fetch the BOM via `/api/bom/{bomId}`
+ *   2. Fetch `/api/inventory` for current stock levels
+ *   3. For each component, compute:
+ *        requiredPerUnit = component.qty / bom.quantity
+ *        maxUnits = floor(availableStock / requiredPerUnit)
+ *   4. The result is the minimum across all components.
+ *
+ * Example:
+ *   const cap = await fetchProductionCapacity('91');
+ *   // → { capacity: 8, limitingComponent: { itemName: 'rtui', ... }, ... }
+ */
+export async function fetchProductionCapacity(
+  bomId: string | number
+): Promise<ProductionCapacityResult> {
+  const empty: ProductionCapacityResult = {
+    ok: false,
+    bomId: String(bomId ?? ''),
+    bomName: '',
+    productionItem: '',
+    bomQuantity: 0,
+    capacity: 0,
+    limitingComponent: null,
+    components: [],
+  };
+
+  if (bomId === undefined || bomId === null || String(bomId).trim() === '') {
+    empty.error = 'Missing BOM ID';
+    return empty;
+  }
+
+  // ── 1. Fetch BOM ─────────────────────────────────────────
+  const bom = await fetchBOMDetail(bomId);
+  if (!bom) {
+    empty.error = `Could not fetch BOM #${bomId}`;
+    return empty;
+  }
+
+  const components: any[] =
+    (Array.isArray(bom.items) && bom.items) ||
+    (Array.isArray(bom.bom_items) && bom.bom_items) ||
+    (Array.isArray(bom.components) && bom.components) ||
+    [];
+
+  if (components.length === 0) {
+    empty.ok = false;
+    empty.bomName = bom.name || '';
+    empty.productionItem = bom.item_name || bom.item || bom.production_item || '';
+    empty.bomQuantity = Number(bom.quantity ?? bom.qty ?? 1) || 1;
+    empty.error = 'BOM has no components (or components not returned by API)';
+    return empty;
+  }
+
+  const bomQty = Number(bom.quantity ?? bom.qty ?? 1) || 1;
+
+  // ── 2. Fetch inventory ───────────────────────────────────
+  const invResult = await fetchAllPages(`${ERP_BASE_URL}/api/inventory?limit=10000`);
+  if (!invResult.ok) {
+    empty.error = `Could not fetch inventory: ${invResult.error}`;
+    return empty;
+  }
+
+  // Build a stock map: item_code → total available qty
+  const stockMap = new Map<string, number>();
+  for (const inv of invResult.records as any[]) {
+    const code = String(inv.item_code ?? inv.item ?? '').toUpperCase().trim();
+    if (!code) continue;
+    const qty = Number(inv.actual_qty ?? inv.qty ?? 0) || 0;
+    stockMap.set(code, (stockMap.get(code) || 0) + qty);
+  }
+
+  // ── 3. Compute per-component capacity ────────────────────
+  const compRows: ProductionCapacityComponent[] = components.map((c: any) => {
+    const code = String(c.item_code ?? c.item ?? '').toUpperCase().trim();
+    const name = c.item_name || c.item_code || c.item || '—';
+    const reqPerBom = Number(c.qty ?? c.quantity ?? 0) || 0;
+    const requiredPerUnit = bomQty > 0 ? reqPerBom / bomQty : reqPerBom;
+    const avail = stockMap.get(code) ?? 0;
+    const maxUnits =
+      requiredPerUnit > 0 ? Math.floor(avail / requiredPerUnit) : Infinity;
+    return {
+      itemCode: code || name,
+      itemName: name,
+      requiredPerUnit,
+      availableStock: avail,
+      uom: c.uom || c.stock_uom || '',
+      maxUnits,
+    };
+  });
+
+  const validRows = compRows.filter((r) => r.itemCode);
+
+  // ── 4. Determine overall capacity ────────────────────────
+  const finiteRows = validRows.filter((r) => Number.isFinite(r.maxUnits));
+  const capacity =
+    finiteRows.length > 0
+      ? Math.min(...finiteRows.map((r) => r.maxUnits))
+      : Infinity;
+  const limiting =
+    finiteRows.find((r) => r.maxUnits === capacity) ?? validRows[0] ?? null;
+
+  return {
+    ok: true,
+    bomId: String(bom.id ?? bom.name ?? bomId),
+    bomName: bom.name || bom.bom_no || '',
+    productionItem: bom.item_name || bom.item || bom.production_item || '',
+    bomQuantity: bomQty,
+    capacity,
+    limitingComponent: limiting,
+    components: validRows,
+  };
 }
 
 // ============================================================
@@ -2071,8 +2375,6 @@ export function getEndpointRoute(
   return ENDPOINT_ROUTES[key] || null;
 }
 
-// FIXED: require an exact match or a '/' boundary so that
-// "/purchase-invoice" is not matched against a shorter prefix.
 export function findEndpointKeyByRoute(route: string): string | null {
   const sorted = Object.entries(ENDPOINT_ROUTES).sort(
     (a, b) => b[1].length - a[1].length
@@ -2159,8 +2461,6 @@ export function detectSmartNavigation(question: string): {
   );
   if (!endpointKey) return null;
 
-  // FIXED: prefer a full document-style ID (SAL-ORD-2026-00001, QIR-123)
-  // before falling back to a bare number. Also skip year-like numbers.
   let id: string | null = null;
   const docMatch = question.match(/\b[A-Z][A-Z0-9]*(?:[-_][A-Z0-9]+)+\b/i);
   if (docMatch) {
@@ -2209,6 +2509,16 @@ export function detectSmartNavigation(question: string): {
   if (!baseRoute) return null;
 
   if (id) {
+    if (endpointKey === 'inventory') {
+      return {
+        route: buildInventoryDetailRoute(id),
+        label: `${endpoint.label} "${id}"`,
+        isDetail: true,
+        endpointKey,
+        id,
+      };
+    }
+
     return {
       route: `${baseRoute}/${encodeURIComponent(id)}`,
       label: `${endpoint.label} "${id}"`,
@@ -2263,7 +2573,6 @@ export interface RecordSearchResult {
 }
 
 export function extractSearchToken(question: string): string | null {
-  // Prefer full document numbers like SAL-ORD-2026-00001 or QIR-123
   const docMatch = question.match(/\b[A-Z][A-Z0-9]*(?:[-_][A-Z0-9]+)+\b/i);
   if (docMatch) return docMatch[0].toUpperCase();
 
@@ -2364,8 +2673,559 @@ export async function searchAllModulesForRecord(
 }
 
 /* ============================================================
-   AI INTEGRATION
+   STATUS COUNT / FILTER HELPERS
    ============================================================ */
+
+const STATUS_QUERY_PATTERNS = [
+  /how many/i,
+  /count/i,
+  /number of/i,
+  /total/i,
+  /how much/i,
+];
+
+const STATUS_KEYWORDS: Record<string, string[]> = {
+  completed:      ['completed', 'complete', 'done', 'finished', 'closed'],
+  cancelled:      ['cancelled', 'canceled', 'cancel'],
+  draft:          ['draft', 'draft status'],
+  sent:           ['sent', 'send', 'sent status', 'dispatched'],
+  accepted:       ['accepted', 'accept'],
+  rejected:       ['rejected', 'reject'],
+  expired:        ['expired', 'expire', 'expiring'],
+  converted:      ['converted', 'convert', 'converted to order', 'converted order'],
+  paid:           ['paid', 'fully paid'],
+  'partially paid': ['partially paid', 'partially-paid', 'partial paid', 'part payment'],
+  unpaid:         ['unpaid', 'not paid', 'un-paid'],
+  'in process':   ['in process', 'in-process', 'in progress', 'in-progress', 'processing'],
+  pending:        ['pending', 'awaiting', 'waiting'],
+  open:           ['open', 'open status'],
+  submitted:      ['submitted', 'submit'],
+  approved:       ['approved', 'approve'],
+  overdue:        ['overdue', 'over due'],
+  'on hold':      ['on hold', 'on-hold', 'hold'],
+  active:         ['active', 'enabled'],
+  inactive:       ['inactive', 'disabled'],
+};
+
+const STATUS_FIELD_NAMES = [
+  'status', 'work_order_status', 'order_status', 'job_card_status',
+  'stock_entry_status', 'status_name', 'state', 'document_status',
+  'bom_status', 'sales_order_status', 'purchase_order_status',
+  'inspection_status', 'quotation_status', 'invoice_status',
+  'production_status', 'current_status',
+  'item_status', 'item_type', 'type',
+];
+
+export function getRecordStatus(record: any): string {
+  for (const field of STATUS_FIELD_NAMES) {
+    const v = record?.[field];
+    if (v !== undefined && v !== null && String(v).trim() !== '') {
+      return String(v).trim().toLowerCase();
+    }
+  }
+  return '';
+}
+
+function matchesStatus(recordStatus: string, targetStatus: string): boolean {
+  if (!recordStatus || !targetStatus) return false;
+
+  const normRecord = recordStatus.toLowerCase().trim();
+  const normTarget = targetStatus.toLowerCase().trim();
+
+  if (normRecord === normTarget) return true;
+
+  const targetWords = normTarget.split(/\s+/);
+  if (targetWords.length > 1) {
+    return targetWords.every((w) => normRecord.includes(w));
+  }
+
+  return normRecord.includes(normTarget) || normTarget.includes(normRecord);
+}
+
+export function detectStatusFilter(question: string): string | null {
+  const q = question.toLowerCase();
+  const allKeywords: Array<{ status: string; keyword: string }> = [];
+  for (const [status, keywords] of Object.entries(STATUS_KEYWORDS)) {
+    for (const kw of keywords) {
+      allKeywords.push({ status, keyword: kw });
+    }
+  }
+  allKeywords.sort((a, b) => b.keyword.length - a.keyword.length);
+
+  for (const { status, keyword } of allKeywords) {
+    const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const re = new RegExp(`(^|[^a-z])${escaped}([^a-z]|$)`, 'i');
+    if (re.test(q)) return status;
+  }
+  return null;
+}
+
+export function isCountQuery(question: string): boolean {
+  return STATUS_QUERY_PATTERNS.some((p) => p.test(question));
+}
+
+export function isListQuery(question: string): boolean {
+  const q = question.toLowerCase();
+  const listPatterns = [
+    /show me which/i,
+    /show me the/i,
+    /list.*(which|the|all)/i,
+    /which.*(are|is)/i,
+    /display.*(which|the|all)/i,
+    /tell me which/i,
+    /what are the/i,
+    /show.*(completed|draft|pending|open|approved|rejected|cancelled|sent|accepted|expired|converted|submitted|paid|partially paid|overdue|in process|in progress)/i,
+    /filter.*sales order/i,
+    /sales order.*filter/i,
+    /sales order.*status/i,
+    /filter.*item/i,
+    /item.*filter/i,
+    /item.*status/i,
+    /item.*type/i,
+    /raw item/i,
+    /product item/i,
+  ];
+  return listPatterns.some((p) => p.test(q));
+}
+
+// ============================================================
+// LATEST-LIST QUERY DETECTION
+// ============================================================
+export function isLatestListQuery(question: string): string | null {
+  const q = question.toLowerCase();
+  const patterns: Array<[string, RegExp]> = [
+    ['latest',   /\blatest\b/],
+    ['recent',   /\brecent\b/],
+    ['newest',   /\bnewest\b/],
+    ['last',     /\blast\b/],
+    ['new',      /\bnew\s+(?!user|record\b)/],
+  ];
+  for (const [label, re] of patterns) {
+    if (re.test(q)) {
+      return label;
+    }
+  }
+  return null;
+}
+
+// ============================================================
+// STATUS-FILTERED NAVIGATION RESULT
+// ============================================================
+export interface StatusNavigationPayload {
+  route: string;
+  label: string;
+  endpointKey: string;
+  status: string;
+  count: number;
+}
+
+export interface StatusQueryResult {
+  ok: boolean;
+  reply: string;
+  navigation?: StatusNavigationPayload;
+  error?: string;
+}
+
+export async function fetchAndFilterByStatus(
+  endpointKey: string,
+  status: string,
+  forList: boolean
+): Promise<StatusQueryResult> {
+  const endpoint = ERP_ENDPOINTS[endpointKey];
+  if (!endpoint) {
+    return { ok: false, reply: '', error: `Unknown endpoint: ${endpointKey}` };
+  }
+
+  const token = getAuthToken();
+  if (!token) {
+    return {
+      ok: false,
+      reply: '',
+      error: 'No auth token found. Please log in again.',
+    };
+  }
+
+  console.log(`📡 Fetching all ${endpoint.label} for status filter: "${status}"`);
+
+  const fetchUrl = endpoint.filterBase
+    ? `${endpoint.filterBase}?page=1&limit=100`
+    : endpoint.url;
+
+  const result = await fetchAllPages(fetchUrl);
+  if (!result.ok) {
+    return {
+      ok: false,
+      reply: '',
+      error: `Could not fetch ${endpoint.label}: ${result.error}`,
+    };
+  }
+
+  const matching: any[] = [];
+  const statusCounts: Record<string, number> = {};
+
+  for (const record of result.records) {
+    const rs = getRecordStatus(record);
+    const displayStatus = rs || 'unknown';
+    statusCounts[displayStatus] = (statusCounts[displayStatus] || 0) + 1;
+
+    if (matchesStatus(rs, status)) {
+      matching.push(record);
+    }
+  }
+
+  console.log(
+    `✅ Found ${matching.length} records with status "${status}" out of ${result.records.length}`
+  );
+
+  const baseRoute = ENDPOINT_ROUTES[endpointKey];
+  const navRoute = baseRoute
+    ? `${baseRoute}?status=${encodeURIComponent(status)}&autoFilter=1`
+    : '';
+
+  const lines: string[] = [];
+
+  if (forList) {
+    lines.push(
+      `**${endpoint.label} with status "${status}"** — ${matching.length} record(s) found:\n`
+    );
+
+    if (matching.length === 0) {
+      lines.push('No records match this status.');
+    } else {
+      const shown = matching.slice(0, 20);
+      for (const rec of shown) {
+        const name =
+          rec.name ||
+          rec.item_code ||
+          rec.item_name ||
+          rec.work_order_no ||
+          rec.job_card_no ||
+          rec.stock_entry_no ||
+          rec.bom_no ||
+          rec.sales_order_no ||
+          rec.order_no ||
+          rec.invoice_no ||
+          rec.id ||
+          '—';
+        const st = getRecordStatus(rec) || '—';
+        const extra =
+          rec.item_code ||
+          rec.product_name ||
+          rec.item_name ||
+          rec.customer_name ||
+          rec.supplier_name ||
+          rec.party_name ||
+          '';
+        lines.push(`- **${name}** | Status: ${st}${extra ? ` | ${extra}` : ''}`);
+      }
+      if (matching.length > 20) {
+        lines.push(`\n... and ${matching.length - 20} more. Click below to view the full filtered list.`);
+      }
+    }
+
+    lines.push('\n**Status breakdown for all records:**');
+  } else {
+    lines.push(
+      `**${endpoint.label} with status "${status}"** — **${matching.length}** record(s) found out of ${result.records.length} total.\n`
+    );
+    lines.push('**Full status breakdown:**');
+  }
+
+  const sortedCounts = Object.entries(statusCounts).sort((a, b) => b[1] - a[1]);
+  for (const [st, count] of sortedCounts) {
+    const marker = matchesStatus(st, status) ? ' ✅' : '';
+    lines.push(`- ${st}: **${count}**${marker}`);
+  }
+
+  return {
+    ok: true,
+    reply: lines.join('\n'),
+    navigation: navRoute
+      ? {
+          route: navRoute,
+          label: `View ${matching.length} ${endpoint.label} with status "${status}"`,
+          endpointKey,
+          status,
+          count: matching.length,
+        }
+      : undefined,
+  };
+}
+
+// ============================================================
+// SALES ORDER FILTERED FETCH
+// ============================================================
+export async function fetchSalesOrdersFiltered(params: {
+  status?: string;
+  customer?: string;
+  from_date?: string;
+  to_date?: string;
+  search?: string;
+  page?: number;
+  limit?: number;
+}): Promise<FetchAllResult<any>> {
+  const url = buildSalesOrderFilterUrl(params);
+  console.log(`📡 Fetching filtered sales orders: ${url.replace(ERP_BASE_URL, '')}`);
+
+  const result = await fetchAllPages(url);
+  if (!result.ok) return result;
+
+  if (params.status) {
+    const targetStatus = params.status.toLowerCase().trim();
+    const filtered = result.records.filter((r: any) => {
+      const rs = getRecordStatus(r);
+      return matchesStatus(rs, targetStatus);
+    });
+
+    if (filtered.length !== result.records.length) {
+      console.log(
+        `🔍 Client-side filtered sales orders: ${filtered.length}/${result.records.length} match "${params.status}"`
+      );
+      return {
+        ...result,
+        records: filtered,
+        total: filtered.length,
+      };
+    }
+  }
+
+  return result;
+}
+
+// ============================================================
+// ITEM FILTERED FETCH
+// ============================================================
+export async function fetchItemsFiltered(params: {
+  status?: string;
+  type?: string;
+  group?: string;
+  search?: string;
+  page?: number;
+  limit?: number;
+}): Promise<FetchAllResult<any>> {
+  const url = buildItemFilterUrl(params);
+  console.log(`📡 Fetching filtered items: ${url.replace(ERP_BASE_URL, '')}`);
+
+  const result = await fetchAllPages(url);
+  if (!result.ok) return result;
+
+  if (params.status) {
+    const targetStatus = params.status.toLowerCase().trim();
+    const filtered = result.records.filter((r: any) => {
+      const rs = getRecordStatus(r);
+      return matchesStatus(rs, targetStatus);
+    });
+
+    if (filtered.length !== result.records.length) {
+      console.log(
+        `🔍 Client-side filtered items: ${filtered.length}/${result.records.length} match "${params.status}"`
+      );
+      return {
+        ...result,
+        records: filtered,
+        total: filtered.length,
+      };
+    }
+  }
+
+  if (params.type) {
+    const targetType = params.type.toLowerCase().trim();
+    const filtered = result.records.filter((r: any) => {
+      const rt = String(r?.type ?? r?.item_type ?? '').toLowerCase().trim();
+      return rt.includes(targetType) || targetType.includes(rt);
+    });
+
+    if (filtered.length !== result.records.length) {
+      console.log(
+        `🔍 Client-side filtered items by type: ${filtered.length}/${result.records.length} match "${params.type}"`
+      );
+      return {
+        ...result,
+        records: filtered,
+        total: filtered.length,
+      };
+    }
+  }
+
+  if (params.group) {
+    const targetGroup = params.group.toLowerCase().trim();
+    const filtered = result.records.filter((r: any) => {
+      const rg = String(
+        r?.group ?? r?.item_group ?? r?.item_group_name ?? ''
+      ).toLowerCase().trim();
+      return rg.includes(targetGroup) || targetGroup.includes(rg);
+    });
+
+    if (filtered.length !== result.records.length) {
+      console.log(
+        `🔍 Client-side filtered items by group: ${filtered.length}/${result.records.length} match "${params.group}"`
+      );
+      return {
+        ...result,
+        records: filtered,
+        total: filtered.length,
+      };
+    }
+  }
+
+  if (params.search) {
+    const term = params.search.toLowerCase().trim();
+    const filtered = result.records.filter((r: any) => {
+      const candidates = [
+        r?.name,
+        r?.item_code,
+        r?.item_name,
+        r?.code,
+        r?.description,
+      ].filter(Boolean);
+      return candidates.some((v: any) => String(v).toLowerCase().includes(term));
+    });
+
+    if (filtered.length !== result.records.length) {
+      console.log(
+        `🔍 Client-side filtered items by search: ${filtered.length}/${result.records.length} match "${params.search}"`
+      );
+      return {
+        ...result,
+        records: filtered,
+        total: filtered.length,
+      };
+    }
+  }
+
+  return result;
+}
+
+// ============================================================
+// LATEST-LIST NAVIGATION RESULT
+// ============================================================
+export interface LatestNavigationPayload {
+  route: string;
+  label: string;
+  endpointKey: string;
+  count: number;
+  keyword: string;
+}
+
+export interface LatestListQueryResult {
+  ok: boolean;
+  reply: string;
+  navigation?: LatestNavigationPayload;
+  error?: string;
+}
+
+export async function fetchAndBuildLatestListNavigation(
+  endpointKey: string,
+  keyword: string
+): Promise<LatestListQueryResult> {
+  const endpoint = ERP_ENDPOINTS[endpointKey];
+  if (!endpoint) {
+    return { ok: false, reply: '', error: `Unknown endpoint: ${endpointKey}` };
+  }
+
+  const token = getAuthToken();
+  if (!token) {
+    return {
+      ok: false,
+      reply: '',
+      error: 'No auth token found. Please log in again.',
+    };
+  }
+
+  console.log(`📡 Fetching all ${endpoint.label} for latest-list query (keyword="${keyword}")`);
+
+  const result = await fetchAllPages(endpoint.url);
+  if (!result.ok) {
+    return {
+      ok: false,
+      reply: '',
+      error: `Could not fetch ${endpoint.label}: ${result.error}`,
+    };
+  }
+
+  const DATE_FIELDS = [
+    'creation', 'created_at', 'createdAt', 'created_on', 'creation_date',
+    'date_created', 'created', 'inserted_at', 'created_date',
+    'transaction_date', 'posting_date', 'order_date', 'date',
+  ];
+  const getDate = (r: any): number => {
+    for (const f of DATE_FIELDS) {
+      const v = r?.[f];
+      if (!v) continue;
+      const d = new Date(v);
+      if (!isNaN(d.getTime())) return d.getTime();
+    }
+    return 0;
+  };
+
+  const sorted = [...result.records].sort((a, b) => getDate(b) - getDate(a));
+
+  const total = result.total || sorted.length;
+  const shown = sorted.slice(0, 10);
+
+  const lines: string[] = [];
+  lines.push(`**Latest ${endpoint.label}** (showing ${shown.length} of ${total}):\n`);
+
+  if (shown.length === 0) {
+    lines.push('_No records found._');
+  } else {
+    shown.forEach((rec: any, idx: number) => {
+      const name =
+        rec.name ||
+        rec.item_code ||
+        rec.item_name ||
+        rec.work_order_no ||
+        rec.job_card_no ||
+        rec.stock_entry_no ||
+        rec.bom_no ||
+        rec.sales_order_no ||
+        rec.order_no ||
+        rec.invoice_no ||
+        rec.id ||
+        '—';
+      const st = getRecordStatus(rec) || '—';
+      const extra =
+        rec.item_name ||
+        rec.product_name ||
+        rec.customer_name ||
+        rec.supplier_name ||
+        rec.party_name ||
+        '';
+      const d = getDate(rec);
+      const dateStr = d
+        ? ` · 📅 ${new Date(d).toLocaleDateString('en-IN', {
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric',
+          })}`
+        : '';
+      lines.push(
+        `${idx + 1}. **${name}** · ${st}${extra ? ` · ${extra}` : ''}${dateStr}`
+      );
+    });
+  }
+
+  const baseRoute = ENDPOINT_ROUTES[endpointKey];
+  const navRoute = baseRoute ? `${baseRoute}?sort=latest&autoFilter=1` : '';
+
+  return {
+    ok: true,
+    reply: lines.join('\n'),
+    navigation: navRoute
+      ? {
+          route: navRoute,
+          label: `🔍 Open ${endpoint.label} (${total})`,
+          endpointKey,
+          count: total,
+          keyword,
+        }
+      : undefined,
+  };
+}
+
+// ============================================================
+// AI INTEGRATION
+// ============================================================
 
 export const AI_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
 
@@ -2382,12 +3242,14 @@ export interface AiResponse {
   ok: boolean;
   reply?: string;
   error?: string;
+  navigation?: StatusNavigationPayload;
+  navigationRoute?: string;
 }
 
 const SYSTEM_PROMPT =
   'You are a helpful assistant for Sculptor Tech ERP. ' +
   'You help users understand their Work Orders, Job Cards, Inventory, BOM, ' +
-  'Quotations, Sales Orders, Purchase Orders, and other ERP modules. ' +
+  'Quotations, Sales Orders, Purchase Orders, Items, and other ERP modules. ' +
   'When live ERP data is provided to you in a system message, use it to ' +
   'answer questions accurately with real numbers and record names. ' +
   'Never invent data. If the data is not provided, say so.';
@@ -2406,7 +3268,7 @@ export async function askAi(
     return {
       ok: false,
       error:
-        '⚠️ AI API key not set. Open src/services/erpApi.ts ',
+        '⚠️ AI API key not set. Open src/services/erpApi.  ',
     };
   }
 
@@ -2468,6 +3330,67 @@ export async function askAiWithErpContext(
   console.log('──────────────────────────────────────');
   console.log('🚀 askAiWithErpContext starting');
   console.log('📝 Question:', question);
+
+  const statusFilter = detectStatusFilter(question);
+  const matchedEndpoint = matchEndpoint(question);
+
+  if (statusFilter && matchedEndpoint) {
+    const endpointKey = Object.keys(ERP_ENDPOINTS).find(
+      (k) => ERP_ENDPOINTS[k] === matchedEndpoint
+    );
+
+    if (endpointKey) {
+      const wantsList = isListQuery(question) || !isCountQuery(question);
+
+      console.log(
+        `🔢 Status query detected: ${endpointKey} → "${statusFilter}" (list=${wantsList})`
+      );
+
+      const statusResult = await fetchAndFilterByStatus(
+        endpointKey,
+        statusFilter,
+        wantsList
+      );
+
+      if (statusResult.ok) {
+        return {
+          ok: true,
+          reply: statusResult.reply,
+          navigation: statusResult.navigation,
+        };
+      }
+
+      console.warn(`⚠️ Status filter failed: ${statusResult.error}`);
+    }
+  }
+
+  const latestKeyword = isLatestListQuery(question);
+  if (latestKeyword && matchedEndpoint) {
+    const endpointKey = Object.keys(ERP_ENDPOINTS).find(
+      (k) => ERP_ENDPOINTS[k] === matchedEndpoint
+    );
+
+    if (endpointKey) {
+      console.log(
+        `🆕 Latest-list query detected: ${endpointKey} (keyword="${latestKeyword}")`
+      );
+
+      const latestResult = await fetchAndBuildLatestListNavigation(
+        endpointKey,
+        latestKeyword
+      );
+
+      if (latestResult.ok) {
+        return {
+          ok: true,
+          reply: latestResult.reply,
+          navigation: latestResult.navigation as any,
+        };
+      }
+
+      console.warn(`⚠️ Latest-list fetch failed: ${latestResult.error}`);
+    }
+  }
 
   const detailHit = await tryAnswerFromDetailPage(question, history);
   if (detailHit) return detailHit;
@@ -2538,9 +3461,6 @@ async function tryAnswerFromDetailPage(
 
   if (!DETAIL_PAGE_APIS[endpointKey]) return null;
 
-  // FIXED: prefer full document-style IDs over bare numbers, and skip
-  // year-like numbers. This prevents "SAL-ORD-2026-00001" from being
-  // parsed as just "2026".
   let id: string | null = null;
   const docMatch = question.match(/\b[A-Z][A-Z0-9]*(?:[-_][A-Z0-9]+)+\b/i);
   if (docMatch) {
@@ -2624,7 +3544,13 @@ async function tryAnswerFromDetailPage(
   };
 
   console.log('📤 Sending detail-page context to Groq...');
-  return askAi(question, [...history, contextMessage]);
+  const aiResult = await askAi(question, [...history, contextMessage]);
+
+  if (aiResult.ok && endpointKey === 'inventory' && detail.master) {
+    aiResult.navigationRoute = buildInventoryDetailRoute(id, detail.master);
+  }
+
+  return aiResult;
 }
 
 export function extractRecordsFromErp(payload: any): any[] {

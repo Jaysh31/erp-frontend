@@ -155,6 +155,19 @@ interface Item {
 const getItemUom = (item: any): string =>
   item?.stock_uom || item?.uom || item?.stockUom || "";
 
+// 🆕 Normalizes an item group string for fuzzy, case-insensitive compare
+const normalizeGroup = (s: any): string =>
+  String(s || "").trim().toLowerCase().replace(/[\s_-]+/g, "");
+
+// 🆕 Extracts an item array from any of the common API response shapes.
+const extractItems = (payload: any): Item[] => {
+  if (Array.isArray(payload)) return payload;
+  if (Array.isArray(payload?.records)) return payload.records;
+  if (Array.isArray(payload?.items)) return payload.items;
+  if (Array.isArray(payload?.data)) return payload.data;
+  return [];
+};
+
 // ─── SearchableSelect Component (portal-based, never clipped) ────────────────
 
 interface SearchableSelectProps {
@@ -530,6 +543,9 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
 
   const handoffApplied = useRef(false);
   const dataLoadedRef = useRef(false);
+
+  // 🆕 Guards against stale responses overwriting the item list.
+  const itemsRequestRef = useRef(0);
 
   const [compRows, setCompRows] = useState<ComponentRow[]>([
     {
@@ -917,7 +933,6 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
         if (detail.warehousesMaster?.length) {
           setWarehouses(detail.warehousesMaster.filter((w: any) => w.disabled === 0));
         }
-        if (detail.productItems?.length) setItems(detail.productItems);
         if (detail.rawItems?.length) setRawItems(detail.rawItems);
 
         dataLoadedRef.current = true;
@@ -937,10 +952,13 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
   }, []);
 
   // ─── Fetch item lists ─────────────────────────────────────────
+  // 🆕 Whenever the BOM type changes we clear the list and refetch the
+  // correct group. fetchManufactureItems is race-safe and also has
+  // fallbacks for backend group-name mismatches.
   useEffect(() => {
-    if (items.length > 0) return;
+    setItems([]);
     if (bomType === "External") {
-      fetchManufactureItems("External Raw Material");
+      fetchManufactureItems("Service");
     } else {
       fetchManufactureItems("Product");
     }
@@ -956,10 +974,6 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
   }, [bomType]);
 
   // ─── Auto-default source / target warehouses ──────────────────
-  // Source  → fuzzy match "Raw Material Store" (and variants)
-  // Target  → fuzzy match "Finished Goods"     (and variants)
-  // Only fires when the user hasn't picked a value (so edit mode / handoff
-  // values are preserved) and only for Internal/Product BOMs.
   useEffect(() => {
     if (bomType !== "Internal") return;
     if (!warehouses.length) return;
@@ -1031,21 +1045,78 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
     });
   }, [rawItems]);
 
+  // 🆕 Robust fetch:
+  //   1. Tries several candidate group names ("Service", "Services", "service"…)
+  //      via the API's `group` param.
+  //   2. If all return 0, fetches ALL items and filters client-side by a
+  //      fuzzy, case-insensitive group match.
+  //   3. A request-id guard prevents stale responses from overwriting the
+  //      freshest list (fixes the earlier race condition).
   const fetchManufactureItems = async (group: string) => {
+    const requestId = ++itemsRequestRef.current;
+
     try {
       setItemsLoading(true);
-      const url = `/item?page=1&limit=100&group=${encodeURIComponent(group)}`;
-      const response = await api.get(url);
-      if (response.data.success === 1) {
-        const data: Item[] = response.data.data || [];
-        const filtered = data.filter((item) => item.item_group === group);
-        setItems(filtered);
+
+      const target = normalizeGroup(group);
+      const candidates: string[] =
+        group === "Service"
+          ? ["Service", "Services", "service", "services", "External Service"]
+          : group === "Product"
+          ? ["Product", "Products", "product", "products", "Finished Good"]
+          : [group];
+
+      let collected: Item[] = [];
+
+      // 1) Try each candidate group name against the API.
+      for (const candidate of candidates) {
+        try {
+          const res = await api.get(
+            `/item?page=1&limit=200&group=${encodeURIComponent(candidate)}`
+          );
+          if (requestId !== itemsRequestRef.current) return;
+          if (res.data?.success === 1) {
+            const list = extractItems(res.data.data);
+            if (list.length > 0) {
+              collected = list;
+              break;
+            }
+          }
+        } catch {
+          // try next candidate
+        }
       }
+
+      // 2) Fallback: fetch all items and filter client-side.
+      if (collected.length === 0) {
+        try {
+          const allRes = await api.get(`/item?page=1&limit=1000`);
+          if (requestId !== itemsRequestRef.current) return;
+          if (allRes.data?.success === 1) {
+            collected = extractItems(allRes.data.data);
+          }
+        } catch (e) {
+          console.warn("Fallback item fetch failed:", e);
+        }
+      }
+
+      // 3) Fuzzy client-side filter.
+      const filtered = collected.filter((item) => {
+        const g = normalizeGroup((item as any)?.item_group);
+        if (!g) return false;
+        return g === target || g.includes(target) || target.includes(g);
+      });
+
+      if (requestId !== itemsRequestRef.current) return;
+      setItems(filtered);
     } catch (err: any) {
+      if (requestId !== itemsRequestRef.current) return;
       console.error("Error fetching manufacture items:", err);
       addToast("error", "Error", "Failed to fetch items");
     } finally {
-      setItemsLoading(false);
+      if (requestId === itemsRequestRef.current) {
+        setItemsLoading(false);
+      }
     }
   };
 
@@ -1054,7 +1125,7 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
       setRawItemsLoading(true);
       const response = await api.get("/item?type=raw");
       if (response.data.success === 1) {
-        setRawItems(response.data.data);
+        setRawItems(extractItems(response.data.data));
       }
     } catch (err: any) {
       console.error("Error fetching raw items:", err);
@@ -1710,7 +1781,12 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
                     name="bomType"
                     value="Internal"
                     checked={bomType === "Internal"}
-                    onChange={() => setBomType("Internal")}
+                    onChange={() => {
+                      setBomType("Internal");
+                      setItemToManufacture("");
+                      setSelectedItemDetails(null);
+                      setSellingPrice(0);
+                    }}
                   />
                   <span className="nbom-radio-option-label">Product</span>
                 </label>
@@ -1720,7 +1796,12 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
                     name="bomType"
                     value="External"
                     checked={bomType === "External"}
-                    onChange={() => setBomType("External")}
+                    onChange={() => {
+                      setBomType("External");
+                      setItemToManufacture("");
+                      setSelectedItemDetails(null);
+                      setSellingPrice(0);
+                    }}
                   />
                   <span className="nbom-radio-option-label">Service</span>
                 </label>
@@ -1743,7 +1824,7 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
                     itemsLoading
                       ? "Loading items..."
                       : bomType === "External"
-                      ? "Search external product..."
+                      ? "Search service item..."
                       : "Search product..."
                   }
                   disabled={itemsLoading}
