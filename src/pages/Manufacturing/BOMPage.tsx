@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState, useMemo, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { useSearchParams, useNavigate } from "react-router-dom";
 
 import {
@@ -122,6 +123,96 @@ function statusMatches(recordStatus: string, target: string): boolean {
   return r.includes(t) || t.includes(r);
 }
 
+// ─── 🆕 Full-Screen Loader Overlay ─────────────────────────────────────────
+//  A centered modal-style loader used during view / edit / delete operations.
+//  Renders at the document body level so it always sits on top of everything.
+
+const LoaderOverlay: React.FC<{
+  isOpen: boolean;
+  message?: string;
+  subtitle?: string;
+}> = ({ isOpen, message = "Please wait...", subtitle }) => {
+  if (!isOpen) return null;
+
+  return createPortal(
+    <div
+      className="bom-loader-overlay"
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(15, 23, 42, 0.45)",
+        backdropFilter: "blur(2px)",
+        WebkitBackdropFilter: "blur(2px)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 20000,
+        padding: "20px",
+      }}
+    >
+      <div
+        className="bom-loader-card"
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: "#ffffff",
+          borderRadius: "16px",
+          padding: "32px 40px",
+          minWidth: "280px",
+          maxWidth: "360px",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: "16px",
+          boxShadow: "0 20px 60px rgba(0, 0, 0, 0.25)",
+          textAlign: "center",
+        }}
+      >
+        <div
+          className="bom-loader-spinner"
+          style={{
+            width: "52px",
+            height: "52px",
+            borderRadius: "50%",
+            border: "4px solid #e5e7eb",
+            borderTopColor: "#6366f1",
+            animation: "bom-spin 0.9s linear infinite",
+          }}
+        />
+        <div
+          className="bom-loader-message"
+          style={{
+            fontSize: "16px",
+            fontWeight: 600,
+            color: "#111827",
+          }}
+        >
+          {message}
+        </div>
+        {subtitle && (
+          <div
+            className="bom-loader-subtitle"
+            style={{
+              fontSize: "13px",
+              color: "#6b7280",
+              marginTop: "-8px",
+            }}
+          >
+            {subtitle}
+          </div>
+        )}
+      </div>
+      <style>{`
+        @keyframes bom-spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
+    </div>,
+    document.body
+  );
+};
+
 // ─── Main component ───────────────────────────────────────────────────────────
 
 const BOMPage: React.FC = () => {
@@ -143,6 +234,11 @@ const BOMPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [editBOMData, setEditBOMData] = useState<any>(null);
   const [viewBOMData, setViewBOMData] = useState<any>(null);
+
+  // 🆕 Full-screen loader state for view / edit / delete actions
+  const [actionLoading, setActionLoading] = useState(false);
+  const [actionLoadingMessage, setActionLoadingMessage] = useState("Please wait...");
+  const [actionLoadingSubtitle, setActionLoadingSubtitle] = useState<string | undefined>(undefined);
 
   // Data state
   const [allBomData, setAllBomData] = useState<BOMRecord[]>([]);
@@ -378,7 +474,9 @@ const BOMPage: React.FC = () => {
 
   const fetchBOMForView = async (bomId: number) => {
     try {
-      setLoading(true);
+      setActionLoadingMessage("Opening BOM...");
+      setActionLoadingSubtitle("Loading BOM details, please wait.");
+      setActionLoading(true);
       setError(null);
       const response = await api.get<BOMDetailResponse>(`/bom/${bomId}`);
       
@@ -392,7 +490,7 @@ const BOMPage: React.FC = () => {
       console.error('Error fetching BOM:', err);
       addToast('error', 'Error', err.response?.data?.message || 'Failed to load BOM data');
     } finally {
-      setLoading(false);
+      setActionLoading(false);
     }
   };
 
@@ -400,7 +498,9 @@ const BOMPage: React.FC = () => {
 
   const fetchBOMForEdit = async (bomId: number) => {
     try {
-      setLoading(true);
+      setActionLoadingMessage("Opening BOM for editing...");
+      setActionLoadingSubtitle("Loading BOM details, please wait.");
+      setActionLoading(true);
       setError(null);
       const response = await api.get<BOMDetailResponse>(`/bom/${bomId}`);
       
@@ -414,7 +514,7 @@ const BOMPage: React.FC = () => {
       console.error('Error fetching BOM:', err);
       addToast('error', 'Error', err.response?.data?.message || 'Failed to load BOM data');
     } finally {
-      setLoading(false);
+      setActionLoading(false);
     }
   };
 
@@ -570,6 +670,9 @@ const BOMPage: React.FC = () => {
   const confirmDelete = async () => {
     try {
       setDeleting(true);
+      setActionLoadingMessage("Deleting BOM...");
+      setActionLoadingSubtitle(`Removing "${deleteModal.bomItem}", please wait.`);
+      setActionLoading(true);
       const response = await api.delete(`/bom/${deleteModal.bomId}`);
       
       if (response.data.success === 1) {
@@ -584,6 +687,7 @@ const BOMPage: React.FC = () => {
       addToast('error', 'Delete Failed', err.response?.data?.message || 'Failed to delete BOM');
     } finally {
       setDeleting(false);
+      setActionLoading(false);
     }
   };
 
@@ -613,6 +717,13 @@ const BOMPage: React.FC = () => {
 
   return (
     <>
+      {/* 🆕 Full-screen loader overlay for view / edit / delete actions */}
+      <LoaderOverlay
+        isOpen={actionLoading}
+        message={actionLoadingMessage}
+        subtitle={actionLoadingSubtitle}
+      />
+
       {showNewBOM && (
         <NewBOMPage 
           onBack={() => {

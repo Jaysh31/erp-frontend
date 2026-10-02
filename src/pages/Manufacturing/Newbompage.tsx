@@ -3,6 +3,7 @@ import React, {
   useEffect,
   useLayoutEffect,
   useCallback,
+  useMemo,
   useRef,
 } from "react";
 import { createPortal } from "react-dom";
@@ -24,6 +25,7 @@ import {
   GripVertical,
   ExternalLink,
   DollarSign,
+  Eye, // 🆕 Added for Success Modal "View" button
 } from "lucide-react";
 import "./Newbompage.css";
 import api from "../../../src/services/api";
@@ -151,6 +153,24 @@ interface Item {
   standard_rate: number;
 }
 
+// 🆕 Metadata about the currently selected "Item to Manufacture" so the field
+//    can always render its label even if that item is missing from the
+//    (group-filtered) dropdown list.
+interface ManufactureItemMeta {
+  item_code: string;
+  item_name: string;
+  item_group: string;
+  stock_uom?: string;
+}
+
+// 🆕 State shape for the success modal shown after a successful save.
+interface SuccessModalState {
+  isOpen: boolean;
+  title: string;
+  message: string;
+  details: { label: string; value: string | number }[];
+}
+
 // Reads the UOM from whatever field the API happens to return
 const getItemUom = (item: any): string =>
   item?.stock_uom || item?.uom || item?.stockUom || "";
@@ -202,13 +222,16 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
   const [menuStyle, setMenuStyle] = useState<React.CSSProperties>({});
   const containerRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const selectedOption = options.find((opt) => getOptionValue(opt) === value);
+  // 🆕 Fall back to the raw value when no matching option exists, so the field
+  //    is never blank (e.g. the item is missing from the filtered list).
   const displayValue = isFocused
     ? search
     : selectedOption
     ? getOptionLabel(selectedOption)
-    : "";
+    : value || "";
 
   const filteredOptions = search
     ? options.filter((opt) =>
@@ -218,11 +241,16 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
       )
     : options;
 
+  // 🆕 Always blur the input when closing the menu so the next click reliably
+  //    re-triggers onFocus (which resets the search and shows all options).
   const closeMenu = () => {
     setIsOpen(false);
     setIsFocused(false);
     setSearch("");
     setHighlightIndex(-1);
+    if (inputRef.current) {
+      inputRef.current.blur();
+    }
   };
 
   const updatePosition = useCallback(() => {
@@ -322,10 +350,21 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
   return (
     <div ref={containerRef} className={`nbom-searchable-select ${className}`}>
       <input
+        ref={inputRef}
         type="text"
         value={displayValue}
         onChange={(e) => {
-          setSearch(e.target.value);
+          // 🆕 Defensive: if the input was showing the label (i.e. `isFocused`
+          //    was false) and the browser prepended the selected label to the
+          //    typed characters, strip the label so the user starts fresh.
+          const rawVal = e.target.value;
+          const selectedLabel = selectedOption ? getOptionLabel(selectedOption) : "";
+          let cleanVal = rawVal;
+          if (!isFocused && selectedLabel && rawVal.startsWith(selectedLabel)) {
+            cleanVal = rawVal.slice(selectedLabel.length);
+          }
+          setSearch(cleanVal);
+          setIsFocused(true);
           setIsOpen(true);
           setHighlightIndex(0);
         }}
@@ -514,6 +553,280 @@ const DeleteConfirmModal: React.FC<{
   );
 };
 
+// ─── 🆕 Full-Screen Loader Overlay ─────────────────────────────────────────
+//  A centered modal-style loader used during create/update/delete operations.
+
+const LoaderOverlay: React.FC<{
+  isOpen: boolean;
+  message?: string;
+  subtitle?: string;
+}> = ({ isOpen, message = "Please wait...", subtitle }) => {
+  if (!isOpen) return null;
+
+  return createPortal(
+    <div
+      className="nbom-loader-overlay"
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(15, 23, 42, 0.45)",
+        backdropFilter: "blur(2px)",
+        WebkitBackdropFilter: "blur(2px)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 20000,
+        padding: "20px",
+      }}
+    >
+      <div
+        className="nbom-loader-card"
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: "#ffffff",
+          borderRadius: "16px",
+          padding: "32px 40px",
+          minWidth: "280px",
+          maxWidth: "360px",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: "16px",
+          boxShadow: "0 20px 60px rgba(0, 0, 0, 0.25)",
+          textAlign: "center",
+        }}
+      >
+        <div
+          className="nbom-loader-spinner"
+          style={{
+            width: "52px",
+            height: "52px",
+            borderRadius: "50%",
+            border: "4px solid #e5e7eb",
+            borderTopColor: "#6366f1",
+            animation: "nbom-spin 0.9s linear infinite",
+          }}
+        />
+        <div
+          className="nbom-loader-message"
+          style={{
+            fontSize: "16px",
+            fontWeight: 600,
+            color: "#111827",
+          }}
+        >
+          {message}
+        </div>
+        {subtitle && (
+          <div
+            className="nbom-loader-subtitle"
+            style={{
+              fontSize: "13px",
+              color: "#6b7280",
+              marginTop: "-8px",
+            }}
+          >
+            {subtitle}
+          </div>
+        )}
+      </div>
+      <style>{`
+        @keyframes nbom-spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
+    </div>,
+    document.body
+  );
+};
+
+// ─── 🆕 Success Modal ─────────────────────────────────────────────────────
+//  Shown after a successful BOM create/update. Matches the UI pattern used
+//  in the Purchase Order and GRN forms.
+
+const SuccessModal: React.FC<{
+  isOpen: boolean;
+  title: string;
+  message: string;
+  details: { label: string; value: string | number }[];
+  onClose: () => void;
+  onView: () => void;
+}> = ({ isOpen, title, message, details, onClose, onView }) => {
+  if (!isOpen) return null;
+
+  return createPortal(
+    <div
+      className="nbom-modal-overlay"
+      onClick={onClose}
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0,0,0,0.5)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 30000,
+      }}
+    >
+      <div
+        className="nbom-success-modal"
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: "#ffffff",
+          borderRadius: "12px",
+          maxWidth: "480px",
+          width: "90%",
+          overflow: "hidden",
+          boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
+          textAlign: "center",
+          padding: "32px 24px",
+        }}
+      >
+        {/* Green check icon */}
+        <div
+          style={{
+            width: "64px",
+            height: "64px",
+            borderRadius: "50%",
+            background: "#d1fae5",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            margin: "0 auto 16px",
+          }}
+        >
+          <CheckCircle size={32} style={{ color: "#10b981" }} />
+        </div>
+
+        {/* Title */}
+        <h2
+          style={{
+            margin: "0 0 8px",
+            fontSize: "20px",
+            fontWeight: 700,
+            color: "#111827",
+          }}
+        >
+          {title}
+        </h2>
+
+        {/* Message */}
+        <p
+          style={{
+            margin: "0 0 24px",
+            fontSize: "14px",
+            color: "#6b7280",
+          }}
+        >
+          {message}
+        </p>
+
+        {/* Details box */}
+        {details.length > 0 && (
+          <div
+            style={{
+              background: "#f9fafb",
+              borderRadius: "8px",
+              border: "1px solid #e5e7eb",
+              padding: "16px",
+              marginBottom: "24px",
+              textAlign: "left",
+            }}
+          >
+            {details.map((detail, idx) => (
+              <div
+                key={idx}
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  marginBottom: idx < details.length - 1 ? "12px" : "0",
+                }}
+              >
+                <span style={{ fontSize: "13px", color: "#6b7280" }}>
+                  {detail.label}
+                </span>
+                <span
+                  style={{
+                    fontSize: "13px",
+                    fontWeight: 600,
+                    color: "#111827",
+                  }}
+                >
+                  {detail.value}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Buttons */}
+        <div
+          style={{
+            display: "flex",
+            gap: "12px",
+            justifyContent: "center",
+          }}
+        >
+          <button
+            onClick={onClose}
+            style={{
+              flex: 1,
+              padding: "10px 16px",
+              borderRadius: "6px",
+              border: "1px solid #d1d5db",
+              background: "transparent",
+              color: "#6b7280",
+              cursor: "pointer",
+              fontSize: "14px",
+              fontWeight: 500,
+              transition: "background 0.15s",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = "#f3f4f6";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = "transparent";
+            }}
+          >
+            Close
+          </button>
+          <button
+            onClick={onView}
+            style={{
+              flex: 1,
+              padding: "10px 16px",
+              borderRadius: "6px",
+              border: "none",
+              background: "#2563eb",
+              color: "#ffffff",
+              cursor: "pointer",
+              fontSize: "14px",
+              fontWeight: 500,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: "6px",
+              transition: "background 0.15s",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = "#1d4ed8";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = "#2563eb";
+            }}
+          >
+            <Eye size={14} />
+            View
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+};
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 interface NewBOMPageProps {
@@ -610,6 +923,19 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
   const [selectedItemDetails, setSelectedItemDetails] = useState<Item | null>(null);
   const [showProfitWarning, setShowProfitWarning] = useState(false);
 
+  // 🆕 Remembers the name/group of the saved "Item to Manufacture" so the
+  //    edit page always renders a readable label (fixes blank Service BOM edit).
+  const [manufactureItemMeta, setManufactureItemMeta] =
+    useState<ManufactureItemMeta | null>(null);
+
+  // 🆕 Success modal state (shown after successful BOM save).
+  const [successModal, setSuccessModal] = useState<SuccessModalState>({
+    isOpen: false,
+    title: "",
+    message: "",
+    details: [],
+  });
+
   const addToast = useCallback(
     (type: Toast["type"], title: string, message: string) => {
       const id = Date.now().toString();
@@ -623,6 +949,37 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
 
   const removeToast = useCallback((id: string) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
+  }, []);
+
+  // 🆕 Options for the "Item to Manufacture" dropdown.
+  //    If the saved item is not present in the group-filtered list we inject a
+  //    synthetic option so the field shows "CODE - Name (Group)" instead of
+  //    being blank, and so it stays selectable.
+  const manufactureItemOptions = useMemo<Item[]>(() => {
+    const code = (itemToManufacture || "").trim();
+    if (!code) return items;
+    if (items.some((i) => i.item_code === code)) return items;
+
+    const fallback: Item = {
+      id: -1,
+      item_code: code,
+      item_name: manufactureItemMeta?.item_name || "",
+      item_group: manufactureItemMeta?.item_group || "",
+      stock_uom: manufactureItemMeta?.stock_uom || "",
+      valuation_rate: 0,
+      standard_rate: 0,
+    };
+    return [fallback, ...items];
+  }, [items, itemToManufacture, manufactureItemMeta]);
+
+  // 🆕 Safe label for the manufacture item (avoids "CODE -  ()" when the
+  //    name/group is unknown).
+  const getManufactureItemLabel = useCallback((item: any): string => {
+    const code = item?.item_code ?? "";
+    const name = item?.item_name ?? "";
+    const group = item?.item_group ?? "";
+    const base = [code, name].filter(Boolean).join(" - ");
+    return group ? `${base} (${group})` : base || String(code);
   }, []);
 
   // ─── Drag and Drop ─────────────────────────────────────────────
@@ -688,6 +1045,14 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
       setDefaultSourceWarehouse(bom.default_source_warehouse || "");
       setDefaultTargetWarehouse(bom.default_target_warehouse || "");
       setBomType(bom.type === "External" ? "External" : "Internal");
+
+      // 🆕 Remember the item's display info for the dropdown.
+      setManufactureItemMeta({
+        item_code: bom.item || "",
+        item_name: bom.item_name || bom.itemName || "",
+        item_group: bom.item_group || bom.itemGroup || "",
+        stock_uom: bom.stock_uom || bom.uom || "",
+      });
 
       if (bom.standard_rate) {
         setSellingPrice(bom.standard_rate);
@@ -764,6 +1129,14 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
         setDefaultSourceWarehouse(master.default_source_warehouse || "");
         setDefaultTargetWarehouse(master.default_target_warehouse || "");
         setBomType(master.type === "External" ? "External" : "Internal");
+
+        // 🆕 Remember the item's display info for the dropdown.
+        setManufactureItemMeta({
+          item_code: master.item || "",
+          item_name: master.item_name || master.itemName || "",
+          item_group: master.item_group || master.itemGroup || "",
+          stock_uom: master.stock_uom || master.uom || "",
+        });
 
         if (master.standard_rate) {
           setSellingPrice(master.standard_rate);
@@ -871,6 +1244,14 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
         setDefaultSourceWarehouse(detail.bom.default_source_warehouse || "");
         setDefaultTargetWarehouse(detail.bom.default_target_warehouse || "");
         setBomType(detail.bom.type === "External" ? "External" : "Internal");
+
+        // 🆕 Remember the item's display info for the dropdown.
+        setManufactureItemMeta({
+          item_code: detail.bom.item || "",
+          item_name: (detail.bom as any).item_name || (detail.bom as any).itemName || "",
+          item_group: (detail.bom as any).item_group || (detail.bom as any).itemGroup || "",
+          stock_uom: (detail.bom as any).stock_uom || (detail.bom as any).uom || "",
+        });
 
         if (detail.bom.standard_rate) {
           setSellingPrice(detail.bom.standard_rate);
@@ -1044,6 +1425,29 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
       return changed ? next : rs;
     });
   }, [rawItems]);
+
+  // 🆕 If the loaded item list happens to contain the manufacture item, enrich
+  //    the stored meta with the authoritative name/group.
+  useEffect(() => {
+    if (!itemToManufacture) return;
+    const found = items.find((i) => i.item_code === itemToManufacture);
+    if (!found) return;
+    setManufactureItemMeta((prev) => {
+      if (
+        prev &&
+        prev.item_name === (found.item_name || "") &&
+        prev.item_group === (found.item_group || "")
+      ) {
+        return prev;
+      }
+      return {
+        item_code: found.item_code,
+        item_name: found.item_name || prev?.item_name || "",
+        item_group: found.item_group || prev?.item_group || "",
+        stock_uom: found.stock_uom || prev?.stock_uom || "",
+      };
+    });
+  }, [items, itemToManufacture]);
 
   // 🆕 Robust fetch:
   //   1. Tries several candidate group names ("Service", "Services", "service"…)
@@ -1490,10 +1894,18 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
 
   const handleItemSelect = (itemCode: string) => {
     setItemToManufacture(itemCode);
-    const selectedItem = items.find((i) => i.item_code === itemCode);
+    // 🆕 Look in the merged options so the injected item is also found.
+    const selectedItem = manufactureItemOptions.find((i) => i.item_code === itemCode);
     if (selectedItem) {
       setSelectedItemDetails(selectedItem);
       setSellingPrice(selectedItem.standard_rate || 0);
+      // 🆕 Keep the meta in sync with whatever was picked.
+      setManufactureItemMeta({
+        item_code: selectedItem.item_code,
+        item_name: selectedItem.item_name || "",
+        item_group: selectedItem.item_group || "",
+        stock_uom: selectedItem.stock_uom || "",
+      });
       if (fieldErrors.itemToManufacture) {
         setFieldErrors((prev) => ({ ...prev, itemToManufacture: "" }));
       }
@@ -1538,12 +1950,20 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
 
       let bomResponse;
       const bomPayload = {
-        item_Id: selectedItem?.id,
+        item_Id: selectedItem?.id ?? selectedItemDetails?.id,
         item: itemToManufacture,
-        item_name: selectedItem?.item_name || "",
+        item_name:
+          selectedItem?.item_name ||
+          selectedItemDetails?.item_name ||
+          manufactureItemMeta?.item_name ||
+          "",
         company: "SculptorTech",
         quantity: parseFloat(quantity) || 0,
-        uom: selectedItem?.stock_uom || "Nos",
+        uom:
+          selectedItem?.stock_uom ||
+          selectedItemDetails?.stock_uom ||
+          manufactureItemMeta?.stock_uom ||
+          "Nos",
         is_active: 1,
         is_default: 1,
         type: bomType,
@@ -1692,22 +2112,42 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
         }
       }
 
-      addToast(
-        "success",
-        "Success",
-        `BOM ${editData ? "updated" : "created"} successfully! BOM ID: ${parentRef}`
-      );
-
-      setTimeout(() => {
-        if (onBack) onBack();
-        else if (urlId) navigate("/bom");
-      }, 1000);
+      // 🆕 Show the Success Modal instead of a toast + auto-navigate.
+      const isUpdate = !!(editData || urlId);
+      setSuccessModal({
+        isOpen: true,
+        title: "Success!",
+        message: isUpdate
+          ? "BOM updated successfully!"
+          : "BOM created successfully!",
+        details: [
+          { label: "BOM No.", value: String(parentRef) },
+          { label: "Item", value: itemToManufacture || "—" },
+          { label: "Type", value: bomType },
+          {
+            label: "Total Cost",
+            value: `₹ ${parseFloat(calculateTotalCost().totalCost).toFixed(2)}`,
+          },
+        ],
+      });
     } catch (err: any) {
       console.error("Error saving BOM:", err);
       addToast("error", "Error", err.response?.data?.message || "Failed to save BOM");
     } finally {
       setSaving(false);
     }
+  };
+
+  // 🆕 Close button on the success modal → go back to the listing page.
+  const handleSuccessModalClose = () => {
+    setSuccessModal((prev) => ({ ...prev, isOpen: false }));
+    if (onBack) onBack();
+    else navigate("/bom");
+  };
+
+  // 🆕 View button on the success modal → stay on the current page.
+  const handleSuccessModalView = () => {
+    setSuccessModal((prev) => ({ ...prev, isOpen: false }));
   };
 
   useEffect(() => {
@@ -1735,9 +2175,45 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
     }
   };
 
+  // 🆕 Whether to show the full-screen loader during create/update/delete.
+  const isBusy = saving || deleting;
+
+  const busyMessage = saving
+    ? editData
+      ? "Updating BOM..."
+      : "Creating BOM..."
+    : deleting
+    ? "Deleting..."
+    : "Please wait...";
+
+  const busySubtitle = saving
+    ? editData
+      ? "Saving your BOM changes, please wait."
+      : "Creating a new BOM, please wait."
+    : deleting
+    ? "Removing the item, please wait."
+    : undefined;
+
   return (
     <div className="nbom-page">
       <ToastContainer toasts={toasts} removeToast={removeToast} />
+
+      {/* 🆕 Full-screen loader for create/update/delete operations */}
+      <LoaderOverlay
+        isOpen={isBusy}
+        message={busyMessage}
+        subtitle={busySubtitle}
+      />
+
+      {/* 🆕 Success Modal after BOM save */}
+      <SuccessModal
+        isOpen={successModal.isOpen}
+        title={successModal.title}
+        message={successModal.message}
+        details={successModal.details}
+        onClose={handleSuccessModalClose}
+        onView={handleSuccessModalView}
+      />
 
       <DeleteConfirmModal
         isOpen={deleteModal.isOpen}
@@ -1817,7 +2293,7 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
               <div className="nbom-field nbom-flex-item" data-field="itemToManufacture">
                 <Label text="Item to Manufacture" required info />
                 <SearchableSelect
-                  options={items}
+                  options={manufactureItemOptions}
                   value={itemToManufacture}
                   onChange={handleItemSelect}
                   placeholder={
@@ -1829,7 +2305,7 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
                   }
                   disabled={itemsLoading}
                   loading={itemsLoading}
-                  getOptionLabel={(item) => `${item.item_code} - ${item.item_name} (${item.item_group})`}
+                  getOptionLabel={getManufactureItemLabel}
                   getOptionValue={(item) => item.item_code}
                   filterKeys={["item_code", "item_name", "item_group"]}
                 />

@@ -10,8 +10,10 @@ import {
   FaTruck, FaMoneyBillWave,
   FaClipboardList, FaBoxes, FaIndustry, FaPlus,
   FaFileAlt,
-  FaExclamationCircle
+  FaExclamationCircle,
+  FaEye, // 🆕 Used in the new Success Modal's "View" button
 } from "react-icons/fa";
+import { createPortal } from "react-dom"; // 🆕 for LoaderOverlay / SuccessModal portals
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import "./JobCardForm.css";
@@ -490,6 +492,14 @@ interface ValidationError {
   message: string;
 }
 
+// 🆕 State shape for the new Success Modal
+interface SuccessModalState {
+  isOpen: boolean;
+  title: string;
+  message: string;
+  details: { label: string; value: string | number }[];
+}
+
 // ─── Completion Modal ────────────────────────────────────────────────
 
 interface CompletionModalProps {
@@ -856,7 +866,6 @@ const CompletionModal: React.FC<CompletionModalProps> = ({
 };
 
 // ─── Subcontracting GRN Modal ──────────────────────────────────────────
-//    All charges are entered inside the modal, not on the main page.
 
 interface SubcontractGrnModalProps {
   isOpen: boolean;
@@ -954,7 +963,6 @@ const SubcontractGrnModal: React.FC<SubcontractGrnModalProps> = ({
           <button className="jcf-modal-close" onClick={onClose} disabled={loading}>×</button>
         </div>
         <div className="jcf-modal-body">
-          {/* Top Stats Row */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px', marginBottom: '16px' }}>
             <div style={{ background: '#e3f2fd', padding: '10px', borderRadius: '8px', textAlign: 'center', border: '1px solid #bbdefb' }}>
               <div style={{ fontSize: '11px', color: '#1565c0', fontWeight: 600 }}>Qty To Manufacture</div>
@@ -974,16 +982,9 @@ const SubcontractGrnModal: React.FC<SubcontractGrnModalProps> = ({
             </div>
           </div>
 
-          {/* Two-column layout: Quantities + Charges */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-            {/* Left Column: Quantities */}
             <div>
-              <div style={{ 
-                background: '#f8f9fa', 
-                padding: '14px', 
-                borderRadius: '8px',
-                border: '1px solid #e9ecef'
-              }}>
+              <div style={{ background: '#f8f9fa', padding: '14px', borderRadius: '8px', border: '1px solid #e9ecef' }}>
                 <div style={{ fontSize: '13px', fontWeight: '600', color: '#333', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <FaBoxes size={14} /> Quantities
                 </div>
@@ -991,120 +992,46 @@ const SubcontractGrnModal: React.FC<SubcontractGrnModalProps> = ({
                   <label style={{ fontSize: '13px', fontWeight: '500', color: '#555', display: 'block', marginBottom: '4px' }}>
                     Received Qty (Good) <span style={{ color: '#dc3545' }}>*</span>
                   </label>
-                  <DigitInput 
-                    value={receivedQty} 
-                    onChange={setReceivedQty} 
-                    placeholder="0" 
-                    maxLength={10}
-                    className="jcf-modal-input"
-                  />
+                  <DigitInput value={receivedQty} onChange={setReceivedQty} placeholder="0" maxLength={10} className="jcf-modal-input" />
                 </div>
                 <div>
                   <label style={{ fontSize: '13px', fontWeight: '500', color: '#555', display: 'block', marginBottom: '4px' }}>
                     Rejected / Scrap Qty <span style={{ color: '#dc3545' }}>*</span>
                   </label>
-                  <DigitInput 
-                    value={rejectedQty} 
-                    onChange={setRejectedQty} 
-                    placeholder="0" 
-                    maxLength={10}
-                    className="jcf-modal-input"
-                  />
+                  <DigitInput value={rejectedQty} onChange={setRejectedQty} placeholder="0" maxLength={10} className="jcf-modal-input" />
                 </div>
-                <div style={{ 
-                  marginTop: '10px', 
-                  padding: '8px 12px', 
-                  background: '#fff', 
-                  borderRadius: '6px',
-                  border: '1px dashed #dee2e6',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  fontSize: '13px'
+                <div style={{
+                  marginTop: '10px', padding: '8px 12px', background: '#fff', borderRadius: '6px',
+                  border: '1px dashed #dee2e6', display: 'flex', justifyContent: 'space-between', fontSize: '13px'
                 }}>
                   <span style={{ color: '#6c757d' }}>Total this entry:</span>
-                  <span style={{ fontWeight: 'bold', color: totalThisEntry > 0 ? '#28a745' : '#6c757d' }}>
-                    {totalThisEntry}
-                  </span>
+                  <span style={{ fontWeight: 'bold', color: totalThisEntry > 0 ? '#28a745' : '#6c757d' }}>{totalThisEntry}</span>
                 </div>
               </div>
             </div>
 
-            {/* Right Column: Charges (Input Fields) */}
             <div>
-              <div style={{ 
-                background: '#f8f9fa', 
-                padding: '14px', 
-                borderRadius: '8px',
-                border: '1px solid #e9ecef'
-              }}>
+              <div style={{ background: '#f8f9fa', padding: '14px', borderRadius: '8px', border: '1px solid #e9ecef' }}>
                 <div style={{ fontSize: '13px', fontWeight: '600', color: '#333', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <FaMoneyBillWave size={14} /> Charges for this GRN
                 </div>
-                
-                {/* Service Charge - Input */}
                 <div style={{ marginBottom: '10px' }}>
-                  <label style={{ fontSize: '12px', fontWeight: '500', color: '#555', display: 'block', marginBottom: '4px' }}>
-                    Service Charge (₹)
-                  </label>
-                  <DigitInput 
-                    value={serviceCharge} 
-                    onChange={setServiceCharge} 
-                    placeholder="0.00" 
-                    maxLength={15}
-                    allowDecimal={true}
-                    className="jcf-modal-input"
-                  />
+                  <label style={{ fontSize: '12px', fontWeight: '500', color: '#555', display: 'block', marginBottom: '4px' }}>Service Charge (₹)</label>
+                  <DigitInput value={serviceCharge} onChange={setServiceCharge} placeholder="0.00" maxLength={15} allowDecimal={true} className="jcf-modal-input" />
                 </div>
-                
-                {/* Transport Cost - Input */}
                 <div style={{ marginBottom: '10px' }}>
-                  <label style={{ fontSize: '12px', fontWeight: '500', color: '#555', display: 'block', marginBottom: '4px' }}>
-                    Transport Cost (₹)
-                  </label>
-                  <DigitInput 
-                    value={transportCost} 
-                    onChange={setTransportCost} 
-                    placeholder="0.00" 
-                    maxLength={15}
-                    allowDecimal={true}
-                    className="jcf-modal-input"
-                  />
+                  <label style={{ fontSize: '12px', fontWeight: '500', color: '#555', display: 'block', marginBottom: '4px' }}>Transport Cost (₹)</label>
+                  <DigitInput value={transportCost} onChange={setTransportCost} placeholder="0.00" maxLength={15} allowDecimal={true} className="jcf-modal-input" />
                 </div>
-                
-                {/* Other Charges - Input */}
                 <div style={{ marginBottom: '10px' }}>
-                  <label style={{ fontSize: '12px', fontWeight: '500', color: '#555', display: 'block', marginBottom: '4px' }}>
-                    Other Charges (₹)
-                  </label>
-                  <DigitInput 
-                    value={otherCharges} 
-                    onChange={setOtherCharges} 
-                    placeholder="0.00" 
-                    maxLength={15}
-                    allowDecimal={true}
-                    className="jcf-modal-input"
-                  />
+                  <label style={{ fontSize: '12px', fontWeight: '500', color: '#555', display: 'block', marginBottom: '4px' }}>Other Charges (₹)</label>
+                  <DigitInput value={otherCharges} onChange={setOtherCharges} placeholder="0.00" maxLength={15} allowDecimal={true} className="jcf-modal-input" />
                 </div>
-
-                {/* Material Value (Read-only) */}
-                <div style={{ 
-                  display: 'flex', 
-                  justifyContent: 'space-between', 
-                  padding: '6px 0',
-                  borderTop: '1px solid #dee2e6',
-                  marginTop: '4px'
-                }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderTop: '1px solid #dee2e6', marginTop: '4px' }}>
                   <span style={{ fontSize: '12px', color: '#6c757d' }}>Material Value (read-only)</span>
                   <span style={{ fontSize: '13px', fontWeight: '500' }}>₹{materialTotal.toFixed(2)}</span>
                 </div>
-
-                {/* Grand Total */}
-                <div style={{ 
-                  display: 'flex', 
-                  justifyContent: 'space-between', 
-                  paddingTop: '8px',
-                  borderTop: '2px solid #dee2e6'
-                }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: '8px', borderTop: '2px solid #dee2e6' }}>
                   <span style={{ fontSize: '14px', fontWeight: '600', color: '#333' }}>Grand Total</span>
                   <span style={{ fontSize: '16px', fontWeight: 'bold', color: '#0d47a1' }}>₹{grandTotal.toFixed(2)}</span>
                 </div>
@@ -1112,7 +1039,6 @@ const SubcontractGrnModal: React.FC<SubcontractGrnModalProps> = ({
             </div>
           </div>
 
-          {/* Notes / Remarks - Full width */}
           <div style={{ marginTop: '12px' }}>
             <label style={{ fontSize: '13px', fontWeight: '500', color: '#555', display: 'block', marginBottom: '4px' }}>
               <FaFileAlt size={12} style={{ marginRight: '4px' }} /> Notes (optional)
@@ -1127,7 +1053,6 @@ const SubcontractGrnModal: React.FC<SubcontractGrnModalProps> = ({
             />
           </div>
 
-          {/* Status indicators */}
           {isOverage && (
             <div style={{ marginTop: '10px', background: '#fff3e0', padding: '8px 12px', borderRadius: '6px', color: '#e65100', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <FaInfoCircle size={14} /> This entry exceeds the remaining quantity — the extra will be recorded as an overage.
@@ -1135,9 +1060,7 @@ const SubcontractGrnModal: React.FC<SubcontractGrnModalProps> = ({
           )}
 
           {error && (
-            <div style={{ marginTop: '10px', textAlign: 'center', color: '#dc3545', fontSize: '13px' }}>
-              {error}
-            </div>
+            <div style={{ marginTop: '10px', textAlign: 'center', color: '#dc3545', fontSize: '13px' }}>{error}</div>
           )}
         </div>
         <div className="jcf-modal-footer">
@@ -1151,48 +1074,247 @@ const SubcontractGrnModal: React.FC<SubcontractGrnModalProps> = ({
   );
 };
 
-// ─── Success Modal ────────────────────────────────────────────────────
+// ─── 🆕 Full-Screen Loader Overlay ─────────────────────────────────────
+//  A centered modal-style loader shown during create / update / delete /
+//  assign / subcontract / GRN API calls. Uses a soft backdrop blur with a
+//  centered card and spinner — matches the loader UI used on other pages.
+
+const LoaderOverlay: React.FC<{
+  isOpen: boolean;
+  message?: string;
+  subtitle?: string;
+}> = ({ isOpen, message = "Please wait...", subtitle }) => {
+  if (!isOpen) return null;
+
+  return createPortal(
+    <div
+      className="jcf-loader-overlay"
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(15, 23, 42, 0.45)",
+        backdropFilter: "blur(2px)",
+        WebkitBackdropFilter: "blur(2px)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 20000,
+        padding: "20px",
+      }}
+    >
+      <div
+        className="jcf-loader-card"
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: "#ffffff",
+          borderRadius: "16px",
+          padding: "32px 40px",
+          minWidth: "280px",
+          maxWidth: "360px",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: "16px",
+          boxShadow: "0 20px 60px rgba(0, 0, 0, 0.25)",
+          textAlign: "center",
+        }}
+      >
+        <div
+          className="jcf-loader-spinner"
+          style={{
+            width: "52px",
+            height: "52px",
+            borderRadius: "50%",
+            border: "4px solid #e5e7eb",
+            borderTopColor: "#6366f1",
+            animation: "jcf-spin 0.9s linear infinite",
+          }}
+        />
+        <div
+          className="jcf-loader-message"
+          style={{
+            fontSize: "16px",
+            fontWeight: 600,
+            color: "#111827",
+          }}
+        >
+          {message}
+        </div>
+        {subtitle && (
+          <div
+            className="jcf-loader-subtitle"
+            style={{
+              fontSize: "13px",
+              color: "#6b7280",
+              marginTop: "-8px",
+            }}
+          >
+            {subtitle}
+          </div>
+        )}
+      </div>
+      <style>{`
+        @keyframes jcf-spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
+    </div>,
+    document.body
+  );
+};
+
+// ─── 🆕 Success Modal (same UI as PO / GRN / BOM pages) ────────────────
 
 interface SuccessModalProps {
   isOpen: boolean;
-  onClose: () => void;
+  title: string;
   message: string;
-  title?: string;
+  details: { label: string; value: string | number }[];
+  onClose: () => void;
+  onView: () => void;
 }
 
 const SuccessModal: React.FC<SuccessModalProps> = ({
   isOpen,
-  onClose,
+  title,
   message,
-  title = "Success",
+  details,
+  onClose,
+  onView,
 }) => {
-  useEffect(() => {
-    if (isOpen) {
-      const timer = setTimeout(() => onClose(), 3000);
-      return () => clearTimeout(timer);
-    }
-  }, [isOpen, onClose]);
-
   if (!isOpen) return null;
 
-  return (
-    <div className="jcf-modal-overlay" onClick={onClose}>
-      <div className="jcf-validation-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: "450px" }}>
-        <div className="jcf-modal-header jcf-modal-header-success">
-          <h2 className="jcf-modal-title-plain">
-            <FaCheck style={{ color: "#28a745", marginRight: "8px" }} />{title}
-          </h2>
-          <button className="jcf-modal-close" onClick={onClose}>×</button>
+  return createPortal(
+    <div
+      className="jcf-modal-overlay"
+      onClick={onClose}
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0,0,0,0.5)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 30000,
+      }}
+    >
+      <div
+        className="jcf-success-modal"
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: "#ffffff",
+          borderRadius: "12px",
+          maxWidth: "480px",
+          width: "90%",
+          overflow: "hidden",
+          boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
+          textAlign: "center",
+          padding: "32px 24px",
+        }}
+      >
+        {/* Green check icon */}
+        <div
+          style={{
+            width: "64px",
+            height: "64px",
+            borderRadius: "50%",
+            background: "#d1fae5",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            margin: "0 auto 16px",
+          }}
+        >
+          <FaCheck style={{ color: "#10b981", fontSize: "32px" }} />
         </div>
-        <div className="jcf-modal-body" style={{ textAlign: "center", padding: "30px 20px" }}>
-          <div style={{ fontSize: "48px", marginBottom: "16px" }}><FaCheck style={{ color: "#28a745" }} /></div>
-          <p style={{ fontSize: "16px", margin: 0, color: "#333" }}>{message}</p>
-        </div>
-        <div className="jcf-modal-footer" style={{ justifyContent: "center" }}>
-          <button className="jcf-btn-primary" onClick={onClose}><FaCheck size={12} /> OK</button>
+
+        <h2 style={{ margin: "0 0 8px", fontSize: "20px", fontWeight: 700, color: "#111827" }}>
+          {title}
+        </h2>
+
+        <p style={{ margin: "0 0 24px", fontSize: "14px", color: "#6b7280" }}>
+          {message}
+        </p>
+
+        {details.length > 0 && (
+          <div
+            style={{
+              background: "#f9fafb",
+              borderRadius: "8px",
+              border: "1px solid #e5e7eb",
+              padding: "16px",
+              marginBottom: "24px",
+              textAlign: "left",
+            }}
+          >
+            {details.map((detail, idx) => (
+              <div
+                key={idx}
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  marginBottom: idx < details.length - 1 ? "12px" : "0",
+                }}
+              >
+                <span style={{ fontSize: "13px", color: "#6b7280" }}>{detail.label}</span>
+                <span style={{ fontSize: "13px", fontWeight: 600, color: "#111827" }}>
+                  {detail.value}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div style={{ display: "flex", gap: "12px", justifyContent: "center" }}>
+          <button
+            onClick={onClose}
+            style={{
+              flex: 1,
+              padding: "10px 16px",
+              borderRadius: "6px",
+              border: "1px solid #d1d5db",
+              background: "transparent",
+              color: "#6b7280",
+              cursor: "pointer",
+              fontSize: "14px",
+              fontWeight: 500,
+              transition: "background 0.15s",
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = "#f3f4f6"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+          >
+            Close
+          </button>
+          <button
+            onClick={onView}
+            style={{
+              flex: 1,
+              padding: "10px 16px",
+              borderRadius: "6px",
+              border: "none",
+              background: "#2563eb",
+              color: "#ffffff",
+              cursor: "pointer",
+              fontSize: "14px",
+              fontWeight: 500,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: "6px",
+              transition: "background 0.15s",
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = "#1d4ed8"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = "#2563eb"; }}
+          >
+            <FaEye size={14} />
+            View
+          </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 
@@ -1312,8 +1434,15 @@ const JobCardForm: React.FC = () => {
   const [apiError, setApiError] = useState<string | null>(null);
   const [showValidationSummary, setShowValidationSummary] = useState(false);
   const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
-  const [showSuccessModal, setShowSuccessModal] = useState(false);
-  const [successMessage, setSuccessMessage] = useState("");
+
+  // 🆕 New success-modal state shape
+  const [successModal, setSuccessModal] = useState<SuccessModalState>({
+    isOpen: false,
+    title: "",
+    message: "",
+    details: [],
+  });
+
   const [formData, setFormData] = useState<JobCardFormData>(defaultFormData());
   const [, setJobCardDocName] = useState<string>("");
   const [workOrders] = useState<WorkOrderOption[]>([]);
@@ -1345,6 +1474,15 @@ const JobCardForm: React.FC = () => {
   const [recordingGrn, setRecordingGrn] = useState(false);
 
   const [jcSerialAndBatchBundle, setJcSerialAndBatchBundle] = useState<string>("");
+
+  // 🆕 Helper to open the new success modal with details.
+  const showSuccess = (
+    title: string,
+    message: string,
+    details: { label: string; value: string | number }[] = []
+  ) => {
+    setSuccessModal({ isOpen: true, title, message, details });
+  };
 
   const getRemainingQty = () => {
     return Math.max(0, (formData.qty_to_manufacture || formData.for_quantity || 0) -
@@ -1444,8 +1582,7 @@ const JobCardForm: React.FC = () => {
     if (sco.status === 'Completed' || (sco.per_received ?? 0) >= 100) mappedReceiptStatus = 'Completed';
     else if ((sco.per_received ?? 0) > 0 || totalReceivedFromSCO > 0 || totalRejectedFromSCO > 0) mappedReceiptStatus = 'Partial';
 
-    // Store the SCO's service charges data
-    const serviceCharge = sco.receipts && sco.receipts.length > 0 
+    const serviceCharge = sco.receipts && sco.receipts.length > 0
       ? sco.receipts.reduce((sum, r) => sum + (r.service_charges || 0), 0)
       : 0;
     const transportCost = sco.receipts && sco.receipts.length > 0
@@ -1714,8 +1851,16 @@ const JobCardForm: React.FC = () => {
       const selected = employees.filter((emp) => selectedEmployeeIds.has(String(emp.id)));
       setFormData((prev) => ({ ...prev, assigned_employees: selected.map((emp) => getEmployeeCode(emp)) }));
       setShowEmployeeModal(false);
-      setSuccessMessage("Employee(s) assigned successfully!");
-      setShowSuccessModal(true);
+
+      // 🆕 New success modal with details
+      showSuccess(
+        "Success!",
+        "Employee(s) assigned successfully!",
+        [
+          { label: "Job Card", value: String(currentJobCardId) },
+          { label: "Assigned", value: selected.map((emp) => getEmployeeName(emp)).join(", ") || "—" },
+        ]
+      );
     } catch (err: any) { setApiError(err.response?.data?.message || "Failed to assign employees"); }
     finally { setAssigningEmployees(false); }
   };
@@ -1829,12 +1974,29 @@ const JobCardForm: React.FC = () => {
 
       setShowCompletionModal(false);
 
+      // 🆕 Show the new success modal with details
       if (isPartial) {
-        setSuccessMessage(`Processed ${completedQty} units (${lossQty} loss). ${newPendingQty} units remaining.`);
+        showSuccess(
+          "Success!",
+          `Processed ${completedQty} units (${lossQty} loss). ${newPendingQty} units remaining.`,
+          [
+            { label: "Job Card", value: String(currentJobCardId ?? "—") },
+            { label: "Completed", value: completedQty },
+            { label: "Loss", value: lossQty },
+            { label: "Remaining", value: newPendingQty },
+          ]
+        );
       } else {
-        setSuccessMessage("Job Card completed successfully!");
+        showSuccess(
+          "Success!",
+          "Job Card completed successfully!",
+          [
+            { label: "Job Card", value: String(currentJobCardId ?? "—") },
+            { label: "Total Completed", value: newTotalCompleted },
+            { label: "Status", value: "Completed" },
+          ]
+        );
       }
-      setShowSuccessModal(true);
 
       if (isEditMode && id) {
         fetchJobCardById(id);
@@ -1858,7 +2020,17 @@ const JobCardForm: React.FC = () => {
 
       const response = await api.put("/job-card", payload);
       if (response.data.success !== 1) throw new Error(response.data?.message || "Failed to update job card");
-      setSuccessMessage("Job Card updated successfully!"); setShowSuccessModal(true);
+
+      // 🆕 Show success modal with details
+      showSuccess(
+        "Success!",
+        "Job Card updated successfully!",
+        [
+          { label: "Job Card", value: String(currentJobCardId ?? "—") },
+          { label: "Work Order", value: formData.work_order || "—" },
+          { label: "Status", value: formData.status },
+        ]
+      );
       if (id) fetchJobCardById(id);
     } catch (err: any) { setApiError(err.response?.data?.message || "Failed to update job card"); }
     finally { setSaving(false); }
@@ -1940,7 +2112,18 @@ const JobCardForm: React.FC = () => {
 
       const response = await api.put("/job-card", payload);
       if (response.data.success !== 1) throw new Error(response.data?.message || "Failed to save job card");
-      navigate("/job-card");
+
+      // 🆕 Show success modal instead of immediately navigating
+      const newId = response.data?.data?.id ?? currentJobCardId ?? "—";
+      showSuccess(
+        "Success!",
+        "Job Card created successfully!",
+        [
+          { label: "Job Card ID", value: String(newId) },
+          { label: "Work Order", value: formData.work_order || "—" },
+          { label: "Qty", value: formData.qty_to_manufacture || formData.for_quantity || 0 },
+        ]
+      );
     } catch (err: any) { setApiError(err.response?.data?.message || err.message || "Failed to save job card"); }
     finally { setSaving(false); }
   };
@@ -2041,8 +2224,8 @@ const JobCardForm: React.FC = () => {
   };
 
   const buildSubcontractingReceiptPayload = (
-    receivedQty: number, 
-    rejectedQty: number, 
+    receivedQty: number,
+    rejectedQty: number,
     serviceCharge: number,
     transportCost: number,
     otherCharges: number,
@@ -2216,8 +2399,17 @@ const JobCardForm: React.FC = () => {
         remarks: updatedRemarks,
       }));
 
-      setSuccessMessage("Subcontract submitted. You can now record GRN entries as materials come back.");
-      setShowSuccessModal(true);
+      // 🆕 Show success modal with details
+      showSuccess(
+        "Success!",
+        "Subcontract submitted. You can now record GRN entries as materials come back.",
+        [
+          { label: "Job Card", value: String(currentJobCardId ?? "—") },
+          { label: "Vendor", value: formData.subcontractor_name || "—" },
+          { label: "SCO No.", value: scoNameFromResponse || scoName || "—" },
+          { label: "Reason", value: reasonLabel },
+        ]
+      );
 
       if (isEditMode && id) fetchJobCardById(id);
     } catch (err: any) {
@@ -2267,11 +2459,11 @@ const JobCardForm: React.FC = () => {
       const updatedRemarks = formData.remarks ? `${formData.remarks}\n${grnNote}` : grnNote;
 
       const receiptPayload = buildSubcontractingReceiptPayload(
-        receivedQty, 
-        rejectedQty, 
-        serviceCharge, 
-        transportCost, 
-        otherCharges, 
+        receivedQty,
+        rejectedQty,
+        serviceCharge,
+        transportCost,
+        otherCharges,
         remarks
       );
       const receiptResponse = await api.post("/subcontracting-receipt", receiptPayload);
@@ -2297,7 +2489,6 @@ const JobCardForm: React.FC = () => {
         }
       }
 
-      // Update form data with new GRN entry and totals
       setFormData((prev) => ({
         ...prev,
         grn_entries: [...prev.grn_entries, newEntry],
@@ -2309,15 +2500,26 @@ const JobCardForm: React.FC = () => {
         pending_qty: newPendingQty,
         status: newJcStatus,
         remarks: updatedRemarks,
-        // Update service charge totals from the GRN entry
         service_charge: (prev.service_charge || 0) + serviceCharge,
         transport_cost: (prev.transport_cost || 0) + transportCost,
         other_charges: (prev.other_charges || 0) + otherCharges,
       }));
 
       setShowGrnModal(false);
-      setSuccessMessage(`GRN recorded: ${receivedQty} received, ${rejectedQty} rejected. Charges added.`);
-      setShowSuccessModal(true);
+
+      // 🆕 Show success modal with GRN details
+      showSuccess(
+        "Success!",
+        `GRN recorded: ${receivedQty} received, ${rejectedQty} rejected. Charges added.`,
+        [
+          { label: "Job Card", value: String(currentJobCardId ?? "—") },
+          { label: "Received", value: receivedQty },
+          { label: "Rejected", value: rejectedQty },
+          { label: "Service (₹)", value: serviceCharge.toFixed(2) },
+          { label: "Transport (₹)", value: transportCost.toFixed(2) },
+          { label: "Other (₹)", value: otherCharges.toFixed(2) },
+        ]
+      );
 
       if (isEditMode && id) fetchJobCardById(id);
     } catch (err: any) {
@@ -2404,7 +2606,6 @@ const JobCardForm: React.FC = () => {
     );
   };
 
-  // ─── Render Receipt History Table ──────────────────────────────────────
   const renderReceiptHistory = () => {
     if (scoReceipts.length === 0) return null;
 
@@ -2699,7 +2900,7 @@ const JobCardForm: React.FC = () => {
           </div>
         </div>
 
-        {/* Service Charges - Now Read-Only Totals */}
+        {/* Service Charges Summary */}
         {formData.po_created && (
           <div className="jcf-card jcf-charges-card">
             <div className="jcf-card-header">
@@ -2769,7 +2970,6 @@ const JobCardForm: React.FC = () => {
               </div>
             </div>
 
-            {/* ─── RECEIPT HISTORY TABLE ─── */}
             {renderReceiptHistory()}
 
             <div style={{ marginTop: '14px' }}>
@@ -2789,11 +2989,55 @@ const JobCardForm: React.FC = () => {
     );
   };
 
+  // ─── Derived busy state for the loader ─────────────────────────────
+  const isBusy = saving || assigningEmployees || isStartingJob || recordingGrn;
+
+  const busyMessage =
+    saving
+      ? "Saving Job Card..."
+      : assigningEmployees
+      ? "Assigning Employees..."
+      : recordingGrn
+      ? "Recording GRN Entry..."
+      : isStartingJob
+      ? "Processing Job Card..."
+      : "Please wait...";
+
+  const busySubtitle =
+    saving
+      ? "Please wait while we save your changes."
+      : assigningEmployees
+      ? "Updating assigned employees, please wait."
+      : recordingGrn
+      ? "Posting the material receipt, please wait."
+      : isStartingJob
+      ? "Please wait while we process the job card."
+      : undefined;
+
   // ─── MAIN RENDER ──────────────────────────────────────────────────────
 
   return (
     <div className="jcf-page">
-      <SuccessModal isOpen={showSuccessModal} onClose={() => setShowSuccessModal(false)} message={successMessage} />
+      {/* 🆕 New Success Modal */}
+      <SuccessModal
+        isOpen={successModal.isOpen}
+        title={successModal.title}
+        message={successModal.message}
+        details={successModal.details}
+        onClose={() => {
+          setSuccessModal(prev => ({ ...prev, isOpen: false }));
+          navigate("/job-card");
+        }}
+        onView={() => setSuccessModal(prev => ({ ...prev, isOpen: false }))}
+      />
+
+      {/* 🆕 Full-screen loader for all in-flight API calls */}
+      <LoaderOverlay
+        isOpen={isBusy}
+        message={busyMessage}
+        subtitle={busySubtitle}
+      />
+
       <CompletionModal
         isOpen={showCompletionModal}
         onClose={() => setShowCompletionModal(false)}

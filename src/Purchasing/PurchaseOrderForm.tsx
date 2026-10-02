@@ -6,6 +6,9 @@
 // UPDATED: Added VIEW MODE support via URL parameter ?mode=view
 // FIXED: Guard against literal ":id" route param and non-numeric ids so the
 //        page doesn't redirect to the list when a bad id is passed.
+// FIXED: "Search Item Code" field now clears its filter on focus so the user
+//        can easily switch to another item after making a selection.
+// UPDATED: Added Success Modal and Global Loader for create/update API calls.
 
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
@@ -262,6 +265,19 @@ export default function PurchaseOrderForm() {
   const [apiError, setApiError] = useState<string | null>(null);
   const [masterDataLoaded, setMasterDataLoaded] = useState(false);
   
+  // 🆕 Success Modal State
+  const [successModal, setSuccessModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    details: { label: string; value: string | number }[];
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    details: [],
+  });
+
   // State for suppliers
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loadingSuppliers, setLoadingSuppliers] = useState(false);
@@ -306,6 +322,9 @@ export default function PurchaseOrderForm() {
   const [itemCodeOptions, setItemCodeOptions] = useState<Item[]>([]);
   const [loadingItemCode, setLoadingItemCode] = useState(false);
   const [selectedItemCode, setSelectedItemCode] = useState<Item | null>(null);
+  // 🆕 Track whether the item-code input is focused so we can show the search
+  //    term (with all options) while focused and the selected label otherwise.
+  const [isItemCodeFocused, setIsItemCodeFocused] = useState(false);
   const itemCodeInputRef = useRef<HTMLInputElement>(null);
   const itemCodeDropdownRef = useRef<HTMLDivElement>(null);
 
@@ -724,7 +743,7 @@ export default function PurchaseOrderForm() {
   const fetchItemCodeOptions = async () => {
     setLoadingItemCode(true);
     try {
-      const response = await api.get('/item?page=1&limit=10');
+      const response = await api.get('/item?page=1&limit=1000');
       if (response.data && response.data.success === 1) {
         const items = response.data.data?.records || response.data.data || [];
         setItemCodeOptions(items);
@@ -741,7 +760,12 @@ export default function PurchaseOrderForm() {
     if (isViewMode) return;
     
     setSelectedItemCode(item);
-    setItemCodeSearchTerm(`${item.item_code} - ${item.item_name}`);
+    // 🆕 Don't store the full label in the search term — the input will render
+    //    the selected item's label via the computed display value when not
+    //    focused, so leaving the search term empty lets the next focus show
+    //    the full list again.
+    setItemCodeSearchTerm('');
+    setIsItemCodeFocused(false);
     setShowItemCodeDropdown(false);
     
     // Pre-fill item details
@@ -766,11 +790,24 @@ export default function PurchaseOrderForm() {
     }));
   };
 
+  // 🆕 Computed display value for the "Search Item Code" input:
+  //    - While focused → show the live search term (starts empty so all
+  //      items appear)
+  //    - While not focused → show the selected item's label, or the raw
+  //      search term if nothing is selected
+  const itemCodeDisplayValue = isItemCodeFocused
+    ? itemCodeSearchTerm
+    : selectedItemCode
+    ? `${selectedItemCode.item_code} - ${selectedItemCode.item_name}`
+    : itemCodeSearchTerm;
+
   // ─── Filtered Item Code Options ──────────────────────────
-  const filteredItemCodeOptions = itemCodeOptions.filter(item =>
-    item.item_code.toLowerCase().includes(itemCodeSearchTerm.toLowerCase()) ||
-    item.item_name.toLowerCase().includes(itemCodeSearchTerm.toLowerCase())
-  );
+  const filteredItemCodeOptions = itemCodeSearchTerm.trim()
+    ? itemCodeOptions.filter(item =>
+        item.item_code.toLowerCase().includes(itemCodeSearchTerm.toLowerCase()) ||
+        item.item_name.toLowerCase().includes(itemCodeSearchTerm.toLowerCase())
+      )
+    : itemCodeOptions;
 
   // ─── Fetch Customers ─────────────────────────────────────────────────
   const fetchCustomers = async () => {
@@ -1896,8 +1933,17 @@ export default function PurchaseOrderForm() {
         : await api.post('/purchase-order', payload);
 
       if (response.data && response.data.success === 1) {
-        toast.success(isEdit ? 'Purchase Order updated successfully!' : 'Purchase Order created successfully!');
-        navigate('/purchase-order');
+        // 🆕 Instead of toast + navigate, we show the success modal
+        setSuccessModal({
+          isOpen: true,
+          title: 'Success!',
+          message: isEdit ? 'Purchase Order updated successfully!' : 'Purchase Order created successfully!',
+          details: [
+            { label: 'PO Number', value: formData.poNumber },
+            { label: 'Supplier', value: formData.supplier },
+            { label: 'Grand Total', value: `${formData.currency} ${calculatedGrandTotal.toFixed(2)}` },
+          ]
+        });
       } else {
         setApiError(response.data?.message || 'Failed to save purchase order');
       }
@@ -1920,6 +1966,17 @@ export default function PurchaseOrderForm() {
   };
 
   const hasErrors = !isViewMode && (getAllValidationErrors().length > 0 || !formData.deliveryDate);
+
+  // 🆕 Handle Close from Success Modal
+  const handleSuccessModalClose = () => {
+    setSuccessModal(prev => ({ ...prev, isOpen: false }));
+    navigate('/purchase-order');
+  };
+
+  // 🆕 Handle View from Success Modal (Stay on page)
+  const handleSuccessModalView = () => {
+    setSuccessModal(prev => ({ ...prev, isOpen: false }));
+  };
 
   // ─── Render Add Supplier Popup ─────────────────────────────
   const renderAddSupplierPopup = () => {
@@ -3136,6 +3193,226 @@ export default function PurchaseOrderForm() {
     return createPortal(dropdownContent, document.body);
   };
 
+  // 🆕 Render Success Modal
+  const renderSuccessModal = () => {
+    if (!successModal.isOpen) return null;
+
+    const primaryColor = '#6366f1';
+    const isDark = theme === 'dark';
+
+    return createPortal(
+      <div 
+        className="pof-modal-overlay" 
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0,0,0,0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 100000,
+        }}
+      >
+        <div 
+          className="pof-success-modal" 
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            background: isDark ? '#1e1e2f' : '#ffffff',
+            borderRadius: '12px',
+            maxWidth: '480px',
+            width: '90%',
+            overflow: 'hidden',
+            boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+            textAlign: 'center',
+            padding: '32px 24px',
+          }}
+        >
+          {/* Green Checkmark Icon */}
+          <div style={{
+            width: '64px',
+            height: '64px',
+            borderRadius: '50%',
+            background: '#d1fae5',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            margin: '0 auto 16px',
+          }}>
+            <FaCheckCircle size={32} style={{ color: '#10b981' }} />
+          </div>
+
+          {/* Title */}
+          <h2 style={{ 
+            margin: '0 0 8px', 
+            fontSize: '20px', 
+            fontWeight: 700,
+            color: isDark ? '#f3f4f6' : '#111827'
+          }}>
+            {successModal.title}
+          </h2>
+
+          {/* Message */}
+          <p style={{ 
+            margin: '0 0 24px', 
+            fontSize: '14px', 
+            color: isDark ? '#9ca3af' : '#6b7280'
+          }}>
+            {successModal.message}
+          </p>
+
+          {/* Details Box */}
+          <div style={{
+            background: isDark ? '#2a2a3a' : '#f9fafb',
+            borderRadius: '8px',
+            border: `1px solid ${isDark ? '#3a3a4a' : '#e5e7eb'}`,
+            padding: '16px',
+            marginBottom: '24px',
+            textAlign: 'left',
+          }}>
+            {successModal.details.map((detail, idx) => (
+              <div key={idx} style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                marginBottom: idx < successModal.details.length - 1 ? '12px' : '0',
+              }}>
+                <span style={{ 
+                  fontSize: '13px', 
+                  color: isDark ? '#9ca3af' : '#6b7280' 
+                }}>
+                  {detail.label}
+                </span>
+                <span style={{ 
+                  fontSize: '13px', 
+                  fontWeight: 600, 
+                  color: isDark ? '#e5e7eb' : '#111827' 
+                }}>
+                  {detail.value}
+                </span>
+              </div>
+            ))}
+          </div>
+
+          {/* Buttons */}
+          <div style={{
+            display: 'flex',
+            gap: '12px',
+            justifyContent: 'center',
+          }}>
+            <button
+              onClick={handleSuccessModalClose}
+              style={{
+                flex: 1,
+                padding: '10px 16px',
+                borderRadius: '6px',
+                border: `1px solid ${isDark ? '#3a3a4a' : '#d1d5db'}`,
+                background: 'transparent',
+                color: isDark ? '#9ca3af' : '#6b7280',
+                cursor: 'pointer',
+                fontSize: '14px',
+                fontWeight: 500,
+                transition: 'background 0.15s',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = isDark ? '#2a2a3a' : '#f3f4f6';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'transparent';
+              }}
+            >
+              Close
+            </button>
+            <button
+              onClick={handleSuccessModalView}
+              style={{
+                flex: 1,
+                padding: '10px 16px',
+                borderRadius: '6px',
+                border: 'none',
+                background: '#2563eb',
+                color: '#ffffff',
+                cursor: 'pointer',
+                fontSize: '14px',
+                fontWeight: 500,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px',
+                transition: 'background 0.15s',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = '#1d4ed8';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = '#2563eb';
+              }}
+            >
+              <FaEye size={14} />
+              View
+            </button>
+          </div>
+        </div>
+      </div>,
+      document.body
+    );
+  };
+
+  // 🆕 Full Screen Loader for API calls
+  const renderGlobalLoader = () => {
+    if (!loading) return null;
+
+    return createPortal(
+      <div 
+        className="pof-global-loader-overlay"
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0,0,0,0.4)',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 99999,
+          backdropFilter: 'blur(2px)',
+        }}
+      >
+        <div style={{
+          background: theme === 'dark' ? '#1e1e2f' : '#ffffff',
+          borderRadius: '12px',
+          padding: '32px 48px',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: '16px',
+          boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+        }}>
+          <FaSpinner className="pof-spinning" size={40} style={{ color: '#6366f1' }} />
+          <p style={{
+            margin: 0,
+            fontSize: '16px',
+            fontWeight: 500,
+            color: theme === 'dark' ? '#e5e7eb' : '#111827'
+          }}>
+            Saving Purchase Order...
+          </p>
+          <p style={{
+            margin: 0,
+            fontSize: '13px',
+            color: theme === 'dark' ? '#9ca3af' : '#6b7280'
+          }}>
+            Please wait while we process your request
+          </p>
+        </div>
+      </div>,
+      document.body
+    );
+  };
+
   if (loadingData) {
     return (
       <div className={`pof-page ${theme}`}>
@@ -3197,6 +3474,12 @@ export default function PurchaseOrderForm() {
 
         {/* ─── Add Item Popup ──────────────────────────────────────── */}
         {renderAddItemPopup()}
+
+        {/* ─── Success Modal ──────────────────────────────────────── */}
+        {renderSuccessModal()}
+
+        {/* ─── Global Loader ──────────────────────────────────────── */}
+        {renderGlobalLoader()}
 
         {/* ─── API Error Display ────────────────────────────────────── */}
         {apiError && (
@@ -3436,18 +3719,30 @@ export default function PurchaseOrderForm() {
                         <input
                           ref={itemCodeInputRef}
                           type="text"
-                          value={itemCodeSearchTerm}
+                          value={itemCodeDisplayValue}
                           onChange={(e) => {
                             if (isViewMode) return;
                             setItemCodeSearchTerm(e.target.value);
+                            setIsItemCodeFocused(true);
                             setShowItemCodeDropdown(true);
                             setSelectedItemCode(null);
                           }}
                           onFocus={() => {
                             if (!isViewMode) {
+                              // 🆕 Clear the search term on focus so ALL items
+                              //    are shown again — this lets the user easily
+                              //    switch to a different item after having
+                              //    already selected one.
+                              setIsItemCodeFocused(true);
+                              setItemCodeSearchTerm('');
                               setShowItemCodeDropdown(true);
                               fetchItemCodeOptions();
                             }
+                          }}
+                          onBlur={() => {
+                            // 🆕 Once focus is lost, revert to showing the
+                            //    selected item's label in the input.
+                            setIsItemCodeFocused(false);
                           }}
                           className={`pof-form-field ${isViewMode ? 'pof-field-disabled' : ''}`}
                           placeholder="Search item by code or name..."

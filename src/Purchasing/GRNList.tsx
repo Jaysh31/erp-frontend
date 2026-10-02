@@ -20,6 +20,8 @@ import {
   FaUser,
   FaExclamationTriangle,
   FaChevronDown,
+  FaCheckCircle,
+  FaSpinner, // 🆕 added for loader
 } from 'react-icons/fa';
 import "./GRNList.css";
 import { PageLoader } from '../components/PageLoader';
@@ -92,7 +94,6 @@ interface ApiResponse {
   limit: number;
 }
 
-// 🆕 Status option shape
 interface StatusOption {
   value: string;
   label: string;
@@ -121,9 +122,6 @@ const formatDisplayDate = (iso: string, formatFn?: (date: string) => string): st
 
 const WEEKDAY_LABELS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
 
-// 🆕 Full list of statuses shown in the dropdown (from the reference UI).
-//    These are always available, and any extra statuses returned by the
-//    purchase-order API are merged in on top.
 const DEFAULT_STATUS_OPTIONS: StatusOption[] = [
   { value: 'all', label: 'All Status' },
   { value: 'draft', label: 'Draft' },
@@ -178,10 +176,6 @@ function normalizeTab(raw: string | null): TabId | null {
   return null;
 }
 
-/**
- * 🆕 Robustly extracts an array of records from any of the
- * many shapes the backend might return.
- */
 function extractRecords(res: any): any[] {
   if (!res) return [];
   const d = res?.data?.data?.data ?? res?.data?.data ?? res?.data;
@@ -311,6 +305,12 @@ export default function GRNList() {
 
   const { theme, formatDate } = useAdminTheme();
 
+  // ✅ FIX: Safely derive isDark from theme without the TS "no overlap" error.
+  //    The theme value may come through as a string at runtime, but its
+  //    declared type (AdminThemeType) doesn't include the literal 'dark',
+  //    so we coerce to string before comparing.
+  const isDark = String(theme) === 'dark';
+
   // ── State ──────────────────────────────────────────────────────
   const [allGrns, setAllGrns] = useState<GRNDisplay[]>([]);
   const [loading, setLoading] = useState(false);
@@ -323,11 +323,23 @@ export default function GRNList() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [selectedItem, setSelectedItem] = useState<GRNDisplay | null>(null);
 
-  // 🆕 Status options state — seeded with the full list from the reference UI
+  // 🆕 State for Success Modal and Action Loading
+  const [actionLoading, setActionLoading] = useState(false);
+  const [successModal, setSuccessModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    details: { label: string; value: string | number }[];
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    details: [],
+  });
+
   const [statusOptions, setStatusOptions] = useState<StatusOption[]>(DEFAULT_STATUS_OPTIONS);
   const [statusOptionsLoading, setStatusOptionsLoading] = useState(true);
 
-  // Mobile list row expansion state
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
 
   const toggleRowExpand = (id: string, e?: React.MouseEvent) => {
@@ -356,9 +368,7 @@ export default function GRNList() {
   };
 
   // ====================================================================
-  // 🆕 FETCH STATUS OPTIONS FROM PURCHASE-ORDER API
-  //    - Always keeps the full default list visible
-  //    - Merges in any extra statuses the API returns
+  // FETCH STATUS OPTIONS FROM PURCHASE-ORDER API
   // ====================================================================
   useEffect(() => {
     let cancelled = false;
@@ -382,7 +392,6 @@ export default function GRNList() {
 
         console.log('🟢 [STATUS-API] Extracted records count:', records.length);
 
-        // Collect distinct, non-empty status strings from the API
         const distinct = new Set<string>();
         records.forEach((po: any) => {
           const st = (po?.status ?? '').toString().trim();
@@ -391,12 +400,10 @@ export default function GRNList() {
 
         console.log('🟢 [STATUS-API] Distinct statuses found:', Array.from(distinct));
 
-        // Build a lookup of default statuses (lowercased) so we don't duplicate
         const existing = new Set(
           DEFAULT_STATUS_OPTIONS.map((o) => o.value.toLowerCase())
         );
 
-        // Convert API statuses into options (skip ones already present)
         const apiOptions: StatusOption[] = Array.from(distinct)
           .map((s) => ({
             value: s.toLowerCase(),
@@ -404,7 +411,6 @@ export default function GRNList() {
           }))
           .filter((opt) => !existing.has(opt.value));
 
-        // Final list = defaults + any new API-only statuses
         const finalOptions: StatusOption[] = [
           ...DEFAULT_STATUS_OPTIONS,
           ...apiOptions,
@@ -419,7 +425,6 @@ export default function GRNList() {
 
         if (cancelled) return;
 
-        // Fallback: still show the full default list
         setStatusOptions(DEFAULT_STATUS_OPTIONS);
       } finally {
         if (!cancelled) {
@@ -588,7 +593,6 @@ export default function GRNList() {
   };
 
   // ─── Fetch ALL GRNs ──────────────────────────────────────────────
-  //    Now includes the `status` param so server-side filtering works.
 
   const fetchGRNs = async () => {
     setLoading(true);
@@ -611,7 +615,6 @@ export default function GRNList() {
         console.log('Filtering to date:', dateTo);
       }
 
-      // ✅ Send the status filter to the GRN API so it can be applied server-side
       if (statusFilter && statusFilter !== 'all') {
         params.append('status', statusFilter);
         console.log('Filtering by status:', statusFilter);
@@ -678,7 +681,6 @@ export default function GRNList() {
 
   // ─── Effects ────────────────────────────────────────────────────
 
-  // ✅ Refetch GRNs whenever search, date, or status filter changes
   useEffect(() => {
     fetchGRNs();
   }, [searchTerm, dateFrom, dateTo, statusFilter]);
@@ -770,7 +772,6 @@ export default function GRNList() {
 
   const getStatusLabel = (status: string) => {
     if (!status) return 'Draft';
-    // Find matching option label if available, otherwise title-case the raw value
     const match = statusOptions.find(
       (o) => o.value.toLowerCase() === status.toLowerCase()
     );
@@ -791,16 +792,34 @@ export default function GRNList() {
 
   const confirmDelete = async () => {
     if (!selectedItem) return;
+    
+    setActionLoading(true);
+    
     try {
       const response = await api.delete(`/grn/${selectedItem.id}`);
       if (response.data.success === 1) {
         setShowDeleteConfirm(false);
-        setSelectedItem(null);
+        
+        setSuccessModal({
+          isOpen: true,
+          title: 'Success!',
+          message: 'GRN deleted successfully!',
+          details: [
+            { label: 'GRN No.', value: selectedItem.grnNo },
+            { label: 'Party', value: selectedItem.partyName },
+          ]
+        });
+        
         fetchGRNs();
+      } else {
+        alert(response.data.message || 'Failed to delete GRN');
       }
     } catch (err) {
       console.error('Error deleting GRN:', err);
       alert('Failed to delete GRN');
+    } finally {
+      setActionLoading(false);
+      setSelectedItem(null);
     }
   };
 
@@ -826,18 +845,243 @@ export default function GRNList() {
     setSearchParams({});
   };
 
-  // ✅ FIX: The early `if (loading) return <PageLoader />` block has been
-  //    REMOVED. Previously, every keystroke-triggered fetch set
-  //    `loading = true`, which unmounted the entire page (including the
-  //    search input) and caused focus/cursor loss while typing.
-  //    The inline loading bar (rendered just below the filter bar) now
-  //    handles the visual feedback, so the filter bar (and the search
-  //    input) stays mounted and keeps focus.
+  // ─── Render Success Modal ─────────────────────────────────────────
+  const renderSuccessModal = () => {
+    if (!successModal.isOpen) return null;
+
+    return (
+      <div 
+        className="grn-modal-overlay" 
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0,0,0,0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 100000,
+        }}
+        onClick={() => setSuccessModal(prev => ({ ...prev, isOpen: false }))}
+      >
+        <div 
+          className="grn-modal" 
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            background: isDark ? '#1e1e2f' : '#ffffff',
+            borderRadius: '12px',
+            maxWidth: '480px',
+            width: '90%',
+            overflow: 'hidden',
+            boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+            textAlign: 'center',
+            padding: '32px 24px',
+          }}
+        >
+          {/* Green Checkmark Icon */}
+          <div style={{
+            width: '64px',
+            height: '64px',
+            borderRadius: '50%',
+            background: '#d1fae5',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            margin: '0 auto 16px',
+          }}>
+            <FaCheckCircle size={32} style={{ color: '#10b981' }} />
+          </div>
+
+          {/* Title */}
+          <h2 style={{ 
+            margin: '0 0 8px', 
+            fontSize: '20px', 
+            fontWeight: 700,
+            color: isDark ? '#f3f4f6' : '#111827'
+          }}>
+            {successModal.title}
+          </h2>
+
+          {/* Message */}
+          <p style={{ 
+            margin: '0 0 24px', 
+            fontSize: '14px', 
+            color: isDark ? '#9ca3af' : '#6b7280'
+          }}>
+            {successModal.message}
+          </p>
+
+          {/* Details Box */}
+          <div style={{
+            background: isDark ? '#2a2a3a' : '#f9fafb',
+            borderRadius: '8px',
+            border: `1px solid ${isDark ? '#3a3a4a' : '#e5e7eb'}`,
+            padding: '16px',
+            marginBottom: '24px',
+            textAlign: 'left',
+          }}>
+            {successModal.details.map((detail, idx) => (
+              <div key={idx} style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                marginBottom: idx < successModal.details.length - 1 ? '12px' : '0',
+              }}>
+                <span style={{ 
+                  fontSize: '13px', 
+                  color: isDark ? '#9ca3af' : '#6b7280' 
+                }}>
+                  {detail.label}
+                </span>
+                <span style={{ 
+                  fontSize: '13px', 
+                  fontWeight: 600, 
+                  color: isDark ? '#e5e7eb' : '#111827' 
+                }}>
+                  {detail.value}
+                </span>
+              </div>
+            ))}
+          </div>
+
+          {/* Buttons */}
+          <div style={{
+            display: 'flex',
+            gap: '12px',
+            justifyContent: 'center',
+          }}>
+            <button
+              onClick={() => {
+                setSuccessModal(prev => ({ ...prev, isOpen: false }));
+                navigate('/grn');
+              }}
+              style={{
+                flex: 1,
+                padding: '10px 16px',
+                borderRadius: '6px',
+                border: `1px solid ${isDark ? '#3a3a4a' : '#d1d5db'}`,
+                background: 'transparent',
+                color: isDark ? '#9ca3af' : '#6b7280',
+                cursor: 'pointer',
+                fontSize: '14px',
+                fontWeight: 500,
+                transition: 'background 0.15s',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = isDark ? '#2a2a3a' : '#f3f4f6';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'transparent';
+              }}
+            >
+              Close
+            </button>
+            <button
+              onClick={() => {
+                setSuccessModal(prev => ({ ...prev, isOpen: false }));
+              }}
+              style={{
+                flex: 1,
+                padding: '10px 16px',
+                borderRadius: '6px',
+                border: 'none',
+                background: '#2563eb',
+                color: '#ffffff',
+                cursor: 'pointer',
+                fontSize: '14px',
+                fontWeight: 500,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px',
+                transition: 'background 0.15s',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = '#1d4ed8';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = '#2563eb';
+              }}
+            >
+              <FaEye size={14} />
+              View
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // ─── Render Global Loader ─────────────────────────────────────────
+  const renderGlobalLoader = () => {
+    if (!actionLoading) return null;
+
+    return (
+      <div 
+        className="grn-modal-overlay"
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0,0,0,0.4)',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 99999,
+          backdropFilter: 'blur(2px)',
+        }}
+      >
+        <div style={{
+          background: isDark ? '#1e1e2f' : '#ffffff',
+          borderRadius: '12px',
+          padding: '32px 48px',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: '16px',
+          boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+        }}>
+          <FaSpinner 
+            size={40} 
+            style={{ 
+              color: '#6366f1', 
+              animation: 'grn-spin 0.8s linear infinite' 
+            }} 
+          />
+          <p style={{
+            margin: 0,
+            fontSize: '16px',
+            fontWeight: 500,
+            color: isDark ? '#e5e7eb' : '#111827'
+          }}>
+            Processing...
+          </p>
+          <p style={{
+            margin: 0,
+            fontSize: '13px',
+            color: isDark ? '#9ca3af' : '#6b7280'
+          }}>
+            Please wait while we process your request
+          </p>
+        </div>
+      </div>
+    );
+  };
 
   // ─── Render ─────────────────────────────────────────────────────
 
   return (
     <div className={`grn-page ${theme}`}>
+
+      {/* Success Modal */}
+      {renderSuccessModal()}
+
+      {/* Global Loader */}
+      {renderGlobalLoader()}
 
       {/* ─── Tabs ───────────────────────────────────── */}
       <div className="grn-tabs">
@@ -885,7 +1129,6 @@ export default function GRNList() {
           </div>
         </div>
         <div className="bom-filter-right">
-          {/* 🆕 Status filter with the full list of statuses always available */}
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
@@ -1021,7 +1264,7 @@ export default function GRNList() {
               </div>
             )}
           </div>
-</div>
+        </div>
           <button className="grn-btn-primary" onClick={() => navigate('/grn/new')}>
             <FaPlus size={12} /> New GRN
           </button>
@@ -1054,8 +1297,7 @@ export default function GRNList() {
         </div>
       )}
 
-      {/* ─── Inline loading bar — rendered BELOW the filter bar so the
-             search input stays mounted and keeps focus while typing. ─── */}
+      {/* ─── Inline loading bar ─── */}
       {loading && (
         <div
           style={{
