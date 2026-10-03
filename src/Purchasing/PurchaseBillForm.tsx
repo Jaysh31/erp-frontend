@@ -3277,3 +3277,27 @@ export default function PurchaseInvoiceForm() {
     </div>
   );
 }
+
+function unwrapApi(data: any) {
+  if (data == null) return data;
+
+  // Endpoints may return the payload directly or wrap it in `data`/`result`.
+  // Prefer the standard `data` property, including valid falsy payloads.
+  if (Object.prototype.hasOwnProperty.call(data, 'data')) return data.data;
+  if (Object.prototype.hasOwnProperty.call(data, 'result')) return data.result;
+  return data;
+}
+function unwrapList(data: any) {
+  const payload = unwrapApi(data);
+  if (Array.isArray(payload)) return payload;
+
+  // List endpoints may place the array in a named collection property.
+  if (payload && typeof payload === 'object') {
+    for (const key of ['items', 'list', 'rows', 'results']) {
+      if (Array.isArray(payload[key])) return payload[key];
+    }
+  }
+
+  return [];
+}
+

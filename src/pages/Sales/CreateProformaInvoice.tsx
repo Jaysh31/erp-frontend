@@ -1529,6 +1529,16 @@ const CreateProformaInvoice: React.FC = () => {
             }
           }
 
+          const taxRate = Number(value) || 0;
+const tax_id = getTaxIdFromRate(taxRate, taxOptions);
+const amount = (updated.quantity || 0) * (updated.rate || 0);
+const taxAmount = (amount * taxRate) / 100;
+
+updated.tax = taxRate;
+updated.tax_id = tax_id;
+updated.taxAmount = taxAmount;
+updated.totalAmount = amount + taxAmount;
+
           if (field === 'quantity') {
             const amount = (updated.quantity || 0) * (updated.rate || 0);
             const taxRate = updated.tax || 0;
@@ -1940,18 +1950,45 @@ const CreateProformaInvoice: React.FC = () => {
 
             <div className="npi-field-row">
               <div className="npi-field-full">
-                <label className="npi-label">
-                  Customer <span className="npi-required">*</span>
-                </label>
-                <CustomerDropdown
-                  value={selectedCustomer}
-                  onChange={handleCustomerChange}
-                  placeholder="Search Customer..."
-                  disabled={isLoading || isReadOnly}
-                  error={!!errors.customer}
-                />
-                {errors.customer && <span className="npi-error-text">{errors.customer}</span>}
-              </div>
+  <label className="npi-label">
+    Customer <span className="npi-required">*</span>
+  </label>
+
+  {/*<div className="npi-field-full">
+    <CustomerDropdown
+      value={selectedCustomer}
+      onChange={handleCustomerChange}
+      disabled={isReadOnly}
+      error={!!errors.customer}
+    />
+  </div>*/}
+
+  {errors.customer && (
+    <span className="npi-error-text">
+      {errors.customer}
+    </span>
+  )}
+
+  {/* Customer Name */}
+  {customerData?.name && (
+    <div
+      className="npi-customer-name-display"
+      style={{
+        marginTop: '6px',
+        padding: '8px 10px',
+        border: '1px solid var(--border-color, #e2e8f0)',
+        borderRadius: '6px',
+        background: 'var(--input-bg, #f8fafc)',
+        fontSize: '13px',
+        fontWeight: 600,
+        color: 'var(--text-primary, #0f172a)',
+      }}
+    >
+
+      {customerData.name}
+    </div>
+  )}
+</div>
             </div>
 
             {/* Proforma Details */}
@@ -2132,16 +2169,16 @@ const CreateProformaInvoice: React.FC = () => {
                   <tr key={item.id}>
                     <td className="npi-col-sno">{index + 1}</td>
                     <td className="npi-col-code">
-                      <SearchableSelect
-                        value={item.itemCode}
-                        onChange={(value) => updateItem(item.id, 'itemCode', value)}
-                        options={products}
-                        placeholder="Search..."
-                        onSearch={handleItemSearch}
-                        loading={isLoadingItems}
-                        error={!!errors[`item_${index}_code`]}
-                        disabled={isReadOnly}
-                      />
+                      <input
+          type="text"
+          className="npi-table-input"
+          value={item.itemCode}
+          onChange={(e) =>
+            updateItem(item.id, "itemCode", e.target.value)
+          }
+          placeholder="Item Code"
+          disabled={isReadOnly}
+        />
                     </td>
                     <td className="npi-col-name">
                       <input
@@ -2203,27 +2240,59 @@ const CreateProformaInvoice: React.FC = () => {
                         readOnly={isReadOnly}
                       />
                     </td>
-                    <td className="npi-col-tax">
-                      <select
-                        value={item.tax}
-                        onChange={(e) => updateItem(item.id, 'tax', parseFloat(e.target.value) || 0)}
-                        className="npi-table-input"
-                        disabled={loadingTaxOptions || isReadOnly}
-                      >
-                        <option value={0}>0%</option>
-                        {taxOptions.map((tax) => (
-                          <option key={tax.tax_id} value={extractTaxValue(tax.tax_type)}>
-                            {tax.tax_type}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
-                    <td className="npi-col-tax-amount" style={{ textAlign: 'right' }}>
-                      <span className="npi-table-value">₹{item.taxAmount.toFixed(2)}</span>
-                    </td>
-                    <td className="npi-col-amount" style={{ textAlign: 'right' }}>
-                      <span className="npi-table-value">₹{item.totalAmount.toFixed(2)}</span>
-                    </td>
+                    <td>
+         <select
+    value={item.tax || 0}
+    onChange={(e) =>
+      updateItem(
+        item.id,
+        'tax',
+        Number(e.target.value) || 0
+      )
+    }
+    className="npi-table-input"
+    disabled={isReadOnly}
+  >
+    <option value={0}>0%</option>
+
+    {taxOptions.map((taxOption) => {
+      const taxRate = extractTaxValue(taxOption.tax_type);
+
+      return (
+        <option
+          key={taxOption.tax_id}
+          value={taxRate}
+        >
+          {taxOption.tax_type}
+        </option>
+      );
+    })}
+  </select>
+      </td>
+
+      {/* TAX AMOUNT */}
+      <td className="npi-col-tax-amount"
+  style={{
+    textAlign: 'right',
+    fontWeight: 600,
+    whiteSpace: 'nowrap'
+  }}
+>
+  ₹{Number(item.taxAmount || 0).toFixed(2)}
+      </td>
+
+      <td className="npi-col-amount"
+  style={{
+    textAlign: 'right',
+    fontWeight: 600,
+    whiteSpace: 'nowrap'
+  }}
+>
+        <strong>
+          ₹{Number(item.totalAmount || 0).toFixed(2)}
+        </strong>
+      </td>
+
                     <td className="npi-col-action">
                       {!isReadOnly && (
                         <button onClick={() => removeItem(item.id)} className="npi-remove-btn">
@@ -2239,9 +2308,9 @@ const CreateProformaInvoice: React.FC = () => {
         </div>
 
         {/* BOTTOM SECTION - Payment Schedule */}
-        <div className="npi-bottom-section">
+        <div className="ndc-bottom-section">
           {/* LEFT COLUMN */}
-          <div className="npi-bottom-left">
+          <div className="ndc-bottom-left">
             {/* Payment Schedule Header */}
             <div className="npi-section-header">
               <FaCreditCard className="npi-section-icon" />
@@ -2471,6 +2540,7 @@ const CreateProformaInvoice: React.FC = () => {
           <FaTimes size={11} /> {isReadOnly ? 'Close' : 'Cancel'}
         </button>
       </div>
+    </div>
     </div>
   );
 };

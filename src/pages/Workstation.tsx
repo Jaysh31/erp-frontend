@@ -307,11 +307,20 @@ export default function WorkstationList() {
   if (validCurrentPage !== currentPage && currentPage > 1) {
     setCurrentPage(validCurrentPage);
   }
-  
-  // ✅ Client-side pagination - slice the data
-  const startIndex = (validCurrentPage - 1) * itemsPerPage;
-  const endIndex = Math.min(startIndex + itemsPerPage, totalFilteredItems);
-  const paginatedData = allWorkstations.slice(startIndex, endIndex);
+}, [currentPage, totalPages]);
+
+// Client-side pagination
+const startIndex = (validCurrentPage - 1) * itemsPerPage;
+const endIndex = Math.min(
+  startIndex + itemsPerPage,
+  totalFilteredItems
+);
+
+// Records displayed on the current page
+const paginatedData = allWorkstations.slice(
+  startIndex,
+  endIndex
+);
 
   // ─── Pagination ───────────────────────────────────────────────────────────
 

@@ -529,6 +529,7 @@ const DeliveryChallans: React.FC = () => {
       
       if (debouncedSearchTerm.trim()) {
         params.append('search', debouncedSearchTerm.trim());
+        params.append('search_by', 'all');
       }
       
       if (selectedStatus !== 'All') {
