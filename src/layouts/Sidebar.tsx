@@ -51,10 +51,12 @@ const ROUTE_MODULE_MAP: Array<{ prefix: string; module: string }> = [
   { prefix: "/sales-bill", module: "sales" },
   { prefix: "/sales-invoice", module: "sales" },
   { prefix: "/customer", module: "sales" },
-  { prefix: "/item-list", module: "sales" },
-  { prefix: "/item-group", module: "sales" },
+  { prefix: "/sales/item-list", module: "sales" },
+{ prefix: "/sales/item-group", module: "sales" },
 
   // Setup
+  { prefix: "/item-list", module: "setup" },
+{ prefix: "/item-group", module: "setup" },
   { prefix: "/warehouse", module: "setup" },
   { prefix: "/Workstation", module: "setup" },
   { prefix: "/operations", module: "setup" },
@@ -159,10 +161,12 @@ const ROUTE_CATEGORY_MAP: Array<{ prefix: string; category: string }> = [
   { prefix: "/delivery-challan", category: "Sales" },
   { prefix: "/sales-bill", category: "Sales" },
   { prefix: "/customer", category: "Customers" },
-  { prefix: "/item-list", category: "Items & Pricing" },
-  { prefix: "/item-group", category: "Items & Pricing" },
+  { prefix: "sales/item-list", category: "Items & Pricing" },
+  { prefix: "sales/item-group", category: "Items & Pricing" },
 
   // Setup
+  { prefix: "/item-list", category: "Setup" },
+  { prefix: "/item-group", category: "Setup" },
   { prefix: "/warehouse", category: "Setup" },
   { prefix: "/Workstation", category: "Setup" },
   { prefix: "/operations", category: "Setup" },
@@ -399,8 +403,8 @@ export default function Sidebar({
       module: 'sales',
       icon: <ItemIcon />,
       items: [
-        { title: 'Item', icon: <ItemIcon />, path: '/item-list', apiSubmodule: 'Item' },
-        { title: 'Item Group', icon: <FolderIcon />, path: '/item-group', apiSubmodule: 'Item Group' },
+        { title: 'Item', icon: <ItemIcon />, path: 'sales/item-list', apiSubmodule: 'Item' },
+        { title: 'Item Group', icon: <FolderIcon />, path: 'sales/item-group', apiSubmodule: 'Item Group' },
       ]
     },
     {

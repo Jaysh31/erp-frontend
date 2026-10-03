@@ -1240,6 +1240,66 @@ export default function QuotationPage() {
   return (
     <div className={`quotation-page ${theme}`}>
       <style>{`
+      .quotation-page {
+          display: flex;
+          flex-direction: column;
+          height: 100%;
+          background: #f5f7fb;
+          border-radius: 8px;
+          padding: 20px;
+          gap: 16px;
+          overflow-y: auto;
+          overflow-x: hidden;
+        }
+
+        .quotation-page::-webkit-scrollbar {
+          width: 6px;
+        }
+        .quotation-page::-webkit-scrollbar-track {
+          background: #f9fafb;
+          border-radius: 3px;
+        }
+        .quotation-page::-webkit-scrollbar-thumb {
+          background: #e5e7eb;
+          border-radius: 3px;
+        }
+        .quotation-page::-webkit-scrollbar-thumb:hover {
+          background: #6366f1;
+        }
+
+      .qt-table-wrap {
+          background: #ffffff;
+          border-radius: 12px;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+          border: 1px solid #e5e7eb;
+          overflow-x: auto;
+          overflow-y: visible;
+          flex: 0 0 auto;
+        }
+
+        .qt-table-wrap::-webkit-scrollbar {
+          width: 6px;
+          height: 6px;
+        }
+        .qt-table-wrap::-webkit-scrollbar-track {
+          background: #f9fafb;
+          border-radius: 3px;
+        }
+        .qt-table-wrap::-webkit-scrollbar-thumb {
+          background: #e5e7eb;
+          border-radius: 3px;
+        }
+        .qt-table-wrap::-webkit-scrollbar-thumb:hover {
+          background: #6366f1;
+        }
+        
+        .qt-table {
+          width: 100%;
+          border-collapse: collapse;
+          font-size: 13px;
+          min-width: 700px;
+        }
+
         /* ============================================================
            MOBILE ACCORDION CARD LIST (renders only below 768px)
            Desktop table logic/markup is untouched — this is an

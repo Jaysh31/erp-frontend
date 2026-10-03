@@ -297,21 +297,42 @@ export default function WorkstationList() {
   }, [searchTerm, statusFilter, dateFrom, dateTo]);
 
   // ─── Calculate pagination values (CLIENT-SIDE) ────────────────────────
-  
-  // Get the current page data from all records
-  const totalFilteredItems = currentPage;
-  const totalPages = Math.ceil(totalFilteredItems / itemsPerPage) || 1;
-  const validCurrentPage = Math.min(currentPage, totalPages);
-  
-  // If current page is invalid, update it
-  if (validCurrentPage !== currentPage && currentPage > 1) {
-    setCurrentPage(validCurrentPage);
+
+// Total number of records after search/status/date filters
+const totalFilteredItems = allWorkstations.length;
+
+// Calculate total pages correctly
+const totalPages = Math.max(
+  1,
+  Math.ceil(totalFilteredItems / itemsPerPage)
+);
+
+// Make sure current page is always valid
+const validCurrentPage = Math.min(
+  Math.max(currentPage, 1),
+  totalPages
+);
+
+// If current page becomes invalid after filtering,
+// move back to the last available page
+useEffect(() => {
+  if (currentPage > totalPages) {
+    setCurrentPage(totalPages);
   }
-  
-  // ✅ Client-side pagination - slice the data
-  const startIndex = (validCurrentPage - 1) * itemsPerPage;
-  const endIndex = Math.min(startIndex + itemsPerPage, totalFilteredItems);
-  const paginatedData = allWorkstations.slice(startIndex, endIndex);
+}, [currentPage, totalPages]);
+
+// Client-side pagination
+const startIndex = (validCurrentPage - 1) * itemsPerPage;
+const endIndex = Math.min(
+  startIndex + itemsPerPage,
+  totalFilteredItems
+);
+
+// Records displayed on the current page
+const paginatedData = allWorkstations.slice(
+  startIndex,
+  endIndex
+);
 
   // ─── Pagination ───────────────────────────────────────────────────────────
 

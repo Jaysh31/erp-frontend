@@ -1,6 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate, useParams } from "react-router-dom";
 import { AdminThemeProvider } from './admin-theme/AdminThemeContext';
-import ChatbotWidget from './pages/components/ChatbotWidget';
 import { ModuleProvider } from './context/ModuleContext';
 import { FormStateProvider } from "./context/FormStateContext";
 import LoginPage from "./pages/LoginPage";
@@ -78,7 +77,7 @@ import StockDashboard from "./pages/DashboardPages/StockDashboard";
 import QualityDashboard from "./pages/DashboardPages/QualityDashboard";
 import GRNForm from "./Purchasing/GRNForm";
 import GRNList from "./Purchasing/GRNList";
-import PurchaseInvoiceForm from "./Purchasing/PurchaseBillForm";
+import PurchaseInvoiceFormComponent from "./Purchasing/PurchaseBillForm";
 import UserManagement from "./pages/UserManagement/UserManagement";
 import Employee from "./pages/Setup/Employee";
 import EmployeeForm from "./pages/Setup/EmployeeForm";
@@ -109,6 +108,9 @@ import GeneralAccountEntry from "./pages/Generalaccountentry";
 import CreditForm from "./pages/CreditForm";
 import DebitForm from "./pages/DebitForm";
 import GAEForm from "./pages/GAEForm";
+
+const PurchaseInvoiceForm = PurchaseInvoiceFormComponent as unknown as React.ComponentType;
+
 
 // ────────────────────────────────────────────────────────────
 // FIXED REDIRECT HELPER
@@ -246,6 +248,14 @@ function App() {
 
                 <Route path="/item-group" element={<ItemGroupList />} />
                 <Route path="/item-group/:id" element={<ItemGroupForm />} />
+
+                <Route path="/sales/item-list" element={<Itemlist />} />
+                <Route path="/item/:id" element={<ItemForm />} />
+                <Route path="/sales/item-group" element={<ItemGroupList />} />
+                <Route path="/item-group/:id" element={<ItemGroupForm />} />
+
+
+
                 <Route path="/stock-entry" element={<Stockentry />} />
                 <Route path="/stock-entry/new" element={<StockentryForm2 />} />
                 <Route path="/stock-entry/:id" element={<StockentryForm2 />} />
@@ -339,7 +349,6 @@ function App() {
             {/* ============ CHATBOT WIDGET ============ */}
             {/* Placed inside BrowserRouter + ModuleProvider so it can use
                 useLocation() and useModule(). It floats above every page. */}
-            <ChatbotWidget />
              <ChatBot />
           </BrowserRouter>
         </FormStateProvider>
