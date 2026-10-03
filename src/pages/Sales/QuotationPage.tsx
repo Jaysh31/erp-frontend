@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import {
   FaSearch, FaPlus, FaEye, FaEdit, FaTrash, FaFilePdf, FaPrint,
   FaFilter, FaCheckCircle, FaClock, FaTimesCircle,
@@ -311,28 +311,11 @@ function buildCalendarGrid(year: number, month: number): (Date | null)[] {
    will keep working unchanged, it just needs { name, role }.
 ------------------------------------------------------------------------ */
 
-// 🆕 Normalize a status string from the URL query param into the exact
-// casing the dropdown uses.
-//   "sent"       → "Sent"
-//   "accepted"   → "Accepted"
-//   "in process" → "In Process"
-//   "on hold"    → "On Hold"
-const normalizeStatusParam = (raw: string): string => {
-  if (!raw) return 'All';
-  const s = raw.trim();
-  if (!s) return 'All';
-  // Special multi-word statuses
-  const lower = s.toLowerCase();
-  if (lower === 'in process' || lower === 'in-process') return 'In Process';
-  if (lower === 'on hold' || lower === 'on-hold') return 'On Hold';
-  // Capitalize first letter, lowercase the rest
-  return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
-};
+
+
 
 export default function QuotationPage() {
   const navigate = useNavigate();
-  // 🆕 Read URL query params (?status=...&autoFilter=1) sent by the chatbot
-  const [searchParams, setSearchParams] = useSearchParams();
 
   const { theme, formatDate } = useAdminTheme();
 
@@ -407,32 +390,6 @@ export default function QuotationPage() {
     if (!dateString) return '';
     return formatDate(dateString);
   };
-
-  // 🆕 On mount (and whenever the URL query string changes), read the
-  // status / autoFilter params sent by the chatbot and apply them to the
-  // local filter state. After applying, strip them from the URL so a
-  // refresh doesn't re-trigger the filter.
-  useEffect(() => {
-    const statusParam = searchParams.get('status');
-    const autoFilter = searchParams.get('autoFilter');
-
-    if (statusParam) {
-      const normalized = normalizeStatusParam(statusParam);
-      console.log(`🎯 QuotationPage: applying URL status filter → "${normalized}"`);
-      setSelectedStatus(normalized);
-      setCurrentPage(1);
-
-      // Remove ?status=...&autoFilter=... from the URL so the filter
-      // only fires once and the user can freely change filters after.
-      if (autoFilter === '1') {
-        const next = new URLSearchParams(searchParams);
-        next.delete('status');
-        next.delete('autoFilter');
-        setSearchParams(next, { replace: true });
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams]);
 
 
   // ─── Date Filter Functions ─────────────────────────────────────────────
@@ -551,11 +508,7 @@ export default function QuotationPage() {
       params.append('page', String(currentPage));
       params.append('limit', String(itemsPerPage));
 
-      // 🆕 Send the selected status to the server so pagination + filter
-      // stay in sync (previously this was omitted).
-      if (selectedStatus && selectedStatus !== 'All') {
-        params.append('status', selectedStatus);
-      }
+      
 
      
 
@@ -808,6 +761,8 @@ export default function QuotationPage() {
 
 
   // ─── UPDATED: View & Edit navigation ────────────────────────────────
+  // View  →  /quotation/:id            (read-only, CreateQuotation detects no edit intent)
+  // Edit  →  /quotation/:id?mode=edit  (editable, CreateQuotation picks up the flag)
   const handleView = (quote: Quotation) => {
     navigate(`/quotation/${quote.id}`, {
       state: { quotation: quote, viewMode: true, edit: false },
@@ -888,13 +843,6 @@ export default function QuotationPage() {
     setTempFromDate(null);
     setTempToDate(null);
     setCurrentPage(1);
-
-    // 🆕 Also strip any leftover status/autoFilter params from the URL
-    // so clear-filters actually clears everything.
-    const next = new URLSearchParams(searchParams);
-    next.delete('status');
-    next.delete('autoFilter');
-    setSearchParams(next, { replace: true });
   };
 
 
@@ -1292,6 +1240,66 @@ export default function QuotationPage() {
   return (
     <div className={`quotation-page ${theme}`}>
       <style>{`
+      .quotation-page {
+          display: flex;
+          flex-direction: column;
+          height: 100%;
+          background: #f5f7fb;
+          border-radius: 8px;
+          padding: 20px;
+          gap: 16px;
+          overflow-y: auto;
+          overflow-x: hidden;
+        }
+
+        .quotation-page::-webkit-scrollbar {
+          width: 6px;
+        }
+        .quotation-page::-webkit-scrollbar-track {
+          background: #f9fafb;
+          border-radius: 3px;
+        }
+        .quotation-page::-webkit-scrollbar-thumb {
+          background: #e5e7eb;
+          border-radius: 3px;
+        }
+        .quotation-page::-webkit-scrollbar-thumb:hover {
+          background: #6366f1;
+        }
+
+      .qt-table-wrap {
+          background: #ffffff;
+          border-radius: 12px;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+          border: 1px solid #e5e7eb;
+          overflow-x: auto;
+          overflow-y: visible;
+          flex: 0 0 auto;
+        }
+
+        .qt-table-wrap::-webkit-scrollbar {
+          width: 6px;
+          height: 6px;
+        }
+        .qt-table-wrap::-webkit-scrollbar-track {
+          background: #f9fafb;
+          border-radius: 3px;
+        }
+        .qt-table-wrap::-webkit-scrollbar-thumb {
+          background: #e5e7eb;
+          border-radius: 3px;
+        }
+        .qt-table-wrap::-webkit-scrollbar-thumb:hover {
+          background: #6366f1;
+        }
+        
+        .qt-table {
+          width: 100%;
+          border-collapse: collapse;
+          font-size: 13px;
+          min-width: 700px;
+        }
+
         /* ============================================================
            MOBILE ACCORDION CARD LIST (renders only below 768px)
            Desktop table logic/markup is untouched — this is an

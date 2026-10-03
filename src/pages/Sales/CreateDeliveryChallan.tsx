@@ -5484,21 +5484,10 @@ const NewDeliveryChallan: React.FC = () => {
                     <span className="ndc-summary-label">Total Tax</span>
                     <span className="ndc-summary-value">₹{totalTax.toFixed(2)}</span>
                   </div>
-                  <div className="ndc-summary-item">
-                    <span className="ndc-summary-label">Round Off</span>
-                    <div className="ndc-roundoff-wrap">
-                      <input
-                        type="number"
-                        value={roundOff.toFixed(2)}
-                        onChange={(e) => setRoundOff(parseFloat(e.target.value) || 0)}
-                        className="ndc-roundoff-input"
-                        disabled={isViewMode}
-                      />
-                    </div>
-                  </div>
+                  
                   <div className="ndc-summary-grand">
                     <span className="ndc-summary-grand-label">Grand Total</span>
-                    <span className="ndc-summary-grand-value">₹{grandTotalWithRound.toFixed(2)}</span>
+                    <span className="ndc-summary-grand-value">₹{grandTotal.toFixed(2)}</span>
                   </div>
                 </div>
               </div>

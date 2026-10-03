@@ -248,6 +248,14 @@ function App() {
 
                 <Route path="/item-group" element={<ItemGroupList />} />
                 <Route path="/item-group/:id" element={<ItemGroupForm />} />
+
+                <Route path="/sales/item-list" element={<Itemlist />} />
+                <Route path="/item/:id" element={<ItemForm />} />
+                <Route path="/sales/item-group" element={<ItemGroupList />} />
+                <Route path="/item-group/:id" element={<ItemGroupForm />} />
+
+
+
                 <Route path="/stock-entry" element={<Stockentry />} />
                 <Route path="/stock-entry/new" element={<StockentryForm2 />} />
                 <Route path="/stock-entry/:id" element={<StockentryForm2 />} />

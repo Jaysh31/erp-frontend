@@ -344,26 +344,7 @@ const CreditForm: React.FC = () => {
     }
   };
 
-  const handleSaveClose = async () => {
-    if (!validateForm()) return;
-    setSaving(true);
-    setSuccessMessage(null);
-    try {
-      const result = await saveCreditDetails();
-      const entryNo = result?.data?.entry_no || "ACC-XXXXX";
-      setSuccessMessage(
-        `✅ Account entry ${entryNo} created successfully.`
-      );
-      setTimeout(() => {
-        window.history.back();
-      }, 1200);
-    } catch (err: any) {
-      console.error("Failed to save:", err);
-      alert(err.response?.data?.message || "Failed to save credit details");
-    } finally {
-      setSaving(false);
-    }
-  };
+  
 
   return (
     <div className="rd-credit-page">

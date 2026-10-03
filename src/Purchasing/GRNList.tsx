@@ -1,5 +1,5 @@
 import { useState, useEffect, type JSX, useRef } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import {
   FaSearch,
   FaFilter,
@@ -119,48 +119,6 @@ const formatDisplayDate = (iso: string, formatFn?: (date: string) => string): st
 
 const WEEKDAY_LABELS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
 
-// ─── 🆕 STATUS NORMALIZATION ─────────────────────────────────────
-// Maps chatbot status strings → dropdown values for GRN
-function normalizeStatusForGRNDropdown(raw: string | null): string | null {
-  if (!raw) return null;
-  const s = raw.toLowerCase().trim();
-  switch (s) {
-    case 'draft': return 'draft';
-    case 'submitted':
-    case 'submit':
-      return 'submitted';
-    case 'completed':
-    case 'complete':
-    case 'done':
-    case 'finished':
-    case 'closed':
-    case 'approved':
-    case 'accepted':
-    case 'received':
-    case 'fully received':
-      return 'completed';
-    case 'rejected':
-    case 'reject':
-    case 'cancelled':
-    case 'canceled':
-    case 'cancel':
-      return 'rejected';
-    default:
-      return null;
-  }
-}
-
-// ─── 🆕 TAB NORMALIZATION ────────────────────────────────────────
-function normalizeTab(raw: string | null): TabId | null {
-  if (!raw) return null;
-  const s = raw.toLowerCase().trim();
-  if (s === 'all') return 'all';
-  if (s === 'po' || s === 'purchase order' || s === 'purchase-order') return 'po';
-  if (s === 'manual' || s === 'manual entry') return 'manual';
-  if (s === 'service') return 'service';
-  return null;
-}
-
 // ─── Range Calendar Component ────────────────────────────────────
 
 interface RangeCalendarProps {
@@ -274,8 +232,7 @@ function RangeCalendar({ month, onMonthChange, fromDate, toDate, onSelect }: Ran
 
 export default function GRNList() {
   const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useSearchParams();
-
+  
   // ✅ GET THE DATE FORMAT FUNCTION FROM CONTEXT
   const { theme, formatDate } = useAdminTheme();
 
@@ -320,94 +277,7 @@ export default function GRNList() {
     return formatDate(dateString);
   };
 
-  // ====================================================================
-  // 🆕 READ FILTERS FROM URL QUERY PARAMS (chatbot navigation support)
-  // ====================================================================
-  useEffect(() => {
-    const urlStatus = searchParams.get('status');
-    const urlSearch = searchParams.get('search');
-    const urlDateFrom = searchParams.get('date_from');
-    const urlDateTo = searchParams.get('date_to');
-    const urlTab = searchParams.get('tab');
-    const autoFilter = searchParams.get('autoFilter');
-
-    let hasUrlFilters = false;
-
-    if (urlStatus) {
-      const normalized = normalizeStatusForGRNDropdown(urlStatus);
-      if (normalized) {
-        setStatusFilter(normalized);
-        hasUrlFilters = true;
-      }
-    }
-
-    if (urlTab) {
-      const normalizedTab = normalizeTab(urlTab);
-      if (normalizedTab) {
-        setActiveTab(normalizedTab);
-        hasUrlFilters = true;
-      }
-    }
-
-    if (urlSearch) {
-      setSearchTerm(urlSearch);
-      hasUrlFilters = true;
-    }
-
-    if (urlDateFrom) {
-      setDateFrom(urlDateFrom);
-      hasUrlFilters = true;
-    }
-    if (urlDateTo) {
-      setDateTo(urlDateTo);
-      hasUrlFilters = true;
-    }
-
-    if (hasUrlFilters) {
-      console.log('🔗 URL filters detected on GRNList:', {
-        status: urlStatus,
-        tab: urlTab,
-        search: urlSearch,
-        dateFrom: urlDateFrom,
-        dateTo: urlDateTo,
-        autoFilter,
-      });
-      setCurrentPage(1);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // run once on mount
-
-  // Also react to URL changes after mount (chatbot navigates while already on this page)
-  useEffect(() => {
-    const urlStatus = searchParams.get('status');
-    const urlSearch = searchParams.get('search');
-    const urlDateFrom = searchParams.get('date_from');
-    const urlDateTo = searchParams.get('date_to');
-    const urlTab = searchParams.get('tab');
-
-    if (urlStatus) {
-      const normalized = normalizeStatusForGRNDropdown(urlStatus);
-      if (normalized && statusFilter !== normalized) {
-        setStatusFilter(normalized);
-      }
-    }
-    if (urlTab) {
-      const normalizedTab = normalizeTab(urlTab);
-      if (normalizedTab && activeTab !== normalizedTab) {
-        setActiveTab(normalizedTab);
-      }
-    }
-    if (urlSearch && searchTerm !== urlSearch) {
-      setSearchTerm(urlSearch);
-    }
-    if (urlDateFrom && dateFrom !== urlDateFrom) {
-      setDateFrom(urlDateFrom);
-    }
-    if (urlDateTo && dateTo !== urlDateTo) {
-      setDateTo(urlDateTo);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams]);
+  // ✅ NEW: Format date for API (YYYY-MM-DD)
 
   // ── Tabs config ─────────────────────────────────────────────────
   const tabs: { id: TabId; label: string; icon: JSX.Element }[] = [
@@ -432,9 +302,12 @@ export default function GRNList() {
   }, []);
 
   // ─── Helper: Format GRN Number ──────────────────────────────
-  // ✅ UPDATED: pad to 5 digits — e.g. GRN-00145
+  
   const formatGRNNumber = (grnNumber: string, id: number): string => {
-    return `GRN-${String(id).padStart(5, '0')}`;
+    if (grnNumber && grnNumber.startsWith('GRN-') && grnNumber.length <= 12) {
+      return grnNumber;
+    }
+    return `GRN-${String(id).padStart(4, '0')}`;
   };
 
   // ─── Quick presets for the calendar ──────────────────────────
@@ -703,9 +576,6 @@ export default function GRNList() {
     setDateFrom('');
     setDateTo('');
     setShowDateFilterDropdown(false);
-
-    // 🆕 Clear URL query params too
-    setSearchParams({});
   };
 
   // ─── Render ─────────────────────────────────────────────────────

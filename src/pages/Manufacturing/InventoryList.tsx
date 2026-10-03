@@ -1,6 +1,6 @@
 // InventoryList.tsx
 import { useState, useEffect, useMemo } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import {
   FaSearch,
   FaTimes,
@@ -13,7 +13,7 @@ import {
   FaTrash,
   FaBoxes,
   FaWarehouse,
-
+  
   FaDollarSign,
   FaArrowUp,
   FaExclamationTriangle,
@@ -27,8 +27,7 @@ import {
   FaMapMarkerAlt,
   FaLock,
   FaLockOpen,
-  FaChevronDown,
-  FaFilter
+  FaChevronDown
 } from "react-icons/fa";
 import "./InventoryList.css";
 import '../Sales/SalesMobileTable.css';
@@ -131,36 +130,6 @@ type InventoryStatus =
 type StockStatus = "All" | InventoryStatus;
 type ActiveTab = "all" | "internal" | "external";
 
-// 🆕 Map chatbot status keywords → Inventory status values
-const URL_STATUS_TO_INV_STATUS: Record<string, InventoryStatus> = {
-  "in stock":      "In Stock",
-  "instock":       "In Stock",
-  "available":     "In Stock",
-  "low stock":     "Low Stock",
-  "lowstock":      "Low Stock",
-  "low":           "Low Stock",
-  "out of stock":  "Out of Stock",
-  "out-of-stock":  "Out of Stock",
-  "outofstock":    "Out of Stock",
-  "out":           "Out of Stock",
-  "empty":         "Out of Stock",
-  "over stock":    "Over Stock",
-  "overstock":     "Over Stock",
-  "over-stock":    "Over Stock",
-  "excess":        "Over Stock",
-};
-
-function resolveInventoryStatus(rawStatus: string): InventoryStatus | null {
-  if (!rawStatus) return null;
-  const norm = rawStatus.toLowerCase().trim();
-  if (URL_STATUS_TO_INV_STATUS[norm]) return URL_STATUS_TO_INV_STATUS[norm];
-
-  for (const [key, val] of Object.entries(URL_STATUS_TO_INV_STATUS)) {
-    if (norm.includes(key) || key.includes(norm)) return val;
-  }
-  return null;
-}
-
 // ─── Warehouse visual identity helpers ────────────────────────────────────
 const getWarehouseVisual = (name: string) => {
   const n = (name || "").toLowerCase();
@@ -194,13 +163,6 @@ const getWarehouseOrderRank = (name: string, type?: string | null) => {
 
 export default function InventoryList() {
   const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useSearchParams();
-
-  // 🆕 URL-driven status filter
-  const urlStatus = searchParams.get("status") || "";
-  const urlAutoFilter = searchParams.get("autoFilter") === "1";
-  const isUrlFiltered = !!urlStatus && urlAutoFilter;
-
   const { theme } = useAdminTheme();
 
   const [inventoryItems, setInventoryItems] = useState<InventoryDisplay[]>([]);
@@ -244,16 +206,6 @@ export default function InventoryList() {
     });
   };
 
-  // 🆕 Sync URL status → statusFilter dropdown
-  useEffect(() => {
-    if (isUrlFiltered && urlStatus) {
-      const mapped = resolveInventoryStatus(urlStatus);
-      if (mapped) {
-        setStatusFilter(mapped as StockStatus);
-        setCurrentPage(1);
-      }
-    }
-  }, [isUrlFiltered, urlStatus]);
 
   // ─── Fetch Warehouses ──────────────────────────────────────────────
   const fetchWarehouses = async () => {
@@ -497,10 +449,7 @@ export default function InventoryList() {
     setDetailWarehouseId(id);
     setViewMode("detail");
     setActiveTab("all");
-    // 🆕 Keep the URL-driven status filter if present
-    if (!isUrlFiltered) {
-      setStatusFilter("All");
-    }
+    setStatusFilter("All");
     setSearchTerm("");
   };
 
@@ -540,16 +489,6 @@ export default function InventoryList() {
     setSearchTerm("");
     setStatusFilter("All");
     setActiveTab("all");
-    setCurrentPage(1);
-  };
-
-  // 🆕 Clears the URL-driven status filter
-  const clearUrlStatusFilter = () => {
-    const next = new URLSearchParams(searchParams);
-    next.delete("status");
-    next.delete("autoFilter");
-    setSearchParams(next);
-    setStatusFilter("All");
     setCurrentPage(1);
   };
 
@@ -684,13 +623,13 @@ export default function InventoryList() {
       return Math.min(currentPage * itemsPerPage, detailItems.length);
     }
 
-
+    
       // ─── Loading Screen ─────────────────────────────────────────────────────
         if (loading) {
           return (
             <div className={`p-6 max-w-7xl mx-auto ${theme}`}>
               <PageLoader
-                message="Loading Organization & Company List..."
+                message="Loading Organization & Company List..." 
                 //subtitle="Calculating bill of materials, operations rates, and component structures"
               />
             </div>
@@ -699,26 +638,6 @@ export default function InventoryList() {
 
     return (
       <>
-        {/* 🆕 URL-driven status filter banner */}
-        {isUrlFiltered && (
-          <div className="inv-url-filter-banner">
-            <FaFilter size={12} />
-            <span>
-              Showing Inventory with status: <strong>{resolveInventoryStatus(urlStatus) || urlStatus}</strong>
-            </span>
-            <span className="inv-url-filter-count">
-              ({detailItems.length} record{detailItems.length === 1 ? "" : "s"})
-            </span>
-            <button
-              className="inv-url-filter-clear"
-              onClick={clearUrlStatusFilter}
-              title="Clear status filter"
-            >
-              <FaTimes size={10} /> Clear
-            </button>
-          </div>
-        )}
-
         <div className="inv-detail-header">
           <button className="inv-detail-back" onClick={backToWarehouses}>
             <FaArrowLeft size={12} /> All Warehouses
@@ -799,19 +718,12 @@ export default function InventoryList() {
           </div>
         </div>
 
-        {(searchTerm || statusFilter !== "All" || isUrlFiltered) && (
+        {(searchTerm || statusFilter !== "All") && (
           <div className="inv-active-filters">
             <span>Active filters:</span>
-            {isUrlFiltered && <span><strong>Status (URL):</strong> {resolveInventoryStatus(urlStatus) || urlStatus}</span>}
             {searchTerm && <span><strong>Search:</strong> "{searchTerm}"</span>}
             {statusFilter !== "All" && <span><strong>Status:</strong> {statusFilter}</span>}
-            <button
-              onClick={() => {
-                clearFilters();
-                if (isUrlFiltered) clearUrlStatusFilter();
-              }}
-              className="inv-clear-filters"
-            >
+            <button onClick={clearFilters} className="inv-clear-filters">
               <FaTimes size={10} /> Clear
             </button>
           </div>
@@ -882,13 +794,7 @@ export default function InventoryList() {
                             <div className="inv-action-buttons">
                               <button
                                 className="wo-action-btn wo-action-view"
-                                onClick={() =>
-                                  navigate(
-                                    `/inventory/detail/${encodeURIComponent(item.itemCode)}` +
-                                    `?type=${encodeURIComponent(item.type)}` +
-                                    `&warehouse_id=${encodeURIComponent(String(item.warehouseId))}`
-                                  )
-                                }
+                                onClick={() => navigate(`/inventory/detail/${item.itemCode}?type=${item.type}`)}
                                 title="View Details"
                               >
                                 <FaEye size={12} />
@@ -1024,13 +930,7 @@ export default function InventoryList() {
                               <div className="sales-mobile-action-buttons">
                                 <button
                                   className="wo-action-btn wo-action-view"
-                                  onClick={() =>
-                                    navigate(
-                                      `/inventory/detail/${encodeURIComponent(item.itemCode)}` +
-                                      `?type=${encodeURIComponent(item.type)}` +
-                                      `&warehouse_id=${encodeURIComponent(String(item.warehouseId))}`
-                                    )
-                                  }
+                                  onClick={() => navigate(`/inventory/detail/${item.itemCode}?type=${item.type}`)}
                                   title="View Details"
                                 >
                                   <FaEye size={12} />
