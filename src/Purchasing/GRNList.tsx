@@ -24,7 +24,6 @@ import {
   FaSpinner, // 🆕 added for loader
 } from 'react-icons/fa';
 import "./GRNList.css";
-import { PageLoader } from '../components/PageLoader';
 import { useAdminTheme } from '../admin-theme/AdminThemeContext';
 import api from '../services/api';
 
@@ -551,7 +550,7 @@ export default function GRNList() {
   }, []);
 
   // ─── Helper: Format GRN Number ──────────────────────────────
-  const formatGRNNumber = (grnNumber: string, id: number): string => {
+  const formatGRNNumber = (_grnNumber: string, id: number): string => {
     return `GRN-${String(id).padStart(5, '0')}`;
   };
 

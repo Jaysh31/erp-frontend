@@ -22,7 +22,6 @@ import "./OperationListing.css";
 import '../Sales/SalesMobileTable.css';
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
 import api from '../../services/api';
-import { PageLoader } from "../components/PageLoader";
 
 interface Operation {
   id: number;

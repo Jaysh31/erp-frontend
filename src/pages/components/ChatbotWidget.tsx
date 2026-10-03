@@ -30,11 +30,10 @@ export default function ChatbotWidget() {
   const location = useLocation();
   const {
     isChatbotOpen,
-    openChatbot,
-    closeChatbot,
+   
     chatMessages,
     addChatMessage,
-    clearChatMessages,
+    
     isChatbotLoading,
     setIsChatbotLoading,
     currentModule,

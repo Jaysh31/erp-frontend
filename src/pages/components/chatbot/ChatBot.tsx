@@ -12,13 +12,13 @@ import {
   matchEndpoint,
   extractSearchToken,
   searchAllModulesForRecord,
-  detectSmartNavigation,
+  
   fetchDetailPageData,
   DETAIL_PAGE_APIS,
   ERP_ENDPOINTS,
   ENDPOINT_ROUTES,
   isLatestListQuery,
-  fetchAndBuildLatestListNavigation,
+  
 } from "../../../services/erpApi";
 
 interface Msg {
@@ -243,20 +243,6 @@ function formatShortDate(d: Date | null): string {
   return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
 }
 
-function timeAgo(d: Date | null): string {
-  if (!d) return "";
-  const sec = Math.floor((Date.now() - d.getTime()) / 1000);
-  if (sec < 60) return "just now";
-  const min = Math.floor(sec / 60);
-  if (min < 60) return `${min} min ago`;
-  const hr = Math.floor(min / 60);
-  if (hr < 24) return `${hr} hr ago`;
-  const days = Math.floor(hr / 24);
-  if (days < 30) return `${days} day${days === 1 ? "" : "s"} ago`;
-  const mo = Math.floor(days / 30);
-  if (mo < 12) return `${mo} mo ago`;
-  return `${Math.floor(mo / 12)} yr ago`;
-}
 
 type DateRange = { label: string; from: Date; to: Date } | null;
 

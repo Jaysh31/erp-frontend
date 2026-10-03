@@ -36,7 +36,6 @@ import './SalesMobileTable.css';
 import toast from 'react-hot-toast';
 
 import * as XLSX from 'xlsx';
-import { PageLoader } from '../components/PageLoader';
 
 // ═══════════════════════════════════════════════════════════════════════
 // 🆕 Filter preservation helpers
