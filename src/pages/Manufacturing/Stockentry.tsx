@@ -582,17 +582,13 @@ export default function Stockentry() {
     </div>
   );
 
-  // ─── Loading Screen ─────────────────────────────────────────────────────
-    if (loading) {
-      return (
-        <div className={`p-6 max-w-7xl mx-auto ${theme}`}>
-          <PageLoader 
-            message="Loading Manufacturing & Stock Entry..." 
-            //subtitle="Calculating bill of materials, operations rates, and component structures"
-          />
-        </div>
-      );
-    }
+  // ✅ FIX: The early `if (loading) return <PageLoader />` block has been
+  //    REMOVED. Previously, every keystroke-triggered fetch set
+  //    `loading = true`, which unmounted the entire page (including the
+  //    search input) and caused focus/cursor loss while typing.
+  //    The inline loading state (`{loading && <div className="se-loading">}`)
+  //    further down in the JSX now handles the visual feedback, so the
+  //    filter bar (and the search input) stays mounted and keeps focus.
 
   return (
     <div className={`se-page ${theme}`}>
@@ -768,7 +764,8 @@ export default function Stockentry() {
         </div>
       )}
 
-      {/* ─── Loading State ─── */}
+      {/* ─── Loading State — rendered inline (NOT as an early return) so the
+             search input above never unmounts and keeps focus while typing. ─── */}
       {loading && (
         <div className="se-loading">
           <FaSpinner className="spinning" size={32} />

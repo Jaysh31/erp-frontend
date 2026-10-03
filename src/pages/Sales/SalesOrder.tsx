@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   FaSearch, FaPlus, FaEye, FaEdit, FaTrash, FaFilePdf, FaPrint,
   FaFilter, FaCheckCircle, FaClock, FaTimesCircle,
@@ -110,6 +110,50 @@ interface SalesOrderApiRecord {
     sgst_rate?: number;
   }>;
 }
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🆕 SALES ORDER ID DISPLAY HELPER
+//    Always renders "SO-<zero-padded-to-5-digits>", e.g. SO-00070
+// ═══════════════════════════════════════════════════════════════════════
+const SALES_ORDER_DISPLAY_PREFIX = 'SO-';
+function formatSalesOrderId(id: string | number | null | undefined): string {
+  if (id === null || id === undefined) return '';
+  const n = Number(String(id).trim());
+  if (Number.isNaN(n)) return String(id);
+  return SALES_ORDER_DISPLAY_PREFIX + String(n).padStart(5, '0');
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🆕 Normalize a status string from the URL query param into the exact
+//    casing the dropdown uses.
+//    "draft"       → "Draft"
+//    "confirmed"   → "Confirmed"
+//    "on hold"     → "On Hold"
+//    "on-hold"     → "On Hold"
+//    "cancelled"   → "Cancelled"
+//    "completed"   → "Completed"
+//    "closed"      → "Closed"
+// ═══════════════════════════════════════════════════════════════════════
+const normalizeStatusParam = (raw: string): string => {
+  if (!raw) return 'All';
+  // URLSearchParams has already decoded "+" and "%20" into spaces,
+  // but defensively handle the rare case where the raw string still
+  // contains URL-encoded spaces.
+  const s = raw.replace(/\+/g, ' ').replace(/%20/gi, ' ').trim();
+  if (!s) return 'All';
+  const lower = s.toLowerCase();
+  if (lower === 'on hold' || lower === 'on-hold') return 'On Hold';
+  if (lower === 'confirmed' || lower === 'confirm') return 'Confirmed';
+  if (lower === 'cancelled' || lower === 'canceled' || lower === 'cancel') return 'Cancelled';
+  if (lower === 'completed' || lower === 'complete' || lower === 'done') return 'Completed';
+  if (lower === 'closed' || lower === 'close') return 'Closed';
+  if (lower === 'draft') return 'Draft';
+  // Fallback: capitalize first letter of every word
+  return s
+    .split(/\s+/)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+    .join(' ');
+};
 
 const companyDetails = {
   name: 'Sculptor Tech Pvt Ltd',
@@ -243,6 +287,9 @@ const useDebounce = (value: string, delay: number) => {
 
 export default function SalesOrder() {
   const navigate = useNavigate();
+  // 🆕 Read URL query params (?status=...&autoFilter=1) sent by the chatbot
+  const [searchParams, setSearchParams] = useSearchParams();
+
   const menuRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
   const mobileMenuRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
 
@@ -302,6 +349,37 @@ export default function SalesOrder() {
     if (!dateString) return '';
     return formatDate(dateString);
   };
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // 🆕 On mount (and whenever the URL query string changes), read the
+  //    status / autoFilter params sent by the chatbot and apply them to
+  //    the local filter state. After applying, strip them from the URL so
+  //    a refresh doesn't re-trigger the filter.
+  //
+  //    🆕 Updated to strip the params whether or not autoFilter is "1",
+  //    so the URL stays clean even if the chatbot sends ?status=... alone.
+  // ═══════════════════════════════════════════════════════════════════════
+  useEffect(() => {
+    const statusParam = searchParams.get('status');
+    const autoFilter = searchParams.get('autoFilter');
+
+    if (statusParam) {
+      const normalized = normalizeStatusParam(statusParam);
+      console.log(`🎯 SalesOrder: applying URL status filter → "${normalized}"`);
+      setSelectedStatus(normalized);
+      setCurrentPage(1);
+    }
+
+    // Always strip status / autoFilter from the URL after processing,
+    // regardless of the autoFilter flag.
+    if (statusParam || autoFilter) {
+      const next = new URLSearchParams(searchParams);
+      next.delete('status');
+      next.delete('autoFilter');
+      setSearchParams(next, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
 
   useEffect(() => {
@@ -473,7 +551,8 @@ export default function SalesOrder() {
 
         return {
           id: resolvedId,
-          salesOrderNumber: o.name || generateFallbackOrderNumber(idx),
+          // display number always formatted via helper (SO-00070 etc.)
+          salesOrderNumber: formatSalesOrderId(resolvedId) || generateFallbackOrderNumber(idx),
           customer: o.party_name || '',
           customerName: o.customer_name || '',
           customerEmail: o.contact_email || '',
@@ -734,6 +813,13 @@ export default function SalesOrder() {
     setSelectedQuickFilter('');
     setCurrentPage(1);
     setShowDatePicker(false);
+
+    // 🆕 Also strip any leftover status/autoFilter params from the URL
+    // so clear-filters actually clears everything.
+    const next = new URLSearchParams(searchParams);
+    next.delete('status');
+    next.delete('autoFilter');
+    setSearchParams(next, { replace: true });
   };
 
   const openDatePicker = () => {
@@ -857,6 +943,9 @@ export default function SalesOrder() {
       return formatDisplayDate(dateStr);
     };
 
+    // Always print the SO-<padded-id> form of the sales order number.
+    const printSalesOrderNumber = formatSalesOrderId(order.id);
+
     const itemRows = validItems.map((item, idx) => `
       <tr>
         <td class="pq-col-sl">${idx + 1}</td>
@@ -934,7 +1023,7 @@ export default function SalesOrder() {
 <html>
 <head>
 <meta charset="UTF-8" />
-<title>${escapeHtml(order.salesOrderNumber)}</title>
+<title>${escapeHtml(printSalesOrderNumber)}</title>
 <style>
   * { box-sizing: border-box; }
   body { font-family: Arial, Helvetica, sans-serif; font-size: 12px; color: #1a1a1a; margin: 0; padding: 24px; }
@@ -1012,7 +1101,7 @@ export default function SalesOrder() {
         <div class="pq-meta-row">
           <div class="pq-meta-cell">
             <div class="pq-meta-label">Sales Order No.</div>
-            <div class="pq-meta-value">${escapeHtml(order.salesOrderNumber)}</div>
+            <div class="pq-meta-value">${escapeHtml(printSalesOrderNumber)}</div>
           </div>
           <div class="pq-meta-cell" style="border-right:none;">
             <div class="pq-meta-label">Dated</div>
@@ -1219,6 +1308,9 @@ export default function SalesOrder() {
       return formatDisplayDate(dateStr);
     };
 
+    // Always print the SO-<padded-id> form.
+    const printSalesOrderNumber = formatSalesOrderId(order.id);
+
     const itemRows = validItems.map((item, idx) => `
       <tr>
         <td class="pq-col-sl">${idx + 1}</td>
@@ -1296,7 +1388,7 @@ export default function SalesOrder() {
 <html>
 <head>
 <meta charset="UTF-8" />
-<title>PROFORMA INVOICE - ${escapeHtml(order.salesOrderNumber)}</title>
+<title>PROFORMA INVOICE - ${escapeHtml(printSalesOrderNumber)}</title>
 <style>
   * { box-sizing: border-box; }
   body { font-family: Arial, Helvetica, sans-serif; font-size: 12px; color: #1a1a1a; margin: 0; padding: 24px; }
@@ -1384,7 +1476,7 @@ export default function SalesOrder() {
         <div class="pq-meta-row">
           <div class="pq-meta-cell">
             <div class="pq-meta-label">Proforma Invoice No.</div>
-            <div class="pq-meta-value">PI-${escapeHtml(order.salesOrderNumber)}</div>
+            <div class="pq-meta-value">PI-${escapeHtml(printSalesOrderNumber)}</div>
           </div>
           <div class="pq-meta-cell" style="border-right:none;">
             <div class="pq-meta-label">Dated</div>
@@ -1394,7 +1486,7 @@ export default function SalesOrder() {
         <div class="pq-meta-row">
           <div class="pq-meta-cell">
             <div class="pq-meta-label">Sales Order No.</div>
-            <div class="pq-meta-value">${escapeHtml(order.salesOrderNumber)}</div>
+            <div class="pq-meta-value">${escapeHtml(printSalesOrderNumber)}</div>
           </div>
           <div class="pq-meta-cell" style="border-right:none;">
             <div class="pq-meta-label">Valid Until</div>
@@ -1606,17 +1698,12 @@ export default function SalesOrder() {
     }
   };
 
-      // ─── Loading Screen ─────────────────────────────────────────────────────
-      if (loading) {
-        return (
-          <div className={`p-6 max-w-7xl mx-auto ${theme}`}>
-            <PageLoader 
-              message="Loading Sales & Sales Order List..." 
-              //subtitle="Calculating bill of materials, operations rates, and component structures"
-            />
-          </div>
-        );
-      }
+  // ✅ FIX: The early `if (loading) return <PageLoader />` block has been
+  //    REMOVED. Previously, every debounced search triggered a fetch that
+  //    set `loading = true`, which unmounted the entire page (including the
+  //    search input) and caused focus/cursor loss while typing.
+  //    The loader is now rendered inline below, so the filter bar (and the
+  //    search input) stays mounted and keeps focus.
 
   return (
     <div className={`sales-order-page ${theme}-theme`}>
@@ -2875,10 +2962,11 @@ export default function SalesOrder() {
         </div>
       )}
 
-      {/* Loading State */}
+      {/* Loading State — rendered inline (NOT as an early return) so the
+          search input above never unmounts and keeps focus while typing. */}
       {loading && (
         <div className="qt-loading">
-          <p>Loading sales orders...</p>
+          <PageLoader message="Loading Sales & Sales Order List..." />
         </div>
       )}
 
@@ -2921,7 +3009,8 @@ export default function SalesOrder() {
                   <tbody>
                     {salesOrders.map((order, index) => (
                       <tr key={order.id || `so-${index}`} className="qt-tr">
-                        <td className="qt-td qt-td-id">{order.salesOrderNumber}</td>
+                        {/* Display SO-<padded-id> via helper */}
+                        <td className="qt-td qt-td-id">{formatSalesOrderId(order.id)}</td>
                         <td className="qt-td">
                           <div>
                             <div className="qt-td-link">{order.customerName}</div>
@@ -3000,7 +3089,7 @@ export default function SalesOrder() {
             )}
           </div>
 
-          {/* Mobile Table Section (Order #, Customer + Dropdown Button -> Date, Order Type, Status, Amount, Actions) */}
+          {/* Mobile Table Section */}
           <div className="sales-mobile-list-wrap">
             <div className="sales-mobile-list-header">
               <div className="sales-mobile-th-primary">
@@ -3032,12 +3121,12 @@ export default function SalesOrder() {
                       key={orderId}
                       className={`sales-mobile-card ${isExpanded ? "sales-mobile-card-expanded" : ""}`}
                     >
-                      {/* Card Header: Order #, Customer and Dropdown Button */}
                       <div
                         className="sales-mobile-card-header"
                         onClick={() => toggleRowExpand(orderId)}
                       >
                         <div className="sales-mobile-card-primary">
+                          {/* Display SO-<padded-id> via helper */}
                           <span
                             className="sales-mobile-item-code"
                             onClick={(e) => {
@@ -3046,7 +3135,7 @@ export default function SalesOrder() {
                             }}
                             title="View Sales Order"
                           >
-                            {order.salesOrderNumber}
+                            {formatSalesOrderId(order.id)}
                           </span>
                           <span
                             className="sales-mobile-item-name"
@@ -3060,7 +3149,6 @@ export default function SalesOrder() {
                           </span>
                         </div>
 
-                        {/* Dropdown Button */}
                         <button
                           type="button"
                           className={`sales-mobile-dropdown-btn ${isExpanded ? "expanded" : ""}`}
@@ -3072,7 +3160,6 @@ export default function SalesOrder() {
                         </button>
                       </div>
 
-                      {/* Dropdown Section: Date, Order Type, Status, Amount, Actions */}
                       {isExpanded && (
                         <div className="sales-mobile-card-details">
                           <div className="sales-mobile-detail-row">
@@ -3275,7 +3362,7 @@ export default function SalesOrder() {
             <div className="qt-modal-body">
               <p>Are you sure you want to delete this sales order?</p>
               <p className="qt-modal-item-name">
-                <strong>{selectedOrder.salesOrderNumber}</strong> - {selectedOrder.customerName}
+                <strong>{formatSalesOrderId(selectedOrder.id)}</strong> - {selectedOrder.customerName}
               </p>
               <p className="qt-modal-warning">This action cannot be undone.</p>
             </div>
@@ -3295,7 +3382,7 @@ export default function SalesOrder() {
         <div className="qt-modal-overlay" onClick={() => setShowPdfModal(false)}>
           <div className="qt-modal qt-modal-lg" onClick={(e) => e.stopPropagation()}>
             <div className="qt-modal-header">
-              <span className="qt-modal-title">{selectedOrder.salesOrderNumber} - PDF Preview</span>
+              <span className="qt-modal-title">{formatSalesOrderId(selectedOrder.id)} - PDF Preview</span>
               <button className="qt-modal-close" onClick={() => setShowPdfModal(false)}>
                 <FaTimes size={16} />
               </button>
@@ -3309,7 +3396,7 @@ export default function SalesOrder() {
               <div style={{ background: 'white', padding: '32px', borderRadius: '8px', boxShadow: '0 2px 8px rgba(0,0,0,0.08)', fontFamily: "'Times New Roman', serif" }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px solid #1f2433', paddingBottom: '12px', marginBottom: '20px' }}>
                   <div style={{ fontSize: '24px', fontWeight: 700, color: '#1f2433', letterSpacing: '2px' }}>SALES ORDER</div>
-                  <div style={{ fontSize: '14px', color: '#6b7280' }}>{selectedOrder.salesOrderNumber}</div>
+                  <div style={{ fontSize: '14px', color: '#6b7280' }}>{formatSalesOrderId(selectedOrder.id)}</div>
                 </div>
                 <div style={{ textAlign: 'center', marginBottom: '24px' }}>
                   <h2 style={{ fontSize: '20px', fontWeight: 700, color: '#1f2433', margin: 0 }}>{getCompanyDetails().name}</h2>

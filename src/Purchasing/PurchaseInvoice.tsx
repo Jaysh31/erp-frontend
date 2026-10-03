@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { 
   FaSearch, FaPlus, FaEdit, FaTrash, FaFilter, 
   FaTimes, FaSpinner, FaEye,
@@ -11,7 +11,7 @@ import {
   FaChevronLeft,
   FaChevronRight,
   FaCalendarAlt,
-    FaChevronDown,
+  FaChevronDown,
 } from 'react-icons/fa';
 import { useAdminTheme } from '../admin-theme/AdminThemeContext';
 import toast from 'react-hot-toast';
@@ -36,6 +36,75 @@ const formatDisplayDate = (iso: string): string => {
 };
 
 const WEEKDAY_LABELS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+
+// ─── 🆕 Status option shape ────────────────────────────────────
+interface StatusOption {
+  value: string;
+  label: string;
+}
+
+// 🆕 Default statuses for Purchase Invoice dropdown.
+//    These are ALWAYS shown; any extra statuses returned by the API are merged in.
+const DEFAULT_STATUS_OPTIONS: StatusOption[] = [
+  { value: 'All', label: 'All Status' },
+  { value: 'Draft', label: 'Draft' },
+  { value: 'Submitted', label: 'Submitted' },
+  { value: 'Partially Paid', label: 'Partially Paid' },
+  { value: 'Fully Paid', label: 'Fully Paid' },
+  { value: 'Overdue', label: 'Overdue' },
+  { value: 'Cancelled', label: 'Cancelled' },
+];
+
+/**
+ * 🆕 Robustly extracts an array of records from any of the
+ * many shapes the backend might return.
+ */
+function extractRecords(res: any): any[] {
+  if (!res) return [];
+  const d = res?.data?.data?.data ?? res?.data?.data ?? res?.data;
+  if (Array.isArray(d)) return d;
+  if (Array.isArray(d?.data)) return d.data;
+  if (Array.isArray(d?.records)) return d.records;
+  if (Array.isArray(d?.items)) return d.items;
+  if (Array.isArray(res?.data)) return res.data;
+  if (Array.isArray(res)) return res;
+  return [];
+}
+
+// ─── 🆕 STATUS NORMALIZATION ─────────────────────────────────────
+// Maps chatbot status strings → dropdown values for Purchase Invoice
+function normalizeStatusForPIDropdown(raw: string | null): string | null {
+  if (!raw) return null;
+  const s = raw.toLowerCase().trim();
+  switch (s) {
+    case 'draft': return 'Draft';
+    case 'submitted':
+    case 'submit':
+      return 'Submitted';
+    case 'partially paid':
+    case 'partially-paid':
+    case 'partial paid':
+    case 'partial':
+    case 'part payment':
+      return 'Partially Paid';
+    case 'fully paid':
+    case 'paid':
+    case 'complete':
+    case 'completed':
+    case 'done':
+      return 'Fully Paid';
+    case 'overdue':
+    case 'over due':
+      return 'Overdue';
+    case 'cancelled':
+    case 'canceled':
+    case 'cancel':
+    case 'rejected':
+      return 'Cancelled';
+    default:
+      return null;
+  }
+}
 
 // ─── Range Calendar Component ────────────────────────────────────
 
@@ -201,6 +270,7 @@ interface ApiResponse {
 
 export default function PurchaseInvoice() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   
   let theme = 'light';
   try {
@@ -213,7 +283,6 @@ export default function PurchaseInvoice() {
   const [filterText, setFilterText] = useState('');
   const [selectedStatus, setSelectedStatus] = useState('All');
   const [selectedSupplier, setSelectedSupplier] = useState('All');
-  const [showFilters, setShowFilters] = useState(false);
   
   // Date filters
   const [dateFrom, setDateFrom] = useState('');
@@ -236,6 +305,10 @@ export default function PurchaseInvoice() {
   const [invoices, setInvoices] = useState<PurchaseInvoice[]>([]);
   const [suppliersList, setSuppliersList] = useState<string[]>([]);
 
+  // 🆕 Status dropdown state — seeded with full default list
+  const [statusOptions, setStatusOptions] = useState<StatusOption[]>(DEFAULT_STATUS_OPTIONS);
+  const [statusOptionsLoading, setStatusOptionsLoading] = useState(true);
+
   // Mobile list row expansion state
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
 
@@ -254,6 +327,164 @@ export default function PurchaseInvoice() {
       return next;
     });
   };
+
+  // ====================================================================
+  // 🆕 FETCH STATUS OPTIONS FROM /purchase-invoice API
+  //    - Always keeps the full default list visible
+  //    - Merges in any extra statuses returned by the API
+  // ====================================================================
+  useEffect(() => {
+    let cancelled = false;
+
+    const fetchStatusOptions = async () => {
+      setStatusOptionsLoading(true);
+
+      const endpoint = '/purchase-invoice?page=1&limit=100';
+      console.log('🔵 [PI-STATUS-API] ▶️ Calling:', endpoint);
+
+      try {
+        const response = await api.get(endpoint);
+
+        console.log('🟢 [PI-STATUS-API] ✅ Response received');
+        if (cancelled) return;
+
+        const records = extractRecords(response);
+        console.log('🟢 [PI-STATUS-API] Extracted records count:', records.length);
+
+        // Collect distinct, non-empty status strings from API
+        const distinct = new Set<string>();
+        records.forEach((pi: any) => {
+          const st = (pi?.status ?? '').toString().trim();
+          if (st) distinct.add(st);
+        });
+
+        console.log('🟢 [PI-STATUS-API] Distinct statuses found:', Array.from(distinct));
+
+        // Skip statuses already present in the default list (case-insensitive)
+        const existing = new Set(
+          DEFAULT_STATUS_OPTIONS.map((o) => o.value.toLowerCase())
+        );
+
+        const apiOptions: StatusOption[] = Array.from(distinct)
+          .map((s) => ({
+            value: s
+              .split(' ')
+              .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+              .join(' '),
+            label: s
+              .split(' ')
+              .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+              .join(' '),
+          }))
+          .filter((opt) => !existing.has(opt.value.toLowerCase()));
+
+        const finalOptions: StatusOption[] = [
+          ...DEFAULT_STATUS_OPTIONS,
+          ...apiOptions,
+        ];
+
+        setStatusOptions(finalOptions);
+        console.log('🟢 [PI-STATUS-API] Final dropdown options:', finalOptions);
+      } catch (err: any) {
+        console.error('🔴 [PI-STATUS-API] ❌ API call failed:', err);
+        if (cancelled) return;
+        setStatusOptions(DEFAULT_STATUS_OPTIONS);
+      } finally {
+        if (!cancelled) {
+          setStatusOptionsLoading(false);
+        }
+      }
+    };
+
+    fetchStatusOptions();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // ====================================================================
+  // 🆕 READ FILTERS FROM URL QUERY PARAMS (chatbot navigation support)
+  // ====================================================================
+  useEffect(() => {
+    const urlStatus = searchParams.get('status');
+    const urlSupplier = searchParams.get('supplier');
+    const urlSearch = searchParams.get('search');
+    const urlDateFrom = searchParams.get('date_from');
+    const urlDateTo = searchParams.get('date_to');
+    const autoFilter = searchParams.get('autoFilter');
+
+    let hasUrlFilters = false;
+
+    if (urlStatus) {
+      const normalized = normalizeStatusForPIDropdown(urlStatus);
+      if (normalized) {
+        setSelectedStatus(normalized);
+        hasUrlFilters = true;
+      }
+    }
+
+    if (urlSupplier) {
+      setSelectedSupplier(urlSupplier);
+      hasUrlFilters = true;
+    }
+
+    if (urlSearch) {
+      setFilterText(urlSearch);
+      hasUrlFilters = true;
+    }
+
+    if (urlDateFrom) {
+      setDateFrom(urlDateFrom);
+      hasUrlFilters = true;
+    }
+    if (urlDateTo) {
+      setDateTo(urlDateTo);
+      hasUrlFilters = true;
+    }
+
+    if (hasUrlFilters) {
+      console.log('🔗 URL filters detected on PurchaseInvoice:', {
+        status: urlStatus,
+        supplier: urlSupplier,
+        search: urlSearch,
+        dateFrom: urlDateFrom,
+        dateTo: urlDateTo,
+        autoFilter,
+      });
+      setCurrentPage(1);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // run once on mount
+
+  // Also react to URL changes after mount (chatbot navigates while already on this page)
+  useEffect(() => {
+    const urlStatus = searchParams.get('status');
+    const urlSupplier = searchParams.get('supplier');
+    const urlSearch = searchParams.get('search');
+    const urlDateFrom = searchParams.get('date_from');
+    const urlDateTo = searchParams.get('date_to');
+
+    if (urlStatus) {
+      const normalized = normalizeStatusForPIDropdown(urlStatus);
+      if (normalized && selectedStatus !== normalized) {
+        setSelectedStatus(normalized);
+      }
+    }
+    if (urlSupplier && selectedSupplier !== urlSupplier) {
+      setSelectedSupplier(urlSupplier);
+    }
+    if (urlSearch && filterText !== urlSearch) {
+      setFilterText(urlSearch);
+    }
+    if (urlDateFrom && dateFrom !== urlDateFrom) {
+      setDateFrom(urlDateFrom);
+    }
+    if (urlDateTo && dateTo !== urlDateTo) {
+      setDateTo(urlDateTo);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
   
   // ─── Click outside handler ──────────────────────────────────────
 
@@ -335,7 +566,8 @@ export default function PurchaseInvoice() {
         params.append('search', filterText.trim());
       }
 
-      if (selectedStatus !== 'All') {
+      // ✅ Send selected status to the API so filtering happens server-side
+      if (selectedStatus && selectedStatus !== 'All') {
         params.append('status', selectedStatus);
       }
 
@@ -346,6 +578,8 @@ export default function PurchaseInvoice() {
         params.append('date_to', dateTo);
       }
 
+      console.log('API URL:', `/purchase-invoice?${params.toString()}`);
+
       const response = await api.get<ApiResponse>(`/purchase-invoice?${params.toString()}`);
       
       if (response.data.success === 1) {
@@ -354,7 +588,7 @@ export default function PurchaseInvoice() {
         
         const transformedInvoices: PurchaseInvoice[] = records.map((item: ApiPurchaseInvoice) => ({
           id: String(item.id),
-          invoiceNumber: `PINV-${String(item.id).padStart(5, '0')}`,
+          invoiceNumber: `PI-${String(item.id).padStart(5, '0')}`,
           supplier: item.supplier_name || item.supplier || 'N/A',
           supplierCode: item.supplier || 'N/A',
           purchaseOrder: item.purchase_order || 'N/A',
@@ -386,13 +620,14 @@ export default function PurchaseInvoice() {
     }
   };
 
+  // ✅ Refetch invoices whenever any filter (including status) changes
   useEffect(() => {
     fetchPurchaseInvoices();
   }, [currentPage, itemsPerPage, dateFrom, dateTo, filterText, selectedStatus]);
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [filterText, selectedSupplier, dateFrom, dateTo]);
+  }, [filterText, selectedSupplier, dateFrom, dateTo, selectedStatus]);
 
   const filteredInvoices = invoices.filter(inv => {
     const matchesSupplier = selectedSupplier === 'All' || inv.supplier === selectedSupplier;
@@ -522,9 +757,11 @@ export default function PurchaseInvoice() {
     setDateTo('');
     setCurrentPage(1);
     setShowDateFilterDropdown(false);
+
+    // 🆕 Clear URL query params too
+    setSearchParams({});
   };
 
-  const statusOptions = ['Draft', 'Submitted', 'Partially Paid', 'Fully Paid', 'Overdue', 'Cancelled'];
   const currencies = ['INR', 'USD', 'EUR', 'GBP', 'AED', 'SGD'];
 
   {/*if (fetching) {
@@ -570,9 +807,9 @@ export default function PurchaseInvoice() {
               </button>
             )}
           </div>
-          
         </div>
         <div className="bom-filter-right">
+          {/* 🆕 Status filter populated dynamically from /purchase-invoice API */}
           <select 
             value={selectedStatus} 
             onChange={(e) => {
@@ -580,9 +817,12 @@ export default function PurchaseInvoice() {
               setCurrentPage(1);
             }}
             className="bom-filter-select"
+            disabled={statusOptionsLoading}
+            title={statusOptionsLoading ? 'Loading statuses…' : 'Filter by status'}
           >
-            <option value="All">All Status</option>
-            {statusOptions.map(s => <option key={s} value={s}>{s}</option>)}
+            {statusOptions.map(opt => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
           </select>
           
           {/* Date Range Button with Calendar Dropdown */}
@@ -712,20 +952,12 @@ export default function PurchaseInvoice() {
             )}
           </div>
 
-          <button 
-            className={`inv-filter-btn ${showFilters ? 'active' : ''}`}
-            onClick={() => setShowFilters(!showFilters)}
-          >
-            <FaFilter size={12} />
-            Filter
-          </button>
-           <button className="inv-btn-secondary" onClick={handleCreateJournalEntry}>
+          <button className="inv-btn-secondary" onClick={handleCreateJournalEntry}>
             <FaFileAlt size={12} /> New Journal Entry
           </button>
         </div>
        
         <div className="inv-header-actions">
-         
           <button className="inv-btn-primary" onClick={handleCreate}>
             <FaPlus size={12} /> New Purchase Bill
           </button>
@@ -753,7 +985,8 @@ export default function PurchaseInvoice() {
           )}
           {selectedStatus !== 'All' && (
             <span style={{ color: 'var(--text-primary)' }}>
-              <strong>Status:</strong> {selectedStatus}
+              <strong>Status:</strong>{' '}
+              {statusOptions.find((o) => o.value === selectedStatus)?.label || selectedStatus}
             </span>
           )}
           {selectedSupplier !== 'All' && (
@@ -772,34 +1005,6 @@ export default function PurchaseInvoice() {
         </div>
       )}
 
-      {/* Expandable Filters */}
-      {showFilters && (
-        <div className="inv-expandable-filters">
-          <div className="inv-filter-group">
-            <label>Supplier</label>
-            <select
-              value={selectedSupplier}
-              onChange={(e) => {
-                setSelectedSupplier(e.target.value);
-                setCurrentPage(1);
-              }}
-            >
-              <option value="All">All Suppliers</option>
-              {suppliersList.map(s => <option key={s} value={s}>{s}</option>)}
-            </select>
-          </div>
-          <div className="inv-filter-group">
-            <label>Currency</label>
-            <select>
-              <option value="all">All Currencies</option>
-              {currencies.map(c => <option key={c} value={c}>{c}</option>)}
-            </select>
-          </div>
-          <button className="inv-apply-filters" onClick={fetchPurchaseInvoices}>Apply</button>
-        </div>
-      )}
-
-      
       {/* Table */}
       <div className="inv-table-wrap inv-desktop-table-wrap">
         <table className="inv-table">
@@ -972,13 +1177,6 @@ export default function PurchaseInvoice() {
                           </div>
                         </div>
 
-                        {/*<div className="inv-mobile-detail-row">
-                          <span className="inv-mobile-detail-label">Total</span>
-                          <span className="inv-mobile-detail-value inv-total-val">
-                            {inv.currency} {inv.totalAmount.toLocaleString()}
-                          </span>
-                        </div>*/}
-
                         <div className="inv-mobile-detail-row">
                           <span className="inv-mobile-detail-label">Total</span>
                           <span className={`inv-mobile-detail-value ${inv.balanceAmount > 0 && new Date(inv.dueDate) < new Date() ? 'inv-balance-overdue' : ''}`}>
@@ -996,10 +1194,6 @@ export default function PurchaseInvoice() {
 
                         <div className="inv-mobile-detail-footer">
                           <span className="inv-mobile-card-meta-text">
-                            {/*totalRecords > 0
-                              ? `${getStartIndex()}–${getEndIndex()} of ${totalRecords}`
-                              : '0'} (#{rowNumber})
-                            */}
                           </span>
                           <div className="inv-action-buttons">
                             <button

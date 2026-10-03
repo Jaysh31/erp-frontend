@@ -1,6 +1,6 @@
 // WorkOrderList.tsx
-import { useState, useEffect, useCallback, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   FaSearch,
   FaTimes,
@@ -29,6 +29,43 @@ import "./WorkOrder.css";
 import { PageLoader } from "../components/PageLoader.tsx";
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
 import api from '../../services/api';
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🆕 Filter preservation helpers
+// ═══════════════════════════════════════════════════════════════════════
+const WO_PRESERVE_FLAG_KEY = "__wo_preserve_filters__";
+const WO_FILTER_DATA_KEY = "__wo_list_filters__";
+
+// Install the history observer exactly once per browser tab
+if (typeof window !== "undefined" && !(window as any).__woNavObserverInstalled) {
+  (window as any).__woNavObserverInstalled = true;
+
+  const clearFlagIfLeavingWorkOrder = () => {
+    try {
+      const path = window.location.pathname;
+      if (!path.startsWith("/work-order")) {
+        sessionStorage.removeItem(WO_PRESERVE_FLAG_KEY);
+      }
+    } catch {
+      /* ignore */
+    }
+  };
+
+  const origPush = window.history.pushState;
+  const origReplace = window.history.replaceState;
+
+  window.history.pushState = function (...args: any[]) {
+    const r = origPush.apply(this as any, args as any);
+    clearFlagIfLeavingWorkOrder();
+    return r;
+  };
+  window.history.replaceState = function (...args: any[]) {
+    const r = origReplace.apply(this as any, args as any);
+    clearFlagIfLeavingWorkOrder();
+    return r;
+  };
+  window.addEventListener("popstate", clearFlagIfLeavingWorkOrder);
+}
 
 type Status = "Draft" | "Not Started" | "In Process" | "Completed" | "Stopped";
 type OrderType = "all" | "internal" | "external";
@@ -69,7 +106,6 @@ interface WorkOrderDisplay {
   canComplete: boolean;
   type: OrderType;
   supplierName?: string;
-  // ✅ Formatted display fields
   displayStartDate?: string;
   displayEndDate?: string;
 }
@@ -109,13 +145,66 @@ const TYPE_ICONS: Record<string, React.ReactNode> = {
   internal: <FaBox size={11} />,
   external: <FaWrench size={11} />,
 };
-  
+
+// 🆕 Map chatbot status keywords → Work Order status values
+const URL_STATUS_TO_WO_STATUS: Record<string, Status> = {
+  "completed":        "Completed",
+  "complete":         "Completed",
+  "done":             "Completed",
+  "finished":         "Completed",
+  "closed":           "Completed",
+  "draft":            "Draft",
+  "open":             "Not Started",
+  "not started":      "Not Started",
+  "pending":          "Not Started",
+  "in process":       "In Process",
+  "in-process":       "In Process",
+  "in progress":      "In Process",
+  "in-progress":      "In Process",
+  "processing":       "In Process",
+  "ongoing":          "In Process",
+  "running":          "In Process",
+  "work in progress": "In Process",
+  "stopped":          "Stopped",
+  "on hold":          "Stopped",
+  "on-hold":          "Stopped",
+  "hold":             "Stopped",
+  "cancelled":        "Stopped",
+  "canceled":         "Stopped",
+  "cancel":           "Stopped",
+};
+
+function resolveWorkOrderStatus(rawStatus: string): Status | null {
+  if (!rawStatus) return null;
+  const norm = rawStatus.toLowerCase().trim();
+  if (URL_STATUS_TO_WO_STATUS[norm]) return URL_STATUS_TO_WO_STATUS[norm];
+
+  for (const [key, val] of Object.entries(URL_STATUS_TO_WO_STATUS)) {
+    if (norm.includes(key) || key.includes(norm)) return val;
+  }
+  return null;
+}
+
 export default function WorkOrderList() {
   const navigate = useNavigate();
-  
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // 🆕 URL-driven status filter
+  const urlStatus = searchParams.get("status") || "";
+  const urlAutoFilter = searchParams.get("autoFilter") === "1";
+  const isUrlFiltered = !!urlStatus && urlAutoFilter;
+
   const { theme } = useAdminTheme();
 
   const [loading, setLoading] = useState(false);
+
+  // ═════════════════════════════════════════════════════════════════════
+  // 🆕 FIX: `initialLoading` is ONLY true for the very first data load.
+  //    Subsequent fetches (e.g. typing in the search box) keep the page
+  //    mounted, so the search input never loses focus / caret position.
+  // ═════════════════════════════════════════════════════════════════════
+  const [initialLoading, setInitialLoading] = useState(true);
+
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -135,6 +224,114 @@ export default function WorkOrderList() {
   const [showDatePicker, setShowDatePicker] = useState<boolean>(false);
   const [currentMonth, setCurrentMonth] = useState<Date>(new Date());
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+
+  // 🆕 Gates the initial fetch until filter restoration is done.
+  const [filtersReady, setFiltersReady] = useState(false);
+
+  // ═════════════════════════════════════════════════════════════════════
+  // 🆕 RESTORE FILTERS ON MOUNT
+  // ═════════════════════════════════════════════════════════════════════
+  useEffect(() => {
+    let shouldPreserve = false;
+    try {
+      shouldPreserve =
+        sessionStorage.getItem(WO_PRESERVE_FLAG_KEY) === "true";
+      sessionStorage.removeItem(WO_PRESERVE_FLAG_KEY);
+    } catch {
+      /* ignore */
+    }
+
+    if (shouldPreserve) {
+      try {
+        const saved = sessionStorage.getItem(WO_FILTER_DATA_KEY);
+        if (saved) {
+          const f = JSON.parse(saved);
+          if (typeof f.searchTerm === "string")     setSearchTerm(f.searchTerm);
+          if (typeof f.statusFilter === "string")   setStatusFilter(f.statusFilter);
+          if (typeof f.dateFilter === "string")     setDateFilter(f.dateFilter);
+          if (typeof f.fromDate === "string")       setFromDate(f.fromDate);
+          if (typeof f.toDate === "string")         setToDate(f.toDate);
+          if (typeof f.activeTab === "string")      setActiveTab(f.activeTab as OrderType);
+          if (typeof f.currentPage === "number")    setCurrentPage(f.currentPage);
+          if (typeof f.itemsPerPage === "number")   setItemsPerPage(f.itemsPerPage);
+          console.log("♻️ Restored work-order filters from session:", f);
+        }
+      } catch (e) {
+        console.warn("⚠️ Failed to restore work-order filters:", e);
+      }
+    } else {
+      try {
+        sessionStorage.removeItem(WO_FILTER_DATA_KEY);
+      } catch {
+        /* ignore */
+      }
+    }
+
+    setFiltersReady(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ═════════════════════════════════════════════════════════════════════
+  // 🆕 SAVE FILTERS ON EVERY CHANGE
+  // ═════════════════════════════════════════════════════════════════════
+  const hasMountedSaveRef = useRef(false);
+  useEffect(() => {
+    if (!hasMountedSaveRef.current) {
+      hasMountedSaveRef.current = true;
+      return;
+    }
+    try {
+      sessionStorage.setItem(
+        WO_FILTER_DATA_KEY,
+        JSON.stringify({
+          searchTerm,
+          statusFilter,
+          dateFilter,
+          fromDate,
+          toDate,
+          activeTab,
+          currentPage,
+          itemsPerPage,
+        })
+      );
+    } catch {
+      /* ignore */
+    }
+  }, [
+    searchTerm,
+    statusFilter,
+    dateFilter,
+    fromDate,
+    toDate,
+    activeTab,
+    currentPage,
+    itemsPerPage,
+  ]);
+
+  // 🆕 Wrapper that sets the preserve flag before navigating to a
+  //    work-order sub-route.
+  const navigateWithPreserve = useCallback(
+    (path: string) => {
+      try {
+        sessionStorage.setItem(WO_PRESERVE_FLAG_KEY, "true");
+      } catch {
+        /* ignore */
+      }
+      navigate(path);
+    },
+    [navigate]
+  );
+
+  // 🆕 Sync URL status → statusFilter dropdown
+  useEffect(() => {
+    if (isUrlFiltered && urlStatus) {
+      const mapped = resolveWorkOrderStatus(urlStatus);
+      if (mapped) {
+        setStatusFilter(mapped);
+        setCurrentPage(1);
+      }
+    }
+  }, [isUrlFiltered, urlStatus]);
 
   const toggleRowExpand = (id: string, e?: React.MouseEvent) => {
     if (e) {
@@ -160,7 +357,6 @@ export default function WorkOrderList() {
     { value: 'quarter', label: 'This Quarter' },
   ];
 
-  // ✅ UPDATED: Format date using context formatter
   const formatDateAgo = (dateString: string) => {
     const date = new Date(dateString);
     const now = new Date();
@@ -183,8 +379,6 @@ export default function WorkOrderList() {
     const date = new Date(dateString);
     return isNaN(date.getTime()) ? dateString : date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
   };
-
-  // ✅ NEW: Format date for API (YYYY-MM-DD)
 
   const calculateJobCardProgress = (total: number = 0, completed: number = 0): number => {
     if (total === 0) return 0;
@@ -237,7 +431,6 @@ export default function WorkOrderList() {
     return "internal";
   };
 
-  // ✅ UPDATED: Transform with formatted dates
   const transformWorkOrder = (item: WorkOrder): WorkOrderDisplay => {
     const totalJobCards = item.total_job_cards || 0;
     const completedJobCards = item.completed_job_cards || 0;
@@ -261,7 +454,6 @@ export default function WorkOrderList() {
       canComplete: canCompleteWorkOrder(item.status, totalJobCards, completedJobCards),
       type,
       supplierName: item.supplier_name || '',
-      // ✅ ADD FORMATTED DATES FOR DISPLAY
       displayStartDate: formatDisplayDate(item.planned_start_date),
       displayEndDate: formatDisplayDate(item.planned_end_date),
     };
@@ -296,6 +488,9 @@ export default function WorkOrderList() {
       setError('An error occurred while fetching work orders');
     } finally {
       setLoading(false);
+      // 🆕 Once the first request finishes, never show the full-page
+      //    loader again — this keeps the search input mounted & focused.
+      setInitialLoading(false);
     }
   }, [searchTerm, statusFilter]);
 
@@ -303,14 +498,20 @@ export default function WorkOrderList() {
     setCurrentPage(1);
   }, [searchTerm, statusFilter, dateFilter, activeTab, fromDate, toDate]);
 
+  // 🆕 Wait for filter restoration before the first fetch.
   useEffect(() => {
-    fetchAllWorkOrders();
-  }, [fetchAllWorkOrders]);
+    if (filtersReady) {
+      fetchAllWorkOrders();
+    }
+  }, [fetchAllWorkOrders, filtersReady]);
 
-  const filteredData = useMemo(() => {
+  // ═════════════════════════════════════════════════════════════════════
+  // 🆕 BASE FILTERED DATA — applies status, date, and date-range filters
+  //    but NOT the tab filter. This is the reference set used to compute
+  //    the tab counts so the numbers always match what the user sees.
+  // ═════════════════════════════════════════════════════════════════════
+  const baseFilteredData = useMemo(() => {
     let filtered = allWorkOrders.filter(item => {
-      if (activeTab !== 'all' && item.type !== activeTab) return false;
-      
       const matchesStatus = statusFilter === 'all' || item.status === statusFilter;
       const matchesDate = dateFilter === 'all' || isDateInRange(item.plannedStartDate, dateFilter);
       return matchesStatus && matchesDate;
@@ -327,7 +528,15 @@ export default function WorkOrderList() {
     }
 
     return filtered;
-  }, [allWorkOrders, activeTab, searchTerm, statusFilter, dateFilter, fromDate, toDate]);
+  }, [allWorkOrders, searchTerm, statusFilter, dateFilter, fromDate, toDate]);
+
+  // ═════════════════════════════════════════════════════════════════════
+  // 🆕 TAB-FILTERED DATA — further restricted by the active type tab.
+  // ═════════════════════════════════════════════════════════════════════
+  const filteredData = useMemo(() => {
+    if (activeTab === 'all') return baseFilteredData;
+    return baseFilteredData.filter(item => item.type === activeTab);
+  }, [baseFilteredData, activeTab]);
 
   const displayTotalItems = filteredData.length;
   const displayTotalPages = Math.max(1, Math.ceil(displayTotalItems / itemsPerPage));
@@ -343,11 +552,16 @@ export default function WorkOrderList() {
     return filteredData.slice(startIndex, startIndex + itemsPerPage);
   }, [filteredData, currentPage, itemsPerPage]);
 
+  // ═════════════════════════════════════════════════════════════════════
+  // 🆕 FIXED: tab counts now reflect the current filter state (status,
+  //    date, date range) instead of the raw dataset. The tab numbers
+  //    will match exactly what shows up when the user clicks each tab.
+  // ═════════════════════════════════════════════════════════════════════
   const tabCounts = useMemo(() => {
-    const internal = allWorkOrders.filter(wo => wo.type === 'internal').length;
-    const external = allWorkOrders.filter(wo => wo.type === 'external').length;
-    return { internal, external, total: allWorkOrders.length };
-  }, [allWorkOrders]);
+    const internal = baseFilteredData.filter(wo => wo.type === 'internal').length;
+    const external = baseFilteredData.filter(wo => wo.type === 'external').length;
+    return { internal, external, total: baseFilteredData.length };
+  }, [baseFilteredData]);
 
   const getStartIndex = () => {
     if (displayTotalItems === 0) return 0;
@@ -518,23 +732,27 @@ export default function WorkOrderList() {
     }
   };
 
+  // 🆕 Job Cards link intentionally does NOT set the preserve flag.
   const handleViewJobCards = (item: WorkOrderDisplay, e: React.MouseEvent) => {
     e.stopPropagation();
     navigate(`/job-card?work_order=${item.id}`);
   };
 
+  // 🆕 Row click → preserve filters
   const handleRowClick = (item: WorkOrderDisplay) => {
-    navigate(`/work-order/${encodeURIComponent(item.id)}`);
+    navigateWithPreserve(`/work-order/${encodeURIComponent(item.id)}`);
   };
 
+  // 🆕 Edit → preserve filters
   const handleEdit = (item: WorkOrderDisplay, e: React.MouseEvent) => {
     e.stopPropagation();
-    navigate(`/work-order/${encodeURIComponent(item.id)}`);
+    navigateWithPreserve(`/work-order/${encodeURIComponent(item.id)}`);
   };
 
+  // 🆕 View → preserve filters
   const handleView = (item: WorkOrderDisplay, e: React.MouseEvent) => {
     e.stopPropagation();
-    navigate(`/work-order/${encodeURIComponent(item.id)}`);
+    navigateWithPreserve(`/work-order/${encodeURIComponent(item.id)}`);
   };
 
   const clearFilters = () => {
@@ -544,6 +762,14 @@ export default function WorkOrderList() {
     setFromDate('');
     setToDate('');
     setActiveTab('all');
+    setCurrentPage(1);
+  };
+
+  const clearUrlStatusFilter = () => {
+    const next = new URLSearchParams(searchParams);
+    next.delete("status");
+    next.delete("autoFilter");
+    setSearchParams(next);
     setCurrentPage(1);
   };
 
@@ -566,7 +792,10 @@ export default function WorkOrderList() {
 
   
   // ─── Loading Screen ─────────────────────────────────────────────────────
-  if (loading) {
+  // 🆕 FIX: only the FIRST load shows the full-page loader. Any later
+  //    fetch (e.g. while typing in the search box) keeps the page mounted,
+  //    so the search input retains focus and the caret position.
+  if (initialLoading) {
     return (
       <div className={`p-6 max-w-7xl mx-auto ${theme}`}>
         <PageLoader 
@@ -579,6 +808,27 @@ export default function WorkOrderList() {
 
   return (
     <div className={`wo-page ${theme}`}>
+
+      {/* 🆕 URL-driven status filter banner */}
+      {isUrlFiltered && (
+        <div className="wo-url-filter-banner">
+          <FaFilter size={12} />
+          <span>
+            Showing Work Orders with status: <strong>{resolveWorkOrderStatus(urlStatus) || urlStatus}</strong>
+          </span>
+          <span className="wo-url-filter-count">
+            ({displayTotalItems} record{displayTotalItems === 1 ? "" : "s"})
+          </span>
+          <button
+            className="wo-url-filter-clear"
+            onClick={clearUrlStatusFilter}
+            title="Clear status filter"
+          >
+            <FaTimes size={10} /> Clear
+          </button>
+        </div>
+      )}
+
       {/* Tabs */}
       <div className="wo-tabs">
         <button
@@ -741,7 +991,11 @@ export default function WorkOrderList() {
               </div>
             )}
           </div>
-          <button className="wo-btn-primary" onClick={() => navigate("/work-order/new")}>
+          {/* 🆕 New Work Order → preserve filters on the way out */}
+          <button
+            className="wo-btn-primary"
+            onClick={() => navigateWithPreserve("/work-order/new")}
+          >
             <FaPlus size={12} />
             Add Work Order
           </button>
@@ -749,10 +1003,15 @@ export default function WorkOrderList() {
       </div>
 
       {/* Active filters indicator */}
-      {(searchTerm || statusFilter !== 'all' || dateFilter !== 'all' || activeTab !== 'all' || (fromDate && toDate)) && (
+      {(searchTerm || statusFilter !== 'all' || dateFilter !== 'all' || activeTab !== 'all' || (fromDate && toDate) || isUrlFiltered) && (
         <div className="wo-active-filters">
           <FaFilter size={12} style={{ color: 'var(--primary-color)' }} />
           <span style={{ color: 'var(--text-primary)' }}>Active filters:</span>
+          {isUrlFiltered && (
+            <span style={{ color: 'var(--text-primary)' }}>
+              <strong>Status (URL):</strong> {resolveWorkOrderStatus(urlStatus) || urlStatus}
+            </span>
+          )}
           {activeTab !== 'all' && (
             <span style={{ color: 'var(--text-primary)' }}>
               <strong>Type:</strong> {activeTab === 'internal' ? 'Products' : 'Services'}
@@ -778,13 +1037,24 @@ export default function WorkOrderList() {
               <strong>Date:</strong> {dateFilterOptions.find(o => o.value === dateFilter)?.label}
             </span>
           )}
-          <button onClick={clearFilters} className="wo-clear-filters">
+          <button
+            onClick={() => {
+              clearFilters();
+              if (isUrlFiltered) clearUrlStatusFilter();
+            }}
+            className="wo-clear-filters"
+          >
             <FaTimes size={10} /> Clear All
           </button>
         </div>
       )}
 
-      {/* Loading State */}
+      {/* ═══════════════════════════════════════════════════════════════
+          🆕 FIX: While loading, hide the list/table completely and show
+          ONLY the loading indicator. Once loading finishes, the list is
+          shown. The filter bar (with search input) stays mounted above,
+          so the search box never loses focus.
+         ═══════════════════════════════════════════════════════════════ */}
       {loading && (
         <div className="wo-loading">
           <FaSpinner className="spinning" size={24} />
@@ -793,14 +1063,14 @@ export default function WorkOrderList() {
       )}
 
       {/* Error State */}
-      {error && (
+      {error && !loading && (
         <div className="wo-error">
           <p>{error}</p>
           <button onClick={fetchAllWorkOrders} className="wo-retry-btn">Retry</button>
         </div>
       )}
 
-      {/* Table */}
+      {/* Table — only rendered when NOT loading and NO error */}
       {!loading && !error && (
         <>
           <div className="wo-table-wrap wo-desktop-table-wrap">
@@ -911,7 +1181,6 @@ export default function WorkOrderList() {
                       <td className="wo-td wo-td-dates">
                         <div className="wo-date-range">
                           <FaCalendarAlt size={12} style={{ color: 'var(--text-secondary)', marginRight: '4px' }} />
-                          {/* ✅ USE FORMATTED DATE FOR DISPLAY */}
                           <span>{row.displayStartDate || new Date(row.plannedStartDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
                         </div>
                       </td>
@@ -932,20 +1201,6 @@ export default function WorkOrderList() {
                           >
                             <FaEdit size={12} />
                           </button>
-                          {/*row.canComplete && (
-                            <button
-                              className="wo-action-btn wo-action-complete"
-                              onClick={(e) => handleCompleteWorkOrder(row, e)}
-                              title="Complete Work Order"
-                              disabled={completingId === row.id}
-                            >
-                              {completingId === row.id ? (
-                                <FaSpinner className="spinning" size={12} />
-                              ) : (
-                                <FaCheckCircle size={12} />
-                              )}
-                            </button>
-                          )*/}
                           <button
                             className="wo-action-btn wo-action-delete"
                             onClick={(e) => handleDelete(row, e)}
@@ -1009,7 +1264,6 @@ export default function WorkOrderList() {
                         key={row.id}
                         className={`wo-mobile-card ${isExpanded ? 'wo-mobile-card-expanded' : ''}`}
                       >
-                        {/* Mobile Header: Only shows WO # and Production Item by default + Dropdown button */}
                         <div 
                           className="wo-mobile-card-header"
                           onClick={() => toggleRowExpand(row.id)}
@@ -1030,7 +1284,6 @@ export default function WorkOrderList() {
                             </span>
                           </div>
 
-                          {/* Dropdown Toggle Button */}
                           <button
                             type="button"
                             className={`wo-mobile-dropdown-btn ${isExpanded ? 'expanded' : ''}`}
@@ -1041,7 +1294,6 @@ export default function WorkOrderList() {
                           </button>
                         </div>
 
-                        {/* Mobile Expanded Details: Shows Type, Qty, Job Cards, Progress, Status, Planned Dates, 1-10 of 36 & Actions */}
                         {isExpanded && (
                           <div className="wo-mobile-card-details">
                             <div className="wo-mobile-detail-row">
@@ -1118,14 +1370,9 @@ export default function WorkOrderList() {
                               </div>
                             </div>
 
-                            {/* 1–10 of 36 count and Action buttons (View, Edit, Delete) */}
                             <div className="wo-mobile-detail-footer">
                               <div className="wo-mobile-detail-meta">
                                 <span className="wo-count-label">
-                                  {/*displayTotalItems > 0
-                                    ? `${getStartIndex()}–${getEndIndex()}`
-                                    : '0'}{' '}
-                                  of {displayTotalItems*/}
                                 </span>
                               </div>
 

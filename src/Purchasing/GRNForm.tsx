@@ -1,6 +1,10 @@
 // GRNForm.tsx - Service/Customer + Supplier/Manual item entry + GST billing + Print + Success modal 
 // Status is always set to "submitted" - removed from UI 
 // UPDATED: Added VIEW MODE support via URL parameter ?mode=view
+// FIXED: Purchase Order field now clears its filter on focus so the user
+//        can easily switch to another PO after making a selection.
+// FIXED: PO dropdown no longer filters by the auto-set supplier, so ALL POs
+//        are always visible and selectable.
 
 import { useState, useEffect, type FormEvent, useRef } from "react"; 
 import { useNavigate, useParams, useLocation, useSearchParams } from "react-router-dom"; 
@@ -548,6 +552,11 @@ export default function GRNForm() {
   const [poItemsPerPage] = useState(10); 
   const [, setTotalPOs] = useState(0); 
   const [, setPODetailLoading] = useState(false); 
+  // 🆕 Track whether the PO input is focused so we can show the live search
+  //    term (with all options) while focused, and the selected PO label
+  //    otherwise. This lets the user easily switch to a different PO after
+  //    having already selected one.
+  const [isPOFocused, setIsPOFocused] = useState(false);
   const poInputRef = useRef<HTMLInputElement>(null); 
   const poDropdownRef = useRef<HTMLDivElement>(null); 
  
@@ -656,6 +665,15 @@ export default function GRNForm() {
       </span> 
     ); 
   }; 
+ 
+  // 🆕 Computed display value for the "Purchase Order" input:
+  //    - While focused → show the live search term (starts empty so all POs
+  //      appear)
+  //    - While not focused → show the selected PO's name, or fall back to
+  //      the raw search term if nothing is selected
+  const poDisplayValue = isPOFocused
+    ? poSearchTerm
+    : (formData.purchaseOrder || poSearchTerm);
  
   // ─── Fetch Warehouses ────────────────────────────────────────────── 
   const fetchWarehouses = async () => { 
@@ -793,15 +811,15 @@ export default function GRNForm() {
     } 
   }; 
  
-  // ─── Fetch Purchase Orders ────────────────────────────────────────── 
-  const fetchPurchaseOrders = async (supplierIdOverride?: number) => { 
+  // ─── Fetch Purchase Orders ──────────────────────────────────────────
+  // 🆕 Always fetch ALL POs (no supplier filter) so the user can freely
+  //    switch to any PO from any supplier after having selected one.
+  const fetchPurchaseOrders = async () => { 
     if (isViewMode) return;
     setLoadingPOs(true); 
     try { 
-      const effectiveSupplierId = supplierIdOverride !== undefined ? supplierIdOverride : formData.supplierId; 
-      const supplierQuery = effectiveSupplierId ? `&supplier_id=${effectiveSupplierId}` : ''; 
       const response = await api.get<POApiResponse>( 
-        `/purchase-order?page=${poCurrentPage}&limit=${poItemsPerPage}${supplierQuery}` 
+        `/purchase-order?page=${poCurrentPage}&limit=${poItemsPerPage}` 
       ); 
  
       if (response.data.success === 1) { 
@@ -1004,7 +1022,11 @@ export default function GRNForm() {
       items: items, 
     })); 
  
-    setPOSearchTerm(poName); 
+    // 🆕 Keep the search term empty so the next focus shows the full PO list
+    //    again. The input will display `formData.purchaseOrder` while
+    //    unfocused thanks to the `poDisplayValue` computed above.
+    setPOSearchTerm('');
+    setIsPOFocused(false);
     if (poDetail.supplier_name) { 
       setSupplierSearchTerm(poDetail.supplier_name); 
     } 
@@ -1083,21 +1105,18 @@ export default function GRNForm() {
     return `PO-${String(po.id).padStart(5, '0')}`; 
   }; 
  
+  // 🆕 Filter POs only by the typed search term — supplier filter has been
+  //    removed so all POs (from any supplier) are always visible and
+  //    selectable in the dropdown.
   const filteredPOs = purchaseOrders.filter(po => { 
     const searchLower = (poSearchTerm || '').toLowerCase(); 
     const poDisplayName = getPODisplayName(po).toLowerCase(); 
     const supplierName = (po.supplier_name || '').toLowerCase(); 
     const poIdString = (po.id?.toString() || ''); 
      
-    const matchesSearch = poDisplayName.includes(searchLower) ||  
-                          supplierName.includes(searchLower) ||  
-                          poIdString.includes(searchLower); 
-     
-    const matchesSupplier = !formData.supplierId || 
-      supplierName === (formData.supplier?.toLowerCase() || '') || 
-      (po.supplier || '') === String(formData.supplierId); 
-       
-    return matchesSearch && matchesSupplier; 
+    return poDisplayName.includes(searchLower) ||  
+           supplierName.includes(searchLower) ||  
+           poIdString.includes(searchLower); 
   }); 
  
   // ─── Update Dropdown Position for Portal ─────────────────────────── 
@@ -1256,7 +1275,7 @@ export default function GRNForm() {
     if (showPODropdown) { 
       fetchPurchaseOrders(); 
     } 
-  }, [showPODropdown, poCurrentPage, formData.supplierId]); 
+  }, [showPODropdown, poCurrentPage]); 
  
   // ─── Backfill itemId when Item Master loads ────────────────────────── 
   useEffect(() => { 
@@ -1673,14 +1692,20 @@ export default function GRNForm() {
     setPOCurrentPage(1); 
     setIsDirty(true); 
     if (formData.entryMode === 'supplier') { 
-      fetchPurchaseOrders(supplier.id); 
+      // 🆕 We still refetch POs, but fetchPurchaseOrders no longer filters
+      //    by supplier, so all POs remain available for selection.
+      fetchPurchaseOrders(); 
     } 
   }; 
  
   const handlePOSelect = (po: PurchaseOrder) => { 
     if (isViewMode) return;
     const poName = getPODisplayName(po); 
-    setPOSearchTerm(poName); 
+    // 🆕 Don't store the full label in the search term — the input renders
+    //    `formData.purchaseOrder` while unfocused, so leaving the search
+    //    term empty lets the next focus show the full PO list again.
+    setPOSearchTerm(''); 
+    setIsPOFocused(false);
     setFormData(prev => ({ 
       ...prev, 
       purchaseOrder: poName, 
@@ -2387,7 +2412,7 @@ export default function GRNForm() {
               × 
             </button> 
           </div> 
-          <div className="pof-modal-body" style={{  
+          <div className="pof-modal-body" style={{   
             padding: '24px 20px', 
             overflowY: 'auto', 
             maxHeight: 'calc(90vh - 140px)', 
@@ -2396,16 +2421,16 @@ export default function GRNForm() {
               Fill in the item details below. Fields marked with <span style={{ color: '#ef4444' }}>*</span> are required. 
             </p> 
  
-            <div style={{  
-              display: 'grid',  
+            <div style={{   
+              display: 'grid',   
               gridTemplateColumns: '1fr 1fr', 
               gap: '16px 20px', 
             }}> 
               {/* Item Name - Required */} 
               <div className="pof-popup-field" style={{ marginBottom: '0', gridColumn: '1 / -1' }}> 
-                <label style={{  
-                  display: 'block',  
-                  fontSize: '13px',  
+                <label style={{   
+                  display: 'block',   
+                  fontSize: '13px',   
                   fontWeight: 500, 
                   marginBottom: '4px', 
                   color: theme === 'dark-theme' ? '#e5e7eb' : '#374151' 
@@ -2434,9 +2459,9 @@ export default function GRNForm() {
  
               {/* Item Code - Optional */} 
               <div className="pof-popup-field" style={{ marginBottom: '0' }}> 
-                <label style={{  
-                  display: 'block',  
-                  fontSize: '13px',  
+                <label style={{   
+                  display: 'block',   
+                  fontSize: '13px',   
                   fontWeight: 500, 
                   marginBottom: '4px', 
                   color: theme === 'dark-theme' ? '#e5e7eb' : '#374151' 
@@ -2464,7 +2489,7 @@ export default function GRNForm() {
  
               {/* Item Group - Required */} 
               <div className="pof-popup-field" style={{ marginBottom: '0' }}> 
-                <label style={{  
+                <label style={{   
                   display: 'block', 
                   fontSize: '13px', 
                   fontWeight: 500, 
@@ -2494,7 +2519,7 @@ export default function GRNForm() {
  
               {/* Default UOM - Required */} 
               <div className="pof-popup-field" style={{ marginBottom: '0' }}> 
-                <label style={{  
+                <label style={{   
                   display: 'block', 
                   fontSize: '13px', 
                   fontWeight: 500, 
@@ -2524,7 +2549,7 @@ export default function GRNForm() {
  
               {/* Tax - Optional */} 
               <div className="pof-popup-field" style={{ marginBottom: '0' }}> 
-                <label style={{  
+                <label style={{   
                   display: 'block', 
                   fontSize: '13px', 
                   fontWeight: 500, 
@@ -2561,7 +2586,7 @@ export default function GRNForm() {
  
               {/* Quantity */} 
               <div className="pof-popup-field" style={{ marginBottom: '0' }}> 
-                <label style={{  
+                <label style={{   
                   display: 'block', 
                   fontSize: '13px', 
                   fontWeight: 500, 
@@ -2596,7 +2621,7 @@ export default function GRNForm() {
  
               {/* Pricing - Two columns */} 
               <div className="pof-popup-field" style={{ marginBottom: '0' }}> 
-                <label style={{  
+                <label style={{   
                   display: 'block', 
                   fontSize: '13px', 
                   fontWeight: 500, 
@@ -2630,7 +2655,7 @@ export default function GRNForm() {
               </div> 
  
               <div className="pof-popup-field" style={{ marginBottom: '0' }}> 
-                <label style={{  
+                <label style={{   
                   display: 'block', 
                   fontSize: '13px', 
                   fontWeight: 500, 
@@ -2665,7 +2690,7 @@ export default function GRNForm() {
  
               {/* Description - Optional */} 
               <div className="pof-popup-field" style={{ marginBottom: '0', gridColumn: '1 / -1' }}> 
-                <label style={{  
+                <label style={{   
                   display: 'block', 
                   fontSize: '13px', 
                   fontWeight: 500, 
@@ -2748,8 +2773,8 @@ export default function GRNForm() {
     ); 
   }; 
  
-
-
+ 
+ 
   if (loading) {
     return (
       <div className={`grnf-page ${theme}`}>
@@ -3132,8 +3157,9 @@ export default function GRNForm() {
                               <input
                                 ref={poInputRef}
                                 type="text"
-                                value={poSearchTerm}
+                                value={poDisplayValue}
                                 onChange={(e) => {
+                                  setIsPOFocused(true);
                                   setPOSearchTerm(e.target.value);
                                   setShowPODropdown(true);
                                   if (e.target.value !== formData.purchaseOrder) {
@@ -3142,8 +3168,18 @@ export default function GRNForm() {
                                   setIsDirty(true);
                                 }}
                                 onFocus={() => {
+                                  // 🆕 Clear the search term on focus so ALL POs are
+                                  //    shown again — lets the user easily switch to a
+                                  //    different PO after already having selected one.
+                                  setIsPOFocused(true);
+                                  setPOSearchTerm('');
                                   setShowPODropdown(true);
                                   fetchPurchaseOrders();
+                                }}
+                                onBlur={() => {
+                                  // 🆕 Revert to showing the selected PO's name
+                                  //    once the user leaves the field.
+                                  setIsPOFocused(false);
                                 }}
                                 className={`grnf-form-field${errors.purchaseOrder ? ' grnf-field-error' : ''}`}
                                 placeholder="Search PO..."

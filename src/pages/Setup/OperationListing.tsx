@@ -489,17 +489,13 @@ export default function OperationList() {
     return operation.is_corrective_operation === 1 ? 'Corrective' : 'Standard';
   };
 
-  // ─── Loading Screen ─────────────────────────────────────────────────────
-  if (loading) {
-    return (
-      <div className={`p-6 max-w-7xl mx-auto ${theme}`}>
-        <PageLoader
-          message="Loading Setup & Operation List..."
-        //subtitle="Calculating bill of materials, operations rates, and component structures"
-        />
-      </div>
-    );
-  }
+  // ✅ FIX: The early `if (loading) return <PageLoader />` block has been
+  //    REMOVED. Previously, every keystroke-triggered fetch set
+  //    `loading = true`, which unmounted the entire page (including the
+  //    search input) and caused focus/cursor loss while typing.
+  //    The inline loading state (`{loading && <div className="op-loading">}`)
+  //    further down in the JSX now handles the visual feedback, so the
+  //    filter bar (and the search input) stays mounted and keeps focus.
 
   // ─── Render ───────────────────────────────────────────────────────────────
 
@@ -705,7 +701,8 @@ export default function OperationList() {
         </div>
       )}
 
-      {/* Loading State */}
+      {/* Loading State — rendered inline (NOT as an early return) so the
+          search input above never unmounts and keeps focus while typing. */}
       {loading && (
         <div className="op-loading">
           <FaSpinner className="spinning" size={24} />

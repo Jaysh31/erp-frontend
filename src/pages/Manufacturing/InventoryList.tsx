@@ -1,6 +1,6 @@
 // InventoryList.tsx
-import { useState, useEffect, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect, useMemo, useRef } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   FaSearch,
   FaTimes,
@@ -13,7 +13,7 @@ import {
   FaTrash,
   FaBoxes,
   FaWarehouse,
-  
+
   FaDollarSign,
   FaArrowUp,
   FaExclamationTriangle,
@@ -27,13 +27,67 @@ import {
   FaMapMarkerAlt,
   FaLock,
   FaLockOpen,
-  FaChevronDown
+  FaChevronDown,
+  FaFilter
 } from "react-icons/fa";
 import "./InventoryList.css";
 import '../Sales/SalesMobileTable.css';
 import { useAdminTheme } from "../../admin-theme/AdminThemeContext";
 import api from "../../services/api";
 import { PageLoader } from "../components/PageLoader";
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🆕 Filter preservation helpers
+//    - INV_PRESERVE_FLAG_KEY : set to "true" before navigating to a
+//      /inventory/* or /InventoryList sub-route. Consumed on mount.
+//    - INV_FILTER_DATA_KEY   : JSON snapshot of current filters, saved on
+//      every filter change.
+//
+//    A global history observer wipes the preserve flag as soon as the
+//    URL leaves the inventory module. That way, going to any other
+//    page (Dashboard, Work Order, GRN, …) effectively discards filters.
+//
+//    NOTE: The list itself lives at /InventoryList but the detail pages
+//    live at /inventory/detail/... — so we treat BOTH prefixes as
+//    "inside the module" for the purpose of preserving state.
+// ═══════════════════════════════════════════════════════════════════════
+const INV_PRESERVE_FLAG_KEY = "__inv_preserve_filters__";
+const INV_FILTER_DATA_KEY = "__inv_list_filters__";
+
+const isInsideInventoryModule = (path: string) =>
+  path.startsWith("/inventory") || path.startsWith("/InventoryList") ||
+  path.startsWith("/inventorylist");
+
+// Install the history observer exactly once per browser tab
+if (typeof window !== "undefined" && !(window as any).__invNavObserverInstalled) {
+  (window as any).__invNavObserverInstalled = true;
+
+  const clearFlagIfLeavingInventory = () => {
+    try {
+      const path = window.location.pathname;
+      if (!isInsideInventoryModule(path)) {
+        sessionStorage.removeItem(INV_PRESERVE_FLAG_KEY);
+      }
+    } catch {
+      /* ignore */
+    }
+  };
+
+  const origPush = window.history.pushState;
+  const origReplace = window.history.replaceState;
+
+  window.history.pushState = function (...args: any[]) {
+    const r = origPush.apply(this as any, args as any);
+    clearFlagIfLeavingInventory();
+    return r;
+  };
+  window.history.replaceState = function (...args: any[]) {
+    const r = origReplace.apply(this as any, args as any);
+    clearFlagIfLeavingInventory();
+    return r;
+  };
+  window.addEventListener("popstate", clearFlagIfLeavingInventory);
+}
 
 // ─── Types ───────────────────────────────────────────────────────────────
 
@@ -79,7 +133,7 @@ interface InventoryDisplay {
   id: string;
   itemCode: string;
   itemName: string;
-  item_name: string; // ← Added this to match the interface requirement
+  item_name: string;
   warehouse: string;
   warehouseId: number;
   actualQty: number;
@@ -94,7 +148,6 @@ interface InventoryDisplay {
   status: InventoryStatus;
   lastUpdated: string;
   type: "Internal" | "External";
-  // New fields for grouped internal items
   isGrouped?: boolean;
   groupItems?: InventoryDisplay[];
   itemCount?: number;
@@ -130,6 +183,36 @@ type InventoryStatus =
 type StockStatus = "All" | InventoryStatus;
 type ActiveTab = "all" | "internal" | "external";
 
+// 🆕 Map chatbot status keywords → Inventory status values
+const URL_STATUS_TO_INV_STATUS: Record<string, InventoryStatus> = {
+  "in stock":      "In Stock",
+  "instock":       "In Stock",
+  "available":     "In Stock",
+  "low stock":     "Low Stock",
+  "lowstock":      "Low Stock",
+  "low":           "Low Stock",
+  "out of stock":  "Out of Stock",
+  "out-of-stock":  "Out of Stock",
+  "outofstock":    "Out of Stock",
+  "out":           "Out of Stock",
+  "empty":         "Out of Stock",
+  "over stock":    "Over Stock",
+  "overstock":     "Over Stock",
+  "over-stock":    "Over Stock",
+  "excess":        "Over Stock",
+};
+
+function resolveInventoryStatus(rawStatus: string): InventoryStatus | null {
+  if (!rawStatus) return null;
+  const norm = rawStatus.toLowerCase().trim();
+  if (URL_STATUS_TO_INV_STATUS[norm]) return URL_STATUS_TO_INV_STATUS[norm];
+
+  for (const [key, val] of Object.entries(URL_STATUS_TO_INV_STATUS)) {
+    if (norm.includes(key) || key.includes(norm)) return val;
+  }
+  return null;
+}
+
 // ─── Warehouse visual identity helpers ────────────────────────────────────
 const getWarehouseVisual = (name: string) => {
   const n = (name || "").toLowerCase();
@@ -149,8 +232,6 @@ const getWarehouseVisual = (name: string) => {
 };
 
 // ─── Warehouse ordering helper ────────────────────────────────────────────
-// Ensures warehouses always render in the production-flow order:
-// Raw Material -> Work in Progress -> Finished Goods -> Scrap -> anything else
 const getWarehouseOrderRank = (name: string, type?: string | null) => {
   const n = (name || "").toLowerCase();
   const t = (type || "").toLowerCase();
@@ -158,11 +239,18 @@ const getWarehouseOrderRank = (name: string, type?: string | null) => {
   if (n.includes("work in progress") || n.includes("wip") || t.includes("work in progress")) return 2;
   if (n.includes("finished") || t.includes("finished")) return 3;
   if (n.includes("scrap") || t.includes("scrap")) return 4;
-  return 5; // custom/unnamed warehouse types go last
+  return 5;
 };
 
 export default function InventoryList() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // 🆕 URL-driven status filter
+  const urlStatus = searchParams.get("status") || "";
+  const urlAutoFilter = searchParams.get("autoFilter") === "1";
+  const isUrlFiltered = !!urlStatus && urlAutoFilter;
+
   const { theme } = useAdminTheme();
 
   const [inventoryItems, setInventoryItems] = useState<InventoryDisplay[]>([]);
@@ -206,6 +294,121 @@ export default function InventoryList() {
     });
   };
 
+  // 🆕 Gates the "reset page to 1" effect so it doesn't clobber a
+  //    restored currentPage right after mount.
+  const [filtersReady, setFiltersReady] = useState(false);
+  const isRestoringRef = useRef(false);
+
+  // ═════════════════════════════════════════════════════════════════════
+  // 🆕 RESTORE FILTERS + VIEW STATE ON MOUNT
+  //    Only restores if the preserve flag is set (i.e. we came back from
+  //    an inventory detail page). Otherwise, discards the saved data.
+  // ═════════════════════════════════════════════════════════════════════
+  useEffect(() => {
+    let shouldPreserve = false;
+    try {
+      shouldPreserve = sessionStorage.getItem(INV_PRESERVE_FLAG_KEY) === "true";
+      sessionStorage.removeItem(INV_PRESERVE_FLAG_KEY);
+    } catch {
+      /* ignore */
+    }
+
+    if (shouldPreserve) {
+      try {
+        const saved = sessionStorage.getItem(INV_FILTER_DATA_KEY);
+        if (saved) {
+          const f = JSON.parse(saved);
+          isRestoringRef.current = true;
+
+          if (f.viewMode === "warehouses" || f.viewMode === "detail") {
+            setViewMode(f.viewMode);
+          }
+          if (typeof f.detailWarehouseId === "number" || f.detailWarehouseId === null) {
+            setDetailWarehouseId(f.detailWarehouseId);
+          }
+          if (typeof f.searchTerm === "string")   setSearchTerm(f.searchTerm);
+          if (typeof f.statusFilter === "string") setStatusFilter(f.statusFilter as StockStatus);
+          if (f.activeTab === "all" || f.activeTab === "internal" || f.activeTab === "external") {
+            setActiveTab(f.activeTab);
+          }
+          if (typeof f.currentPage === "number")  setCurrentPage(f.currentPage);
+          if (typeof f.itemsPerPage === "number") setItemsPerPage(f.itemsPerPage);
+
+          console.log("♻️ Restored inventory filters + view state:", f);
+        }
+      } catch (e) {
+        console.warn("⚠️ Failed to restore inventory filters:", e);
+      }
+    } else {
+      // Came from outside the inventory module → discard stale filters.
+      try {
+        sessionStorage.removeItem(INV_FILTER_DATA_KEY);
+      } catch {
+        /* ignore */
+      }
+    }
+
+    setFiltersReady(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ═════════════════════════════════════════════════════════════════════
+  // 🆕 SAVE FILTERS + VIEW STATE ON EVERY CHANGE
+  // ═════════════════════════════════════════════════════════════════════
+  useEffect(() => {
+    if (!filtersReady) return;
+    try {
+      sessionStorage.setItem(
+        INV_FILTER_DATA_KEY,
+        JSON.stringify({
+          viewMode,
+          detailWarehouseId,
+          searchTerm,
+          statusFilter,
+          activeTab,
+          currentPage,
+          itemsPerPage,
+        })
+      );
+    } catch {
+      /* ignore */
+    }
+  }, [
+    viewMode,
+    detailWarehouseId,
+    searchTerm,
+    statusFilter,
+    activeTab,
+    currentPage,
+    itemsPerPage,
+    filtersReady,
+  ]);
+
+  // 🆕 Wrapper that sets the preserve flag before navigating to an
+  //    inventory sub-route.
+  const navigateWithPreserve = (path: string) => {
+    try {
+      sessionStorage.setItem(INV_PRESERVE_FLAG_KEY, "true");
+    } catch {
+      /* ignore */
+    }
+    navigate(path);
+  };
+
+  // 🆕 Sync URL status → statusFilter dropdown
+  useEffect(() => {
+    if (isUrlFiltered && urlStatus) {
+      const mapped = resolveInventoryStatus(urlStatus);
+      if (mapped) {
+        setStatusFilter(mapped as StockStatus);
+        setCurrentPage(1);
+        // Make sure we're in the detail view so the status filter is visible
+        if (viewMode === "warehouses") {
+          setViewMode("detail");
+        }
+      }
+    }
+  }, [isUrlFiltered, urlStatus, viewMode]);
 
   // ─── Fetch Warehouses ──────────────────────────────────────────────
   const fetchWarehouses = async () => {
@@ -240,7 +443,7 @@ export default function InventoryList() {
             id: item.id.toString(),
             itemCode: item.item_code,
             itemName: item.item_name || item.item_code,
-            item_name: item.item_name || item.item_code, // ← Added this
+            item_name: item.item_name || item.item_code,
             warehouse: warehouseName,
             warehouseId: item.warehouse_Id,
             actualQty: item.actual_qty || 0,
@@ -279,14 +482,10 @@ export default function InventoryList() {
   };
 
   // ─── Group Internal Items by Item Code ──────────────────────────────
-  // Internal items collapse into ONE row per item code (per warehouse).
-  // External items are never grouped — each record stays as its own row.
   const groupInternalItems = (items: InventoryDisplay[]): InventoryDisplay[] => {
-    // Separate internal and external items
     const internalItems = items.filter(item => item.type === "Internal");
     const externalItems = items.filter(item => item.type === "External");
 
-    // Group internal items by itemCode
     const groupedMap = new Map<string, InventoryDisplay[]>();
 
     internalItems.forEach(item => {
@@ -296,18 +495,15 @@ export default function InventoryList() {
       groupedMap.get(item.itemCode)!.push(item);
     });
 
-    // Create grouped items for internal
     const groupedInternalItems: InventoryDisplay[] = [];
 
     groupedMap.forEach((group, itemCode) => {
-      // Calculate totals
       const totalActualQty = group.reduce((sum, item) => sum + item.actualQty, 0);
       const totalReservedStock = group.reduce((sum, item) => sum + item.reservedStock, 0);
       const totalStockValue = group.reduce((sum, item) => sum + item.stockValue, 0);
       const totalValuationRate = group.reduce((sum, item) => sum + item.valuationRate, 0);
       const avgValuationRate = totalValuationRate / group.length;
 
-      // Use the first item as template
       const firstItem = group[0];
 
       const groupedItem: InventoryDisplay = {
@@ -320,20 +516,17 @@ export default function InventoryList() {
         isGrouped: true,
         groupItems: group,
         itemCount: group.length,
-        // Update status based on total quantity
         status: getStockStatus(totalActualQty),
       };
 
       groupedInternalItems.push(groupedItem);
     });
 
-    // Return: grouped internal items + external items (unchanged, one row each)
     return [...groupedInternalItems, ...externalItems];
   };
 
   // ─── Update Stats ─────────────────────────────────────────────────
   const updateStats = (items: InventoryDisplay[]) => {
-    // For stats, use grouped internal items to avoid double counting
     const groupedItems = groupInternalItems(items);
 
     const totalValue = groupedItems.reduce((sum, item) => sum + item.stockValue, 0);
@@ -360,11 +553,10 @@ export default function InventoryList() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [warehouses]);
 
-  // ─── Per-warehouse rollups with grouping, sorted by production stage ──
+  // ─── Per-warehouse rollups ──
   const warehouseCards = useMemo(() => {
     const cards = warehouses.map((wh) => {
       const warehouseItems = inventoryItems.filter((item) => item.warehouseId === wh.id);
-      // Group internal items for this warehouse (one row per item code); external stays ungrouped
       const groupedWarehouseItems = groupInternalItems(warehouseItems);
 
       const internalItems = groupedWarehouseItems.filter((item) => item.type === "Internal");
@@ -387,8 +579,6 @@ export default function InventoryList() {
       };
     });
 
-    // Sort: Raw Material -> Work in Progress -> Finished Goods -> Scrap -> others
-    // Warehouses within the same stage are sorted alphabetically for stability.
     return cards.sort((a, b) => {
       const rankA = getWarehouseOrderRank(a.warehouse_name, a.warehouse_type);
       const rankB = getWarehouseOrderRank(b.warehouse_name, b.warehouse_type);
@@ -399,11 +589,10 @@ export default function InventoryList() {
 
   const activeWarehouse = warehouseCards.find((wh) => wh.id === detailWarehouseId) || null;
 
-  // ─── Items for the detail view (with grouping) ────────────────────
+  // ─── Items for the detail view ────────────────────────────────────
   const detailItems = useMemo(() => {
     if (!activeWarehouse) return [];
 
-    // Get items based on active tab
     let items = activeWarehouse.items;
 
     if (activeTab === "internal") {
@@ -412,7 +601,6 @@ export default function InventoryList() {
       items = items.filter(item => item.type === "External");
     }
 
-    // Apply search and status filters
     return items.filter((item) => {
       const matchesSearch =
         item.itemCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -432,10 +620,16 @@ export default function InventoryList() {
     };
   }, [activeWarehouse]);
 
-  // Reset pagination when filters/tab/warehouse change
+  // Reset pagination when filters/tab/warehouse change — skip the first
+  // run after restoration so we don't clobber a restored currentPage.
   useEffect(() => {
+    if (!filtersReady) return;
+    if (isRestoringRef.current) {
+      isRestoringRef.current = false;
+      return;
+    }
     setCurrentPage(1);
-  }, [activeTab, statusFilter, searchTerm, detailWarehouseId]);
+  }, [activeTab, statusFilter, searchTerm, detailWarehouseId, filtersReady]);
 
   // ─── Pagination ──────────────────────────────────────────────────
   const totalPages = Math.ceil(detailItems.length / itemsPerPage) || 1;
@@ -449,7 +643,9 @@ export default function InventoryList() {
     setDetailWarehouseId(id);
     setViewMode("detail");
     setActiveTab("all");
-    setStatusFilter("All");
+    if (!isUrlFiltered) {
+      setStatusFilter("All");
+    }
     setSearchTerm("");
   };
 
@@ -461,7 +657,6 @@ export default function InventoryList() {
   const confirmDelete = async () => {
     if (selectedItemForDelete) {
       try {
-        // If it's a grouped item, delete all items in the group
         if (selectedItemForDelete.isGrouped && selectedItemForDelete.groupItems) {
           for (const item of selectedItemForDelete.groupItems) {
             await api.delete(`/inventory/${item.id}`);
@@ -489,6 +684,16 @@ export default function InventoryList() {
     setSearchTerm("");
     setStatusFilter("All");
     setActiveTab("all");
+    setCurrentPage(1);
+  };
+
+  // 🆕 Clears the URL-driven status filter
+  const clearUrlStatusFilter = () => {
+    const next = new URLSearchParams(searchParams);
+    next.delete("status");
+    next.delete("autoFilter");
+    setSearchParams(next);
+    setStatusFilter("All");
     setCurrentPage(1);
   };
 
@@ -623,21 +828,38 @@ export default function InventoryList() {
       return Math.min(currentPage * itemsPerPage, detailItems.length);
     }
 
-    
-      // ─── Loading Screen ─────────────────────────────────────────────────────
-        if (loading) {
-          return (
-            <div className={`p-6 max-w-7xl mx-auto ${theme}`}>
-              <PageLoader
-                message="Loading Organization & Company List..." 
-                //subtitle="Calculating bill of materials, operations rates, and component structures"
-              />
-            </div>
-          );
-        }
+    if (loading) {
+      return (
+        <div className={`p-6 max-w-7xl mx-auto ${theme}`}>
+          <PageLoader
+            message="Loading Organization & Company List..."
+          />
+        </div>
+      );
+    }
 
     return (
       <>
+        {/* 🆕 URL-driven status filter banner */}
+        {isUrlFiltered && (
+          <div className="inv-url-filter-banner">
+            <FaFilter size={12} />
+            <span>
+              Showing Inventory with status: <strong>{resolveInventoryStatus(urlStatus) || urlStatus}</strong>
+            </span>
+            <span className="inv-url-filter-count">
+              ({detailItems.length} record{detailItems.length === 1 ? "" : "s"})
+            </span>
+            <button
+              className="inv-url-filter-clear"
+              onClick={clearUrlStatusFilter}
+              title="Clear status filter"
+            >
+              <FaTimes size={10} /> Clear
+            </button>
+          </div>
+        )}
+
         <div className="inv-detail-header">
           <button className="inv-detail-back" onClick={backToWarehouses}>
             <FaArrowLeft size={12} /> All Warehouses
@@ -718,12 +940,19 @@ export default function InventoryList() {
           </div>
         </div>
 
-        {(searchTerm || statusFilter !== "All") && (
+        {(searchTerm || statusFilter !== "All" || isUrlFiltered) && (
           <div className="inv-active-filters">
             <span>Active filters:</span>
+            {isUrlFiltered && <span><strong>Status (URL):</strong> {resolveInventoryStatus(urlStatus) || urlStatus}</span>}
             {searchTerm && <span><strong>Search:</strong> "{searchTerm}"</span>}
             {statusFilter !== "All" && <span><strong>Status:</strong> {statusFilter}</span>}
-            <button onClick={clearFilters} className="inv-clear-filters">
+            <button
+              onClick={() => {
+                clearFilters();
+                if (isUrlFiltered) clearUrlStatusFilter();
+              }}
+              className="inv-clear-filters"
+            >
               <FaTimes size={10} /> Clear
             </button>
           </div>
@@ -794,7 +1023,13 @@ export default function InventoryList() {
                             <div className="inv-action-buttons">
                               <button
                                 className="wo-action-btn wo-action-view"
-                                onClick={() => navigate(`/inventory/detail/${item.itemCode}?type=${item.type}`)}
+                                onClick={() =>
+                                  navigateWithPreserve(
+                                    `/inventory/detail/${encodeURIComponent(item.itemCode)}` +
+                                    `?type=${encodeURIComponent(item.type)}` +
+                                    `&warehouse_id=${encodeURIComponent(String(item.warehouseId))}`
+                                  )
+                                }
                                 title="View Details"
                               >
                                 <FaEye size={12} />
@@ -810,7 +1045,7 @@ export default function InventoryList() {
               </table>
             </div>
 
-            {/* Mobile Table Section (Customer, Status + Dropdown Button -> Date, Amount, Actions) */}
+            {/* Mobile Table Section */}
             <div className="sales-mobile-list-wrap">
               <div className="sales-mobile-list-header">
                 <div className="sales-mobile-th-primary">
@@ -843,7 +1078,6 @@ export default function InventoryList() {
                         key={item.id}
                         className={`sales-mobile-card ${isExpanded ? "sales-mobile-card-expanded" : ""}`}
                       >
-                        {/* Card Header: Customer, Status and Dropdown Button */}
                         <div
                           className="sales-mobile-card-header"
                           onClick={() => toggleRowExpand(item.id)}
@@ -875,7 +1109,6 @@ export default function InventoryList() {
                             </div>
                           </div>
 
-                          {/* Dropdown Button */}
                           <button
                             type="button"
                             className={`sales-mobile-dropdown-btn ${isExpanded ? "expanded" : ""}`}
@@ -887,7 +1120,6 @@ export default function InventoryList() {
                           </button>
                         </div>
 
-                        {/* Dropdown Section: Date, Amount, Actions */}
                         {isExpanded && (
                           <div className="sales-mobile-card-details">
                             <div className="sales-mobile-detail-row">
@@ -921,16 +1153,19 @@ export default function InventoryList() {
                               </span>
                             </div>
 
-
-
                             <div className="sales-mobile-detail-footer">
                               <span className="sales-mobile-card-meta-text">
-                                {/*rowNumber} of {totalRecords*/}
                               </span>
                               <div className="sales-mobile-action-buttons">
                                 <button
                                   className="wo-action-btn wo-action-view"
-                                  onClick={() => navigate(`/inventory/detail/${item.itemCode}?type=${item.type}`)}
+                                  onClick={() =>
+                                    navigateWithPreserve(
+                                      `/inventory/detail/${encodeURIComponent(item.itemCode)}` +
+                                      `?type=${encodeURIComponent(item.type)}` +
+                                      `&warehouse_id=${encodeURIComponent(String(item.warehouseId))}`
+                                    )
+                                  }
                                   title="View Details"
                                 >
                                   <FaEye size={12} />
@@ -948,10 +1183,6 @@ export default function InventoryList() {
             </div>
           </>
         )}
-
-
-
-
 
         {detailItems.length > 0 && (
           <div className="inv-pagination">
@@ -1008,175 +1239,169 @@ export default function InventoryList() {
           </div>
         )}
 
-
-
         </>
       );
   };
 
-        // ─── Helper: Reservation State ────────────────────────────────────
+  // ─── Helper: Reservation State ────────────────────────────────────
 
-        return (
-        <div className={`inv-page ${theme}`}>
-          <div className="inv-container">
-            {/* ─── Header ─── */}
-             {/*<div className="inv-header">
-              <div className="inv-header-left">
-                <h1><FaClipboardList className="inv-header-icon" /> Inventory Management</h1>
-            <span className="inv-subtitle">Track raw materials, work in progress, finished goods & scrap</span>
-              </div>
-            </div>*/}
+  return (
+    <div className={`inv-page ${theme}`}>
+      <div className="inv-container">
 
-            {/* ─── Loading State ─── */}
-            {loading && (
-              <div className="inv-loading">
-                <p>Loading inventory data...</p>
-              </div>
-            )}
-
-            {/* ─── Error State ─── */}
-            {error && (
-              <div className="inv-error">
-                <p>{error}</p>
-                <button onClick={fetchInventory} className="inv-retry-btn">Retry</button>
-              </div>
-            )}
-
-            {/* ─── Content ─── */}
-            {!loading && !error && (
-              <div className="inv-content">
-                {viewMode === "warehouses" ? renderWarehousePicker() : renderWarehouseDetail()}
-              </div>
-            )}
-
-            {/* ─── Item Details Modal ─── */}
-            {showItemDetails && selectedItem && (
-              <div className="inv-modal-overlay" onClick={() => setShowItemDetails(false)}>
-                <div className="inv-modal inv-item-detail" onClick={(e) => e.stopPropagation()}>
-                  <div className="inv-modal-header">
-                    <h2>
-                      <span className={`inv-type-badge ${selectedItem.type.toLowerCase()}`}>
-                        {selectedItem.type === "Internal" ? <FaIndustry size={12} /> : <FaTruck size={12} />}
-                        {selectedItem.type}
-                      </span>
-                      {selectedItem.itemCode}
-                      {selectedItem.isGrouped && (
-                        <span className="inv-group-badge" style={{ marginLeft: '10px' }}>
-                          <FaBoxes size={12} /> {selectedItem.itemCount} items grouped
-                        </span>
-                      )}
-                    </h2>
-                    <button className="inv-modal-close" onClick={() => setShowItemDetails(false)}>
-                      <FaTimes size={16} />
-                    </button>
-                  </div>
-                  <div className="inv-modal-body">
-                    {selectedItem.isGrouped && selectedItem.groupItems && (
-                      <div className="inv-grouped-items-list">
-                        <h4>Grouped Items:</h4>
-                        <ul>
-                          {selectedItem.groupItems.map((subItem) => (
-                            <li key={subItem.id}>
-                              {subItem.itemCode} - {subItem.itemName} - Qty: {subItem.actualQty} {subItem.uom}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                    <div className="inv-detail-grid">
-                      <div className="inv-detail-item">
-                        <label>Item Code</label>
-                        <span>{selectedItem.itemCode}</span>
-                      </div>
-                      <div className="inv-detail-item">
-                        <label>Item Name</label>
-                        <span>{selectedItem.itemName}</span>
-                      </div>
-                      <div className="inv-detail-item">
-                        <label>Type</label>
-                        <span className={`inv-type-badge ${selectedItem.type.toLowerCase()}`}>
-                          {selectedItem.type}
-                        </span>
-                      </div>
-                      <div className="inv-detail-item">
-                        <label>Warehouse</label>
-                        <span>{selectedItem.warehouse}</span>
-                      </div>
-                      <div className="inv-detail-item">
-                        <label>Status</label>
-                        <span className={`inv-status-badge ${selectedItem.status.toLowerCase().replace(" ", "-")}`}>
-                          {selectedItem.status}
-                        </span>
-                      </div>
-                      <div className="inv-detail-item">
-                        <label>Actual Quantity</label>
-                        <span>
-                          {selectedItem.actualQty} {selectedItem.uom}
-                          {selectedItem.isGrouped && selectedItem.groupItems && (
-                            <span className="inv-group-hint"> (total of {selectedItem.groupItems.length} items)</span>
-                          )}
-                        </span>
-                      </div>
-                      <div className="inv-detail-item">
-                        <label>Projected Quantity</label>
-                        <span>{selectedItem.projectedQty} {selectedItem.uom}</span>
-                      </div>
-                      <div className="inv-detail-item">
-                        <label>Valuation Rate</label>
-                        <span>₹{selectedItem.valuationRate.toFixed(2)}</span>
-                      </div>
-                      <div className="inv-detail-item">
-                        <label>Stock Value</label>
-                        <span>₹{selectedItem.stockValue.toLocaleString()}</span>
-                      </div>
-                      <div className="inv-detail-item">
-                        <label>Last Updated</label>
-                        <span>{formatDate(selectedItem.lastUpdated)}</span>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="inv-modal-footer">
-                    <button className="inv-btn-secondary" onClick={() => setShowItemDetails(false)}>Close</button>
-                    <button className="inv-btn-primary" onClick={() => navigate(`/inventory/edit/${selectedItem.id}`)}>
-                      <FaEdit size={12} /> Edit
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* ─── Delete Confirmation Modal ─── */}
-            {showDeleteConfirm && selectedItemForDelete && (
-              <div className="inv-modal-overlay" onClick={() => setShowDeleteConfirm(false)}>
-                <div className="inv-modal inv-modal-delete" onClick={(e) => e.stopPropagation()}>
-                  <div className="inv-modal-header">
-                    <span className="inv-modal-title">Confirm Delete</span>
-                    <button className="inv-modal-close" onClick={() => setShowDeleteConfirm(false)}>
-                      <FaTimes size={16} />
-                    </button>
-                  </div>
-                  <div className="inv-modal-body">
-                    <p>Are you sure you want to delete this inventory item?</p>
-                    <p className="inv-modal-item-name">
-                      <strong>{selectedItemForDelete.itemCode}</strong> - {selectedItemForDelete.itemName} - {selectedItemForDelete.warehouse}
-                      {selectedItemForDelete.isGrouped && selectedItemForDelete.groupItems && (
-                        <span className="inv-group-hint"> ({selectedItemForDelete.groupItems.length} items will be deleted)</span>
-                      )}
-                    </p>
-                    <p className="inv-modal-warning">This action cannot be undone.</p>
-                  </div>
-                  <div className="inv-modal-footer">
-                    <button className="inv-btn-secondary" onClick={() => setShowDeleteConfirm(false)}>
-                      Cancel
-                    </button>
-                    <button className="inv-btn-danger" onClick={confirmDelete}>
-                      <FaTrash size={12} /> Delete
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
+        {/* ─── Loading State ─── */}
+        {loading && (
+          <div className="inv-loading">
+            <p>Loading inventory data...</p>
           </div>
-        </div>
-        );
+        )}
+
+        {/* ─── Error State ─── */}
+        {error && (
+          <div className="inv-error">
+            <p>{error}</p>
+            <button onClick={fetchInventory} className="inv-retry-btn">Retry</button>
+          </div>
+        )}
+
+        {/* ─── Content ─── */}
+        {!loading && !error && (
+          <div className="inv-content">
+            {viewMode === "warehouses" ? renderWarehousePicker() : renderWarehouseDetail()}
+          </div>
+        )}
+
+        {/* ─── Item Details Modal ─── */}
+        {showItemDetails && selectedItem && (
+          <div className="inv-modal-overlay" onClick={() => setShowItemDetails(false)}>
+            <div className="inv-modal inv-item-detail" onClick={(e) => e.stopPropagation()}>
+              <div className="inv-modal-header">
+                <h2>
+                  <span className={`inv-type-badge ${selectedItem.type.toLowerCase()}`}>
+                    {selectedItem.type === "Internal" ? <FaIndustry size={12} /> : <FaTruck size={12} />}
+                    {selectedItem.type}
+                  </span>
+                  {selectedItem.itemCode}
+                  {selectedItem.isGrouped && (
+                    <span className="inv-group-badge" style={{ marginLeft: '10px' }}>
+                      <FaBoxes size={12} /> {selectedItem.itemCount} items grouped
+                    </span>
+                  )}
+                </h2>
+                <button className="inv-modal-close" onClick={() => setShowItemDetails(false)}>
+                  <FaTimes size={16} />
+                </button>
+              </div>
+              <div className="inv-modal-body">
+                {selectedItem.isGrouped && selectedItem.groupItems && (
+                  <div className="inv-grouped-items-list">
+                    <h4>Grouped Items:</h4>
+                    <ul>
+                      {selectedItem.groupItems.map((subItem) => (
+                        <li key={subItem.id}>
+                          {subItem.itemCode} - {subItem.itemName} - Qty: {subItem.actualQty} {subItem.uom}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                <div className="inv-detail-grid">
+                  <div className="inv-detail-item">
+                    <label>Item Code</label>
+                    <span>{selectedItem.itemCode}</span>
+                  </div>
+                  <div className="inv-detail-item">
+                    <label>Item Name</label>
+                    <span>{selectedItem.itemName}</span>
+                  </div>
+                  <div className="inv-detail-item">
+                    <label>Type</label>
+                    <span className={`inv-type-badge ${selectedItem.type.toLowerCase()}`}>
+                      {selectedItem.type}
+                    </span>
+                  </div>
+                  <div className="inv-detail-item">
+                    <label>Warehouse</label>
+                    <span>{selectedItem.warehouse}</span>
+                  </div>
+                  <div className="inv-detail-item">
+                    <label>Status</label>
+                    <span className={`inv-status-badge ${selectedItem.status.toLowerCase().replace(" ", "-")}`}>
+                      {selectedItem.status}
+                    </span>
+                  </div>
+                  <div className="inv-detail-item">
+                    <label>Actual Quantity</label>
+                    <span>
+                      {selectedItem.actualQty} {selectedItem.uom}
+                      {selectedItem.isGrouped && selectedItem.groupItems && (
+                        <span className="inv-group-hint"> (total of {selectedItem.groupItems.length} items)</span>
+                      )}
+                    </span>
+                  </div>
+                  <div className="inv-detail-item">
+                    <label>Projected Quantity</label>
+                    <span>{selectedItem.projectedQty} {selectedItem.uom}</span>
+                  </div>
+                  <div className="inv-detail-item">
+                    <label>Valuation Rate</label>
+                    <span>₹{selectedItem.valuationRate.toFixed(2)}</span>
+                  </div>
+                  <div className="inv-detail-item">
+                    <label>Stock Value</label>
+                    <span>₹{selectedItem.stockValue.toLocaleString()}</span>
+                  </div>
+                  <div className="inv-detail-item">
+                    <label>Last Updated</label>
+                    <span>{formatDate(selectedItem.lastUpdated)}</span>
+                  </div>
+                </div>
+              </div>
+              <div className="inv-modal-footer">
+                <button className="inv-btn-secondary" onClick={() => setShowItemDetails(false)}>Close</button>
+                <button
+                  className="inv-btn-primary"
+                  onClick={() => navigateWithPreserve(`/inventory/edit/${selectedItem.id}`)}
+                >
+                  <FaEdit size={12} /> Edit
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ─── Delete Confirmation Modal ─── */}
+        {showDeleteConfirm && selectedItemForDelete && (
+          <div className="inv-modal-overlay" onClick={() => setShowDeleteConfirm(false)}>
+            <div className="inv-modal inv-modal-delete" onClick={(e) => e.stopPropagation()}>
+              <div className="inv-modal-header">
+                <span className="inv-modal-title">Confirm Delete</span>
+                <button className="inv-modal-close" onClick={() => setShowDeleteConfirm(false)}>
+                  <FaTimes size={16} />
+                </button>
+              </div>
+              <div className="inv-modal-body">
+                <p>Are you sure you want to delete this inventory item?</p>
+                <p className="inv-modal-item-name">
+                  <strong>{selectedItemForDelete.itemCode}</strong> - {selectedItemForDelete.itemName} - {selectedItemForDelete.warehouse}
+                  {selectedItemForDelete.isGrouped && selectedItemForDelete.groupItems && (
+                    <span className="inv-group-hint"> ({selectedItemForDelete.groupItems.length} items will be deleted)</span>
+                  )}
+                </p>
+                <p className="inv-modal-warning">This action cannot be undone.</p>
+              </div>
+              <div className="inv-modal-footer">
+                <button className="inv-btn-secondary" onClick={() => setShowDeleteConfirm(false)}>
+                  Cancel
+                </button>
+                <button className="inv-btn-danger" onClick={confirmDelete}>
+                  <FaTrash size={12} /> Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }

@@ -24,7 +24,6 @@ import {
   FaExclamationCircle,
   FaQuestionCircle,
   FaFileAlt,
-
   FaEye
 } from 'react-icons/fa';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
@@ -32,6 +31,7 @@ import api from '../../services/api';
 import toast from 'react-hot-toast';
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
 import './CreateProformaInvoice.css';
+
 // ===== INTERFACES (Same as Sales Bill) =====
 
 interface Customer {
@@ -222,9 +222,6 @@ const getTaxIdFromRate = (taxRate: number, taxOpts: TaxOption[]): number | undef
 };
 
 // ===== API SERVICE =====
-// ★ FIX: removed stray `const handoffAppliedRef = useRef(false);`
-// which was called at module scope (not inside a component) and
-// triggered React's "Invalid hook call" error.
 class ProformaAPI {
   private apiService: any;
 
@@ -272,6 +269,93 @@ class ProformaAPI {
     return this.post('/sales-order', payload);
   }
 }
+
+// ===== 🆕 FULL-SCREEN LOADER OVERLAY =====
+interface LoaderOverlayProps {
+  isOpen: boolean;
+  message?: string;
+  subtitle?: string;
+}
+
+const LoaderOverlay: React.FC<LoaderOverlayProps> = ({
+  isOpen,
+  message = 'Please wait...',
+  subtitle,
+}) => {
+  if (!isOpen) return null;
+
+  return ReactDOM.createPortal(
+    <div
+      className="npi-loader-overlay"
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(15, 23, 42, 0.45)',
+        backdropFilter: 'blur(2px)',
+        WebkitBackdropFilter: 'blur(2px)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 20000,
+        padding: '20px',
+      }}
+    >
+      <div
+        className="npi-loader-card"
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: '#ffffff',
+          borderRadius: '16px',
+          padding: '32px 40px',
+          minWidth: '280px',
+          maxWidth: '380px',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '16px',
+          boxShadow: '0 20px 60px rgba(0, 0, 0, 0.25)',
+          textAlign: 'center',
+        }}
+      >
+        <div
+          className="npi-loader-spinner"
+          style={{
+            width: '52px',
+            height: '52px',
+            borderRadius: '50%',
+            border: '4px solid #e5e7eb',
+            borderTopColor: '#6366f1',
+            animation: 'npiSpin 0.9s linear infinite',
+          }}
+        />
+        <div
+          className="npi-loader-message"
+          style={{
+            fontSize: '16px',
+            fontWeight: 600,
+            color: '#111827',
+          }}
+        >
+          {message}
+        </div>
+        {subtitle && (
+          <div
+            className="npi-loader-subtitle"
+            style={{
+              fontSize: '13px',
+              color: '#6b7280',
+              marginTop: '-8px',
+            }}
+          >
+            {subtitle}
+          </div>
+        )}
+      </div>
+    </div>,
+    document.body
+  );
+};
 
 // ===== SUCCESS MODAL COMPONENT =====
 interface SuccessModalProps {
@@ -847,8 +931,6 @@ const CustomerDropdown: React.FC<CustomerDropdownProps> = ({
   );
 };
 
-
-
 // ===== MAIN COMPONENT =====
 
 const CreateProformaInvoice: React.FC = () => {
@@ -857,15 +939,10 @@ const CreateProformaInvoice: React.FC = () => {
   const location = useLocation();
   const { theme } = useAdminTheme();
 
-  // ★ FIX: handoffAppliedRef declared ONCE at the top of the component,
-  // so it is a valid hook call. Previously it was declared at module
-  // scope AND inside loadExistingSalesOrderIntoForm, both illegal.
-
   const [loadingExistingRecord, setLoadingExistingRecord] = useState<boolean>(false);
   const [recordLoaded, setRecordLoaded] = useState<boolean>(false);
 
-  // ✅ READ-ONLY MODE: Check if this is a view-only request
-  const isReadOnly = location.state?.readOnly === true;
+  const [isReadOnly, setIsReadOnly] = useState<boolean>(location.state?.readOnly === true);
 
   const [selectedCustomer, setSelectedCustomer] = useState<string>('');
   const [isService, setIsService] = useState<boolean>(false);
@@ -879,6 +956,15 @@ const CreateProformaInvoice: React.FC = () => {
   const [customerData, setCustomerData] = useState<Customer | null>(null);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // 🆕 Tracks the type of in-flight API operation so the loader can show
+  //    an appropriate message (create vs. save draft).
+  const [apiAction, setApiAction] = useState<'create' | 'draft' | null>(null);
+
+  // 🆕 When the user clicks Close on the success modal we briefly show
+  //    the loader before navigating away, so the transition feels smooth.
+  const [isNavigating, setIsNavigating] = useState(false);
+
   const [isLoading] = useState<boolean>(false);
   const [] = useState<Customer[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -976,7 +1062,7 @@ const CreateProformaInvoice: React.FC = () => {
 
   // ─── Apply Payment Template ──────────────────────────
   const applyPaymentTemplate = (templateId: string) => {
-    if (isReadOnly) return; // ✅ Prevent changes in read-only mode
+    if (isReadOnly) return;
     const template = paymentTermTemplates.find(t => t.id === templateId);
     if (!template) return;
 
@@ -1006,7 +1092,7 @@ const CreateProformaInvoice: React.FC = () => {
 
   // ─── Payment Schedule CRUD ──────────────────────────
   const addPaymentSchedule = () => {
-    if (isReadOnly) return; // ✅ Prevent changes in read-only mode
+    if (isReadOnly) return;
     const newId = String(paymentSchedule.length + 1);
     setPaymentSchedule([
       ...paymentSchedule,
@@ -1024,13 +1110,13 @@ const CreateProformaInvoice: React.FC = () => {
   };
 
   const removePaymentSchedule = (index: number) => {
-    if (isReadOnly) return; // ✅ Prevent changes in read-only mode
+    if (isReadOnly) return;
     if (paymentSchedule.length <= 1) return;
     setPaymentSchedule(paymentSchedule.filter((_, i) => i !== index));
   };
 
   const updatePaymentRow = (index: number, patch: Partial<PaymentScheduleRow>) => {
-    if (isReadOnly) return; // ✅ Prevent changes in read-only mode
+    if (isReadOnly) return;
     const updated = [...paymentSchedule];
     updated[index] = { ...updated[index], ...patch };
 
@@ -1043,13 +1129,13 @@ const CreateProformaInvoice: React.FC = () => {
   };
 
   const handlePaymentDueDateChange = (index: number, dueDate: string) => {
-    if (isReadOnly) return; // ✅ Prevent changes in read-only mode
+    if (isReadOnly) return;
     const duration = daysBetween(proformaDate, dueDate);
     updatePaymentRow(index, { dueDate, durationDays: duration });
   };
 
   const handlePaymentDurationChange = (index: number, durationDays: number) => {
-    if (isReadOnly) return; // ✅ Prevent changes in read-only mode
+    if (isReadOnly) return;
     const dueDate = addDays(proformaDate, durationDays);
     updatePaymentRow(index, { durationDays, dueDate });
   };
@@ -1092,8 +1178,6 @@ const CreateProformaInvoice: React.FC = () => {
   }, []);
 
   // ─── Load the Sales Order used as the Proforma Invoice source ───────────
-  // The Proforma list is backed by /sales-order, so View must load the same
-  // record instead of opening a fresh Create Proforma form.
   useEffect(() => {
     if (!id || recordLoaded) return;
     fetchExistingSalesOrder(id);
@@ -1133,8 +1217,6 @@ const CreateProformaInvoice: React.FC = () => {
     const transactionDate = normalizeDate(record.transaction_date);
     const deliveryDate = normalizeDate(record.delivery_date || record.valid_till);
 
-    // Keep the exact customer values from the source order so the dropdown
-    // and the payload both retain the saved customer.
     const customerName = record.customer_name || record.party_name || '';
     const customerCode = record.party_name || record.customer_code || customerName;
     const fallbackCustomer: Customer = {
@@ -1151,8 +1233,6 @@ const CreateProformaInvoice: React.FC = () => {
     };
 
     setCustomerData(fallbackCustomer);
-    // CustomerDropdown resolves selected value by id/name. Prefer name when
-    // available because customer_name is what the dropdown displays.
     setSelectedCustomer(customerName || String(record.customer_id || record.party_name || ''));
 
     setProformaDate(transactionDate || new Date().toISOString().split('T')[0]);
@@ -1161,11 +1241,6 @@ const CreateProformaInvoice: React.FC = () => {
     setProformaStatus(record.status || 'Draft');
     setIsService(record.order_type === 'Service' || record.is_service === 1 || record.is_service === true);
 
-    // Restore warehouse from the saved child row. The form stores the
-    // warehouse id, while the API stores the warehouse name on each item.
-    // ★ FIX: removed the invalid `const handoffAppliedRef = useRef(false);`
-    // that used to be here. The ref is now declared once at the top of
-    // the component.
     const sourceItems = Array.isArray(record.items) ? record.items : [];
     const firstWarehouseName = sourceItems.find((it: any) => it?.warehouse)?.warehouse || record.set_warehouse || '';
     if (firstWarehouseName) {
@@ -1377,7 +1452,7 @@ const CreateProformaInvoice: React.FC = () => {
   }, [allProducts]);
 
   const handleCustomerChange = (customerId: string, customerData?: Customer) => {
-    if (isReadOnly) return; // ✅ Prevent changes in read-only mode
+    if (isReadOnly) return;
     setSelectedCustomer(customerId);
     if (customerId && customerData) {
       setCustomerData(customerData);
@@ -1387,7 +1462,7 @@ const CreateProformaInvoice: React.FC = () => {
   };
 
   const addItem = () => {
-    if (isReadOnly) return; // ✅ Prevent changes in read-only mode
+    if (isReadOnly) return;
     const newItem: ProformaItem = {
       id: Date.now().toString(),
       itemCode: '',
@@ -1413,7 +1488,7 @@ const CreateProformaInvoice: React.FC = () => {
   };
 
   const removeItem = (id: string) => {
-    if (isReadOnly) return; // ✅ Prevent changes in read-only mode
+    if (isReadOnly) return;
     if (items.length <= 1) {
       toast.error('At least one item is required');
       return;
@@ -1422,7 +1497,7 @@ const CreateProformaInvoice: React.FC = () => {
   };
 
   const updateItem = (id: string, field: keyof ProformaItem, value: any) => {
-    if (isReadOnly) return; // ✅ Prevent changes in read-only mode
+    if (isReadOnly) return;
     setItems(prevItems =>
       prevItems.map(item => {
         if (item.id === id) {
@@ -1562,7 +1637,7 @@ updated.totalAmount = amount + taxAmount;
   };
 
   const validateForm = (): boolean => {
-    if (isReadOnly) return true; // ✅ Skip validation in read-only mode
+    if (isReadOnly) return true;
     const newErrors: { [key: string]: string } = {};
     if (!selectedCustomer) {
       newErrors.customer = 'Please select a Customer';
@@ -1577,9 +1652,10 @@ updated.totalAmount = amount + taxAmount;
   };
 
   const handleSubmit = async () => {
-    if (isReadOnly) return; // ✅ Prevent submission in read-only mode
+    if (isReadOnly) return;
     if (!validateForm()) return;
     setIsSubmitting(true);
+    setApiAction('create');
     const toastId = toast.loading('Creating proforma invoice...');
     try {
       const payload = buildPayload('Submitted');
@@ -1610,13 +1686,15 @@ updated.totalAmount = amount + taxAmount;
       toast.error(error.message || 'Failed to create proforma', { id: toastId });
     } finally {
       setIsSubmitting(false);
+      setApiAction(null);
     }
   };
 
   const handleSaveDraft = async () => {
-    if (isReadOnly) return; // ✅ Prevent draft save in read-only mode
+    if (isReadOnly) return;
     if (!validateForm()) return;
     setIsSubmitting(true);
+    setApiAction('draft');
     const toastId = toast.loading('Saving draft...');
     try {
       const payload = buildPayload('Draft');
@@ -1632,17 +1710,40 @@ updated.totalAmount = amount + taxAmount;
       toast.error(error.message || 'Failed to save', { id: toastId });
     } finally {
       setIsSubmitting(false);
+      setApiAction(null);
     }
   };
 
+  // ✅ CHANGED: "View Proforma" now keeps the form open in read-only mode
   const handleViewProforma = () => {
     setShowSuccessModal(false);
-    navigate('/proforma-invoice');
+
+    const newId = successData.proformaNumber;
+
+    setIsReadOnly(true);
+
+    if (newId && String(newId) !== String(id || '')) {
+      setRecordLoaded(true);
+      navigate(`/proforma-invoice/${encodeURIComponent(newId)}`, {
+        replace: true,
+        state: { readOnly: true }
+      });
+    }
   };
 
+  // 🆕 Close now shows the loader briefly before navigating away,
+  // so the user gets a smooth transition to the listing page.
   const handleCloseModal = () => {
+    // Close the modal right away.
     setShowSuccessModal(false);
-    navigate('/proforma-invoice');
+
+    // Show the loader for a brief moment while we prepare to navigate.
+    setIsNavigating(true);
+
+    // Give the loader a tick to paint, then navigate.
+    setTimeout(() => {
+      navigate('/proforma-invoice');
+    }, 350);
   };
 
   const handleCancel = () => {
@@ -1691,6 +1792,25 @@ updated.totalAmount = amount + taxAmount;
       </div>
     );
   }
+
+  // 🆕 Compute the loader message based on the current in-flight action.
+  const loaderMessage =
+    isNavigating
+      ? 'Returning to Proforma list...'
+      : apiAction === 'create'
+      ? 'Creating Proforma Invoice...'
+      : apiAction === 'draft'
+      ? 'Saving Draft...'
+      : 'Please wait...';
+
+  const loaderSubtitle =
+    isNavigating
+      ? 'Please wait a moment.'
+      : apiAction === 'create'
+      ? 'Please wait while we create the proforma invoice.'
+      : apiAction === 'draft'
+      ? 'Please wait while we save your draft.'
+      : undefined;
 
   return (
     <div className={`npi-page ${theme}`}>
@@ -1755,6 +1875,13 @@ updated.totalAmount = amount + taxAmount;
         }
       `}</style>
 
+      {/* 🆕 Full-screen loader for create/draft/close actions */}
+      <LoaderOverlay
+        isOpen={isSubmitting || isNavigating}
+        message={loaderMessage}
+        subtitle={loaderSubtitle}
+      />
+
       {/* Success Modal */}
       <SuccessModal
         isOpen={showSuccessModal}
@@ -1774,10 +1901,6 @@ updated.totalAmount = amount + taxAmount;
             <FaArrowLeft size={13} /> Back
           </button>
           <div className="npi-header-divider" />
-          {/*<h1 className="npi-header-title">
-            <FaFileInvoice className="npi-header-icon" />
-            {isReadOnly ? 'View Proforma Invoice' : 'Create Proforma Invoice'}
-          </h1>*/}
           {isReadOnly && (
             <span style={{
               marginLeft: '12px',
@@ -1798,7 +1921,7 @@ updated.totalAmount = amount + taxAmount;
               type="checkbox"
               checked={isService}
               onChange={(e) => {
-                if (isReadOnly) return; // ✅ Prevent changes in read-only mode
+                if (isReadOnly) return;
                 setIsService(e.target.checked);
                 setItems(items.map(item => ({
                   ...item,
@@ -1889,7 +2012,7 @@ updated.totalAmount = amount + taxAmount;
                     type="date"
                     value={proformaDate}
                     onChange={(e) => {
-                      if (isReadOnly) return; // ✅ Prevent changes in read-only mode
+                      if (isReadOnly) return;
                       setProformaDate(e.target.value);
                     }}
                     className={`npi-input ${errors.proformaDate ? 'npi-input-error' : ''}`}
@@ -1907,7 +2030,7 @@ updated.totalAmount = amount + taxAmount;
                     type="date"
                     value={validUntil}
                     onChange={(e) => {
-                      if (isReadOnly) return; // ✅ Prevent changes in read-only mode
+                      if (isReadOnly) return;
                       setValidUntil(e.target.value);
                     }}
                     className={`npi-input ${errors.validUntil ? 'npi-input-error' : ''}`}
@@ -1923,7 +2046,7 @@ updated.totalAmount = amount + taxAmount;
                 <select
                   value={proformaStatus}
                   onChange={(e) => {
-                    if (isReadOnly) return; // ✅ Prevent changes in read-only mode
+                    if (isReadOnly) return;
                     setProformaStatus(e.target.value);
                   }}
                   className="npi-select"
@@ -2330,7 +2453,7 @@ updated.totalAmount = amount + taxAmount;
                 placeholder="Add notes..."
                 value={remarks}
                 onChange={(e) => {
-                  if (isReadOnly) return; // ✅ Prevent changes in read-only mode
+                  if (isReadOnly) return;
                   setRemarks(e.target.value);
                 }}
                 className="npi-input"
@@ -2341,38 +2464,60 @@ updated.totalAmount = amount + taxAmount;
           </div>
 
           {/* RIGHT COLUMN: Financial Summary */}
-          <div className="ndc-bottom-right">
-                      <div className="ndc-detail-card ndc-summary-card">
-                        <div className="ndc-card-header">
-                          <FaCalculator size={14} />
-                          <span>Financial Summary</span>
-                        </div>
-                        <div className="ndc-card-content">
-                          <div className="ndc-summary-grid">
-                            <div className="ndc-summary-item">
-                              <span className="ndc-summary-label">Total Items</span>
-                              <span className="ndc-summary-value">{totalItems}</span>
-                            </div>
-                            <div className="ndc-summary-item">
-                              <span className="ndc-summary-label">Total Quantity</span>
-                              <span className="ndc-summary-value">{totalQuantity}</span>
-                            </div>
-                            <div className="ndc-summary-item">
-                              <span className="ndc-summary-label">Sub Total</span>
-                              <span className="ndc-summary-value">₹{subTotal.toFixed(2)}</span>
-                            </div>
-                            <div className="ndc-summary-item">
-                              <span className="ndc-summary-label">Total Tax</span>
-                              <span className="ndc-summary-value">₹{totalTax.toFixed(2)}</span>
-                            </div>
-                            
-                            <div className="ndc-summary-grand">
-                              <span className="ndc-summary-grand-label">Grand Total</span>
-                              <span className="ndc-summary-grand-value">₹{grandTotalWithRound.toFixed(2)}</span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
+          <div className="npi-bottom-right">
+            <div className="npi-detail-card npi-summary-card">
+              <div className="npi-card-header">
+                <FaCalculator size={14} />
+                <span>Financial Summary</span>
+              </div>
+              <div className="npi-card-content">
+                <div className="npi-summary-grid">
+                  <div className="npi-summary-item">
+                    <span className="npi-summary-label">Total Items</span>
+                    <span className="npi-summary-value">{totalItems}</span>
+                  </div>
+                  <div className="npi-summary-item">
+                    <span className="npi-summary-label">Total Quantity</span>
+                    <span className="npi-summary-value">{totalQuantity}</span>
+                  </div>
+                  <div className="npi-summary-item">
+                    <span className="npi-summary-label">Sub Total</span>
+                    <span className="npi-summary-value">₹{subTotal.toFixed(2)}</span>
+                  </div>
+                  <div className="npi-summary-item">
+                    <span className="npi-summary-label">Total Tax</span>
+                    <span className="npi-summary-value">₹{totalTax.toFixed(2)}</span>
+                  </div>
+                  <div className="npi-summary-item">
+                    <span className="npi-summary-label">Round Off</span>
+                    <div className="npi-roundoff-wrap">
+                      <input
+                        type="number"
+                        value={roundOff.toFixed(2)}
+                        onChange={(e) => {
+                          if (isReadOnly) return;
+                          setRoundOff(parseFloat(e.target.value) || 0);
+                        }}
+                        className="npi-roundoff-input"
+                        disabled={isReadOnly}
+                        readOnly={isReadOnly}
+                      />
+                    </div>
+                  </div>
+                  <div className="npi-summary-grand">
+                    <span className="npi-summary-grand-label">Grand Total</span>
+                    <span className="npi-summary-grand-value">₹{grandTotalWithRound.toFixed(2)}</span>
+                  </div>
+                  <div className="npi-summary-item" style={{ borderTop: '1px solid var(--border-color, #e2e8f0)', marginTop: '4px', paddingTop: '6px' }}>
+                    <span className="npi-summary-label" style={{ fontWeight: 600, color: 'var(--text-primary, #0f172a)' }}>Payment Schedule Total</span>
+                    <span className="npi-summary-value" style={{ fontWeight: 600, color: 'var(--primary-color, #2563eb)' }}>
+                      ₹{paymentSchedule.reduce((sum, p) => sum + p.paymentAmount, 0).toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 

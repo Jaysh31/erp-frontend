@@ -1,9 +1,11 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import type { ChangeEvent, FormEvent, KeyboardEvent } from "react";
+import { createPortal } from "react-dom";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import {
   FaArrowLeft, FaSave, FaSpinner, FaInfoCircle, FaExclamationTriangle,
-  FaTimesCircle, FaUser, FaBuilding, FaAddressBook, FaEdit,
+  FaTimesCircle, FaUser, FaBuilding, FaAddressBook, FaEdit, FaCheck,
+  FaEye,
 } from "react-icons/fa";
 import "./LeadForm.css";
 import api from "../../services/api";
@@ -79,10 +81,6 @@ const defaultFormData = (): LeadFormData => ({
 
 // ─── mapping: form <-> /lead API payload ───────────────────────────────
 
-/** Normalizes any date-ish value (ISO datetime, date, etc.) down to a plain
- *  YYYY-MM-DD string. MySQL `date` columns reject full ISO datetimes like
- *  '2026-07-05T00:00:00.000Z', so this must run before both displaying a
- *  date in a <input type="date"> and before sending it back to the API. */
 function toDateOnly(value?: string | null): string {
   if (!value) return "";
   const isoMatch = String(value).match(/^\d{4}-\d{2}-\d{2}/);
@@ -157,8 +155,6 @@ function buildApiPayload(formData: LeadFormData) {
 function mapApiLeadToForm(jc: any): LeadFormData {
   let fullName = jc.lead_name || "";
 
-  // Fallback: some responses only include first_name / last_name and omit
-  // the combined lead_name. Build the display name from those instead.
   if (!fullName && (jc.first_name || jc.last_name)) {
     fullName = [jc.first_name, jc.last_name].filter(Boolean).join(" ");
   }
@@ -203,6 +199,261 @@ function extractCustomerRecords(payload: any): any[] {
 
 const customerIdOf = (c: any) => c?.name ?? c?.id ?? c?.customer_code ?? "";
 
+// ─── 🆕 Full-Screen Loader Overlay ─────────────────────────────────────
+const LoaderOverlay: React.FC<{
+  isOpen: boolean;
+  message?: string;
+  subtitle?: string;
+}> = ({ isOpen, message = "Please wait...", subtitle }) => {
+  if (!isOpen) return null;
+
+  return createPortal(
+    <div
+      className="jcf-loader-overlay"
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(15, 23, 42, 0.45)",
+        backdropFilter: "blur(2px)",
+        WebkitBackdropFilter: "blur(2px)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 20000,
+        padding: "20px",
+      }}
+    >
+      <div
+        className="jcf-loader-card"
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: "#ffffff",
+          borderRadius: "16px",
+          padding: "32px 40px",
+          minWidth: "280px",
+          maxWidth: "360px",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: "16px",
+          boxShadow: "0 20px 60px rgba(0, 0, 0, 0.25)",
+          textAlign: "center",
+        }}
+      >
+        <div
+          className="jcf-loader-spinner"
+          style={{
+            width: "52px",
+            height: "52px",
+            borderRadius: "50%",
+            border: "4px solid #e5e7eb",
+            borderTopColor: "#6366f1",
+            animation: "jcf-spin 0.9s linear infinite",
+          }}
+        />
+        <div
+          className="jcf-loader-message"
+          style={{ fontSize: "16px", fontWeight: 600, color: "#111827" }}
+        >
+          {message}
+        </div>
+        {subtitle && (
+          <div
+            className="jcf-loader-subtitle"
+            style={{ fontSize: "13px", color: "#6b7280", marginTop: "-8px" }}
+          >
+            {subtitle}
+          </div>
+        )}
+      </div>
+      <style>{`
+        @keyframes jcf-spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
+    </div>,
+    document.body
+  );
+};
+
+// ─── 🆕 Success Modal ──────────────────────────────────────────────────
+const SuccessModal: React.FC<{
+  isOpen: boolean;
+  isUpdate: boolean;
+  leadName: string;
+  leadOrganization: string;
+  leadId: string;
+  onClose: () => void;
+  onView: () => void;
+}> = ({ isOpen, isUpdate, leadName, leadOrganization, leadId, onClose, onView }) => {
+  if (!isOpen) return null;
+
+  return createPortal(
+    <div
+      className="jcf-success-overlay"
+      onClick={onClose}
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(15, 23, 42, 0.45)",
+        backdropFilter: "blur(2px)",
+        WebkitBackdropFilter: "blur(2px)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 20001,
+        padding: "20px",
+      }}
+    >
+      <div
+        className="jcf-success-card"
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: "#ffffff",
+          borderRadius: "16px",
+          width: "100%",
+          maxWidth: "480px",
+          padding: "32px 28px 24px",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          boxShadow: "0 20px 60px rgba(0, 0, 0, 0.25)",
+          textAlign: "center",
+        }}
+      >
+        {/* Green check icon */}
+        <div
+          className="jcf-success-icon"
+          style={{
+            width: "72px",
+            height: "72px",
+            borderRadius: "50%",
+            background: "#d1fae5",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            marginBottom: "16px",
+          }}
+        >
+          <div
+            style={{
+              width: "52px",
+              height: "52px",
+              borderRadius: "50%",
+              background: "#10b981",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <FaCheck size={26} color="#ffffff" />
+          </div>
+        </div>
+
+        <h2
+          style={{
+            fontSize: "22px",
+            fontWeight: 700,
+            color: "#065f46",
+            margin: "0 0 8px 0",
+          }}
+        >
+          Success!
+        </h2>
+        <p
+          style={{
+            fontSize: "14px",
+            color: "#6b7280",
+            margin: "0 0 20px 0",
+          }}
+        >
+          {isUpdate ? "Lead updated successfully!" : "Lead created successfully!"}
+        </p>
+
+        {/* Details box */}
+        <div
+          style={{
+            width: "100%",
+            background: "#f9fafb",
+            border: "1px solid #e5e7eb",
+            borderRadius: "10px",
+            padding: "14px 18px",
+            marginBottom: "20px",
+            display: "flex",
+            flexDirection: "column",
+            gap: "10px",
+            textAlign: "left",
+          }}
+        >
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px" }}>
+            <span style={{ color: "#6b7280", fontWeight: 500 }}>Name</span>
+            <span style={{ color: "#111827", fontWeight: 600 }}>{leadName || "-"}</span>
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px" }}>
+            <span style={{ color: "#6b7280", fontWeight: 500 }}>Organization</span>
+            <span style={{ color: "#111827", fontWeight: 600 }}>{leadOrganization || "-"}</span>
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px" }}>
+            <span style={{ color: "#6b7280", fontWeight: 500 }}>ID</span>
+            <span style={{ color: "#111827", fontWeight: 600 }}>{leadId ? `#${leadId}` : "-"}</span>
+          </div>
+        </div>
+
+        {/* Buttons */}
+        <div
+          style={{
+            display: "flex",
+            gap: "12px",
+            width: "100%",
+          }}
+        >
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              flex: 1,
+              padding: "11px 16px",
+              borderRadius: "8px",
+              border: "1px solid #d1d5db",
+              background: "#ffffff",
+              color: "#374151",
+              cursor: "pointer",
+              fontSize: "14px",
+              fontWeight: 600,
+            }}
+          >
+            Close
+          </button>
+          <button
+            type="button"
+            onClick={onView}
+            style={{
+              flex: 1,
+              padding: "11px 16px",
+              borderRadius: "8px",
+              border: "none",
+              background: "#2563eb",
+              color: "#ffffff",
+              cursor: "pointer",
+              fontSize: "14px",
+              fontWeight: 600,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: "6px",
+            }}
+          >
+            <FaEye size={13} /> View
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+};
+
 
 const LeadForm: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -211,24 +462,16 @@ const LeadForm: React.FC = () => {
 
   const isEditMode = !!id && id !== "new";
 
-  // ─── NEW: view vs edit mode ───────────────────────────────────────────
-  // Determine whether the page should start in editable mode.
-  // Edit mode is ON when:
-  //   • The URL has ?mode=edit  (from a View page's "Edit" button, or direct link)
-  //   • Navigation state explicitly says { edit: true }
-  //   • Creating a new lead (?id=new / no id)  → always editable
-  // Otherwise the page is READ-ONLY (view mode).
   const query = new URLSearchParams(location.search);
   const queryMode = query.get("mode");
   const navState = (location.state as any) || null;
 
   const startInEdit =
-    !isEditMode ||                                    // creating new lead → always editable
+    !isEditMode ||
     queryMode === "edit" ||
     navState?.edit === true;
 
   const [isViewMode, setIsViewMode] = useState<boolean>(!startInEdit);
-  // ──────────────────────────────────────────────────────────────────────
 
   const [activeTab, setActiveTab] = useState(0);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
@@ -245,6 +488,14 @@ const LeadForm: React.FC = () => {
 
   const [formData, setFormData] = useState<LeadFormData>(defaultFormData());
 
+  // 🆕 Success modal state
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [savedLeadId, setSavedLeadId] = useState<string>("");
+  const [wasUpdate, setWasUpdate] = useState(false);
+
+  // 🆕 Skip the refetch when we intentionally switch to the just-saved record
+  const skipLoadForIdRef = useRef<string>("");
+
   // ─── customer lookup state ──────────────────────────────────────────
   const [customers, setCustomers] = useState<any[]>([]);
   const [, setLoadingCustomers] = useState(false);
@@ -257,7 +508,7 @@ const LeadForm: React.FC = () => {
     { id: 1, name: "Organization & Address", icon: <FaBuilding size={14} /> },
   ];
 
-  // ─── load customers for the Organization dropdown ─────────────────────
+  // ─── load customers ───────────────────────────────────────────────────
 
   const fetchCustomers = async () => {
     setLoadingCustomers(true);
@@ -278,8 +529,6 @@ const LeadForm: React.FC = () => {
     fetchCustomers();
   }, []);
 
-  // Once customers are loaded (or when editing loads an org name), try to
-  // pre-select the matching customer in the dropdown.
   useEffect(() => {
     if (!formData.organizationName || customers.length === 0) return;
     const match = customers.find(
@@ -292,17 +541,21 @@ const LeadForm: React.FC = () => {
       setSelectedCustomerId(String(customerIdOf(match)));
       setIsAddingNewCustomer(false);
     } else {
-      // organizationName doesn't match any known customer — treat it as a
-      // manually-entered / new customer name.
       setIsAddingNewCustomer(true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [customers, formData.organizationName]);
 
-  // ─── load existing lead when editing ──────────────────────────────────
+  // ─── load existing lead ───────────────────────────────────────────────
 
   useEffect(() => {
     if (!isEditMode || !id) return;
+
+    // 🆕 We just saved this record and switched to view mode — don't refetch.
+    if (skipLoadForIdRef.current && skipLoadForIdRef.current === String(id)) {
+      skipLoadForIdRef.current = "";
+      return;
+    }
 
     setFormData(defaultFormData());
     setNotFound(false);
@@ -337,7 +590,6 @@ const LeadForm: React.FC = () => {
         console.log("Detail endpoint /lead/:id not available, falling back to list scan");
       }
 
-      // Fallback: scan the list endpoint for a matching record.
       if (!found) {
         const response = await api.get("/lead");
         const all = extractList(response.data);
@@ -349,7 +601,6 @@ const LeadForm: React.FC = () => {
         setFormData(mapApiLeadToForm(found));
         if (found.id != null) setRecordId(Number(found.id));
       } else if (!formData.organizationName) {
-        // only flag not-found if we don't already have nav-state data shown
         setNotFound(true);
         setApiError("Lead not found");
       }
@@ -369,7 +620,6 @@ const LeadForm: React.FC = () => {
 
   // ─── validation ────────────────────────────────────────────────────────
 
-  // Helper function to check if a field has any error
   const hasFieldError = (fieldName: string): boolean => {
     return validationErrors.some(err => err.field === fieldName);
   };
@@ -380,7 +630,6 @@ const LeadForm: React.FC = () => {
       if (!formData.name.trim()) newErrors.name = "Name is required";
       if (!formData.organizationName.trim()) newErrors.organizationName = "Organization Name is required";
 
-      // Name validation - only alphabets and spaces, max 30 chars (no digits)
       if (formData.name.trim() && !/^[A-Za-z\s]+$/.test(formData.name.trim())) {
         newErrors.name = "Name should contain only alphabets and spaces (no numbers)";
       }
@@ -388,7 +637,6 @@ const LeadForm: React.FC = () => {
         newErrors.name = "Name should not exceed 30 characters";
       }
 
-      // Job Title validation - only alphabets and spaces, max 30 chars (no digits)
       if (formData.jobTitle.trim() && !/^[A-Za-z\s]+$/.test(formData.jobTitle.trim())) {
         newErrors.jobTitle = "Job title should contain only alphabets and spaces (no numbers)";
       }
@@ -397,35 +645,24 @@ const LeadForm: React.FC = () => {
       }
     }
     if (step === 1) {
-      // Email validation
       if (formData.email.trim() && !/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(formData.email.trim())) {
         newErrors.email = "Enter a valid email address";
       }
-
-      // Mobile No validation - exactly 10 digits
       if (formData.mobileNo.trim() && !/^\d{10}$/.test(formData.mobileNo.trim())) {
         newErrors.mobileNo = "Mobile number must be exactly 10 digits";
       }
-
-      // Phone validation - exactly 10 digits
       if (formData.phone.trim() && !/^\d{10}$/.test(formData.phone.trim())) {
         newErrors.phone = "Phone number must be exactly 10 digits";
       }
-
-      // Website validation
       if (formData.website.trim() && !/^https?:\/\/[^\s]+$/.test(formData.website.trim())) {
         newErrors.website = "Enter a valid website URL";
       }
-
-      // City validation - alphabets and spaces only
       if (formData.city.trim() && !/^[A-Za-z\s]+$/.test(formData.city.trim())) {
         newErrors.city = "City should contain only alphabets and spaces";
       }
       if (formData.city.trim() && formData.city.trim().length > 50) {
         newErrors.city = "City should not exceed 50 characters";
       }
-
-      // State validation - required and alphabets and spaces only
       if (!formData.state.trim()) {
         newErrors.state = "State is required";
       } else if (!/^[A-Za-z\s]+$/.test(formData.state.trim())) {
@@ -433,8 +670,6 @@ const LeadForm: React.FC = () => {
       } else if (formData.state.trim().length > 50) {
         newErrors.state = "State should not exceed 50 characters";
       }
-
-      // Country validation - required and alphabets and spaces only
       if (!formData.country.trim()) {
         newErrors.country = "Country is required";
       } else if (!/^[A-Za-z\s]+$/.test(formData.country.trim())) {
@@ -442,16 +677,12 @@ const LeadForm: React.FC = () => {
       } else if (formData.country.trim().length > 50) {
         newErrors.country = "Country should not exceed 50 characters";
       }
-
-      // Qualified By validation - alphabets and spaces only
       if (formData.qualifiedBy.trim() && !/^[A-Za-z\s]+$/.test(formData.qualifiedBy.trim())) {
         newErrors.qualifiedBy = "Qualified By should contain only alphabets and spaces";
       }
       if (formData.qualifiedBy.trim() && formData.qualifiedBy.trim().length > 50) {
         newErrors.qualifiedBy = "Qualified By should not exceed 50 characters";
       }
-
-      // Annual Revenue validation - numbers only
       if (formData.annualRevenue.trim() && !/^\d*\.?\d+$/.test(formData.annualRevenue.trim())) {
         newErrors.annualRevenue = "Annual Revenue should contain only numbers";
       }
@@ -462,7 +693,6 @@ const LeadForm: React.FC = () => {
   const getAllValidationErrors = (): ValidationError[] => {
     const allErrors: ValidationError[] = [];
 
-    // Tab 0 - Name validation
     if (!formData.name.trim()) {
       allErrors.push({ field: "name", label: "Name", message: "Name is required", tabIndex: 0 });
     } else if (!/^[A-Za-z\s]+$/.test(formData.name.trim())) {
@@ -471,12 +701,10 @@ const LeadForm: React.FC = () => {
       allErrors.push({ field: "name", label: "Name", message: "Name should not exceed 30 characters", tabIndex: 0 });
     }
 
-    // Tab 0 - Organization Name
     if (!formData.organizationName.trim()) {
       allErrors.push({ field: "organizationName", label: "Organization Name", message: "Organization Name is required", tabIndex: 0 });
     }
 
-    // Tab 0 - Job Title validation
     if (formData.jobTitle.trim() && !/^[A-Za-z\s]+$/.test(formData.jobTitle.trim())) {
       allErrors.push({ field: "jobTitle", label: "Job Title", message: "Job title should contain only alphabets and spaces (no numbers)", tabIndex: 0 });
     }
@@ -484,27 +712,22 @@ const LeadForm: React.FC = () => {
       allErrors.push({ field: "jobTitle", label: "Job Title", message: "Job title should not exceed 30 characters", tabIndex: 0 });
     }
 
-    // Tab 1 - Email validation
     if (formData.email.trim() && !/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(formData.email.trim())) {
       allErrors.push({ field: "email", label: "Email", message: "Enter a valid email address", tabIndex: 1 });
     }
 
-    // Tab 1 - Mobile No validation - exactly 10 digits
     if (formData.mobileNo.trim() && !/^\d{10}$/.test(formData.mobileNo.trim())) {
       allErrors.push({ field: "mobileNo", label: "Mobile No", message: "Mobile number must be exactly 10 digits", tabIndex: 1 });
     }
 
-    // Tab 1 - Phone validation - exactly 10 digits
     if (formData.phone.trim() && !/^\d{10}$/.test(formData.phone.trim())) {
       allErrors.push({ field: "phone", label: "Phone", message: "Phone number must be exactly 10 digits", tabIndex: 1 });
     }
 
-    // Tab 1 - Website validation
     if (formData.website.trim() && !/^https?:\/\/[^\s]+$/.test(formData.website.trim())) {
       allErrors.push({ field: "website", label: "Website", message: "Enter a valid website URL", tabIndex: 1 });
     }
 
-    // Tab 1 - City validation
     if (formData.city.trim() && !/^[A-Za-z\s]+$/.test(formData.city.trim())) {
       allErrors.push({ field: "city", label: "City", message: "City should contain only alphabets and spaces", tabIndex: 1 });
     }
@@ -512,7 +735,6 @@ const LeadForm: React.FC = () => {
       allErrors.push({ field: "city", label: "City", message: "City should not exceed 50 characters", tabIndex: 1 });
     }
 
-    // Tab 1 - State validation - Required
     if (!formData.state.trim()) {
       allErrors.push({ field: "state", label: "State", message: "State is required", tabIndex: 1 });
     } else if (!/^[A-Za-z\s]+$/.test(formData.state.trim())) {
@@ -521,7 +743,6 @@ const LeadForm: React.FC = () => {
       allErrors.push({ field: "state", label: "State", message: "State should not exceed 50 characters", tabIndex: 1 });
     }
 
-    // Tab 1 - Country validation - Required
     if (!formData.country.trim()) {
       allErrors.push({ field: "country", label: "Country", message: "Country is required", tabIndex: 1 });
     } else if (!/^[A-Za-z\s]+$/.test(formData.country.trim())) {
@@ -530,7 +751,6 @@ const LeadForm: React.FC = () => {
       allErrors.push({ field: "country", label: "Country", message: "Country should not exceed 50 characters", tabIndex: 1 });
     }
 
-    // Tab 1 - Qualified By validation
     if (formData.qualifiedBy.trim() && !/^[A-Za-z\s]+$/.test(formData.qualifiedBy.trim())) {
       allErrors.push({ field: "qualifiedBy", label: "Qualified By", message: "Qualified By should contain only alphabets and spaces", tabIndex: 1 });
     }
@@ -538,7 +758,6 @@ const LeadForm: React.FC = () => {
       allErrors.push({ field: "qualifiedBy", label: "Qualified By", message: "Qualified By should not exceed 50 characters", tabIndex: 1 });
     }
 
-    // Tab 1 - Annual Revenue validation
     if (formData.annualRevenue.trim() && !/^\d*\.?\d+$/.test(formData.annualRevenue.trim())) {
       allErrors.push({ field: "annualRevenue", label: "Annual Revenue", message: "Annual Revenue should contain only numbers", tabIndex: 1 });
     }
@@ -555,7 +774,6 @@ const LeadForm: React.FC = () => {
     setShowValidationSummary(false);
     setErrors({});
 
-    // Scroll to the first error field in this tab
     const errorsInTab = getAllValidationErrors().filter(e => e.tabIndex === tabIndex);
     if (errorsInTab.length > 0) {
       const firstError = errorsInTab[0];
@@ -604,29 +822,23 @@ const LeadForm: React.FC = () => {
 
   // ─── field handlers ────────────────────────────────────────────────────
 
-  // ─── Helper to prevent digits in Name and Job Title fields ──────────
   const preventDigits = (e: KeyboardEvent<HTMLInputElement>) => {
-    const { } = e.currentTarget;
-    // Allow: backspace, delete, tab, escape, enter, arrow keys, home, end, etc.
     const allowedKeys = ['Backspace', 'Delete', 'Tab', 'Escape', 'Enter', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End', 'Shift', 'Control', 'Alt', 'Meta', 'CapsLock'];
 
     if (allowedKeys.includes(e.key)) {
       return;
     }
 
-    // Allow: space, letters (a-z, A-Z)
     if (e.key === ' ' || /^[a-zA-Z]$/.test(e.key)) {
       return;
     }
 
-    // Prevent: digits (0-9) and any other special characters
     e.preventDefault();
   };
 
   const handleInputChange = (
     e: ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ) => {
-    // Block edits when in read-only view mode.
     if (isViewMode) return;
 
     const { name, value } = e.target;
@@ -635,10 +847,8 @@ const LeadForm: React.FC = () => {
     checkTabWarnings(activeTab);
   };
 
-  // ─── NEW: enter edit mode from view mode ──────────────────────────────
   const handleEnterEditMode = () => {
     setIsViewMode(false);
-    // Reflect the mode in the URL so refreshing keeps edit state.
     const params = new URLSearchParams(location.search);
     params.set("mode", "edit");
     navigate(`${location.pathname}?${params.toString()}`, {
@@ -646,14 +856,12 @@ const LeadForm: React.FC = () => {
       state: { ...(navState || {}), edit: true },
     });
   };
-  // ──────────────────────────────────────────────────────────────────────
 
   // ─── submit — POST on create, PUT on edit ──────────────────────────────
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
-    // In view mode there is nothing to submit.
     if (isViewMode) return;
 
     const allErrors = getAllValidationErrors();
@@ -661,7 +869,6 @@ const LeadForm: React.FC = () => {
       setValidationErrors(allErrors);
       setShowValidationSummary(true);
 
-      // Scroll to the first error
       const firstError = allErrors[0];
       setTimeout(() => {
         jumpToTab(firstError.tabIndex);
@@ -677,18 +884,34 @@ const LeadForm: React.FC = () => {
       const payload = buildApiPayload(formData);
 
       let response;
+      let createdId = "";
+
       if (isEditMode && id) {
         const identifier = recordId ?? id;
         response = await api.put("/lead", { id: identifier, ...payload });
+        createdId = String(identifier);
       } else {
         response = await api.post("/lead", payload);
+        // Try to capture the newly created id (various possible response shapes)
+        createdId = String(
+          response.data?.data?.id ??
+          response.data?.data?.name ??
+          response.data?.id ??
+          response.data?.name ??
+          ""
+        );
       }
 
       if (response.data?.success !== undefined && response.data.success !== 1) {
         throw new Error(response.data?.message || "Failed to save lead");
       }
 
-      navigate("/lead");
+      // 🆕 Show the success modal instead of navigating immediately.
+      setWasUpdate(isEditMode);
+      setSavedLeadId(createdId);
+      setSaving(false);
+      setShowSuccessModal(true);
+      return;
     } catch (err: any) {
       console.error("Error saving lead:", err);
       if (err.response) {
@@ -698,25 +921,84 @@ const LeadForm: React.FC = () => {
       } else {
         setApiError(err.message || "Failed to save lead");
       }
-    } finally {
       setSaving(false);
     }
+  };
+
+  // 🆕 Success modal handlers
+  const handleSuccessClose = () => {
+    setShowSuccessModal(false);
+    navigate("/lead");
+  };
+
+  // 🆕 "View" now keeps the form open (read-only) instead of jumping to the listing page.
+  const handleSuccessView = () => {
+    setShowSuccessModal(false);
+
+    const targetId = savedLeadId || (recordId ? String(recordId) : "");
+    const currentId = id ?? "";
+
+    // Switch this same page into read-only mode.
+    setIsViewMode(true);
+
+    if (targetId && String(targetId) !== String(currentId)) {
+      // We just created a new lead — update the URL to its record route
+      // so refresh/share works, but WITHOUT re-fetching (we already have the data).
+      skipLoadForIdRef.current = String(targetId);
+      navigate(`/lead/${targetId}`, {
+        replace: true,
+        state: { ...(navState || {}), edit: false },
+      });
+      return;
+    }
+
+    if (targetId) {
+      // Edit mode: already on the record route, just drop the ?mode=edit flag.
+      const params = new URLSearchParams(location.search);
+      params.delete("mode");
+      navigate(
+        `${location.pathname}${params.toString() ? `?${params.toString()}` : ""}`,
+        { replace: true, state: { ...(navState || {}), edit: false } }
+      );
+      return;
+    }
+
+    // No id available at all — simply stay on this form in read-only mode.
+    const params = new URLSearchParams(location.search);
+    params.delete("mode");
+    navigate(
+      `${location.pathname}${params.toString() ? `?${params.toString()}` : ""}`,
+      { replace: true, state: { ...(navState || {}), edit: false } }
+    );
   };
 
   const allValidationErrors = getAllValidationErrors();
   const hasAnyErrors = allValidationErrors.length > 0;
 
-  // Helper to check if a field has error for red border
-
-
-  // When in view mode, we do NOT want to paint validation red borders on
-  // the initial display — only show them once the user starts editing.
   const showFieldError = (fieldName: string): boolean => {
     return !isViewMode && hasFieldError(fieldName);
   };
 
   return (
     <div className="jcf-page">
+
+      {/* 🆕 Full-screen loader during create/update */}
+      <LoaderOverlay
+        isOpen={saving}
+        message={isEditMode ? "Updating lead..." : "Creating lead..."}
+        subtitle="Please wait while we save your changes."
+      />
+
+      {/* 🆕 Success modal */}
+      <SuccessModal
+        isOpen={showSuccessModal}
+        isUpdate={wasUpdate}
+        leadName={formData.name}
+        leadOrganization={formData.organizationName}
+        leadId={savedLeadId || (recordId ? String(recordId) : "")}
+        onClose={handleSuccessClose}
+        onView={handleSuccessView}
+      />
 
       {/* Validation Summary Modal */}
       {showValidationSummary && validationErrors.length > 0 && (
@@ -764,9 +1046,6 @@ const LeadForm: React.FC = () => {
           <button type="button" onClick={() => navigate("/lead")} className="jcf-back-btn">
             <FaArrowLeft size={12} /> Back
           </button>
-          {/*<h1 className="jcf-title">
-            {isEditMode ? "Edit Lead" : "New Lead"}
-          </h1>*/}
 
           {apiError && (
             <div className="jcf-error-pill">
@@ -775,7 +1054,6 @@ const LeadForm: React.FC = () => {
             </div>
           )}
 
-          {/* Show validation errors only when editable */}
           {!isViewMode && hasAnyErrors && (
             <div className="jcf-error-pill" onClick={() => setShowValidationSummary(true)} style={{ cursor: 'pointer' }}>
               <FaExclamationTriangle size={11} />
@@ -783,15 +1061,11 @@ const LeadForm: React.FC = () => {
             </div>
           )}
 
-          {/* Read-only badge when in view mode */}
           {isViewMode && (
             <div className="jcf-view-badge">
               Viewing — read-only
             </div>
           )}
-
-          {/* Edit button when in view mode and editing an existing lead */}
-         
         </div>
       </div>
 
@@ -809,7 +1083,6 @@ const LeadForm: React.FC = () => {
         ) : (
           <form onSubmit={handleSubmit}>
 
-            {/* Tabs */}
             <div className="jcf-tabs-wrap">
               <div className="jcf-tabs-row">
                 {tabs.map((tab) => {
@@ -852,7 +1125,6 @@ const LeadForm: React.FC = () => {
               </div>
             </div>
 
-            {/* Tab warning banner only when editable */}
             {!isViewMode && warnings[activeTab] && (
               <div className="jcf-tab-warning-banner">
                 <FaExclamationTriangle size={12} />
@@ -862,7 +1134,6 @@ const LeadForm: React.FC = () => {
 
             <div>
 
-              {/* Tab 0 — Lead Details */}
               {activeTab === 0 && (
                 <div className="jcf-fade-in">
                   <div className="jcf-card">
@@ -904,7 +1175,6 @@ const LeadForm: React.FC = () => {
                     <div className="jcf-section-title"><FaBuilding size={12} /> Organization</div>
 
                     <div className="jcf-grid-3">
-                      {/* UPDATED: Organization Name - Now a simple input field like others */}
                       <div>
                         <label className="jcf-label">Organization Name *</label>
                         <input
@@ -985,7 +1255,6 @@ const LeadForm: React.FC = () => {
                 </div>
               )}
 
-              {/* Tab 1 — Contact Info */}
               {activeTab === 1 && (
                 <div className="jcf-fade-in">
                   <div className="jcf-card">
@@ -1209,7 +1478,6 @@ const LeadForm: React.FC = () => {
               )}
             </div>
 
-            {/* Footer actions */}
             <div className="jcf-footer-row">
               {activeTab > 0 && (
                 <button type="button" onClick={handlePrevious} className="jcf-btn-secondary">
@@ -1217,14 +1485,12 @@ const LeadForm: React.FC = () => {
                 </button>
               )}
 
-              {/* Next button — always available (just for tab navigation) */}
               {activeTab < 1 && (
                 <button type="button" onClick={handleNext} className="jcf-btn-primary">
                   Next →
                 </button>
               )}
 
-              {/* Submit button — ONLY visible when editable */}
               {activeTab === 1 && !isViewMode && (
                 <button type="submit" disabled={saving} className="jcf-btn-primary jcf-btn-submit" style={{ opacity: saving ? 0.6 : 1 }}>
                   {saving && <FaSpinner className="jcf-spinning" />}
@@ -1232,7 +1498,6 @@ const LeadForm: React.FC = () => {
                 </button>
               )}
 
-              {/* In view mode, show an Edit button at the bottom too, for convenience */}
               {activeTab === 1 && isViewMode && isEditMode && (
                 <button type="button" className="jcf-btn-primary jcf-btn-edit" onClick={handleEnterEditMode}>
                   <FaEdit /> Edit Lead

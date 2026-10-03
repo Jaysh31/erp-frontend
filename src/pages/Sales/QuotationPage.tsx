@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   FaSearch, FaPlus, FaEye, FaEdit, FaTrash, FaFilePdf, FaPrint,
   FaFilter, FaCheckCircle, FaClock, FaTimesCircle,
@@ -21,6 +21,50 @@ import './QuotationPage.css';
 import './SalesMobileTable.css';
 import api from '../../services/api';
 import { PageLoader } from '../components/PageLoader';
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🆕 Filter preservation helpers
+//    - QT_PRESERVE_FLAG_KEY : set to "true" before navigating to a
+//      /quotation/* sub-route (View/Edit/New). Consumed on mount.
+//    - QT_FILTER_DATA_KEY   : JSON snapshot of current filters, saved on
+//      every filter change.
+//
+//    A global history observer wipes the preserve flag as soon as the
+//    URL leaves the /quotation module. That way, going to any other
+//    page (Dashboard, GRN, Work Order, …) effectively discards filters.
+// ═══════════════════════════════════════════════════════════════════════
+const QT_PRESERVE_FLAG_KEY = "__qt_preserve_filters__";
+const QT_FILTER_DATA_KEY = "__qt_list_filters__";
+
+if (typeof window !== "undefined" && !(window as any).__qtNavObserverInstalled) {
+  (window as any).__qtNavObserverInstalled = true;
+
+  const clearFlagIfLeavingQuotation = () => {
+    try {
+      const path = window.location.pathname;
+      if (!path.startsWith("/quotation")) {
+        sessionStorage.removeItem(QT_PRESERVE_FLAG_KEY);
+      }
+    } catch {
+      /* ignore */
+    }
+  };
+
+  const origPush = window.history.pushState;
+  const origReplace = window.history.replaceState;
+
+  window.history.pushState = function (...args: any[]) {
+    const r = origPush.apply(this as any, args as any);
+    clearFlagIfLeavingQuotation();
+    return r;
+  };
+  window.history.replaceState = function (...args: any[]) {
+    const r = origReplace.apply(this as any, args as any);
+    clearFlagIfLeavingQuotation();
+    return r;
+  };
+  window.addEventListener("popstate", clearFlagIfLeavingQuotation);
+}
 
 interface QuotationItem {
   id: string;
@@ -302,20 +346,21 @@ function buildCalendarGrid(year: number, month: number): (Date | null)[] {
   return cells;
 }
 
-/* ─────────────────────── Logged-in user helper ───────────────────────
-   This component doesn't receive an auth/user context today, so this
-   reads a handful of common localStorage keys your login flow might
-   already be writing to, and falls back to a generic placeholder if
-   none are found. If your app has a real AuthContext/useAuth() hook,
-   swap this out for that and delete this helper — the topbar UI below
-   will keep working unchanged, it just needs { name, role }.
------------------------------------------------------------------------- */
+/* ─────────────────────── Logged-in user helper ─────────────────────── */
 
-
-
+const normalizeStatusParam = (raw: string): string => {
+  if (!raw) return 'All';
+  const s = raw.trim();
+  if (!s) return 'All';
+  const lower = s.toLowerCase();
+  if (lower === 'in process' || lower === 'in-process') return 'In Process';
+  if (lower === 'on hold' || lower === 'on-hold') return 'On Hold';
+  return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
+};
 
 export default function QuotationPage() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const { theme, formatDate } = useAdminTheme();
 
@@ -330,13 +375,11 @@ export default function QuotationPage() {
 
   const [quotations, setQuotations] = useState<Quotation[]>([]);
   
-  // Server-side pagination states
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [totalRecords, setTotalRecords] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
 
-  // ─── Date Filter States ────────────────────────────────────────────────
   const [fromDate, setFromDate] = useState<string>("");
   const [toDate, setToDate] = useState<string>("");
   const [tempFromDate, setTempFromDate] = useState<Date | null>(null);
@@ -345,15 +388,17 @@ export default function QuotationPage() {
   const [calendarViewDate, setCalendarViewDate] = useState<Date>(new Date());
   const dateFilterWrapperRef = useRef<HTMLDivElement>(null);
 
-  // Modal states
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showPdfModal, setShowPdfModal] = useState(false);
   const [selectedQuote, setSelectedQuote] = useState<Quotation | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [pdfModalLoading] = useState(false);
 
-  // ─── Mobile expanded rows state ──────────────────────────────────
   const [expandedRows, setExpandedRows] = useState<Set<string | number>>(new Set());
+
+  // 🆕 Gates the fetch until restoration is done.
+  const [filtersReady, setFiltersReady] = useState(false);
+  const isRestoringRef = useRef(false);
 
   const toggleRowExpand = (id: string | number, e?: React.MouseEvent) => {
     e?.stopPropagation();
@@ -365,7 +410,6 @@ export default function QuotationPage() {
     });
   };
 
-  // ─── Debounce function for search ──────────────────────────────────
   const useDebounce = (value: string, delay: number) => {
     const [debouncedValue, setDebouncedValue] = useState(value);
 
@@ -384,18 +428,121 @@ export default function QuotationPage() {
 
   const debouncedFilterText = useDebounce(filterText, 500);
 
-  // Logged-in user shown in the top bar (see getCurrentUser() above)
-
   const formatDisplayDateWithContext = (dateString: string) => {
     if (!dateString) return '';
     return formatDate(dateString);
   };
 
+  // ═════════════════════════════════════════════════════════════════════
+  // 🆕 RESTORE FILTERS ON MOUNT
+  //    Only restores if the preserve flag was set (i.e. we came back from
+  //    a /quotation/* sub-route). Otherwise, discards the saved data.
+  // ═════════════════════════════════════════════════════════════════════
+  useEffect(() => {
+    let shouldPreserve = false;
+    try {
+      shouldPreserve = sessionStorage.getItem(QT_PRESERVE_FLAG_KEY) === "true";
+      sessionStorage.removeItem(QT_PRESERVE_FLAG_KEY);
+    } catch {
+      /* ignore */
+    }
 
-  // ─── Date Filter Functions ─────────────────────────────────────────────
+    if (shouldPreserve) {
+      try {
+        const saved = sessionStorage.getItem(QT_FILTER_DATA_KEY);
+        if (saved) {
+          const f = JSON.parse(saved);
+          isRestoringRef.current = true;
+          if (typeof f.filterText === "string") setFilterText(f.filterText);
+          if (typeof f.selectedStatus === "string") setSelectedStatus(f.selectedStatus);
+          if (typeof f.selectedCurrency === "string") setSelectedCurrency(f.selectedCurrency);
+          if (typeof f.fromDate === "string") setFromDate(f.fromDate);
+          if (typeof f.toDate === "string") setToDate(f.toDate);
+          if (typeof f.currentPage === "number") setCurrentPage(f.currentPage);
+          if (typeof f.itemsPerPage === "number") setItemsPerPage(f.itemsPerPage);
+          console.log("♻️ Restored quotation filters:", f);
+        }
+      } catch (e) {
+        console.warn("⚠️ Failed to restore quotation filters:", e);
+      }
+    } else {
+      try {
+        sessionStorage.removeItem(QT_FILTER_DATA_KEY);
+      } catch {
+        /* ignore */
+      }
+    }
+
+    setFiltersReady(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ═════════════════════════════════════════════════════════════════════
+  // 🆕 SAVE FILTERS ON EVERY CHANGE
+  // ═════════════════════════════════════════════════════════════════════
+  useEffect(() => {
+    if (!filtersReady) return;
+    try {
+      sessionStorage.setItem(
+        QT_FILTER_DATA_KEY,
+        JSON.stringify({
+          filterText,
+          selectedStatus,
+          selectedCurrency,
+          fromDate,
+          toDate,
+          currentPage,
+          itemsPerPage,
+        })
+      );
+    } catch {
+      /* ignore */
+    }
+  }, [
+    filterText,
+    selectedStatus,
+    selectedCurrency,
+    fromDate,
+    toDate,
+    currentPage,
+    itemsPerPage,
+    filtersReady,
+  ]);
+
+  // 🆕 Wrapper that sets the preserve flag before navigating to a
+  //    quotation sub-route.
+  const navigateWithPreserve = (path: string, opts?: any) => {
+    try {
+      sessionStorage.setItem(QT_PRESERVE_FLAG_KEY, "true");
+    } catch {
+      /* ignore */
+    }
+    navigate(path, opts);
+  };
+
+  // 🆕 On mount, read the status / autoFilter params sent by the chatbot.
+  useEffect(() => {
+    const statusParam = searchParams.get('status');
+    const autoFilter = searchParams.get('autoFilter');
+
+    if (statusParam) {
+      const normalized = normalizeStatusParam(statusParam);
+      console.log(`🎯 QuotationPage: applying URL status filter → "${normalized}"`);
+      setSelectedStatus(normalized);
+      setCurrentPage(1);
+
+      if (autoFilter === '1') {
+        const next = new URLSearchParams(searchParams);
+        next.delete('status');
+        next.delete('autoFilter');
+        setSearchParams(next, { replace: true });
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
 
   const openDatePicker = () => {
-    // Convert fromDate/toDate strings to Date objects for temp state
     if (fromDate) {
       const from = new Date(fromDate);
       if (!isNaN(from.getTime())) setTempFromDate(from);
@@ -498,8 +645,6 @@ export default function QuotationPage() {
 
   const calendarCells = buildCalendarGrid(calendarViewDate.getFullYear(), calendarViewDate.getMonth());
 
-  // ─── load from GET /quotation with server-side pagination ──────
-
   const fetchQuotations = async () => {
     setLoading(true);
     setError(null);
@@ -508,9 +653,9 @@ export default function QuotationPage() {
       params.append('page', String(currentPage));
       params.append('limit', String(itemsPerPage));
 
-      
-
-     
+      if (selectedStatus && selectedStatus !== 'All') {
+        params.append('status', selectedStatus);
+      }
 
       if (selectedCurrency !== 'All') {
         params.append('currency', selectedCurrency);
@@ -574,7 +719,6 @@ export default function QuotationPage() {
     }
   };
 
-  // ─── Click outside handler for date picker ──────────────────────
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (
@@ -589,15 +733,23 @@ export default function QuotationPage() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [showDatePicker]);
 
-  // Fetch when page, itemsPerPage, or filters change
+  // 🆕 Gate the fetch until filters are ready (restored or cleared).
   useEffect(() => {
+    if (!filtersReady) return;
     fetchQuotations();
-  }, [currentPage, itemsPerPage, debouncedFilterText, selectedStatus, selectedCurrency, fromDate, toDate]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPage, itemsPerPage, debouncedFilterText, selectedStatus, selectedCurrency, fromDate, toDate, filtersReady]);
 
-  // Reset page when filters change
+  // 🆕 Reset to page 1 when filters change — but skip the very first run
+  //    after a restoration so we don't clobber a saved currentPage.
   useEffect(() => {
+    if (!filtersReady) return;
+    if (isRestoringRef.current) {
+      isRestoringRef.current = false;
+      return;
+    }
     setCurrentPage(1);
-  }, [filterText, selectedStatus, selectedCurrency, fromDate, toDate]);
+  }, [filterText, selectedStatus, selectedCurrency, fromDate, toDate, filtersReady]);
 
   const fetchFullQuotationRecord = async (quotationId: string): Promise<QuotationApiRecord | null> => {
     try {
@@ -713,7 +865,6 @@ export default function QuotationPage() {
     }
   };
 
-  // ─── Pagination Handlers ──────────────────────────────────────────
   const goToPage = (page: number) => {
     if (page < 1) {
       setCurrentPage(1);
@@ -760,17 +911,15 @@ export default function QuotationPage() {
   };
 
 
-  // ─── UPDATED: View & Edit navigation ────────────────────────────────
-  // View  →  /quotation/:id            (read-only, CreateQuotation detects no edit intent)
-  // Edit  →  /quotation/:id?mode=edit  (editable, CreateQuotation picks up the flag)
+  // ─── UPDATED: View & Edit navigation — now preserve filters ─────────
   const handleView = (quote: Quotation) => {
-    navigate(`/quotation/${quote.id}`, {
+    navigateWithPreserve(`/quotation/${quote.id}`, {
       state: { quotation: quote, viewMode: true, edit: false },
     });
   };
 
   const handleEdit = (quote: Quotation) => {
-    navigate(`/quotation/${quote.id}?mode=edit`, {
+    navigateWithPreserve(`/quotation/${quote.id}?mode=edit`, {
       state: { quotation: quote, edit: true, viewMode: false },
     });
   };
@@ -843,6 +992,11 @@ export default function QuotationPage() {
     setTempFromDate(null);
     setTempToDate(null);
     setCurrentPage(1);
+
+    const next = new URLSearchParams(searchParams);
+    next.delete('status');
+    next.delete('autoFilter');
+    setSearchParams(next, { replace: true });
   };
 
 
@@ -1225,17 +1379,12 @@ export default function QuotationPage() {
     }
   };
 
-      // ─── Loading Screen ─────────────────────────────────────────────────────
-      if (loading) {
-        return (
-          <div className={`p-6 max-w-7xl mx-auto ${theme}`}>
-            <PageLoader 
-              message="Loading Sales & Quotation List..." 
-              //subtitle="Calculating bill of materials, operations rates, and component structures"
-            />
-          </div>
-        );
-      }
+  // ✅ FIX: The early `if (loading) return <PageLoader />` block has been
+  //    REMOVED. Previously, every debounced search triggered a fetch that
+  //    set `loading = true`, which unmounted the entire page (including the
+  //    search input) and caused focus/cursor loss while typing.
+  //    The loader is now rendered inline below, so the filter bar (and the
+  //    search input) stays mounted and keeps focus.
 
   return (
     <div className={`quotation-page ${theme}`}>
@@ -1470,8 +1619,7 @@ export default function QuotationPage() {
             <option value="Converted">Converted</option>
           </select>
 
-          {/* ─── From - To Date Filter Button ─── */}
-           <div className="jc-date-filter-wrapper" ref={dateFilterWrapperRef}>
+          <div className="jc-date-filter-wrapper" ref={dateFilterWrapperRef}>
   <button
     type="button"
     className={`jc-date-filter-btn ${
@@ -1502,7 +1650,6 @@ export default function QuotationPage() {
 
   {showDatePicker && (
     <div className="jc-date-filter-popup">
-      {/* Header */}
       <div className="jc-date-filter-popup-header">
         <span>Filter by Date</span>
 
@@ -1515,7 +1662,6 @@ export default function QuotationPage() {
         </button>
       </div>
 
-      {/* Selected Date Inputs */}
       <div className="jc-date-filter-inputs">
         <input
           type="text"
@@ -1542,7 +1688,6 @@ export default function QuotationPage() {
         />
       </div>
 
-      {/* Quick Filters */}
       <div className="jc-date-filter-quick-row">
         <button
           type="button"
@@ -1579,7 +1724,6 @@ export default function QuotationPage() {
         </button>
       </div>
 
-      {/* Calendar */}
       <div className="jc-calendar">
         <div className="jc-calendar-header">
           <button
@@ -1604,7 +1748,6 @@ export default function QuotationPage() {
           </button>
         </div>
 
-        {/* Weekdays */}
         <div className="jc-calendar-weekdays">
           {WEEKDAY_LABELS.map((wd) => (
             <span
@@ -1616,7 +1759,6 @@ export default function QuotationPage() {
           ))}
         </div>
 
-        {/* Calendar Days */}
         <div className="jc-calendar-grid">
           {calendarCells.map((day, idx) => {
             if (!day) {
@@ -1661,7 +1803,6 @@ export default function QuotationPage() {
         </div>
       </div>
 
-      {/* Footer */}
       <div className="jc-date-filter-footer">
         <button
           type="button"
@@ -1686,7 +1827,8 @@ export default function QuotationPage() {
 
           
         </div>
-        <button className="jc-btn-primary" onClick={() => navigate('/quotation/new')}>
+        {/* 🆕 New Quotation → preserve filters on the way out */}
+        <button className="jc-btn-primary" onClick={() => navigateWithPreserve('/quotation/new')}>
             <FaPlus size={12} /> New Quotation
           </button>
       </div>
@@ -1730,10 +1872,11 @@ export default function QuotationPage() {
         </div>
       )}
 
-      {/* Loading State */}
+      {/* Loading State — rendered inline (NOT as an early return) so the
+          search input above never unmounts and keeps focus while typing. */}
       {loading && (
         <div className="qt-loading">
-          <p>Loading quotations...</p>
+          <PageLoader message="Loading Sales & Quotation List..." />
         </div>
       )}
 
@@ -1761,7 +1904,6 @@ export default function QuotationPage() {
               </div>
             ) : (
               <>
-                {/* Table */}
                 <table className="qt-table">
                   <thead>
                     <tr>
@@ -1825,7 +1967,6 @@ export default function QuotationPage() {
             )}
           </div>
 
-          {/* Mobile Table Section (Customer, Status + Dropdown Button -> Date, Amount, Actions) */}
           <div className="sales-mobile-list-wrap">
             <div className="sales-mobile-list-header">
               <div className="sales-mobile-th-primary">
@@ -1856,7 +1997,6 @@ export default function QuotationPage() {
                       key={quote.id}
                       className={`sales-mobile-card ${isExpanded ? "sales-mobile-card-expanded" : ""}`}
                     >
-                      {/* Card Header: Customer, Status and Dropdown Button */}
                       <div
                         className="sales-mobile-card-header"
                         onClick={() => toggleRowExpand(quote.id)}
@@ -1882,7 +2022,6 @@ export default function QuotationPage() {
                           </div>
                         </div>
 
-                        {/* Dropdown Button */}
                         <button
                           type="button"
                           className={`sales-mobile-dropdown-btn ${isExpanded ? "expanded" : ""}`}
@@ -1894,7 +2033,6 @@ export default function QuotationPage() {
                         </button>
                       </div>
 
-                      {/* Dropdown Section: Date, Amount, Actions */}
                       {isExpanded && (
                         <div className="sales-mobile-card-details">
                           <div className="sales-mobile-detail-row">
@@ -1918,7 +2056,6 @@ export default function QuotationPage() {
 
                           <div className="sales-mobile-detail-footer">
                             <span className="sales-mobile-card-meta-text">
-                              {/*rowNumber} of {totalRecords*/}
                             </span>
                             <div className="sales-mobile-action-buttons">
                               <button
@@ -1979,10 +2116,9 @@ export default function QuotationPage() {
         </>
       )}
 
-      {/* ─── Pagination Section (Separate from table) ────────────────────────────── */}
+      {/* ─── Pagination Section ────────────────────────────── */}
       {!loading && !error && totalRecords > 0 && (
         <div className="qt-pagination">
-          {/* Left: Show entries + entries info */}
           <div className="qt-pagination-left">
             <span className="qt-pagination-label">Show:</span>
             <select
@@ -2004,7 +2140,6 @@ export default function QuotationPage() {
             </span>
           </div>
 
-          {/* Center: Page navigation buttons */}
           <div className="qt-pagination-center">
             <button
               onClick={goToFirstPage}
@@ -2045,7 +2180,6 @@ export default function QuotationPage() {
             </button>
           </div>
 
-          {/* Right: Page info */}
           <div className="qt-pagination-right">
             <span className="qt-pagination-info">
               Page {currentPage} of {totalPages}

@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef, type JSX } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef, type JSX } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   FaPlus, 
   FaSearch, 
@@ -26,10 +27,9 @@ import {
   FaTimesCircle,
   FaCalendarAlt,
   FaChevronDown,
-  FaPrint,
   FaTrash
 } from 'react-icons/fa';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
 import api from '../../services/api';
 import './SalesMobileTable.css';
@@ -37,6 +37,44 @@ import toast from 'react-hot-toast';
 
 import * as XLSX from 'xlsx';
 import { PageLoader } from '../components/PageLoader';
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🆕 Filter preservation helpers
+// ═══════════════════════════════════════════════════════════════════════
+const SI_PRESERVE_FLAG_KEY = "__si_preserve_filters__";
+const SI_FILTER_DATA_KEY = "__si_list_filters__";
+
+if (typeof window !== "undefined" && !(window as any).__siNavObserverInstalled) {
+  (window as any).__siNavObserverInstalled = true;
+
+  const clearFlagIfLeavingSalesBill = () => {
+    try {
+      const path = window.location.pathname;
+      if (!path.startsWith("/sales-bill")) {
+        sessionStorage.removeItem(SI_PRESERVE_FLAG_KEY);
+      }
+    } catch {
+      /* ignore */
+    }
+  };
+
+  clearFlagIfLeavingSalesBill();
+
+  const origPush = window.history.pushState;
+  const origReplace = window.history.replaceState;
+
+  window.history.pushState = function (...args: any[]) {
+    const r = origPush.apply(this as any, args as any);
+    clearFlagIfLeavingSalesBill();
+    return r;
+  };
+  window.history.replaceState = function (...args: any[]) {
+    const r = origReplace.apply(this as any, args as any);
+    clearFlagIfLeavingSalesBill();
+    return r;
+  };
+  window.addEventListener("popstate", clearFlagIfLeavingSalesBill);
+}
 
 // ===== INTERFACES =====
 
@@ -117,7 +155,6 @@ interface ApiResponse {
   };
 }
 
-// ===== COMPANY INTERFACE =====
 interface Company {
   id: number;
   company_name: string;
@@ -143,7 +180,6 @@ interface BankDetail {
   is_primary: number;
 }
 
-// ===== COMPANY DETAILS (will be updated from API) =====
 let companyDetails = {
   name: 'Sculptor Tech Pvt Ltd',
   address: 'c-1006, gc, Pune, Maharashtra 411028, India',
@@ -160,14 +196,31 @@ let companyDetails = {
   jurisdiction: 'PUNE',
 };
 
-// ===== FORMAT INVOICE NUMBER =====
-const formatInvoiceNumber = (id: string | number): string => {
-  const numId = typeof id === 'string' ? parseInt(id, 10) : id;
-  const paddedId = String(numId).padStart(5, '0');
-  return `SINV-${paddedId}`;
+const SALES_INVOICE_PREFIX = 'SI-';
+const formatInvoiceNumber = (id: string | number | null | undefined): string => {
+  if (id === null || id === undefined) return '';
+  const s = String(id).trim();
+  if (!s) return '';
+  if (s.toUpperCase().startsWith(SALES_INVOICE_PREFIX)) return s;
+  const n = Number(s);
+  if (Number.isNaN(n)) return s;
+  return SALES_INVOICE_PREFIX + String(n).padStart(5, '0');
 };
 
-// ===== AMOUNT IN WORDS HELPER =====
+const normalizeStatusParam = (raw: string): string => {
+  if (!raw) return 'All';
+  const s = raw.trim();
+  if (!s) return 'All';
+  const lower = s.toLowerCase();
+  if (lower === 'partially paid' || lower === 'partially-paid') return 'Partially Paid';
+  if (lower === 'cancelled' || lower === 'canceled' || lower === 'cancel') return 'Cancelled';
+  if (lower === 'submitted' || lower === 'submit') return 'Submitted';
+  if (lower === 'overdue') return 'Overdue';
+  if (lower === 'paid') return 'Paid';
+  if (lower === 'draft') return 'Draft';
+  return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
+};
+
 const ONES = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten',
   'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
 const TENS = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
@@ -202,8 +255,6 @@ const numberToIndianWords = (value: number): string => {
   return out.trim();
 };
 
-
-
 const escapeHtml = (val: unknown): string => {
   const s = val === null || val === undefined ? '' : String(val);
   return s
@@ -213,7 +264,6 @@ const escapeHtml = (val: unknown): string => {
     .replace(/"/g, '&quot;');
 };
 
-// ===== STATUS BADGE =====
 const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
   const configs: Record<string, { color: string; bg: string; label: string; icon: JSX.Element }> = {
     'Draft': { color: '#6b7280', bg: '#f3f4f6', label: 'Draft', icon: <FaClock size={10} /> },
@@ -225,7 +275,6 @@ const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
   };
   const config = configs[status] || configs['Draft'];
   
-  
   return (
     <span className="qt-status-badge" style={{ color: config.color, background: config.bg }}>
       {config.icon}
@@ -234,17 +283,20 @@ const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
   );
 };
 
-// ===== MAIN COMPONENT =====
 const SalesInvoice: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+
   const menuRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
-  const printWindowRef = useRef<Window | null>(null); // ✅ Track print window
+  const printWindowRef = useRef<Window | null>(null);
+
+  // 🆕 Portal dropdown refs & state
+  const portalMenuRef = useRef<HTMLDivElement | null>(null);
+  const activeButtonRef = useRef<HTMLElement | null>(null);
+  const [menuPosition, setMenuPosition] = useState<{ top: number; right: number } | null>(null);
   
- 
   const { theme, formatDate } = useAdminTheme();
 
-  
-  // ===== STATE =====
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedStatus, setSelectedStatus] = useState<string>('All');
   const [currentPage, setCurrentPage] = useState(1);
@@ -259,7 +311,6 @@ const SalesInvoice: React.FC = () => {
   const [, setDownloadLoading] = useState(false);
   const [, setCompanyData] = useState<Company | null>(null);
 
-  // ===== DATE FILTER STATES =====
   const [fromDate, setFromDate] = useState<string>('');
   const [toDate, setToDate] = useState<string>('');
   const [showDatePicker, setShowDatePicker] = useState<boolean>(false);
@@ -267,34 +318,137 @@ const SalesInvoice: React.FC = () => {
   const [tempToDate, setTempToDate] = useState<string>('');
   const [selectedQuickFilter, setSelectedQuickFilter] = useState<string>('');
 
-  // ===== CALENDAR STATE =====
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
+
+  const [filtersReady, setFiltersReady] = useState(false);
+  const didInitRef = useRef(false);
+  const isRestoringRef = useRef(false);
 
   const formatDisplayDate = (dateString: string) => {
     if (!dateString) return '';
     return formatDate(dateString);
   };
 
+  // ═════════════════════════════════════════════════════════════════════
+  // 🆕 RESTORE FILTERS ON MOUNT (runs exactly ONCE per mount)
+  // ═════════════════════════════════════════════════════════════════════
+  useEffect(() => {
+    if (didInitRef.current) return;
+    didInitRef.current = true;
 
-  // ===== FETCH COMPANY DETAILS =====
+    let shouldPreserve = false;
+    try {
+      shouldPreserve = sessionStorage.getItem(SI_PRESERVE_FLAG_KEY) === "true";
+    } catch {
+      /* ignore */
+    }
+
+    console.log("🔵 [SI-Restore] shouldPreserve =", shouldPreserve);
+
+    if (shouldPreserve) {
+      try {
+        const saved = sessionStorage.getItem(SI_FILTER_DATA_KEY);
+        if (saved) {
+          const f = JSON.parse(saved);
+          isRestoringRef.current = true;
+          if (typeof f.searchTerm === "string") setSearchTerm(f.searchTerm);
+          if (typeof f.selectedStatus === "string") setSelectedStatus(f.selectedStatus);
+          if (typeof f.fromDate === "string") setFromDate(f.fromDate);
+          if (typeof f.toDate === "string") setToDate(f.toDate);
+          if (typeof f.selectedQuickFilter === "string") setSelectedQuickFilter(f.selectedQuickFilter);
+          if (typeof f.currentPage === "number") setCurrentPage(f.currentPage);
+          if (typeof f.itemsPerPage === "number") setItemsPerPage(f.itemsPerPage);
+          console.log("♻️ [SI-Restore] Restored filters:", f);
+        }
+      } catch (e) {
+        console.warn("⚠️ [SI-Restore] Failed to restore:", e);
+      }
+    } else {
+      try {
+        sessionStorage.removeItem(SI_FILTER_DATA_KEY);
+        console.log("🧹 [SI-Restore] Cleared saved filters (no preserve flag)");
+      } catch {
+        /* ignore */
+      }
+    }
+
+    setFiltersReady(true);
+  }, []);
+
+  // ═════════════════════════════════════════════════════════════════════
+  // 🆕 SAVE FILTERS ON EVERY CHANGE
+  // ═════════════════════════════════════════════════════════════════════
+  useEffect(() => {
+    if (!filtersReady) return;
+    try {
+      sessionStorage.setItem(
+        SI_FILTER_DATA_KEY,
+        JSON.stringify({
+          searchTerm,
+          selectedStatus,
+          fromDate,
+          toDate,
+          selectedQuickFilter,
+          currentPage,
+          itemsPerPage,
+        })
+      );
+    } catch {
+      /* ignore */
+    }
+  }, [
+    searchTerm,
+    selectedStatus,
+    fromDate,
+    toDate,
+    selectedQuickFilter,
+    currentPage,
+    itemsPerPage,
+    filtersReady,
+  ]);
+
+  const navigateWithPreserve = (path: string, opts?: any) => {
+    try {
+      sessionStorage.setItem(SI_PRESERVE_FLAG_KEY, "true");
+      console.log(`💾 [SI-Nav] Set preserve flag, navigating to ${path}`);
+    } catch {
+      /* ignore */
+    }
+    navigate(path, opts);
+  };
+
+  useEffect(() => {
+    const statusParam = searchParams.get('status');
+    const autoFilter = searchParams.get('autoFilter');
+
+    if (statusParam) {
+      const normalized = normalizeStatusParam(statusParam);
+      console.log(`🎯 SalesInvoice: applying URL status filter → "${normalized}"`);
+      setSelectedStatus(normalized);
+      setCurrentPage(1);
+
+      if (autoFilter === '1') {
+        const next = new URLSearchParams(searchParams);
+        next.delete('status');
+        next.delete('autoFilter');
+        setSearchParams(next, { replace: true });
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
   const fetchCompanyDetails = async () => {
     try {
       const response = await api.get('/company');
-      console.log('Company API Response:', response.data);
-      
       if (response.data.success === 1) {
         const companies = response.data.data || [];
-        console.log('Companies:', companies);
-        
         const chandratara = companies.find((c: Company) => 
           c.company_name.includes('ChandraTara') || 
           c.abbr === 'CT_IND' ||
           c.company_name.toLowerCase().includes('chandratara')
         );
-        
         const selectedCompany = chandratara || (companies.length > 0 ? companies[0] : null);
-        
         if (selectedCompany) {
           setCompanyData(selectedCompany);
           companyDetails = {
@@ -305,7 +459,6 @@ const SalesInvoice: React.FC = () => {
             email: selectedCompany.email || companyDetails.email,
             gstin: selectedCompany.tax_id || companyDetails.gstin,
           };
-          
           if (selectedCompany.bank_details && selectedCompany.bank_details.length > 0) {
             const primaryBank = selectedCompany.bank_details.find((b: BankDetail) => b.is_primary === 1) || selectedCompany.bank_details[0];
             if (primaryBank) {
@@ -314,21 +467,13 @@ const SalesInvoice: React.FC = () => {
               companyDetails.bankBranchIfsc = primaryBank.ifsc_code || companyDetails.bankBranchIfsc;
             }
           }
-          
-          console.log('Company loaded:', selectedCompany.company_name);
-        } else {
-          console.warn('No companies found, using default company details');
         }
-      } else {
-        console.warn('API returned success !== 1');
       }
     } catch (err) {
       console.error('Error fetching company details:', err);
     }
   };
 
-  
-  // ─── Mobile expanded rows state ──────────────────────────────────
   const [expandedRows, setExpandedRows] = useState<Set<string | number>>(new Set());
 
   const toggleRowExpand = (id: string | number, e?: React.MouseEvent) => {
@@ -341,26 +486,57 @@ const SalesInvoice: React.FC = () => {
     });
   };
 
-  // ===== CLOSE MENU ON CLICK OUTSIDE =====
+  // 🆕 Updated click-outside handler — also ignores clicks inside portal
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (showMoreMenu === null) return;
-      
       const target = event.target as Node;
+
+      // Click inside portal dropdown → ignore
+      if (portalMenuRef.current && portalMenuRef.current.contains(target)) return;
+
+      // Click inside the button container → ignore (button's own handler toggles)
       const menuContainer = menuRefs.current[showMoreMenu];
-      
-      if (menuContainer && !menuContainer.contains(target)) {
-        setShowMoreMenu(null);
-      }
+      if (menuContainer && menuContainer.contains(target)) return;
+
+      setShowMoreMenu(null);
+      setMenuPosition(null);
+      activeButtonRef.current = null;
     };
-    
     document.addEventListener('mousedown', handleClickOutside);
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [showMoreMenu]);
 
-  // ===== CLOSE DATE PICKER ON OUTSIDE CLICK =====
+  // 🆕 Reposition (or close) the portal dropdown on scroll/resize
+  useLayoutEffect(() => {
+    if (!showMoreMenu || !activeButtonRef.current) return;
+
+    const updatePosition = () => {
+      const btn = activeButtonRef.current;
+      if (!btn) return;
+      const rect = btn.getBoundingClientRect();
+      // If the button has scrolled out of view, close the menu
+      if (rect.bottom < 0 || rect.top > window.innerHeight) {
+        setShowMoreMenu(null);
+        setMenuPosition(null);
+        activeButtonRef.current = null;
+        return;
+      }
+      const rightOffset = Math.max(8, window.innerWidth - rect.right);
+      setMenuPosition({ top: rect.bottom + 4, right: rightOffset });
+    };
+
+    updatePosition();
+    window.addEventListener('scroll', updatePosition, true);
+    window.addEventListener('resize', updatePosition);
+    return () => {
+      window.removeEventListener('scroll', updatePosition, true);
+      window.removeEventListener('resize', updatePosition);
+    };
+  }, [showMoreMenu]);
+
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as HTMLElement;
@@ -369,14 +545,12 @@ const SalesInvoice: React.FC = () => {
         setShowDatePicker(false);
       }
     };
-
     document.addEventListener('mousedown', handleClickOutside);
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, []);
 
-  // ===== CLEAN UP PRINT WINDOW ON UNMOUNT =====
   useEffect(() => {
     return () => {
       if (printWindowRef.current && !printWindowRef.current.closed) {
@@ -386,7 +560,6 @@ const SalesInvoice: React.FC = () => {
     };
   }, []);
 
-  // ===== DATE HELPER FUNCTIONS =====
   const formatDateForDisplay = (dateStr: string): string => {
     if (!dateStr) return '';
     return formatDate(dateStr);
@@ -413,7 +586,6 @@ const SalesInvoice: React.FC = () => {
     return date.toISOString().split('T')[0];
   };
 
-  // ===== QUICK FILTER HANDLERS =====
   const applyQuickFilter = (filter: string) => {
     setSelectedQuickFilter(filter);
     let start = '';
@@ -441,7 +613,6 @@ const SalesInvoice: React.FC = () => {
     setTempToDate(end);
   };
 
-  // ===== CALENDAR FUNCTIONS =====
   const getDaysInMonth = (year: number, month: number): number => {
     return new Date(year, month + 1, 0).getDate();
   };
@@ -458,11 +629,9 @@ const SalesInvoice: React.FC = () => {
     for (let i = 0; i < firstDayIndex; i++) {
       days.push(null);
     }
-
     for (let i = 1; i <= daysInMonth; i++) {
       days.push(i);
     }
-
     return days;
   };
 
@@ -470,16 +639,11 @@ const SalesInvoice: React.FC = () => {
     if (!tempFromDate && !tempToDate) return false;
     const date = new Date(currentYear, currentMonth, day);
     const dateStr = date.toISOString().split('T')[0];
-    
     if (tempFromDate && tempToDate) {
       return dateStr >= tempFromDate && dateStr <= tempToDate;
     }
-    if (tempFromDate) {
-      return dateStr >= tempFromDate;
-    }
-    if (tempToDate) {
-      return dateStr <= tempToDate;
-    }
+    if (tempFromDate) return dateStr >= tempFromDate;
+    if (tempToDate) return dateStr <= tempToDate;
     return false;
   };
 
@@ -492,7 +656,6 @@ const SalesInvoice: React.FC = () => {
   const handleDateClick = (day: number) => {
     const date = new Date(currentYear, currentMonth, day);
     const dateStr = date.toISOString().split('T')[0];
-    
     if (!tempFromDate || (tempFromDate && tempToDate)) {
       setTempFromDate(dateStr);
       setTempToDate('');
@@ -525,7 +688,6 @@ const SalesInvoice: React.FC = () => {
     return new Date(currentYear, month).toLocaleString('en-US', { month: 'long' });
   };
 
-  // ===== DATE PICKER HANDLERS =====
   const openDatePicker = () => {
     setTempFromDate(fromDate);
     setTempToDate(toDate);
@@ -550,7 +712,6 @@ const SalesInvoice: React.FC = () => {
     setShowDatePicker(false);
   };
 
-  // ===== FETCH FULL INVOICE DETAILS =====
   const fetchFullSalesInvoice = async (id: string | number): Promise<SalesInvoice | null> => {
     try {
       const response = await api.get(`/sales-invoice/${id}`);
@@ -558,9 +719,7 @@ const SalesInvoice: React.FC = () => {
         const data = response.data.success === 1 ? response.data.data : response.data;
         const record = Array.isArray(data) ? data[0] : (data?.record ?? data);
         if (record && (record.id || record.name)) {
-          if (!record.items) {
-            record.items = [];
-          }
+          if (!record.items) record.items = [];
           return {
             ...record,
             displayInvoiceNumber: formatInvoiceNumber(record.id || record.name)
@@ -573,31 +732,21 @@ const SalesInvoice: React.FC = () => {
     return null;
   };
 
-  // ===== FETCH DATA WITH SERVER-SIDE PAGINATION =====
   const fetchInvoices = async () => {
     setLoading(true);
     setError(null);
     try {
       const params = new URLSearchParams();
-      
       params.append('page', String(currentPage));
       params.append('limit', String(itemsPerPage));
       
-      if (searchTerm.trim()) {
-        params.append('search', searchTerm.trim());
-        params.append('search_by', 'all');
-      }
-      if (selectedStatus !== 'All') {
-        params.append('status', selectedStatus);
-      }
-      if (fromDate) {
-        params.append('from_date', fromDate);
-      }
-      if (toDate) {
-        params.append('to_date', toDate);
-      }
+      if (searchTerm.trim()) params.append('search', searchTerm.trim());
+      if (selectedStatus !== 'All') params.append('status', selectedStatus);
+      if (fromDate) params.append('from_date', fromDate);
+      if (toDate) params.append('to_date', toDate);
       
       const query = params.toString() ? `?${params.toString()}` : '';
+      console.log("📡 [SI] Fetching /sales-invoice" + query);
       const response = await api.get<ApiResponse>(`/sales-invoice${query}`);
       
       if (response.data?.data?.records) {
@@ -620,27 +769,30 @@ const SalesInvoice: React.FC = () => {
     }
   };
 
-  // ===== EFFECTS =====
   useEffect(() => {
     fetchCompanyDetails();
-    fetchInvoices();
   }, []);
 
   useEffect(() => {
+    if (!filtersReady) return;
     fetchInvoices();
-  }, [searchTerm, selectedStatus, currentPage, itemsPerPage, fromDate, toDate]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchTerm, selectedStatus, currentPage, itemsPerPage, fromDate, toDate, filtersReady]);
 
   useEffect(() => {
+    if (!filtersReady) return;
+    if (isRestoringRef.current) {
+      isRestoringRef.current = false;
+      return;
+    }
     setCurrentPage(1);
-  }, [searchTerm, selectedStatus, fromDate, toDate]);
+  }, [searchTerm, selectedStatus, fromDate, toDate, filtersReady]);
 
-  // ===== HELPERS =====
   const formatDateDisplay = (date: string) => {
     if (!date) return '-';
     return formatDisplayDate(date);
   };
 
-  // ===== PAGINATION CALCULATIONS =====
   const totalFilteredItems = totalRecords;
   const totalPages = Math.ceil(totalFilteredItems / itemsPerPage) || 1;
   const validCurrentPage = Math.min(currentPage, totalPages || 1);
@@ -660,9 +812,7 @@ const SalesInvoice: React.FC = () => {
   };
 
   const goToPage = (page: number) => {
-    if (page >= 1 && page <= totalPages) {
-      setCurrentPage(page);
-    }
+    if (page >= 1 && page <= totalPages) setCurrentPage(page);
   };
 
   const goToFirstPage = () => goToPage(1);
@@ -685,7 +835,6 @@ const SalesInvoice: React.FC = () => {
     return pages;
   };
 
-  // ===== BUILD PRINT HTML =====
   const buildSalesInvoicePrintHtml = (invoice: SalesInvoice): string => {
     const items = invoice.items || [];
     const totalQty = items.reduce((sum, item) => sum + (item.qty || 0), 0);
@@ -730,12 +879,13 @@ const SalesInvoice: React.FC = () => {
     `).join('');
 
     const hasPaymentSchedule = invoice.payment_schedule && invoice.payment_schedule.length > 0;
+    const printInvoiceNumber = formatInvoiceNumber(invoice.id);
 
     return `<!DOCTYPE html>
 <html>
 <head>
 <meta charset="UTF-8" />
-<title>${escapeHtml(invoice.displayInvoiceNumber || 'Sales Invoice')}</title>
+<title>${escapeHtml(printInvoiceNumber || 'Sales Invoice')}</title>
 <style>
   * { box-sizing: border-box; }
   body { font-family: Arial, Helvetica, sans-serif; font-size: 12px; color: #1a1a1a; margin: 0; padding: 24px; }
@@ -823,7 +973,7 @@ const SalesInvoice: React.FC = () => {
         <div class="pq-meta-row">
           <div class="pq-meta-cell">
             <div class="pq-meta-label">Invoice No.</div>
-            <div class="pq-meta-value">${escapeHtml(invoice.displayInvoiceNumber || invoice.id || '')}</div>
+            <div class="pq-meta-value">${escapeHtml(printInvoiceNumber)}</div>
           </div>
           <div class="pq-meta-cell" style="border-right:none;">
             <div class="pq-meta-label">Date</div>
@@ -962,7 +1112,6 @@ const SalesInvoice: React.FC = () => {
 </html>`;
   };
 
-  // ===== GENERATE EXCEL DATA =====
   const generateExcelData = (invoices: SalesInvoice[]) => {
     const rows: any[] = [];
     
@@ -979,7 +1128,7 @@ const SalesInvoice: React.FC = () => {
       rows.push([`State Name: ${companyDetails.stateName}, Code: ${companyDetails.stateCode}`]);
       rows.push([]);
       
-      rows.push(['Invoice No.', invoice.displayInvoiceNumber || invoice.id || '']);
+      rows.push(['Invoice No.', formatInvoiceNumber(invoice.id)]);
       rows.push(['Date', formatDisplayDate(invoice.posting_date)]);
       rows.push(['Due Date', formatDisplayDate(invoice.due_date)]);
       rows.push(['Currency', invoice.currency || 'INR']);
@@ -1059,9 +1208,7 @@ const SalesInvoice: React.FC = () => {
     return rows;
   };
 
-  // ===== FIXED HANDLE PRINT =====
   const handlePrint = (invoice: SalesInvoice) => {
-    // ✅ Close any existing print window first
     if (printWindowRef.current && !printWindowRef.current.closed) {
       printWindowRef.current.close();
       printWindowRef.current = null;
@@ -1083,9 +1230,7 @@ const SalesInvoice: React.FC = () => {
         let printData = invoice;
         if (!invoice.items || invoice.items.length === 0) {
           const fullData = await fetchFullSalesInvoice(invoice.id);
-          if (fullData) {
-            printData = fullData;
-          }
+          if (fullData) printData = fullData;
         }
         
         printWindow.document.open();
@@ -1093,7 +1238,6 @@ const SalesInvoice: React.FC = () => {
         printWindow.document.close();
         printWindow.focus();
         
-        // ✅ Use afterprint event to clean up
         printWindow.onafterprint = () => {
           setTimeout(() => {
             if (printWindowRef.current && !printWindowRef.current.closed) {
@@ -1103,7 +1247,6 @@ const SalesInvoice: React.FC = () => {
           }, 500);
         };
         
-        // ✅ Print after a short delay
         setTimeout(() => {
           printWindow.print();
         }, 800);
@@ -1123,12 +1266,10 @@ const SalesInvoice: React.FC = () => {
     loadAndPrint();
   };
 
-  // ===== FIXED EXCEL DOWNLOAD =====
   const handleExcelDownload = async () => {
     setDownloadLoading(true);
     try {
       const invoicesToDownload = invoices.length > 0 ? invoices : [];
-      
       if (invoicesToDownload.length === 0) {
         toast.error('No invoices to download');
         setDownloadLoading(false);
@@ -1144,19 +1285,12 @@ const SalesInvoice: React.FC = () => {
       );
 
       const excelData = generateExcelData(fullInvoices);
-      
       const wb = XLSX.utils.book_new();
       const ws = XLSX.utils.aoa_to_sheet(excelData);
       
       ws['!cols'] = [
-        { wch: 20 },
-        { wch: 30 },
-        { wch: 15 },
-        { wch: 15 },
-        { wch: 15 },
-        { wch: 15 },
-        { wch: 15 },
-        { wch: 20 },
+        { wch: 20 }, { wch: 30 }, { wch: 15 }, { wch: 15 },
+        { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 20 },
       ];
       
       XLSX.utils.book_append_sheet(wb, ws, 'Invoices');
@@ -1172,7 +1306,6 @@ const SalesInvoice: React.FC = () => {
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
       toast.success('Excel file downloaded successfully');
-      
     } catch (err) {
       console.error('Download error:', err);
       toast.error('Failed to download');
@@ -1181,12 +1314,10 @@ const SalesInvoice: React.FC = () => {
     }
   };
 
-  // ===== FIXED PDF DOWNLOAD =====
   const handleDirectPDFDownload = async () => {
     setDownloadLoading(true);
     try {
       const invoicesToDownload = invoices.length > 0 ? invoices : [];
-      
       if (invoicesToDownload.length === 0) {
         toast.error('No invoices to download');
         setDownloadLoading(false);
@@ -1203,7 +1334,6 @@ const SalesInvoice: React.FC = () => {
 
       const allHtmlContent = fullInvoices.map(inv => buildSalesInvoicePrintHtml(inv)).join('<div style="page-break-after: always;"></div>');
       
-      // ✅ Close any existing print window
       if (printWindowRef.current && !printWindowRef.current.closed) {
         printWindowRef.current.close();
         printWindowRef.current = null;
@@ -1222,7 +1352,6 @@ const SalesInvoice: React.FC = () => {
       printWindow.document.close();
       printWindow.focus();
       
-      // ✅ Use afterprint event to clean up
       printWindow.onafterprint = () => {
         setTimeout(() => {
           if (printWindowRef.current && !printWindowRef.current.closed) {
@@ -1235,7 +1364,6 @@ const SalesInvoice: React.FC = () => {
       setTimeout(() => {
         printWindow.print();
       }, 500);
-      
     } catch (err) {
       console.error('PDF download error:', err);
       toast.error('Failed to download PDF');
@@ -1245,13 +1373,15 @@ const SalesInvoice: React.FC = () => {
   };
 
   // ===== ACTIONS =====
-  const handleCreate = () => navigate('/sales-bill/new');
+  const handleCreate = () => navigateWithPreserve('/sales-bill/new');
   const handleRefresh = () => fetchInvoices();
   
   const handleView = (id: string | number) => {
     const invoiceId = String(id);
     setShowMoreMenu(null);
-    navigate(`/sales-bill/view/${invoiceId}`, {
+    setMenuPosition(null);
+    activeButtonRef.current = null;
+    navigateWithPreserve(`/sales-bill/view/${invoiceId}`, {
       state: { invoiceId, mode: 'view' }
     });
   };
@@ -1259,12 +1389,14 @@ const SalesInvoice: React.FC = () => {
   const handleEdit = (id: string | number) => {
     const invoiceId = String(id);
     setShowMoreMenu(null);
-    navigate(`/sales-bill/edit/${invoiceId}`, {
+    setMenuPosition(null);
+    activeButtonRef.current = null;
+    navigateWithPreserve(`/sales-bill/edit/${invoiceId}`, {
       state: { invoiceId, mode: 'edit' }
     });
   };
   
-  const handleDuplicate = (id: string | number) => navigate(`/sales-bill/duplicate/${id}`);
+  const handleDuplicate = (id: string | number) => navigateWithPreserve(`/sales-bill/duplicate/${id}`);
 
   const handleCancelInvoice = async (id: string | number) => {
     if (!window.confirm('Are you sure you want to cancel this Sales Bill?')) return;
@@ -1276,6 +1408,8 @@ const SalesInvoice: React.FC = () => {
       toast.error('Failed to cancel');
     }
     setShowMoreMenu(null);
+    setMenuPosition(null);
+    activeButtonRef.current = null;
   };
 
   const handleSubmit = async (id: string | number) => {
@@ -1288,10 +1422,28 @@ const SalesInvoice: React.FC = () => {
       toast.error('Failed to submit');
     }
     setShowMoreMenu(null);
+    setMenuPosition(null);
+    activeButtonRef.current = null;
   };
 
-  const toggleMenu = (id: string | number) => {
-    setShowMoreMenu(showMoreMenu === String(id) ? null : String(id));
+  // 🆕 toggleMenu now takes the click event to measure the button position.
+  // The dropdown itself is rendered via portal at body level (see bottom of JSX),
+  // so it can never be clipped by the table wrapper's overflow rules.
+  const toggleMenu = (id: string | number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const idStr = String(id);
+    if (showMoreMenu === idStr) {
+      setShowMoreMenu(null);
+      setMenuPosition(null);
+      activeButtonRef.current = null;
+      return;
+    }
+    const btn = e.currentTarget as HTMLElement;
+    activeButtonRef.current = btn;
+    const rect = btn.getBoundingClientRect();
+    const rightOffset = Math.max(8, window.innerWidth - rect.right);
+    setMenuPosition({ top: rect.bottom + 4, right: rightOffset });
+    setShowMoreMenu(idStr);
   };
 
   const clearFilters = () => {
@@ -1304,23 +1456,25 @@ const SalesInvoice: React.FC = () => {
     setSelectedQuickFilter('');
     setCurrentPage(1);
     setShowDatePicker(false);
+
+    const next = new URLSearchParams(searchParams);
+    next.delete('status');
+    next.delete('autoFilter');
+    setSearchParams(next, { replace: true });
   };
 
-      // ─── Loading Screen ─────────────────────────────────────────────────────
-    if (loading) {
-      return (
-        <div className={`p-6 max-w-7xl mx-auto ${theme}`}>
-          <PageLoader 
-            message="Loading Sales & Sales Bill List..." 
-            //subtitle="Calculating bill of materials, operations rates, and component structures"
-          />
-        </div>
-      );
-    }
+  // 🆕 The invoice whose menu is currently open (used by the portal render)
+  const activeMenuItem = showMoreMenu
+    ? invoices.find((inv) => String(inv.id) === showMoreMenu) || null
+    : null;
 
-  function getStartIndexDisplay() {
-    throw new Error('Function not implemented.');
-  }
+  // ✅ FIX: The early `if (loading) return <PageLoader />` block has been
+  //    REMOVED. Previously, every search keystroke triggered a fetch that
+  //    set `loading = true`, which unmounted the entire page (including the
+  //    search input) and caused focus/cursor loss while typing.
+  //    The inline loading state inside the table wrapper below now handles
+  //    the visual feedback, so the filter bar (and the search input) stays
+  //    mounted and keeps focus.
 
   // ===== RENDER =====
   return (
@@ -1338,1152 +1492,190 @@ const SalesInvoice: React.FC = () => {
           overflow-x: hidden;
         }
 
-        .quotation-page::-webkit-scrollbar {
-          width: 6px;
-        }
-        .quotation-page::-webkit-scrollbar-track {
-          background: var(--layout-bg, #f9fafb);
-          border-radius: 3px;
-        }
-        .quotation-page::-webkit-scrollbar-thumb {
-          background: var(--border-color, #e5e7eb);
-          border-radius: 3px;
-        }
-        .quotation-page::-webkit-scrollbar-thumb:hover {
-          background: var(--primary-color, #6366f1);
-        }
+        .quotation-page::-webkit-scrollbar { width: 6px; }
+        .quotation-page::-webkit-scrollbar-track { background: var(--layout-bg, #f9fafb); border-radius: 3px; }
+        .quotation-page::-webkit-scrollbar-thumb { background: var(--border-color, #e5e7eb); border-radius: 3px; }
+        .quotation-page::-webkit-scrollbar-thumb:hover { background: var(--primary-color, #6366f1); }
+
+        .qt-date-picker-container { position: relative; display: inline-block; }
+        .qt-date-picker-trigger { display: flex; align-items: center; gap: 8px; background: var(--card-bg, #fff); border: 1px solid var(--border-color, #e5e7eb); border-radius: 8px; padding: 7px 14px; cursor: pointer; transition: all 0.2s; color: var(--text-primary, #1e293b); font-size: 13px; min-height: 38px; }
+        .qt-date-picker-trigger:hover { border-color: var(--primary-color, #2563eb); background: var(--hover-bg, #f8fafc); }
+        .qt-date-picker-trigger.active { border-color: var(--primary-color, #2563eb); box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1); }
+        .qt-date-picker-trigger .qt-calendar-icon { color: var(--primary-color, #2563eb); font-size: 16px; }
+        .qt-date-picker-trigger .qt-date-label { font-weight: 500; }
+        .qt-date-picker-trigger .qt-date-label.placeholder { color: var(--text-secondary, #6b7280); font-weight: 400; }
+        .qt-date-picker-trigger .qt-date-range-display { color: var(--primary-color, #2563eb); font-weight: 500; }
+        .qt-date-picker-popup { position: absolute; top: calc(100% + 8px); right: 0; background: var(--card-bg, #fff); border: 1px solid var(--border-color, #e5e7eb); border-radius: 12px; box-shadow: 0 10px 40px var(--shadow-color, rgba(0,0,0,0.15)); padding: 20px; z-index: 1000; min-width: 340px; width: 340px; }
+        .qt-date-picker-popup .qt-popup-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+        .qt-date-picker-popup .qt-popup-header .qt-popup-title { font-size: 14px; font-weight: 600; color: var(--text-primary, #1e293b); }
+        .qt-date-picker-popup .qt-popup-header .qt-popup-close { background: none; border: none; color: var(--text-secondary, #6b7280); cursor: pointer; font-size: 16px; padding: 4px; }
+        .qt-date-picker-popup .qt-popup-header .qt-popup-close:hover { color: var(--text-primary, #1e293b); }
+        .qt-date-picker-popup .qt-quick-filters { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--border-color, #e5e7eb); }
+        .qt-date-picker-popup .qt-quick-filter-btn { padding: 4px 14px; border: 1px solid var(--border-color, #e5e7eb); border-radius: 16px; background: var(--card-bg, #fff); color: var(--text-secondary, #6b7280); font-size: 12px; cursor: pointer; transition: all 0.2s; }
+        .qt-date-picker-popup .qt-quick-filter-btn:hover { border-color: var(--primary-color, #2563eb); color: var(--primary-color, #2563eb); }
+        .qt-date-picker-popup .qt-quick-filter-btn.active { background: var(--primary-color, #2563eb); border-color: var(--primary-color, #2563eb); color: #fff; }
+        .qt-date-picker-popup .qt-calendar-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+        .qt-date-picker-popup .qt-calendar-header .qt-month-year { font-size: 14px; font-weight: 600; color: var(--text-primary, #1e293b); }
+        .qt-date-picker-popup .qt-calendar-header .qt-nav-btn { background: none; border: none; color: var(--text-secondary, #6b7280); cursor: pointer; padding: 4px 8px; font-size: 14px; border-radius: 4px; transition: all 0.2s; }
+        .qt-date-picker-popup .qt-calendar-header .qt-nav-btn:hover { background: var(--hover-bg, #f3f4f6); }
+        .qt-date-picker-popup .qt-calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; margin-bottom: 12px; }
+        .qt-date-picker-popup .qt-calendar-grid .qt-day-header { text-align: center; font-size: 11px; font-weight: 600; color: var(--text-secondary, #6b7280); padding: 4px 0; }
+        .qt-date-picker-popup .qt-calendar-grid .qt-day-cell { text-align: center; padding: 6px 4px; font-size: 13px; border-radius: 6px; cursor: pointer; transition: all 0.2s; color: var(--text-primary, #1e293b); position: relative; }
+        .qt-date-picker-popup .qt-calendar-grid .qt-day-cell.empty { cursor: default; }
+        .qt-date-picker-popup .qt-calendar-grid .qt-day-cell:hover:not(.empty):not(.in-range) { background: var(--hover-bg, #f3f4f6); }
+        .qt-date-picker-popup .qt-calendar-grid .qt-day-cell.in-range { background: rgba(37, 99, 235, 0.1); }
+        .qt-date-picker-popup .qt-calendar-grid .qt-day-cell.selected { background: var(--primary-color, #2563eb); color: #fff; font-weight: 600; }
+        .qt-date-picker-popup .qt-calendar-grid .qt-day-cell.selected-start { background: var(--primary-color, #2563eb); color: #fff; font-weight: 600; border-radius: 6px 0 0 6px; }
+        .qt-date-picker-popup .qt-calendar-grid .qt-day-cell.selected-end { background: var(--primary-color, #2563eb); color: #fff; font-weight: 600; border-radius: 0 6px 6px 0; }
+        .qt-date-picker-popup .qt-calendar-grid .qt-day-cell.range-middle { background: rgba(37, 99, 235, 0.15); }
+        .qt-date-picker-popup .qt-calendar-grid .qt-day-cell.today { border: 1px solid var(--primary-color, #2563eb); }
+        .qt-date-picker-popup .qt-popup-actions { display: flex; gap: 8px; justify-content: flex-end; padding-top: 12px; border-top: 1px solid var(--border-color, #e5e7eb); }
+        .qt-date-picker-popup .qt-popup-actions button { padding: 6px 16px; border: none; border-radius: 6px; font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.2s; }
+        .qt-date-picker-popup .qt-popup-actions .qt-btn-apply { background: var(--primary-color, #2563eb); color: #fff; }
+        .qt-date-picker-popup .qt-popup-actions .qt-btn-apply:hover { background: var(--primary-hover, #1d4ed8); }
+        .qt-date-picker-popup .qt-popup-actions .qt-btn-clear { background: transparent; color: var(--text-secondary, #6b7280); }
+        .qt-date-picker-popup .qt-popup-actions .qt-btn-clear:hover { background: var(--hover-bg, #f3f4f6); }
+        .qt-date-picker-popup .qt-popup-actions .qt-btn-cancel { background: transparent; color: var(--text-secondary, #6b7280); }
+        .qt-date-picker-popup .qt-popup-actions .qt-btn-cancel:hover { background: var(--hover-bg, #f3f4f6); }
+
+        .qt-filter-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; flex-shrink: 0; }
+        .qt-filter-left { display: flex; align-items: center; flex: 1; min-width: 200px; }
+        .qt-search-wrapper { position: relative; flex: 1; max-width: 400px; }
+        .qt-search-icon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-secondary, #9ca3af); font-size: 14px; }
+        .qt-search-input { width: 100%; padding: 8px 36px 8px 36px; border: 1px solid var(--border-color, #e5e7eb); border-radius: 8px; font-size: 13px; background: var(--input-bg, white); color: var(--text-primary, #374151); outline: none; transition: border-color 0.2s; height: 38px; }
+        .qt-search-input:focus { border-color: var(--primary-color, #2563eb); box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1); }
+        .qt-search-input::placeholder { color: var(--text-secondary, #9ca3af); }
+        .qt-search-clear { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: var(--text-secondary, #9ca3af); padding: 4px; display: flex; align-items: center; }
+        .qt-filter-right { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+        .qt-filter-select { padding: 7px 12px; border: 1px solid var(--border-color, #e5e7eb); border-radius: 8px; font-size: 13px; background: var(--card-bg, white); color: var(--text-primary, #374151); cursor: pointer; outline: none; height: 38px; }
+        .qt-filter-select:focus { border-color: var(--primary-color, #2563eb); box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1); }
+        .qt-btn-new { display: flex; align-items: center; gap: 6px; height: 38px; padding: 0 16px; border: none; border-radius: 8px; background: var(--primary-color, #6366f1); color: white; font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
+        .qt-btn-new:hover { background: var(--primary-hover, #4f46e5); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3); }
+        .qt-btn-secondary { display: flex; align-items: center; gap: 6px; height: 38px; padding: 0 14px; border: 1px solid var(--border-color, #e5e7eb); border-radius: 8px; background: var(--card-bg, white); font-size: 13px; color: var(--text-primary, #374151); cursor: pointer; transition: all 0.15s; white-space: nowrap; }
+        .qt-btn-secondary:hover { background: var(--nav-hover, #f9fafb); }
+        .qt-btn-download { display: flex; align-items: center; gap: 6px; height: 38px; padding: 0 16px; border: none; border-radius: 8px; background: #10b981; color: white; font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
+        .qt-btn-download:hover { background: #059669; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3); }
+        .qt-btn-download:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+        .qt-btn-download-pdf { display: flex; align-items: center; gap: 6px; height: 38px; padding: 0 16px; border: none; border-radius: 8px; background: #dc2626; color: white; font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
+        .qt-btn-download-pdf:hover { background: #b91c1c; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3); }
+        .qt-btn-download-pdf:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+        .qt-active-filters { display: flex; align-items: center; gap: 12px; padding: 8px 16px; background: color-mix(in srgb, var(--primary-color) 8%, transparent); border-radius: 8px; font-size: 12px; flex-wrap: wrap; border: 1px solid var(--border-color, #e5e7eb); flex-shrink: 0; }
+        .qt-active-filters span { color: var(--text-primary, #111827); }
+        .qt-clear-filters { margin-left: auto; padding: 4px 12px; background: var(--card-bg, white); border: 1px solid var(--border-color, #e5e7eb); border-radius: 6px; cursor: pointer; font-size: 11px; display: flex; align-items: center; gap: 4px; color: var(--text-secondary, #6b7280); transition: all 0.15s; }
+        .qt-clear-filters:hover { background: var(--nav-hover, #f3f4f6); }
+
+        .qt-table-wrap { background: var(--card-bg, #fff); border-radius: 12px; box-shadow: 0 1px 3px var(--shadow-color, rgba(0,0,0,0.05)); border: 1px solid var(--border-color, #e5e7eb); overflow-x: auto; overflow-y: visible; flex: 0 0 auto; }
+        .qt-table-wrap::-webkit-scrollbar { width: 6px; height: 6px; }
+        .qt-table-wrap::-webkit-scrollbar-track { background: var(--layout-bg, #f9fafb); border-radius: 3px; }
+        .qt-table-wrap::-webkit-scrollbar-thumb { background: var(--border-color, #e5e7eb); border-radius: 3px; }
+        .qt-table-wrap::-webkit-scrollbar-thumb:hover { background: var(--primary-color, #6366f1); }
+        .qt-table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 700px; }
+        .qt-th { padding: 12px 16px; text-align: left; font-size: 12px; font-weight: 600; color: var(--text-secondary, #6b7280); background: var(--layout-bg, #f9fafb); border-bottom: 1px solid var(--border-color, #e5e7eb); white-space: nowrap; text-transform: uppercase; letter-spacing: 0.3px; }
+        .qt-tr { cursor: default; transition: background 0.15s; }
+        .qt-tr:hover { background: var(--nav-hover, #f9fafb); }
+        .qt-tr+.qt-tr td { border-top: 1px solid var(--border-color, #f3f4f6); }
+        .qt-td { padding: 12px 16px; color: var(--text-primary, #374151); vertical-align: middle; text-align: left; }
+        .qt-td-id { font-weight: 600; color: var(--text-primary, #111827); font-family: monospace; }
+        .qt-td-customer { font-weight: 500; color: var(--primary-color, #6366f1); cursor: pointer; }
+        .qt-td-customer:hover { text-decoration: underline; }
+        .qt-td-amount { font-weight: 600; font-size: 14px; color: var(--text-primary, #1f2433); }
+        .qt-td-outstanding { font-weight: 600; font-size: 13px; }
+        .qt-td-outstanding.paid { color: #059669; }
+        .qt-td-outstanding.partial { color: #d97706; }
+        .qt-td-outstanding.unpaid { color: #dc2626; }
+        .qt-status-badge { display: inline-flex; align-items: center; height: 24px; padding: 0 12px; border-radius: 99px; font-size: 12px; font-weight: 600; gap: 4px; }
+        .qt-dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
+        .qt-action-buttons { display: flex; align-items: center; gap: 4px; }
+        .qt-action-btn { width: 32px; height: 32px; border: none; border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; transition: all 0.2s; background: transparent; color: var(--text-secondary, #6b7280); }
+        .qt-action-btn:hover { background: var(--nav-hover, #f3f4f6); }
+        .qt-action-print { color: #0d9488; }
+        .qt-action-print:hover { background: rgba(13, 148, 136, 0.1); }
+        .qt-action-more { color: var(--text-secondary, #6b7280); }
+        .qt-action-more:hover { background: var(--nav-hover, #f3f4f6); }
+        .qt-more-menu-container { position: relative; display: inline-block; }
+        .qt-more-menu-dropdown { background: var(--card-bg, #fff); border: 1px solid var(--border-color, #e5e7eb); border-radius: 8px; box-shadow: 0 10px 40px var(--shadow-color, rgba(0,0,0,0.15)); min-width: 180px; padding: 4px 0; }
+        .qt-more-menu-dropdown button { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 16px; border: none; background: transparent; color: var(--text-primary, #1e293b); font-size: 13px; cursor: pointer; transition: all 0.2s; text-align: left; }
+        .qt-more-menu-dropdown button:hover { background: var(--nav-hover, #f8fafc); color: var(--primary-color, #2563eb); }
+        .qt-more-menu-dropdown button.danger { color: var(--danger-color, #ef4444); }
+        .qt-more-menu-dropdown button.danger:hover { background: #fef2f2; }
+        .qt-more-menu-dropdown .menu-divider { height: 1px; background: var(--border-color, #e5e7eb); margin: 4px 0; }
+        .qt-empty-state { padding: 60px 20px; text-align: center; display: flex; align-items: center; justify-content: center; height: 100%; }
+        .qt-empty-content { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+        .qt-empty-content svg { color: var(--text-secondary, #9ca3af); }
+        .qt-empty-content p { font-size: 18px; font-weight: 500; color: var(--text-primary, #111827); margin: 0; }
+        .qt-empty-content span { font-size: 14px; color: var(--text-secondary, #6b7280); }
+        .qt-loading { padding: 40px; text-align: center; color: var(--text-secondary, #6b7280); display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; }
+        .qt-error { padding: 40px; text-align: center; color: var(--danger-color, #ef4444); display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; }
+        .qt-retry-btn { margin-top: 12px; padding: 8px 20px; background: var(--primary-color, #6366f1); color: white; border: none; border-radius: 6px; cursor: pointer; }
+        .qt-pagination { display: flex; align-items: center; justify-content: space-between; padding: 12px 0 0 0; flex-wrap: wrap; gap: 12px; background: transparent; flex-shrink: 0; border-top: 1px solid var(--border-color, #e5e7eb); margin-top: 4px; }
+        .qt-pagination-left, .qt-pagination-right { display: flex; align-items: center; gap: 8px; }
+        .qt-pagination-center { display: flex; align-items: center; gap: 4px; }
+        .qt-pagination-label { font-size: 13px; color: var(--text-secondary, #6b7280); }
+        .qt-page-size-select { padding: 6px 10px; border: 1px solid var(--border-color, #e5e7eb); border-radius: 6px; font-size: 13px; background: var(--card-bg, white); color: var(--text-primary, #374151); cursor: pointer; height: 34px; }
+        .qt-page-size-select:focus { border-color: var(--primary-color, #6366f1); outline: none; }
+        .qt-page-btn { height: 34px; min-width: 34px; padding: 0 10px; border: 1px solid var(--border-color, #e5e7eb); border-radius: 6px; background: var(--card-bg, white); font-size: 13px; color: var(--text-primary, #374151); cursor: pointer; transition: all 0.15s; display: inline-flex; align-items: center; justify-content: center; }
+        .qt-page-btn:hover:not(:disabled) { background: var(--nav-hover, #f3f4f6); border-color: var(--primary-color, #6366f1); }
+        .qt-page-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .qt-page-btn-active { background: var(--primary-color, #6366f1); color: white; border-color: var(--primary-color, #6366f1); }
+        .qt-page-btn-active:hover { background: var(--primary-hover, #4f46e5); }
+        .qt-pagination-info { font-size: 13px; color: var(--text-secondary, #6b7280); }
+        .spinning { animation: spin 1s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .dark-theme .quotation-page { background: var(--layout-bg, #0f172a); }
+        .dark-theme .qt-search-input { background: var(--input-bg, #1e293b); border-color: var(--border-color, #334155); color: var(--text-primary, #f8fafc); }
+        .dark-theme .qt-search-input::placeholder { color: var(--text-secondary, #64748b); }
+        .dark-theme .qt-filter-select { background: var(--card-bg, #1e293b); border-color: var(--border-color, #334155); color: var(--text-primary, #f8fafc); }
+        .dark-theme .qt-btn-secondary { background: var(--card-bg, #1e293b); border-color: var(--border-color, #334155); color: var(--text-primary, #f8fafc); }
+        .dark-theme .qt-btn-secondary:hover { background: var(--nav-hover, rgba(255,255,255,0.05)); }
+        .dark-theme .qt-btn-new { background: var(--primary-color, #3b82f6); }
+        .dark-theme .qt-btn-new:hover { background: var(--primary-hover, #2563eb); }
+        .dark-theme .qt-table-wrap { background: var(--card-bg, #1e293b); border-color: var(--border-color, #334155); }
+        .dark-theme .qt-th { background: var(--layout-bg, #0f172a); color: var(--text-secondary, #94a3b8); border-bottom-color: var(--border-color, #334155); }
+        .dark-theme .qt-td { color: var(--text-primary, #f8fafc); border-top-color: var(--border-color, #334155); }
+        .dark-theme .qt-tr:hover { background: var(--nav-hover, rgba(255,255,255,0.05)); }
+        .dark-theme .qt-td-amount { color: var(--text-primary, #f8fafc); }
+        .dark-theme .qt-empty-content p { color: var(--text-primary, #f8fafc); }
+        .dark-theme .qt-empty-content span { color: var(--text-secondary, #94a3b8); }
+        .dark-theme .qt-active-filters { background: rgba(99, 102, 241, 0.08); border-color: var(--border-color, #334155); }
+        .dark-theme .qt-active-filters span { color: var(--text-primary, #f8fafc); }
+        .dark-theme .qt-clear-filters { background: var(--card-bg, #1e293b); border-color: var(--border-color, #334155); color: var(--text-secondary, #94a3b8); }
+        .dark-theme .qt-page-btn { background: var(--card-bg, #1e293b); border-color: var(--border-color, #334155); color: var(--text-primary, #f8fafc); }
+        .dark-theme .qt-page-btn:hover:not(:disabled) { background: var(--nav-hover, rgba(255,255,255,0.05)); }
+        .dark-theme .qt-page-size-select { background: var(--card-bg, #1e293b); border-color: var(--border-color, #334155); color: var(--text-primary, #f8fafc); }
+        .dark-theme .qt-more-menu-dropdown { background: var(--card-bg, #1e293b); border-color: var(--border-color, #334155); }
+        .dark-theme .qt-more-menu-dropdown button { color: var(--text-primary, #f8fafc); }
+        .dark-theme .qt-more-menu-dropdown button:hover { background: var(--nav-hover, rgba(255,255,255,0.05)); }
+        .dark-theme .qt-date-picker-trigger { background: var(--card-bg, #1e293b); border-color: var(--border-color, #334155); color: var(--text-primary, #f8fafc); }
+        .dark-theme .qt-date-picker-trigger:hover { background: var(--nav-hover, rgba(255,255,255,0.05)); }
+        .dark-theme .qt-date-picker-popup { background: var(--card-bg, #1e293b); border-color: var(--border-color, #334155); }
+        .dark-theme .qt-date-picker-popup .qt-popup-title { color: var(--text-primary, #f8fafc); }
+        .dark-theme .qt-date-picker-popup .qt-quick-filter-btn { background: var(--card-bg, #1e293b); border-color: var(--border-color, #334155); color: var(--text-secondary, #94a3b8); }
+        .dark-theme .qt-date-picker-popup .qt-quick-filter-btn.active { background: var(--primary-color, #3b82f6); color: #fff; }
+        .dark-theme .qt-date-picker-popup .qt-calendar-grid .qt-day-cell { color: var(--text-primary, #f8fafc); }
+        .dark-theme .qt-date-picker-popup .qt-day-header { color: var(--text-secondary, #94a3b8); }
 
-        /* ── Date Range Picker Styles ── */
-        .qt-date-picker-container {
-          position: relative;
-          display: inline-block;
-        }
-
-        .qt-date-picker-trigger {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          background: var(--card-bg, #fff);
-          border: 1px solid var(--border-color, #e5e7eb);
-          border-radius: 8px;
-          padding: 7px 14px;
-          cursor: pointer;
-          transition: all 0.2s;
-          color: var(--text-primary, #1e293b);
-          font-size: 13px;
-          min-height: 38px;
-        }
-
-        .qt-date-picker-trigger:hover {
-          border-color: var(--primary-color, #2563eb);
-          background: var(--hover-bg, #f8fafc);
-        }
-
-        .qt-date-picker-trigger.active {
-          border-color: var(--primary-color, #2563eb);
-          box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
-        }
-
-        .qt-date-picker-trigger .qt-calendar-icon {
-          color: var(--primary-color, #2563eb);
-          font-size: 16px;
-        }
-
-        .qt-date-picker-trigger .qt-date-label {
-          font-weight: 500;
-        }
-
-        .qt-date-picker-trigger .qt-date-label.placeholder {
-          color: var(--text-secondary, #6b7280);
-          font-weight: 400;
-        }
-
-        .qt-date-picker-trigger .qt-date-range-display {
-          color: var(--primary-color, #2563eb);
-          font-weight: 500;
-        }
-
-        .qt-date-picker-popup {
-          position: absolute;
-          top: calc(100% + 8px);
-          right: 0;
-          background: var(--card-bg, #fff);
-          border: 1px solid var(--border-color, #e5e7eb);
-          border-radius: 12px;
-          box-shadow: 0 10px 40px var(--shadow-color, rgba(0,0,0,0.15));
-          padding: 20px;
-          z-index: 1000;
-          min-width: 340px;
-          width: 340px;
-        }
-
-        .qt-date-picker-popup .qt-popup-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 12px;
-        }
-
-        .qt-date-picker-popup .qt-popup-header .qt-popup-title {
-          font-size: 14px;
-          font-weight: 600;
-          color: var(--text-primary, #1e293b);
-        }
-
-        .qt-date-picker-popup .qt-popup-header .qt-popup-close {
-          background: none;
-          border: none;
-          color: var(--text-secondary, #6b7280);
-          cursor: pointer;
-          font-size: 16px;
-          padding: 4px;
-        }
-
-        .qt-date-picker-popup .qt-popup-header .qt-popup-close:hover {
-          color: var(--text-primary, #1e293b);
-        }
-
-        .qt-date-picker-popup .qt-quick-filters {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 6px;
-          margin-bottom: 16px;
-          padding-bottom: 12px;
-          border-bottom: 1px solid var(--border-color, #e5e7eb);
-        }
-
-        .qt-date-picker-popup .qt-quick-filter-btn {
-          padding: 4px 14px;
-          border: 1px solid var(--border-color, #e5e7eb);
-          border-radius: 16px;
-          background: var(--card-bg, #fff);
-          color: var(--text-secondary, #6b7280);
-          font-size: 12px;
-          cursor: pointer;
-          transition: all 0.2s;
-        }
-
-        .qt-date-picker-popup .qt-quick-filter-btn:hover {
-          border-color: var(--primary-color, #2563eb);
-          color: var(--primary-color, #2563eb);
-        }
-
-        .qt-date-picker-popup .qt-quick-filter-btn.active {
-          background: var(--primary-color, #2563eb);
-          border-color: var(--primary-color, #2563eb);
-          color: #fff;
-        }
-
-        .qt-date-picker-popup .qt-calendar-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 12px;
-        }
-
-        .qt-date-picker-popup .qt-calendar-header .qt-month-year {
-          font-size: 14px;
-          font-weight: 600;
-          color: var(--text-primary, #1e293b);
-        }
-
-        .qt-date-picker-popup .qt-calendar-header .qt-nav-btn {
-          background: none;
-          border: none;
-          color: var(--text-secondary, #6b7280);
-          cursor: pointer;
-          padding: 4px 8px;
-          font-size: 14px;
-          border-radius: 4px;
-          transition: all 0.2s;
-        }
-
-        .qt-date-picker-popup .qt-calendar-header .qt-nav-btn:hover {
-          background: var(--hover-bg, #f3f4f6);
-        }
-
-        .qt-date-picker-popup .qt-calendar-grid {
-          display: grid;
-          grid-template-columns: repeat(7, 1fr);
-          gap: 2px;
-          margin-bottom: 12px;
-        }
-
-        .qt-date-picker-popup .qt-calendar-grid .qt-day-header {
-          text-align: center;
-          font-size: 11px;
-          font-weight: 600;
-          color: var(--text-secondary, #6b7280);
-          padding: 4px 0;
-        }
-
-        .qt-date-picker-popup .qt-calendar-grid .qt-day-cell {
-          text-align: center;
-          padding: 6px 4px;
-          font-size: 13px;
-          border-radius: 6px;
-          cursor: pointer;
-          transition: all 0.2s;
-          color: var(--text-primary, #1e293b);
-          position: relative;
-        }
-
-        .qt-date-picker-popup .qt-calendar-grid .qt-day-cell.empty {
-          cursor: default;
-        }
-
-        .qt-date-picker-popup .qt-calendar-grid .qt-day-cell:hover:not(.empty):not(.in-range) {
-          background: var(--hover-bg, #f3f4f6);
-        }
-
-        .qt-date-picker-popup .qt-calendar-grid .qt-day-cell.in-range {
-          background: rgba(37, 99, 235, 0.1);
-        }
-
-        .qt-date-picker-popup .qt-calendar-grid .qt-day-cell.selected {
-          background: var(--primary-color, #2563eb);
-          color: #fff;
-          font-weight: 600;
-        }
-
-        .qt-date-picker-popup .qt-calendar-grid .qt-day-cell.selected-start {
-          background: var(--primary-color, #2563eb);
-          color: #fff;
-          font-weight: 600;
-          border-radius: 6px 0 0 6px;
-        }
-
-        .qt-date-picker-popup .qt-calendar-grid .qt-day-cell.selected-end {
-          background: var(--primary-color, #2563eb);
-          color: #fff;
-          font-weight: 600;
-          border-radius: 0 6px 6px 0;
-        }
-
-        .qt-date-picker-popup .qt-calendar-grid .qt-day-cell.range-middle {
-          background: rgba(37, 99, 235, 0.15);
-        }
-
-        .qt-date-picker-popup .qt-calendar-grid .qt-day-cell.today {
-          border: 1px solid var(--primary-color, #2563eb);
-        }
-
-        .qt-date-picker-popup .qt-popup-actions {
-          display: flex;
-          gap: 8px;
-          justify-content: flex-end;
-          padding-top: 12px;
-          border-top: 1px solid var(--border-color, #e5e7eb);
-        }
-
-        .qt-date-picker-popup .qt-popup-actions button {
-          padding: 6px 16px;
-          border: none;
-          border-radius: 6px;
-          font-size: 13px;
-          font-weight: 500;
-          cursor: pointer;
-          transition: all 0.2s;
-        }
-
-        .qt-date-picker-popup .qt-popup-actions .qt-btn-apply {
-          background: var(--primary-color, #2563eb);
-          color: #fff;
-        }
-
-        .qt-date-picker-popup .qt-popup-actions .qt-btn-apply:hover {
-          background: var(--primary-hover, #1d4ed8);
-        }
-
-        .qt-date-picker-popup .qt-popup-actions .qt-btn-clear {
-          background: transparent;
-          color: var(--text-secondary, #6b7280);
-        }
-
-        .qt-date-picker-popup .qt-popup-actions .qt-btn-clear:hover {
-          background: var(--hover-bg, #f3f4f6);
-        }
-
-        .qt-date-picker-popup .qt-popup-actions .qt-btn-cancel {
-          background: transparent;
-          color: var(--text-secondary, #6b7280);
-        }
-
-        .qt-date-picker-popup .qt-popup-actions .qt-btn-cancel:hover {
-          background: var(--hover-bg, #f3f4f6);
-        }
-
-        /* ── Filter Bar ── */
-        .qt-filter-bar {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 12px;
-          flex-wrap: wrap;
-          flex-shrink: 0;
-        }
-
-        .qt-filter-left {
-          display: flex;
-          align-items: center;
-          flex: 1;
-          min-width: 200px;
-        }
-
-        .qt-search-wrapper {
-          position: relative;
-          flex: 1;
-          max-width: 400px;
-        }
-
-        .qt-search-icon {
-          position: absolute;
-          left: 12px;
-          top: 50%;
-          transform: translateY(-50%);
-          color: var(--text-secondary, #9ca3af);
-          font-size: 14px;
-        }
-
-        .qt-search-input {
-          width: 100%;
-          padding: 8px 36px 8px 36px;
-          border: 1px solid var(--border-color, #e5e7eb);
-          border-radius: 8px;
-          font-size: 13px;
-          background: var(--input-bg, white);
-          color: var(--text-primary, #374151);
-          outline: none;
-          transition: border-color 0.2s;
-          height: 38px;
-        }
-
-        .qt-search-input:focus {
-          border-color: var(--primary-color, #2563eb);
-          box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
-        }
-
-        .qt-search-input::placeholder {
-          color: var(--text-secondary, #9ca3af);
-        }
-
-        .qt-search-clear {
-          position: absolute;
-          right: 10px;
-          top: 50%;
-          transform: translateY(-50%);
-          background: none;
-          border: none;
-          cursor: pointer;
-          color: var(--text-secondary, #9ca3af);
-          padding: 4px;
-          display: flex;
-          align-items: center;
-        }
-
-        .qt-filter-right {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          flex-wrap: wrap;
-        }
-
-        .qt-filter-select {
-          padding: 7px 12px;
-          border: 1px solid var(--border-color, #e5e7eb);
-          border-radius: 8px;
-          font-size: 13px;
-          background: var(--card-bg, white);
-          color: var(--text-primary, #374151);
-          cursor: pointer;
-          outline: none;
-          height: 38px;
-        }
-
-        .qt-filter-select:focus {
-          border-color: var(--primary-color, #2563eb);
-          box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
-        }
-
-        .qt-btn-new {
-          display: flex;
-          align-items: center;
-          gap: 6px;
-          height: 38px;
-          padding: 0 16px;
-          border: none;
-          border-radius: 8px;
-          background: var(--primary-color, #6366f1);
-          color: white;
-          font-size: 13px;
-          font-weight: 500;
-          cursor: pointer;
-          transition: all 0.15s;
-          white-space: nowrap;
-        }
-
-        .qt-btn-new:hover {
-          background: var(--primary-hover, #4f46e5);
-          transform: translateY(-1px);
-          box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
-        }
-
-        .qt-btn-secondary {
-          display: flex;
-          align-items: center;
-          gap: 6px;
-          height: 38px;
-          padding: 0 14px;
-          border: 1px solid var(--border-color, #e5e7eb);
-          border-radius: 8px;
-          background: var(--card-bg, white);
-          font-size: 13px;
-          color: var(--text-primary, #374151);
-          cursor: pointer;
-          transition: all 0.15s;
-          white-space: nowrap;
-        }
-
-        .qt-btn-secondary:hover {
-          background: var(--nav-hover, #f9fafb);
-        }
-
-        .qt-btn-download {
-          display: flex;
-          align-items: center;
-          gap: 6px;
-          height: 38px;
-          padding: 0 16px;
-          border: none;
-          border-radius: 8px;
-          background: #10b981;
-          color: white;
-          font-size: 13px;
-          font-weight: 500;
-          cursor: pointer;
-          transition: all 0.15s;
-          white-space: nowrap;
-        }
-
-        .qt-btn-download:hover {
-          background: #059669;
-          transform: translateY(-1px);
-          box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
-        }
-
-        .qt-btn-download:disabled {
-          opacity: 0.6;
-          cursor: not-allowed;
-          transform: none;
-        }
-
-        .qt-btn-download-pdf {
-          display: flex;
-          align-items: center;
-          gap: 6px;
-          height: 38px;
-          padding: 0 16px;
-          border: none;
-          border-radius: 8px;
-          background: #dc2626;
-          color: white;
-          font-size: 13px;
-          font-weight: 500;
-          cursor: pointer;
-          transition: all 0.15s;
-          white-space: nowrap;
-        }
-
-        .qt-btn-download-pdf:hover {
-          background: #b91c1c;
-          transform: translateY(-1px);
-          box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);
-        }
-
-        .qt-btn-download-pdf:disabled {
-          opacity: 0.6;
-          cursor: not-allowed;
-          transform: none;
-        }
-
-        /* ── Active Filters ── */
-        .qt-active-filters {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          padding: 8px 16px;
-          background: color-mix(in srgb, var(--primary-color) 8%, transparent);
-          border-radius: 8px;
-          font-size: 12px;
-          flex-wrap: wrap;
-          border: 1px solid var(--border-color, #e5e7eb);
-          flex-shrink: 0;
-        }
-
-        .qt-active-filters span {
-          color: var(--text-primary, #111827);
-        }
-
-        .qt-clear-filters {
-          margin-left: auto;
-          padding: 4px 12px;
-          background: var(--card-bg, white);
-          border: 1px solid var(--border-color, #e5e7eb);
-          border-radius: 6px;
-          cursor: pointer;
-          font-size: 11px;
-          display: flex;
-          align-items: center;
-          gap: 4px;
-          color: var(--text-secondary, #6b7280);
-          transition: all 0.15s;
-        }
-
-        .qt-clear-filters:hover {
-          background: var(--nav-hover, #f3f4f6);
-        }
-
-        /* ── Table ── */
-        .qt-table-wrap {
-          background: var(--card-bg, #fff);
-          border-radius: 12px;
-          box-shadow: 0 1px 3px var(--shadow-color, rgba(0,0,0,0.05));
-          border: 1px solid var(--border-color, #e5e7eb);
-          overflow-x: auto;
-          overflow-y: visible;
-          flex: 0 0 auto;
-        }
-
-        .qt-table-wrap::-webkit-scrollbar {
-          width: 6px;
-          height: 6px;
-        }
-        .qt-table-wrap::-webkit-scrollbar-track {
-          background: var(--layout-bg, #f9fafb);
-          border-radius: 3px;
-        }
-        .qt-table-wrap::-webkit-scrollbar-thumb {
-          background: var(--border-color, #e5e7eb);
-          border-radius: 3px;
-        }
-        .qt-table-wrap::-webkit-scrollbar-thumb:hover {
-          background: var(--primary-color, #6366f1);
-        }
-
-        .qt-table {
-          width: 100%;
-          border-collapse: collapse;
-          font-size: 13px;
-          min-width: 700px;
-        }
-
-        .qt-th {
-          padding: 12px 16px;
-          text-align: left;
-          font-size: 12px;
-          font-weight: 600;
-          color: var(--text-secondary, #6b7280);
-          background: var(--layout-bg, #f9fafb);
-          border-bottom: 1px solid var(--border-color, #e5e7eb);
-          white-space: nowrap;
-          text-transform: uppercase;
-          letter-spacing: 0.3px;
-        }
-
-        .qt-tr {
-          cursor: default;
-          transition: background 0.15s;
-        }
-
-        .qt-tr:hover {
-          background: var(--nav-hover, #f9fafb);
-        }
-
-        .qt-tr+.qt-tr td {
-          border-top: 1px solid var(--border-color, #f3f4f6);
-        }
-
-        .qt-td {
-          padding: 12px 16px;
-          color: var(--text-primary, #374151);
-          vertical-align: middle;
-          text-align: left;
-        }
-
-        .qt-td-id {
-          font-weight: 600;
-          color: var(--text-primary, #111827);
-          font-family: monospace;
-        }
-
-        .qt-td-customer {
-          font-weight: 500;
-          color: var(--primary-color, #6366f1);
-          cursor: pointer;
-        }
-
-        .qt-td-customer:hover {
-          text-decoration: underline;
-        }
-
-        .qt-td-amount {
-          font-weight: 600;
-          font-size: 14px;
-          color: var(--text-primary, #1f2433);
-        }
-
-        .qt-td-outstanding {
-          font-weight: 600;
-          font-size: 13px;
-        }
-
-        .qt-td-outstanding.paid {
-          color: #059669;
-        }
-        .qt-td-outstanding.partial {
-          color: #d97706;
-        }
-        .qt-td-outstanding.unpaid {
-          color: #dc2626;
-        }
-
-        /* ── Status Badge ── */
-        .qt-status-badge {
-          display: inline-flex;
-          align-items: center;
-          height: 24px;
-          padding: 0 12px;
-          border-radius: 99px;
-          font-size: 12px;
-          font-weight: 600;
-          gap: 4px;
-        }
-
-        .qt-dot {
-          width: 6px;
-          height: 6px;
-          border-radius: 50%;
-          display: inline-block;
-        }
-
-        /* ── Action Buttons ── */
-        .qt-action-buttons {
-          display: flex;
-          align-items: center;
-          gap: 4px;
-        }
-
-        .qt-action-btn {
-          width: 32px;
-          height: 32px;
-          border: none;
-          border-radius: 6px;
-          cursor: pointer;
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          transition: all 0.2s;
-          background: transparent;
-          color: var(--text-secondary, #6b7280);
-        }
-
-        .qt-action-btn:hover {
-          background: var(--nav-hover, #f3f4f6);
-        }
-
-        .qt-action-print {
-  color: #0d9488;
-}
-
-.qt-action-print:hover {
-  background: rgba(13, 148, 136, 0.1);
-}
-
-        .qt-action-more {
-          color: var(--text-secondary, #6b7280);
-        }
-
-        .qt-action-more:hover {
-          background: var(--nav-hover, #f3f4f6);
-        }
-
-        /* ── More Menu ── */
-        .qt-more-menu-container {
-          position: relative;
-          display: inline-block;
-        }
-
-        .qt-more-menu-dropdown {
-          position: absolute;
-          right: 0;
-          top: 100%;
-          background: var(--card-bg, #fff);
-          border: 1px solid var(--border-color, #e5e7eb);
-          border-radius: 8px;
-          box-shadow: 0 10px 40px var(--shadow-color, rgba(0,0,0,0.15));
-          min-width: 180px;
-          z-index: 100;
-          padding: 4px 0;
-          margin-top: 4px;
-        }
-
-        .qt-more-menu-dropdown button {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          width: 100%;
-          padding: 8px 16px;
-          border: none;
-          background: transparent;
-          color: var(--text-primary, #1e293b);
-          font-size: 13px;
-          cursor: pointer;
-          transition: all 0.2s;
-          text-align: left;
-        }
-
-        .qt-more-menu-dropdown button:hover {
-          background: var(--nav-hover, #f8fafc);
-          color: var(--primary-color, #2563eb);
-        }
-
-        .qt-more-menu-dropdown button.danger {
-          color: var(--danger-color, #ef4444);
-        }
-
-        .qt-more-menu-dropdown button.danger:hover {
-          background: #fef2f2;
-        }
-
-        .qt-more-menu-dropdown .menu-divider {
-          height: 1px;
-          background: var(--border-color, #e5e7eb);
-          margin: 4px 0;
-        }
-
-        /* ── Empty State ── */
-        .qt-empty-state {
-          padding: 60px 20px;
-          text-align: center;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          height: 100%;
-        }
-
-        .qt-empty-content {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          gap: 12px;
-        }
-
-        .qt-empty-content svg {
-          color: var(--text-secondary, #9ca3af);
-        }
-
-        .qt-empty-content p {
-          font-size: 18px;
-          font-weight: 500;
-          color: var(--text-primary, #111827);
-          margin: 0;
-        }
-
-        .qt-empty-content span {
-          font-size: 14px;
-          color: var(--text-secondary, #6b7280);
-        }
-
-        /* ── Loading ── */
-        .qt-loading {
-          padding: 40px;
-          text-align: center;
-          color: var(--text-secondary, #6b7280);
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          height: 100%;
-        }
-
-        .qt-error {
-          padding: 40px;
-          text-align: center;
-          color: var(--danger-color, #ef4444);
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          height: 100%;
-        }
-
-        .qt-retry-btn {
-          margin-top: 12px;
-          padding: 8px 20px;
-          background: var(--primary-color, #6366f1);
-          color: white;
-          border: none;
-          border-radius: 6px;
-          cursor: pointer;
-        }
-
-        /* ── Pagination ── */
-        .qt-pagination {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          padding: 12px 0 0 0;
-          flex-wrap: wrap;
-          gap: 12px;
-          background: transparent;
-          flex-shrink: 0;
-          border-top: 1px solid var(--border-color, #e5e7eb);
-          margin-top: 4px;
-        }
-
-        .qt-pagination-left,
-        .qt-pagination-right {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-        }
-
-        .qt-pagination-center {
-          display: flex;
-          align-items: center;
-          gap: 4px;
-        }
-
-        .qt-pagination-label {
-          font-size: 13px;
-          color: var(--text-secondary, #6b7280);
-        }
-
-        .qt-page-size-select {
-          padding: 6px 10px;
-          border: 1px solid var(--border-color, #e5e7eb);
-          border-radius: 6px;
-          font-size: 13px;
-          background: var(--card-bg, white);
-          color: var(--text-primary, #374151);
-          cursor: pointer;
-          height: 34px;
-        }
-
-        .qt-page-size-select:focus {
-          border-color: var(--primary-color, #6366f1);
-          outline: none;
-        }
-
-        .qt-page-btn {
-          height: 34px;
-          min-width: 34px;
-          padding: 0 10px;
-          border: 1px solid var(--border-color, #e5e7eb);
-          border-radius: 6px;
-          background: var(--card-bg, white);
-          font-size: 13px;
-          color: var(--text-primary, #374151);
-          cursor: pointer;
-          transition: all 0.15s;
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-        }
-
-        .qt-page-btn:hover:not(:disabled) {
-          background: var(--nav-hover, #f3f4f6);
-          border-color: var(--primary-color, #6366f1);
-        }
-
-        .qt-page-btn:disabled {
-          opacity: 0.5;
-          cursor: not-allowed;
-        }
-
-        .qt-page-btn-active {
-          background: var(--primary-color, #6366f1);
-          color: white;
-          border-color: var(--primary-color, #6366f1);
-        }
-
-        .qt-page-btn-active:hover {
-          background: var(--primary-hover, #4f46e5);
-        }
-
-        .qt-pagination-info {
-          font-size: 13px;
-          color: var(--text-secondary, #6b7280);
-        }
-
-        /* ── Spinner ── */
-        .spinning {
-          animation: spin 1s linear infinite;
-        }
-
-        @keyframes spin {
-          to { transform: rotate(360deg); }
-        }
-
-        /* ── Dark Theme ── */
-        .dark-theme .quotation-page {
-          background: var(--layout-bg, #0f172a);
-        }
-
-        .dark-theme .qt-search-input {
-          background: var(--input-bg, #1e293b);
-          border-color: var(--border-color, #334155);
-          color: var(--text-primary, #f8fafc);
-        }
-
-        .dark-theme .qt-search-input::placeholder {
-          color: var(--text-secondary, #64748b);
-        }
-
-        .dark-theme .qt-filter-select {
-          background: var(--card-bg, #1e293b);
-          border-color: var(--border-color, #334155);
-          color: var(--text-primary, #f8fafc);
-        }
-
-        .dark-theme .qt-btn-secondary {
-          background: var(--card-bg, #1e293b);
-          border-color: var(--border-color, #334155);
-          color: var(--text-primary, #f8fafc);
-        }
-
-        .dark-theme .qt-btn-secondary:hover {
-          background: var(--nav-hover, rgba(255,255,255,0.05));
-        }
-
-        .dark-theme .qt-btn-new {
-          background: var(--primary-color, #3b82f6);
-        }
-
-        .dark-theme .qt-btn-new:hover {
-          background: var(--primary-hover, #2563eb);
-        }
-
-        .dark-theme .qt-btn-download {
-          background: #10b981;
-        }
-
-        .dark-theme .qt-btn-download:hover {
-          background: #059669;
-        }
-
-        .dark-theme .qt-btn-download-pdf {
-          background: #dc2626;
-        }
-
-        .dark-theme .qt-btn-download-pdf:hover {
-          background: #b91c1c;
-        }
-
-        .dark-theme .qt-table-wrap {
-          background: var(--card-bg, #1e293b);
-          border-color: var(--border-color, #334155);
-        }
-
-        .dark-theme .qt-th {
-          background: var(--layout-bg, #0f172a);
-          color: var(--text-secondary, #94a3b8);
-          border-bottom-color: var(--border-color, #334155);
-        }
-
-        .dark-theme .qt-td {
-          color: var(--text-primary, #f8fafc);
-          border-top-color: var(--border-color, #334155);
-        }
-
-        .dark-theme .qt-tr:hover {
-          background: var(--nav-hover, rgba(255,255,255,0.05));
-        }
-
-        .dark-theme .qt-td-amount {
-          color: var(--text-primary, #f8fafc);
-        }
-
-        .dark-theme .qt-empty-content p {
-          color: var(--text-primary, #f8fafc);
-        }
-
-        .dark-theme .qt-empty-content span {
-          color: var(--text-secondary, #94a3b8);
-        }
-
-        .dark-theme .qt-active-filters {
-          background: rgba(99, 102, 241, 0.08);
-          border-color: var(--border-color, #334155);
-        }
-
-        .dark-theme .qt-active-filters span {
-          color: var(--text-primary, #f8fafc);
-        }
-
-        .dark-theme .qt-clear-filters {
-          background: var(--card-bg, #1e293b);
-          border-color: var(--border-color, #334155);
-          color: var(--text-secondary, #94a3b8);
-        }
-
-        .dark-theme .qt-page-btn {
-          background: var(--card-bg, #1e293b);
-          border-color: var(--border-color, #334155);
-          color: var(--text-primary, #f8fafc);
-        }
-
-        .dark-theme .qt-page-btn:hover:not(:disabled) {
-          background: var(--nav-hover, rgba(255,255,255,0.05));
-        }
-
-        .dark-theme .qt-page-size-select {
-          background: var(--card-bg, #1e293b);
-          border-color: var(--border-color, #334155);
-          color: var(--text-primary, #f8fafc);
-        }
-
-        .dark-theme .qt-more-menu-dropdown {
-          background: var(--card-bg, #1e293b);
-          border-color: var(--border-color, #334155);
-        }
-
-        .dark-theme .qt-more-menu-dropdown button {
-          color: var(--text-primary, #f8fafc);
-        }
-
-        .dark-theme .qt-more-menu-dropdown button:hover {
-          background: var(--nav-hover, rgba(255,255,255,0.05));
-        }
-
-        .dark-theme .qt-date-picker-trigger {
-          background: var(--card-bg, #1e293b);
-          border-color: var(--border-color, #334155);
-          color: var(--text-primary, #f8fafc);
-        }
-
-        .dark-theme .qt-date-picker-trigger:hover {
-          background: var(--nav-hover, rgba(255,255,255,0.05));
-        }
-
-        .dark-theme .qt-date-picker-popup {
-          background: var(--card-bg, #1e293b);
-          border-color: var(--border-color, #334155);
-        }
-
-        .dark-theme .qt-date-picker-popup .qt-popup-title {
-          color: var(--text-primary, #f8fafc);
-        }
-
-        .dark-theme .qt-date-picker-popup .qt-quick-filter-btn {
-          background: var(--card-bg, #1e293b);
-          border-color: var(--border-color, #334155);
-          color: var(--text-secondary, #94a3b8);
-        }
-
-        .dark-theme .qt-date-picker-popup .qt-quick-filter-btn.active {
-          background: var(--primary-color, #3b82f6);
-          color: #fff;
-        }
-
-        .dark-theme .qt-date-picker-popup .qt-calendar-grid .qt-day-cell {
-          color: var(--text-primary, #f8fafc);
-        }
-
-        .dark-theme .qt-date-picker-popup .qt-day-header {
-          color: var(--text-secondary, #94a3b8);
-        }
-
-        /* ── Responsive ── */
         @media (max-width: 768px) {
-          .quotation-page {
-            padding: 12px;
-            gap: 12px;
-          }
-
-          .qt-filter-bar {
-            flex-direction: column;
-            align-items: stretch;
-          }
-
-          .qt-filter-left {
-            width: 100%;
-          }
-
-          .qt-search-wrapper {
-            max-width: 100%;
-          }
-
-          .qt-filter-right {
-            justify-content: flex-start;
-            flex-wrap: wrap;
-          }
-
-          .qt-table {
-            min-width: 600px;
-          }
-
-          .qt-pagination {
-            flex-direction: column;
-            align-items: center;
-          }
-
-          .qt-pagination-center {
-            order: 2;
-          }
-
-          .qt-pagination-left,
-          .qt-pagination-right {
-            order: 1;
-          }
-
-          .qt-td {
-            padding: 10px 12px;
-            font-size: 12px;
-          }
-
-          .qt-th {
-            padding: 10px 12px;
-            font-size: 11px;
-          }
-
-          .qt-date-picker-popup {
-            left: 0;
-            min-width: 100%;
-            width: 100%;
-          }
+          .quotation-page { padding: 12px; gap: 12px; }
+          .qt-filter-bar { flex-direction: column; align-items: stretch; }
+          .qt-filter-left { width: 100%; }
+          .qt-search-wrapper { max-width: 100%; }
+          .qt-filter-right { justify-content: flex-start; flex-wrap: wrap; }
+          .qt-table { min-width: 600px; }
+          .qt-pagination { flex-direction: column; align-items: center; }
+          .qt-pagination-center { order: 2; }
+          .qt-pagination-left, .qt-pagination-right { order: 1; }
+          .qt-td { padding: 10px 12px; font-size: 12px; }
+          .qt-th { padding: 10px 12px; font-size: 11px; }
+          .qt-date-picker-popup { left: 0; min-width: 100%; width: 100%; }
         }
 
         @media (max-width: 480px) {
-          .qt-filter-right {
-            flex-direction: column;
-            width: 100%;
-          }
-
-          .qt-filter-right > * {
-            width: 100%;
-          }
-
-          .qt-btn-new {
-            justify-content: center;
-          }
-
-          .qt-btn-download {
-            justify-content: center;
-          }
-
-          .qt-btn-download-pdf {
-            justify-content: center;
-          }
-
-          .qt-pagination {
-            padding: 8px 0 0 0;
-          }
-
-          .qt-pagination-center {
-            flex-wrap: wrap;
-            justify-content: center;
-          }
+          .qt-filter-right { flex-direction: column; width: 100%; }
+          .qt-filter-right > * { width: 100%; }
+          .qt-btn-new { justify-content: center; }
+          .qt-pagination { padding: 8px 0 0 0; }
+          .qt-pagination-center { flex-wrap: wrap; justify-content: center; }
         }
       `}</style>
 
@@ -2521,7 +1713,6 @@ const SalesInvoice: React.FC = () => {
             <option value="Overdue">Overdue</option>
           </select>
 
-          {/* ===== DATE RANGE PICKER ===== */}
           <div className="qt-date-picker-container">
             <div 
               className={`qt-date-picker-trigger ${showDatePicker ? 'active' : ''}`}
@@ -2625,15 +1816,9 @@ const SalesInvoice: React.FC = () => {
                 </div>
                 
                 <div className="qt-popup-actions">
-                  <button className="qt-btn-clear" onClick={clearDateFilters}>
-                    Clear
-                  </button>
-                  <button className="qt-btn-cancel" onClick={() => setShowDatePicker(false)}>
-                    Cancel
-                  </button>
-                  <button className="qt-btn-apply" onClick={applyDateFilter}>
-                    Apply Filters
-                  </button>
+                  <button className="qt-btn-clear" onClick={clearDateFilters}>Clear</button>
+                  <button className="qt-btn-cancel" onClick={() => setShowDatePicker(false)}>Cancel</button>
+                  <button className="qt-btn-apply" onClick={applyDateFilter}>Apply Filters</button>
                 </div>
               </div>
             )}
@@ -2654,19 +1839,11 @@ const SalesInvoice: React.FC = () => {
         <div className="qt-active-filters">
           <FaFilter size={12} style={{ color: "var(--primary-color)" }} />
           <span>Active filters:</span>
-          {searchTerm && (
-            <span>
-              <strong>Search:</strong> "{searchTerm}"
-            </span>
-          )}
-          {selectedStatus !== "All" && (
-            <span>
-              <strong>Status:</strong> {selectedStatus}
-            </span>
-          )}
+          {searchTerm && (<span><strong>Search:</strong> "{searchTerm}"</span>)}
+          {selectedStatus !== "All" && (<span><strong>Status:</strong> {selectedStatus}</span>)}
           {(fromDate || toDate) && (
             <span>
-              <strong>Date:</strong> {fromDate ? formatDateForDisplay(fromDate) : 'Any'} – {toDate ? formatDateForDisplay(toDate) : 'Any'}
+              <strong>Date:</strong> {fromDate ? formatDateForDisplay(fromDate) : 'Any'} – {toDate ? formatDateForDisplay(toDate) : 'End'}
             </span>
           )}
           <button onClick={clearFilters} className="qt-clear-filters">
@@ -2729,26 +1906,18 @@ const SalesInvoice: React.FC = () => {
 
                 return (
                   <tr key={item.id} className="qt-tr">
-                    <td className="qt-td qt-td-id">
-                      {item.displayInvoiceNumber || item.id || '-'}
-                    </td>
+                    <td className="qt-td qt-td-id">{formatInvoiceNumber(item.id)}</td>
                     <td className="qt-td">
                       <span className="qt-td-customer" onClick={() => handleView(item.id)}>
                         {item.customer_name || '-'}
                       </span>
                     </td>
                     <td className="qt-td">{formatDateDisplay(item.posting_date)}</td>
-                    <td className="qt-td qt-td-amount">
-                      ₹{item.grand_total?.toLocaleString() || '0'}
-                    </td>
+                    <td className="qt-td qt-td-amount">₹{item.grand_total?.toLocaleString() || '0'}</td>
                     <td className="qt-td">
-                      <span className={outstandingClass}>
-                        ₹{item.paid_amount?.toLocaleString() || '0'}
-                      </span>
+                      <span className={outstandingClass}>₹{item.paid_amount?.toLocaleString() || '0'}</span>
                     </td>
-                    <td className="qt-td">
-                      <StatusBadge status={item.status || 'Draft'} />
-                    </td>
+                    <td className="qt-td"><StatusBadge status={item.status || 'Draft'} /></td>
                     <td className="qt-td">
                       <div className="qt-action-buttons">
                         <button 
@@ -2765,45 +1934,11 @@ const SalesInvoice: React.FC = () => {
                         >
                           <button 
                             className="qt-action-btn qt-action-more" 
-                            onClick={() => toggleMenu(item.id)} 
+                            onClick={(e) => toggleMenu(item.id, e)} 
                             title="More"
                           >
                             <FaEllipsisV size={14} />
                           </button>
-                          {showMoreMenu === String(item.id) && (
-                            <div className="qt-more-menu-dropdown">
-                              <button onClick={() => handleView(item.id)}>
-                                <FaEye size={12} /> View
-                              </button>
-                              {item.status === 'Draft' && (
-                                <>
-                                  <button onClick={() => handleEdit(item.id)}>
-                                    <FaEdit size={12} /> Edit
-                                  </button>
-                                  <button onClick={() => handleSubmit(item.id)}>
-                                    <FaPaperPlane size={12} /> Submit
-                                  </button>
-                                </>
-                              )}
-                              <button onClick={() => handleDuplicate(item.id)}>
-                                <FaCopy size={12} /> Duplicate
-                              </button>
-                              <button onClick={() => handlePrint(item)} disabled={printLoadingId === String(item.id)}>
-                                <FaPrintIcon size={12} /> Print
-                              </button>
-                              <button onClick={handleDirectPDFDownload}>
-                                <FaFilePdf size={12} /> Download PDF
-                              </button>
-                              <button onClick={handleExcelDownload}>
-                                <FaFileExcel size={12} /> Download Excel
-                              </button>
-                              {item.status !== 'Cancelled' && item.status !== 'Paid' && (
-                                <button className="danger" onClick={() => handleCancelInvoice(item.id)}>
-                                  <FaBan size={12} /> Cancel
-                                </button>
-                              )}
-                            </div>
-                          )}
                         </div>
                       </div>
                     </td>
@@ -2815,236 +1950,147 @@ const SalesInvoice: React.FC = () => {
         )}
       </div>
 
-{/* Mobile Table Section (Customer, Status + Dropdown Button -> Date, Amount, Actions) */}
-          <div className="sales-mobile-list-wrap">
-            <div className="sales-mobile-list-header">
-              <div className="sales-mobile-th-primary">
-                <span className="sales-mobile-th-cell">Invoice No</span>
-                <span className="sales-mobile-th-sep">•</span>
-                <span className="sales-mobile-th-cell">Customer</span>
-              </div>
-              <div className="sales-mobile-th-right">
-                <span className="sales-count-label">
-                  {totalRecords}
-                </span>
-              </div>
+      {/* Mobile Table */}
+      <div className="sales-mobile-list-wrap">
+        <div className="sales-mobile-list-header">
+          <div className="sales-mobile-th-primary">
+            <span className="sales-mobile-th-cell">Invoice No</span>
+            <span className="sales-mobile-th-sep">•</span>
+            <span className="sales-mobile-th-cell">Customer</span>
+          </div>
+          <div className="sales-mobile-th-right">
+            <span className="sales-count-label">{totalRecords}</span>
+          </div>
+        </div>
+
+        {loading && invoices.length === 0 ? (
+          <div className="qt-empty-state">
+            <div className="qt-empty-content">
+              <p>No Sales Invoices found</p>
+              <span>Try adjusting your search criteria</span>
             </div>
+          </div>
+        ) : (
+          <div className="sales-mobile-cards">
+            {invoices.map((item) => {
+              const isExpanded = expandedRows.has(item.id);
+              const isPaid = item.status === 'Paid';
+              const isPartial = item.status === 'Partially Paid';
+              const outstanding = item.outstanding_amount || item.grand_total || 0;
+              let outstandingClass = 'qt-td-outstanding';
+              if (isPaid) outstandingClass += ' paid';
+              else if (isPartial) outstandingClass += ' partial';
+              else if (outstanding > 0) outstandingClass += ' unpaid';
 
-            {loading && invoices.length === 0 ? (
-              <div className="qt-empty-state">
-                <div className="qt-empty-content">
-                  <p>No Sales Invoices found</p>
-                  <span>Try adjusting your search criteria</span>
-                </div>
-              </div>
-            ) : (
-              <div className="sales-mobile-cards">
-                {invoices.map((item, idx) => {
-                  const isExpanded = expandedRows.has(item.id);
-                  const isPaid = item.status === 'Paid';
-                  const isPartial = item.status === 'Partially Paid';
-                  const outstanding = item.outstanding_amount || item.grand_total || 0;
-                  let outstandingClass = 'qt-td-outstanding';
-                  if (isPaid) outstandingClass += ' paid';
-                  else if (isPartial) outstandingClass += ' partial';
-                  else if (outstanding > 0) outstandingClass += ' unpaid';
-                  const rowNumber = getStartIndex() + idx;
-                  function handlePrintQuotation(invoice: SalesInvoice) {
-                    handlePrint(invoice);
-                  }
+              return (
+                <div
+                  key={item.id}
+                  className={`sales-mobile-card ${isExpanded ? "sales-mobile-card-expanded" : ""}`}
+                >
+                  <div
+                    className="sales-mobile-card-header"
+                    onClick={() => toggleRowExpand(item.id)}
+                  >
+                    <div className="sales-mobile-card-primary">
+                      <div className="sales-mobile-card-primary-row">
+                        <span className="sales-mobile-header-badge">
+                          <span className="qt-td qt-td-id">{formatInvoiceNumber(item.id)}</span>
+                        </span>
+                        <span className="sales-mobile-item-name">
+                          <span className="qt-td-customer" onClick={() => handleView(item.id)}>
+                            {item.customer_name || '-'}
+                          </span>
+                        </span>
+                      </div>
+                    </div>
 
-                  function getStatusColor(status: string) {
-                    switch (status.trim().toLowerCase()) {
-                      case 'paid':
-                        return 'qt-status-paid';
-                      case 'partially paid':
-                        return 'qt-status-partial';
-                      case 'submitted':
-                        return 'qt-status-submitted';
-                      case 'cancelled':
-                        return 'qt-status-cancelled';
-                      case 'overdue':
-                        return 'qt-status-overdue';
-                      case 'draft':
-                      default:
-                        return 'qt-status-draft';
-                    }
-                  }
-
-                    function getStatusIcon(status: string) {
-                      switch (status.trim().toLowerCase()) {
-                        case 'paid':
-                          return <FaCheckCircle size={10} />;
-                        case 'submitted':
-                          return <FaPaperPlane size={10} />;
-                        case 'cancelled':
-                          return <FaTimesCircle size={10} />;
-                        case 'overdue':
-                          return <FaExclamationTriangle size={10} />;
-                        case 'partially paid':
-                        case 'draft':
-                        default:
-                          return <FaClock size={10} />;
-                      }
-                    }
-
-                  function formatDisplayDateWithContext(date: any): React.ReactNode {
-                    if (date === null || date === undefined || date === '') {
-                      return '—';
-                    }
-
-                    const value = date instanceof Date
-                      ? date
-                      : typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date)
-                        ? new Date(`${date}T00:00:00`)
-                        : new Date(date);
-
-                    if (Number.isNaN(value.getTime())) {
-                      return String(date);
-                    }
-
-                    return new Intl.DateTimeFormat(undefined, {
-                      day: '2-digit',
-                      month: 'short',
-                      year: 'numeric',
-                    }).format(value);
-                  }
-
-                  return (
-                    <div
-                      key={item.id}
-                      className={`sales-mobile-card ${isExpanded ? "sales-mobile-card-expanded" : ""}`}
+                    <button
+                      type="button"
+                      className={`sales-mobile-dropdown-btn ${isExpanded ? "expanded" : ""}`}
+                      onClick={(e) => toggleRowExpand(item.id, e)}
+                      aria-label={isExpanded ? "Collapse" : "Expand"}
                     >
-                      {/* Card Header: Date	Amount	Paid	Status	Actions and Dropdown Button */}
-                      <div
-                        className="sales-mobile-card-header"
-                        onClick={() => toggleRowExpand(item.id)}
-                      >
-                        <div className="sales-mobile-card-primary">
-                          <div className="sales-mobile-card-primary-row">
-                            <span className="sales-mobile-header-badge">
-                              <span className="qt-td qt-td-id">
-                      {item.displayInvoiceNumber || item.id || '-'}
-                              </span>
-                            </span>
-                             <span className="sales-mobile-item-name">
-                            <span className="qt-td-customer" onClick={() => handleView(item.id)}>
-                        {item.customer_name || '-'}
-                      </span>
-                      </span>
-                          </div>
-                        </div>
+                      <FaChevronDown size={13} className="sales-mobile-chevron" />
+                    </button>
+                  </div>
 
-                        {/* Dropdown Button */}
-                        <button
-                          type="button"
-                          className={`sales-mobile-dropdown-btn ${isExpanded ? "expanded" : ""}`}
-                          onClick={(e) => toggleRowExpand(item.id, e)}
-                          aria-label={isExpanded ? "Collapse quotation details" : "Expand quotation details"}
-                          title={isExpanded ? "Collapse" : "Expand"}
-                        >
-                          <FaChevronDown size={13} className="sales-mobile-chevron" />
-                        </button>
+                  {isExpanded && (
+                    <div className="sales-mobile-card-details">
+                      <div className="sales-mobile-detail-row">
+                        <span className="sales-mobile-detail-label">Date</span>
+                        <span className="sales-mobile-detail-value">
+                          {formatDateDisplay(item.posting_date)}
+                        </span>
                       </div>
 
-                      {/* Dropdown Section: Date, Amount, Actions */}
-                      {isExpanded && (
-                        <div className="sales-mobile-card-details">
-                          <div className="sales-mobile-detail-row">
-                            <span className="sales-mobile-detail-label">Date</span>
-                            <span className="sales-mobile-detail-value">
-                             {formatDateDisplay(item.posting_date)}
-                            </span>
-                          </div>
+                      <div className="sales-mobile-detail-row">
+                        <span className="sales-mobile-detail-label">Amount</span>
+                        <span className="sales-mobile-detail-value sales-amount-highlight">
+                          ₹{item.grand_total?.toLocaleString() || '0'}
+                        </span>
+                      </div>
 
-                          <div className="sales-mobile-detail-row">
-                            <span className="sales-mobile-detail-label">Amount</span>
-                            <span className="sales-mobile-detail-value sales-amount-highlight">
-                               ₹{item.grand_total?.toLocaleString() || '0'}
-                            </span>
-                          </div>
+                      <div className="sales-mobile-detail-row">
+                        <span className="sales-mobile-detail-label">Paid</span>
+                        <span className="sales-mobile-detail-value">
+                          <span className={outstandingClass}>₹{item.paid_amount?.toLocaleString() || '0'}</span>
+                        </span>
+                      </div>
+                      
+                      <div className="sales-mobile-detail-row">
+                        <span className="sales-mobile-detail-label">Status</span>
+                        <span className="sales-mobile-detail-value">
+                          <StatusBadge status={item.status || 'Draft'} />
+                        </span>
+                      </div>
 
-                          <div className="sales-mobile-detail-row">
-                            <span className="sales-mobile-detail-label">Paid</span>
-                            <span className="sales-mobile-detail-value">
-                      <span className={outstandingClass}>
-                        ₹{item.paid_amount?.toLocaleString() || '0'}
-                      </span>
-                            </span>
-                          </div>
-                          
-                          <div className="sales-mobile-detail-row">
-                            <span className="sales-mobile-detail-label">Status</span>
-                            <span className="sales-mobile-detail-value">
-                      <StatusBadge status={item.status || 'Draft'} />
-                            </span>
-                          </div>
-
-                          
-
-                          <div className="sales-mobile-detail-footer">
-                            <span className="sales-mobile-card-meta-text">
-                              {/*rowNumber} of {totalRecords*/}
-                            </span>
-                            
-                             
-
-
-                            <div className="sales-mobile-action-buttons">
-                               <button className="qt-more-menu-dropdown"onClick={() => handleView(item.id)}>
-                                <FaEye size={12} /> View
-                              </button>
-                              
-                              <button
-                                className="qt-action-btn qt-action-view"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleView(item.id);
-                                }}
-                                title="View / Edit"
-                              >
-                                <FaEye size={12} />
-                              </button>
-                              <button
-                                className="qt-action-btn qt-action-print" 
-                          onClick={() => handlePrint(item)} 
-                          title="Print"
-                          disabled={printLoadingId === String(item.id)}
-                        >
-                          {printLoadingId === String(item.id) ? <FaSpinner className="spinning" size={12} /> : <FaPrintIcon size={12} />}
-                        </button>
-                              <button
-                                className="qt-action-btn qt-action-edit"
-                                onClick={() => handleEdit(item.id)}
-                                title="Edit"
-                              >
-                          
-                                <FaEdit size={12} />
-                              </button>
-                              <button
-                                className="qt-action-btn qt-action-delete"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleCancelInvoice(item.id);
-                                }}
-                                title="Delete"
-                              >
-                                <FaTrash size={12} />
-                              </button>
-                            </div>
-                          </div>
+                      <div className="sales-mobile-detail-footer">
+                        <span className="sales-mobile-card-meta-text"></span>
+                        <div className="sales-mobile-action-buttons">
+                          <button className="qt-more-menu-dropdown" onClick={() => handleView(item.id)}>
+                            <FaEye size={12} /> View
+                          </button>
+                          <button
+                            className="qt-action-btn qt-action-view"
+                            onClick={(e) => { e.stopPropagation(); handleView(item.id); }}
+                            title="View"
+                          >
+                            <FaEye size={12} />
+                          </button>
+                          <button
+                            className="qt-action-btn qt-action-print" 
+                            onClick={() => handlePrint(item)} 
+                            title="Print"
+                            disabled={printLoadingId === String(item.id)}
+                          >
+                            {printLoadingId === String(item.id) ? <FaSpinner className="spinning" size={12} /> : <FaPrintIcon size={12} />}
+                          </button>
+                          <button
+                            className="qt-action-btn qt-action-edit"
+                            onClick={() => handleEdit(item.id)}
+                            title="Edit"
+                          >
+                            <FaEdit size={12} />
+                          </button>
+                          <button
+                            className="qt-action-btn qt-action-delete"
+                            onClick={(e) => { e.stopPropagation(); handleCancelInvoice(item.id); }}
+                            title="Delete"
+                          >
+                            <FaTrash size={12} />
+                          </button>
                         </div>
-                      )}
+                      </div>
                     </div>
-                  );
-                })}
-              </div>
-            )}
+                  )}
+                </div>
+              );
+            })}
           </div>
+        )}
+      </div>
         </>
       )}
-      
-
 
       {/* ===== PAGINATION ===== */}
       {!loading && !error && (
@@ -3062,26 +2108,14 @@ const SalesInvoice: React.FC = () => {
               <option value={100}>100</option>
             </select>
             <span className="qt-pagination-info">
-              {totalRecords > 0 ? (
-                `Showing ${getStartIndex()} to ${getEndIndex()} of ${totalRecords} entries`
-              ) : (
-                'No entries to show'
-              )}
+              {totalRecords > 0 ? `Showing ${getStartIndex()} to ${getEndIndex()} of ${totalRecords} entries` : 'No entries to show'}
             </span>
           </div>
           <div className="qt-pagination-center">
-            <button
-              onClick={goToFirstPage}
-              disabled={currentPage === 1 || totalRecords === 0}
-              className="qt-page-btn"
-            >
+            <button onClick={goToFirstPage} disabled={currentPage === 1 || totalRecords === 0} className="qt-page-btn">
               <FaAngleDoubleLeft size={12} />
             </button>
-            <button
-              onClick={goToPrevPage}
-              disabled={currentPage === 1 || totalRecords === 0}
-              className="qt-page-btn"
-            >
+            <button onClick={goToPrevPage} disabled={currentPage === 1 || totalRecords === 0} className="qt-page-btn">
               <FaChevronLeft size={12} />
             </button>
             {totalRecords > 0 && getPageNumbers().map(page => (
@@ -3093,28 +2127,73 @@ const SalesInvoice: React.FC = () => {
                 {page}
               </button>
             ))}
-            <button
-              onClick={goToNextPage}
-              disabled={currentPage === totalPages || totalRecords === 0}
-              className="qt-page-btn"
-            >
+            <button onClick={goToNextPage} disabled={currentPage === totalPages || totalRecords === 0} className="qt-page-btn">
               <FaChevronRight size={12} />
             </button>
-            <button
-              onClick={goToLastPage}
-              disabled={currentPage === totalPages || totalRecords === 0}
-              className="qt-page-btn"
-            >
+            <button onClick={goToLastPage} disabled={currentPage === totalPages || totalRecords === 0} className="qt-page-btn">
               <FaAngleDoubleRight size={12} />
             </button>
           </div>
           <div className="qt-pagination-right">
-            <span className="qt-pagination-info">
-              Page {currentPage} of {totalPages}
-            </span>
+            <span className="qt-pagination-info">Page {currentPage} of {totalPages}</span>
           </div>
         </div>
       )}
+
+      {/* ═══════════════════════════════════════════════════════════════
+          🆕 PORTAL-RENDERED 3-DOT DROPDOWN MENU
+          Rendered at document.body level with position:fixed so it is
+          NEVER clipped by the table wrapper's overflow rules, and always
+          appears on top of the listing rows.
+         ═══════════════════════════════════════════════════════════════ */}
+      {activeMenuItem && menuPosition &&
+        createPortal(
+          <div
+            ref={portalMenuRef}
+            className="qt-more-menu-dropdown"
+            style={{
+              position: 'fixed',
+              top: menuPosition.top,
+              right: menuPosition.right,
+              zIndex: 10000,
+            }}
+          >
+            <button onClick={() => handleView(activeMenuItem.id)}>
+              <FaEye size={12} /> View
+            </button>
+            {activeMenuItem.status === 'Draft' && (
+              <>
+                <button onClick={() => handleEdit(activeMenuItem.id)}>
+                  <FaEdit size={12} /> Edit
+                </button>
+                <button onClick={() => handleSubmit(activeMenuItem.id)}>
+                  <FaPaperPlane size={12} /> Submit
+                </button>
+              </>
+            )}
+            <button onClick={() => handleDuplicate(activeMenuItem.id)}>
+              <FaCopy size={12} /> Duplicate
+            </button>
+            <button
+              onClick={() => handlePrint(activeMenuItem)}
+              disabled={printLoadingId === String(activeMenuItem.id)}
+            >
+              <FaPrintIcon size={12} /> Print
+            </button>
+            <button onClick={handleDirectPDFDownload}>
+              <FaFilePdf size={12} /> Download PDF
+            </button>
+            <button onClick={handleExcelDownload}>
+              <FaFileExcel size={12} /> Download Excel
+            </button>
+            {activeMenuItem.status !== 'Cancelled' && activeMenuItem.status !== 'Paid' && (
+              <button className="danger" onClick={() => handleCancelInvoice(activeMenuItem.id)}>
+                <FaBan size={12} /> Cancel
+              </button>
+            )}
+          </div>,
+          document.body
+        )}
     </div>
   );
 };

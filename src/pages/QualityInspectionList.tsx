@@ -416,17 +416,13 @@ export default function QualityInspectionList() {
     setCurrentPage(1);
   };
 
-    // ─── Loading Screen ─────────────────────────────────────────────────────
-    if (loading) {
-      return (
-        <div className={`p-6 max-w-7xl mx-auto ${theme}`}>
-          <PageLoader 
-            message="Loading Setup & Quality Inspection List..." 
-            //subtitle="Calculating bill of materials, operations rates, and component structures"
-          />
-        </div>
-      );
-    }
+  // ✅ FIX: The early `if (loading) return <PageLoader />` block has been
+  //    REMOVED. Previously, every keystroke-triggered fetch set
+  //    `loading = true`, which unmounted the entire page (including the
+  //    search input) and caused focus/cursor loss while typing.
+  //    The inline loading state (`{loading && <div className="qi-loading">}`)
+  //    further down in the JSX now handles the visual feedback, so the
+  //    filter bar (and the search input) stays mounted and keeps focus.
 
   return (
     <div className={`qi-list-page ${theme}`}>
@@ -607,7 +603,8 @@ export default function QualityInspectionList() {
         </div>
       )}
 
-      {/* Loading State */}
+      {/* Loading State — rendered inline (NOT as an early return) so the
+          search input above never unmounts and keeps focus while typing. */}
       {loading && (
         <div className="qi-loading">
           <p>Loading inspection reports...</p>

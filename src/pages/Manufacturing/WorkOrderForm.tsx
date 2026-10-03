@@ -1,4 +1,4 @@
-import { useState, type FormEvent, useEffect, useRef } from "react";
+import { useState, type FormEvent, useEffect, useRef, useLayoutEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   FaArrowLeft, FaSave, FaSpinner, FaExclamationTriangle,
@@ -520,6 +520,8 @@ function WarehousePickerField({
   const [loading, setLoading] = useState(false);
   const [selectedName, setSelectedName] = useState("");
   const ref = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const isProgrammaticFocus = useRef(false);
 
   useEffect(() => {
     setLoading(true);
@@ -560,6 +562,13 @@ function WarehousePickerField({
     return () => document.removeEventListener("mousedown", h);
   }, []);
 
+  useLayoutEffect(() => {
+    if (open && inputRef.current && document.activeElement !== inputRef.current) {
+      isProgrammaticFocus.current = true;
+      inputRef.current.focus();
+    }
+  });
+
   const filtered = term.trim()
     ? all.filter(w => w.warehouse_name.toLowerCase().includes(term.toLowerCase()))
     : all;
@@ -571,13 +580,20 @@ function WarehousePickerField({
         <div className="warehouse-search-input-wrap">
           <FaSearch className="warehouse-search-icon" />
           <input
+            ref={inputRef}
             type="text"
+            autoComplete="off"
+            spellCheck={false}
             value={open ? term : selectedName}
             onChange={e => {
               setTerm(e.target.value);
               setOpen(true);
             }}
             onFocus={() => {
+              if (isProgrammaticFocus.current) {
+                isProgrammaticFocus.current = false;
+                return;
+              }
               if (!disabled) {
                 setTerm("");
                 setOpen(true);
@@ -613,6 +629,7 @@ function WarehousePickerField({
                     <li
                       key={w.id}
                       className={`warehouse-dropdown-item${selectedName === w.warehouse_name ? " selected" : ""}`}
+                      onMouseDown={e => e.preventDefault()}
                       onClick={() => {
                         onChange(w.id, w.warehouse_name);
                         setSelectedName(w.warehouse_name);
@@ -703,6 +720,8 @@ function BomSearchField({
   const [all, setAll] = useState<BomListItem[]>([]);
   const [loading, setLoading] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const isProgrammaticFocus = useRef(false);
 
   useEffect(() => {
     setLoading(true);
@@ -717,6 +736,13 @@ function BomSearchField({
     document.addEventListener("mousedown", h);
     return () => document.removeEventListener("mousedown", h);
   }, []);
+
+  useLayoutEffect(() => {
+    if (open && inputRef.current && document.activeElement !== inputRef.current) {
+      isProgrammaticFocus.current = true;
+      inputRef.current.focus();
+    }
+  });
 
   const byType = filterType ? all.filter(b => b.type === filterType) : all;
 
@@ -733,10 +759,19 @@ function BomSearchField({
         <div className="warehouse-search-input-wrap">
           <FaSearch className="warehouse-search-icon" />
           <input
+            ref={inputRef}
             type="text"
+            autoComplete="off"
+            spellCheck={false}
             value={open ? term : value}
             onChange={e => { setTerm(e.target.value); setOpen(true); }}
-            onFocus={() => { if (!disabled) { setTerm(""); setOpen(true); } }}
+            onFocus={() => {
+              if (isProgrammaticFocus.current) {
+                isProgrammaticFocus.current = false;
+                return;
+              }
+              if (!disabled) { setTerm(""); setOpen(true); }
+            }}
             onKeyDown={e => e.key === "Escape" && setOpen(false)}
             placeholder={filterType === "External" ? "Search External BOM by item code or name…" : "Search BOM by item code or name…"}
             disabled={disabled || loading}
@@ -755,6 +790,7 @@ function BomSearchField({
               : <ul className="warehouse-dropdown-list">
                   {filtered.map(b => (
                     <li key={b.id} className="warehouse-dropdown-item"
+                      onMouseDown={e => e.preventDefault()}
                       onClick={() => { onSelect(b); setTerm(""); setOpen(false); }}>
                       <div className="warehouse-item-name">
                         {b.item_name} <span style={{ opacity: 0.6 }}>({b.item})</span>
@@ -780,6 +816,10 @@ function BomSearchField({
 }
 
 // ─── OperationPickerField ─────────────────────────────────────────────────────
+// 🔧 FIX: no longer calls onTextChange on every keystroke.
+// It only syncs the typed value to the parent on blur or on Enter.
+// That way the parent form does NOT re-render while the user is typing,
+// so the input keeps focus and the caret stays put.
 
 function OperationPickerField({
   value, operations, loading, onSelect, onTextChange, disabled = false,
@@ -796,6 +836,10 @@ function OperationPickerField({
   const [coords, setCoords] = useState<{ top: number; left: number; width: number } | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const isProgrammaticFocus = useRef(false);
+  // Tracks whether the user has actually typed since focus, so we don't
+  // accidentally overwrite the parent value on a plain focus/blur cycle.
+  const hasTypedRef = useRef(false);
 
   const filtered = term.trim()
     ? operations.filter(o => o.name.toLowerCase().includes(term.toLowerCase()))
@@ -836,6 +880,21 @@ function OperationPickerField({
     return () => document.removeEventListener("mousedown", h);
   }, [open]);
 
+  useLayoutEffect(() => {
+    if (open && inputRef.current && document.activeElement !== inputRef.current) {
+      isProgrammaticFocus.current = true;
+      inputRef.current.focus();
+    }
+  });
+
+  // Flush the typed text to the parent (only if the user typed something).
+  const flushText = () => {
+    if (hasTypedRef.current) {
+      hasTypedRef.current = false;
+      onTextChange?.(term);
+    }
+  };
+
   return (
     <div className="warehouse-search-field" ref={wrapRef}>
       <div className="warehouse-search-wrapper">
@@ -844,14 +903,34 @@ function OperationPickerField({
           <input
             ref={inputRef}
             type="text"
+            autoComplete="off"
+            spellCheck={false}
             value={open ? term : value}
             onChange={e => {
+              // 🔧 Only update local state here — do NOT call onTextChange
+              // (which would update the parent and remount / re-render us).
               setTerm(e.target.value);
-              onTextChange?.(e.target.value);
+              hasTypedRef.current = true;
               if (!open) openDropdown();
             }}
-            onFocus={openDropdown}
-            onKeyDown={e => e.key === "Escape" && setOpen(false)}
+            onFocus={() => {
+              if (isProgrammaticFocus.current) {
+                isProgrammaticFocus.current = false;
+                return;
+              }
+              hasTypedRef.current = false;
+              openDropdown();
+            }}
+            onBlur={flushText}
+            onKeyDown={e => {
+              if (e.key === "Escape") {
+                setOpen(false);
+              } else if (e.key === "Enter") {
+                e.preventDefault();
+                flushText();
+                setOpen(false);
+              }
+            }}
             placeholder="Select or type operation…"
             disabled={disabled || loading}
             className="form-field form-field-sm warehouse-search-input"
@@ -878,7 +957,13 @@ function OperationPickerField({
             : <ul className="warehouse-dropdown-list">
                 {filtered.map(op => (
                   <li key={op.id} className="warehouse-dropdown-item"
-                    onClick={() => { onSelect(op); setTerm(""); setOpen(false); }}>
+                    onMouseDown={e => e.preventDefault()}
+                    onClick={() => {
+                      hasTypedRef.current = false;
+                      onSelect(op);
+                      setTerm("");
+                      setOpen(false);
+                    }}>
                     <div className="warehouse-item-name">{op.name.trim()}</div>
                     <div className="warehouse-item-company">
                       {op.workstation_name} · ₹{op.hour_rate}/hr · {op.total_operation_time} min
@@ -910,6 +995,8 @@ function ItemPickerField({
   const [term, setTerm] = useState("");
   const [coords, setCoords] = useState<{ top: number; left: number; width: number } | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const isProgrammaticFocus = useRef(false);
 
   const filtered = term.trim()
     ? items.filter(it =>
@@ -952,16 +1039,32 @@ function ItemPickerField({
     return () => document.removeEventListener("mousedown", h);
   }, [open]);
 
+  useLayoutEffect(() => {
+    if (open && inputRef.current && document.activeElement !== inputRef.current) {
+      isProgrammaticFocus.current = true;
+      inputRef.current.focus();
+    }
+  });
+
   return (
     <div className="warehouse-search-field" ref={wrapRef}>
       <div className="warehouse-search-wrapper">
         <div className="warehouse-search-input-wrap">
           <FaSearch className="warehouse-search-icon" />
           <input
+            ref={inputRef}
             type="text"
+            autoComplete="off"
+            spellCheck={false}
             value={open ? term : value}
             onChange={e => { setTerm(e.target.value); if (!open) openDropdown(); }}
-            onFocus={openDropdown}
+            onFocus={() => {
+              if (isProgrammaticFocus.current) {
+                isProgrammaticFocus.current = false;
+                return;
+              }
+              openDropdown();
+            }}
             onKeyDown={e => e.key === "Escape" && setOpen(false)}
             placeholder={placeholder}
             disabled={disabled || loading}
@@ -989,6 +1092,7 @@ function ItemPickerField({
             : <ul className="warehouse-dropdown-list">
                 {filtered.map(it => (
                   <li key={it.id} className="warehouse-dropdown-item"
+                    onMouseDown={e => e.preventDefault()}
                     onClick={() => { onSelect(it); setTerm(""); setOpen(false); }}>
                     <div className="warehouse-item-name">
                       {it.item_name} <span style={{ opacity: 0.6 }}>({it.item_code})</span>
@@ -1053,9 +1157,6 @@ export default function WorkOrderForm() {
   }, [id]);
 
   // ─── 🆕 Chatbot handoff reader ─────────────────────────────────────────
-  // When the chatbot navigates here with a fetched payload stashed in
-  // sessionStorage, hydrate the form immediately from that payload
-  // (master + related lists) instead of waiting for /work-order/:id.
   useEffect(() => {
     if (isNew || !id || handoffApplied.current) return;
 
@@ -1075,9 +1176,6 @@ export default function WorkOrderForm() {
         const isExternalType =
           !!d.grn_id || (d.type && String(d.type).toLowerCase() === "external");
 
-        // Minimal, safe hydration — the normal /work-order/:id effect will
-        // still run afterwards and fill in anything we miss here (warehouse
-        // name resolution, BOM detail, GRN detail, job cards, etc.).
         setWo(prev => ({
           ...prev,
           id: d.id,
@@ -1109,8 +1207,6 @@ export default function WorkOrderForm() {
           selected_grn_id: d.grn_id ?? undefined,
         }));
 
-        // Populate operations directly from handoff if the payload
-        // includes them as an array (some backends embed them).
         if (Array.isArray(d.operations) && d.operations.length > 0) {
           const ops: OperationRow[] = d.operations.map((op: any) => ({
             id: uid(),

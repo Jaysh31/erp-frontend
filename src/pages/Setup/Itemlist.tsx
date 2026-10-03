@@ -11,7 +11,6 @@ import {
   FaSpinner,
   FaEdit,
   FaTrash,
-  FaCalendarAlt,
   FaFileExcel,
   FaChevronDown
 } from 'react-icons/fa';
@@ -19,7 +18,6 @@ import "./ItemList.css";
 import '../Sales/SalesMobileTable.css';
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
 import api from '../../services/api';
-import { PageLoader } from "../components/PageLoader";
 
 //hi
 interface Item {
@@ -60,7 +58,6 @@ export default function ItemList() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
   const [groupFilter, setGroupFilter] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
@@ -82,201 +79,6 @@ export default function ItemList() {
     });
   };
 
-  // ===== DATE FILTER STATES =====
-  const [fromDate, setFromDate] = useState<string>('');
-  const [toDate, setToDate] = useState<string>('');
-  const [showDatePicker, setShowDatePicker] = useState<boolean>(false);
-  const [tempFromDate, setTempFromDate] = useState<string>('');
-  const [tempToDate, setTempToDate] = useState<string>('');
-  const [selectedQuickFilter, setSelectedQuickFilter] = useState<string>('');
-
-  // ===== CALENDAR STATE =====
-  const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
-  const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
-
-  // ===== DATE HELPER FUNCTIONS =====
-  const formatDateForDisplay = (dateStr: string): string => {
-    if (!dateStr) return '';
-    const d = new Date(dateStr);
-    return d.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' });
-  };
-
-  const getTodayDate = (): string => {
-    const today = new Date();
-    return today.toISOString().split('T')[0];
-  };
-
-  const getDateDaysAgo = (days: number): string => {
-    const date = new Date();
-    date.setDate(date.getDate() - days);
-    return date.toISOString().split('T')[0];
-  };
-
-  const getFirstDayOfMonth = (): string => {
-    const date = new Date(currentYear, currentMonth, 1);
-    return date.toISOString().split('T')[0];
-  };
-
-  const getLastDayOfMonth = (): string => {
-    const date = new Date(currentYear, currentMonth + 1, 0);
-    return date.toISOString().split('T')[0];
-  };
-
-  // ===== QUICK FILTER HANDLERS =====
-  const applyQuickFilter = (filter: string) => {
-    setSelectedQuickFilter(filter);
-    let start = '';
-    let end = getTodayDate();
-
-    switch (filter) {
-      case 'today':
-        start = getTodayDate();
-        break;
-      case 'last7':
-        start = getDateDaysAgo(7);
-        break;
-      case 'last30':
-        start = getDateDaysAgo(30);
-        break;
-      case 'thisMonth':
-        start = getFirstDayOfMonth();
-        end = getLastDayOfMonth();
-        break;
-      default:
-        return;
-    }
-
-    setTempFromDate(start);
-    setTempToDate(end);
-  };
-
-  // ===== CALENDAR FUNCTIONS =====
-  const getDaysInMonth = (year: number, month: number): number => {
-    return new Date(year, month + 1, 0).getDate();
-  };
-
-  const getFirstDayOfMonthIndex = (year: number, month: number): number => {
-    return new Date(year, month, 1).getDay();
-  };
-
-  const generateCalendarDays = (): (number | null)[] => {
-    const daysInMonth = getDaysInMonth(currentYear, currentMonth);
-    const firstDayIndex = getFirstDayOfMonthIndex(currentYear, currentMonth);
-    const days: (number | null)[] = [];
-
-    for (let i = 0; i < firstDayIndex; i++) {
-      days.push(null);
-    }
-
-    for (let i = 1; i <= daysInMonth; i++) {
-      days.push(i);
-    }
-
-    return days;
-  };
-
-  const isDateInRange = (day: number): boolean => {
-    if (!tempFromDate && !tempToDate) return false;
-    const date = new Date(currentYear, currentMonth, day);
-    const dateStr = date.toISOString().split('T')[0];
-    
-    if (tempFromDate && tempToDate) {
-      return dateStr >= tempFromDate && dateStr <= tempToDate;
-    }
-    if (tempFromDate) {
-      return dateStr >= tempFromDate;
-    }
-    if (tempToDate) {
-      return dateStr <= tempToDate;
-    }
-    return false;
-  };
-
-  const isDateSelected = (day: number): boolean => {
-    const date = new Date(currentYear, currentMonth, day);
-    const dateStr = date.toISOString().split('T')[0];
-    return dateStr === tempFromDate || dateStr === tempToDate;
-  };
-
-  const handleDateClick = (day: number) => {
-    const date = new Date(currentYear, currentMonth, day);
-    const dateStr = date.toISOString().split('T')[0];
-    
-    if (!tempFromDate || (tempFromDate && tempToDate)) {
-      setTempFromDate(dateStr);
-      setTempToDate('');
-      setSelectedQuickFilter('');
-    } else if (tempFromDate && !tempToDate) {
-      if (dateStr < tempFromDate) {
-        setTempFromDate(dateStr);
-        setTempToDate('');
-      } else {
-        setTempToDate(dateStr);
-        setSelectedQuickFilter('');
-      }
-    }
-  };
-
-  const changeMonth = (delta: number) => {
-    const newMonth = currentMonth + delta;
-    if (newMonth < 0) {
-      setCurrentMonth(11);
-      setCurrentYear(currentYear - 1);
-    } else if (newMonth > 11) {
-      setCurrentMonth(0);
-      setCurrentYear(currentYear + 1);
-    } else {
-      setCurrentMonth(newMonth);
-    }
-  };
-
-  const getMonthName = (month: number): string => {
-    return new Date(currentYear, month).toLocaleString('en-US', { month: 'long' });
-  };
-
-  // ===== DATE PICKER HANDLERS =====
-  const openDatePicker = () => {
-    setTempFromDate(fromDate);
-    setTempToDate(toDate);
-    setShowDatePicker(true);
-  };
-
-  const applyDateFilter = () => {
-    setFromDate(tempFromDate);
-    setToDate(tempToDate);
-    setShowDatePicker(false);
-    setCurrentPage(1);
-    // API call will be triggered by useEffect when fromDate or toDate changes
-    if (tempFromDate || tempToDate) {
-      // toast will be handled by the component
-    }
-  };
-
-  const clearDateFilters = () => {
-    setTempFromDate('');
-    setTempToDate('');
-    setSelectedQuickFilter('');
-    setFromDate('');
-    setToDate('');
-    setShowDatePicker(false);
-  };
-
-  // ===== CLOSE DATE PICKER ON OUTSIDE CLICK =====
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as HTMLElement;
-      const datePickerContainer = document.querySelector('.itl-date-picker-container');
-      if (datePickerContainer && !datePickerContainer.contains(target)) {
-        setShowDatePicker(false);
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, []);
-
   // Fetch items from API with pagination
   const fetchItems = useCallback(async () => {
     setLoading(true);
@@ -289,18 +91,8 @@ export default function ItemList() {
       if (searchTerm) {
         params.append('search', searchTerm);
       }
-      if (statusFilter !== 'all') {
-        params.append('status', statusFilter === 'enabled' ? '1' : '0');
-      }
       if (groupFilter !== 'all') {
         params.append('group', groupFilter);
-      }
-      // Add date filters
-      if (fromDate) {
-        params.append('from_date', fromDate);
-      }
-      if (toDate) {
-        params.append('to_date', toDate);
       }
 
       const response = await api.get<ApiResponse>(`/item?${params.toString()}`);
@@ -338,7 +130,7 @@ export default function ItemList() {
     } finally {
       setLoading(false);
     }
-  }, [currentPage, itemsPerPage, searchTerm, statusFilter, groupFilter, fromDate, toDate]);
+  }, [currentPage, itemsPerPage, searchTerm, groupFilter]);
 
   // Delete item
   const handleDeleteItem = async (id: number, e: React.MouseEvent) => {
@@ -381,7 +173,7 @@ export default function ItemList() {
   // Reset page when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, statusFilter, groupFilter, fromDate, toDate]);
+  }, [searchTerm, groupFilter]);
 
   // Get unique item groups for filter
   const itemGroups = Array.from(new Set(allItems.map(item => item.item_group))).filter(Boolean);
@@ -451,14 +243,7 @@ export default function ItemList() {
 
   const clearFilters = () => {
     setSearchTerm('');
-    setStatusFilter('all');
     setGroupFilter('all');
-    setFromDate('');
-    setToDate('');
-    setTempFromDate('');
-    setTempToDate('');
-    setSelectedQuickFilter('');
-    setShowDatePicker(false);
   };
 
   const handleRowClick = (item: Item) => {
@@ -474,327 +259,10 @@ export default function ItemList() {
   const handleBulkUpload = () => {
     navigate("/item-bulk-upload");
   };
-   // ─── Loading Screen ─────────────────────────────────────────────────────
-  if (loading) {
-    return (
-      <div className={`p-6 max-w-7xl mx-auto ${theme}`}>
-        <PageLoader 
-          message="Loading Setup & Item List..." 
-          //subtitle="Calculating bill of materials, operations rates, and component structures"
-        />
-      </div>
-    );
-  }
 
   return (
     <div className={`itl-page ${theme}`}>
       <style>{`
-        /* ── Date Range Picker Styles ── */
-        .itl-date-picker-container {
-          position: relative;
-          display: inline-block;
-        }
-
-        .itl-date-picker-trigger {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          background: var(--card-bg, #fff);
-          border: 1px solid var(--border-color, #e5e7eb);
-          border-radius: 8px;
-          padding: 7px 14px;
-          cursor: pointer;
-          transition: all 0.2s;
-          color: var(--text-primary, #1e293b);
-          font-size: 13px;
-          min-height: 38px;
-        }
-
-        .itl-date-picker-trigger:hover {
-          border-color: var(--primary-color, #2563eb);
-          background: var(--hover-bg, #f8fafc);
-        }
-
-        .itl-date-picker-trigger.active {
-          border-color: var(--primary-color, #2563eb);
-          box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
-        }
-
-        .itl-date-picker-trigger .itl-calendar-icon {
-          color: var(--primary-color, #2563eb);
-          font-size: 16px;
-        }
-
-        .itl-date-picker-trigger .itl-date-label {
-          font-weight: 500;
-        }
-
-        .itl-date-picker-trigger .itl-date-label.placeholder {
-          color: var(--text-secondary, #6b7280);
-          font-weight: 400;
-        }
-
-        .itl-date-picker-trigger .itl-date-range-display {
-          color: var(--primary-color, #2563eb);
-          font-weight: 500;
-        }
-
-        .itl-date-picker-popup {
-          position: absolute;
-          top: calc(100% + 8px);
-          right: 0;
-          background: var(--card-bg, #fff);
-          border: 1px solid var(--border-color, #e5e7eb);
-          border-radius: 12px;
-          box-shadow: 0 10px 40px var(--shadow-color, rgba(0,0,0,0.15));
-          padding: 20px;
-          z-index: 1000;
-          min-width: 340px;
-          width: 340px;
-        }
-
-        .itl-date-picker-popup .itl-popup-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 12px;
-        }
-
-        .itl-date-picker-popup .itl-popup-header .itl-popup-title {
-          font-size: 14px;
-          font-weight: 600;
-          color: var(--text-primary, #1e293b);
-        }
-
-        .itl-date-picker-popup .itl-popup-header .itl-popup-close {
-          background: none;
-          border: none;
-          color: var(--text-secondary, #6b7280);
-          cursor: pointer;
-          font-size: 16px;
-          padding: 4px;
-        }
-
-        .itl-date-picker-popup .itl-popup-header .itl-popup-close:hover {
-          color: var(--text-primary, #1e293b);
-        }
-
-        .itl-date-picker-popup .itl-quick-filters {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 6px;
-          margin-bottom: 16px;
-          padding-bottom: 12px;
-          border-bottom: 1px solid var(--border-color, #e5e7eb);
-        }
-
-        .itl-date-picker-popup .itl-quick-filter-btn {
-          padding: 4px 14px;
-          border: 1px solid var(--border-color, #e5e7eb);
-          border-radius: 16px;
-          background: var(--card-bg, #fff);
-          color: var(--text-secondary, #6b7280);
-          font-size: 12px;
-          cursor: pointer;
-          transition: all 0.2s;
-        }
-
-        .itl-date-picker-popup .itl-quick-filter-btn:hover {
-          border-color: var(--primary-color, #2563eb);
-          color: var(--primary-color, #2563eb);
-        }
-
-        .itl-date-picker-popup .itl-quick-filter-btn.active {
-          background: var(--primary-color, #2563eb);
-          border-color: var(--primary-color, #2563eb);
-          color: #fff;
-        }
-
-        .itl-date-picker-popup .itl-calendar-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 12px;
-        }
-
-        .itl-date-picker-popup .itl-calendar-header .itl-month-year {
-          font-size: 14px;
-          font-weight: 600;
-          color: var(--text-primary, #1e293b);
-        }
-
-        .itl-date-picker-popup .itl-calendar-header .itl-nav-btn {
-          background: none;
-          border: none;
-          color: var(--text-secondary, #6b7280);
-          cursor: pointer;
-          padding: 4px 8px;
-          font-size: 14px;
-          border-radius: 4px;
-          transition: all 0.2s;
-        }
-
-        .itl-date-picker-popup .itl-calendar-header .itl-nav-btn:hover {
-          background: var(--hover-bg, #f3f4f6);
-        }
-
-        .itl-date-picker-popup .itl-calendar-grid {
-          display: grid;
-          grid-template-columns: repeat(7, 1fr);
-          gap: 2px;
-          margin-bottom: 12px;
-        }
-
-        .itl-date-picker-popup .itl-calendar-grid .itl-day-header {
-          text-align: center;
-          font-size: 11px;
-          font-weight: 600;
-          color: var(--text-secondary, #6b7280);
-          padding: 4px 0;
-        }
-
-        .itl-date-picker-popup .itl-calendar-grid .itl-day-cell {
-          text-align: center;
-          padding: 6px 4px;
-          font-size: 13px;
-          border-radius: 6px;
-          cursor: pointer;
-          transition: all 0.2s;
-          color: var(--text-primary, #1e293b);
-          position: relative;
-        }
-
-        .itl-date-picker-popup .itl-calendar-grid .itl-day-cell.empty {
-          cursor: default;
-        }
-
-        .itl-date-picker-popup .itl-calendar-grid .itl-day-cell:hover:not(.empty):not(.in-range) {
-          background: var(--hover-bg, #f3f4f6);
-        }
-
-        .itl-date-picker-popup .itl-calendar-grid .itl-day-cell.in-range {
-          background: rgba(37, 99, 235, 0.1);
-        }
-
-        .itl-date-picker-popup .itl-calendar-grid .itl-day-cell.selected {
-          background: var(--primary-color, #2563eb);
-          color: #fff;
-          font-weight: 600;
-        }
-
-        .itl-date-picker-popup .itl-calendar-grid .itl-day-cell.selected-start {
-          background: var(--primary-color, #2563eb);
-          color: #fff;
-          font-weight: 600;
-          border-radius: 6px 0 0 6px;
-        }
-
-        .itl-date-picker-popup .itl-calendar-grid .itl-day-cell.selected-end {
-          background: var(--primary-color, #2563eb);
-          color: #fff;
-          font-weight: 600;
-          border-radius: 0 6px 6px 0;
-        }
-
-        .itl-date-picker-popup .itl-calendar-grid .itl-day-cell.range-middle {
-          background: rgba(37, 99, 235, 0.15);
-        }
-
-        .itl-date-picker-popup .itl-calendar-grid .itl-day-cell.today {
-          border: 1px solid var(--primary-color, #2563eb);
-        }
-
-        .itl-date-picker-popup .itl-popup-actions {
-          display: flex;
-          gap: 8px;
-          justify-content: flex-end;
-          padding-top: 12px;
-          border-top: 1px solid var(--border-color, #e5e7eb);
-        }
-
-        .itl-date-picker-popup .itl-popup-actions button {
-          padding: 6px 16px;
-          border: none;
-          border-radius: 6px;
-          font-size: 13px;
-          font-weight: 500;
-          cursor: pointer;
-          transition: all 0.2s;
-        }
-
-        .itl-date-picker-popup .itl-popup-actions .itl-btn-apply {
-          background: var(--primary-color, #2563eb);
-          color: #fff;
-        }
-
-        .itl-date-picker-popup .itl-popup-actions .itl-btn-apply:hover {
-          background: var(--primary-hover, #1d4ed8);
-        }
-
-        .itl-date-picker-popup .itl-popup-actions .itl-btn-clear {
-          background: transparent;
-          color: var(--text-secondary, #6b7280);
-        }
-
-        .itl-date-picker-popup .itl-popup-actions .itl-btn-clear:hover {
-          background: var(--hover-bg, #f3f4f6);
-        }
-
-        .itl-date-picker-popup .itl-popup-actions .itl-btn-cancel {
-          background: transparent;
-          color: var(--text-secondary, #6b7280);
-        }
-
-        .itl-date-picker-popup .itl-popup-actions .itl-btn-cancel:hover {
-          background: var(--hover-bg, #f3f4f6);
-        }
-
-        .itl-filter-right {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          flex-wrap: wrap;
-        }
-
-        /* Dark theme overrides */
-        .dark-theme .itl-date-picker-trigger {
-          background: var(--card-bg, #1e293b);
-          border-color: var(--border-color, #334155);
-          color: var(--text-primary, #f8fafc);
-        }
-
-        .dark-theme .itl-date-picker-trigger:hover {
-          background: var(--nav-hover, rgba(255,255,255,0.05));
-        }
-
-        .dark-theme .itl-date-picker-popup {
-          background: var(--card-bg, #1e293b);
-          border-color: var(--border-color, #334155);
-        }
-
-        .dark-theme .itl-date-picker-popup .itl-popup-title {
-          color: var(--text-primary, #f8fafc);
-        }
-
-        .dark-theme .itl-date-picker-popup .itl-quick-filter-btn {
-          background: var(--card-bg, #1e293b);
-          border-color: var(--border-color, #334155);
-          color: var(--text-secondary, #94a3b8);
-        }
-
-        .dark-theme .itl-date-picker-popup .itl-quick-filter-btn.active {
-          background: var(--primary-color, #3b82f6);
-          color: #fff;
-        }
-
-        .dark-theme .itl-date-picker-popup .itl-calendar-grid .itl-day-cell {
-          color: var(--text-primary, #f8fafc);
-        }
-
-        .dark-theme .itl-date-picker-popup .itl-day-header {
-          color: var(--text-secondary, #94a3b8);
-        }
-
         /* ── Active Filters ── */
         .itl-active-filters {
           display: flex;
@@ -923,7 +391,7 @@ export default function ItemList() {
           align-items: center;
           gap: 6px;
           height: 38px;
-          padding: 8 14px;
+          padding: 0 14px;
           border: 1px solid var(--border-color, #e5e7eb);
           border-radius: 8px;
           background: var(--card-bg, white);
@@ -1036,28 +504,6 @@ export default function ItemList() {
 
         .itl-td-meta {
           text-align: right;
-        }
-
-        /* ── Status Badge ── */
-        .itl-status-badge {
-          display: inline-flex;
-          align-items: center;
-          height: 24px;
-          padding: 0 12px;
-          border-radius: 99px;
-          font-size: 12px;
-          font-weight: 600;
-          gap: 4px;
-        }
-
-        .itl-status-enabled {
-          background: #d1fae5;
-          color: #059669;
-        }
-
-        .itl-status-disabled {
-          background: #fee2e2;
-          color: #dc2626;
         }
 
         /* ── Action Buttons ── */
@@ -1352,16 +798,6 @@ export default function ItemList() {
           color: var(--text-secondary, #94a3b8);
         }
 
-        .dark-theme .itl-status-enabled {
-          background: rgba(16, 185, 129, 0.2);
-          color: #34d399;
-        }
-
-        .dark-theme .itl-status-disabled {
-          background: rgba(239, 68, 68, 0.2);
-          color: #f87171;
-        }
-
         /* ── Responsive ── */
         @media (max-width: 768px) {
           .itl-filter-bar {
@@ -1408,12 +844,6 @@ export default function ItemList() {
           .itl-th {
             padding: 10px 12px;
             font-size: 11px;
-          }
-
-          .itl-date-picker-popup {
-            left: 0;
-            min-width: 100%;
-            width: 100%;
           }
         }
 
@@ -1473,18 +903,6 @@ export default function ItemList() {
         </div>
         <div className="bom-filter-right">
           <select
-            value={statusFilter}
-            onChange={(e) => {
-              setStatusFilter(e.target.value);
-              setCurrentPage(1);
-            }}
-            className="itl-filter-select"
-          >
-            <option value="all">All Status</option>
-            <option value="enabled">Enabled</option>
-            <option value="disabled">Disabled</option>
-          </select>
-          <select
             value={groupFilter}
             onChange={(e) => {
               setGroupFilter(e.target.value);
@@ -1498,134 +916,12 @@ export default function ItemList() {
             ))}
           </select>
 
-          {/* ===== DATE RANGE PICKER ===== */}
-          <div className="itl-date-picker-container">
-            <div 
-              className={`itl-date-picker-trigger ${showDatePicker ? 'active' : ''}`}
-              onClick={openDatePicker}
-            >
-              <FaCalendarAlt className="itl-calendar-icon" />
-              <span className={`itl-date-label ${!fromDate && !toDate ? 'placeholder' : ''}`}>
-                {fromDate || toDate ? (
-                  <span className="itl-date-range-display">
-                    {fromDate ? formatDateForDisplay(fromDate) : 'Start'} – {toDate ? formatDateForDisplay(toDate) : 'End'}
-                  </span>
-                ) : (
-                  'Filter by Date'
-                )}
-              </span>
-            </div>
-            
-            {showDatePicker && (
-              <div className="itl-date-picker-popup">
-                <div className="itl-popup-header">
-                  <span className="itl-popup-title">Filter Date</span>
-                  <button className="itl-popup-close" onClick={() => setShowDatePicker(false)}>
-                    <FaTimes size={14} />
-                  </button>
-                </div>
-                
-                {/* Quick Filters */}
-                <div className="itl-quick-filters">
-                  <button 
-                    className={`itl-quick-filter-btn ${selectedQuickFilter === 'today' ? 'active' : ''}`}
-                    onClick={() => applyQuickFilter('today')}
-                  >
-                    Today
-                  </button>
-                  <button 
-                    className={`itl-quick-filter-btn ${selectedQuickFilter === 'last7' ? 'active' : ''}`}
-                    onClick={() => applyQuickFilter('last7')}
-                  >
-                    Last 7 Days
-                  </button>
-                  <button 
-                    className={`itl-quick-filter-btn ${selectedQuickFilter === 'last30' ? 'active' : ''}`}
-                    onClick={() => applyQuickFilter('last30')}
-                  >
-                    Last 30 Days
-                  </button>
-                  <button 
-                    className={`itl-quick-filter-btn ${selectedQuickFilter === 'thisMonth' ? 'active' : ''}`}
-                    onClick={() => applyQuickFilter('thisMonth')}
-                  >
-                    This Month
-                  </button>
-                </div>
-                
-                {/* Calendar */}
-                <div className="itl-calendar-header">
-                  <button className="itl-nav-btn" onClick={() => changeMonth(-1)}>
-                    <FaChevronLeft size={12} />
-                  </button>
-                  <span className="itl-month-year">
-                    {getMonthName(currentMonth)} {currentYear}
-                  </span>
-                  <button className="itl-nav-btn" onClick={() => changeMonth(1)}>
-                    <FaChevronRight size={12} />
-                  </button>
-                </div>
-                
-                <div className="itl-calendar-grid">
-                  {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map(day => (
-                    <div key={day} className="itl-day-header">{day}</div>
-                  ))}
-                  {generateCalendarDays().map((day, index) => {
-                    if (day === null) {
-                      return <div key={`empty-${index}`} className="itl-day-cell empty"></div>;
-                    }
-                    
-                    const dateObj = new Date(currentYear, currentMonth, day);
-                    const dateStr = dateObj.toISOString().split('T')[0];
-                    const isToday = dateStr === getTodayDate();
-                    const isInRange = isDateInRange(day);
-                    const isSelected = isDateSelected(day);
-                    const isStart = dateStr === tempFromDate;
-                    const isEnd = dateStr === tempToDate;
-                    
-                    let className = 'itl-day-cell';
-                    if (isToday) className += ' today';
-                    if (isInRange && !isSelected) className += ' in-range';
-                    if (isSelected) className += ' selected';
-                    if (isStart && tempToDate) className += ' selected-start';
-                    if (isEnd && tempFromDate) className += ' selected-end';
-                    if (isInRange && !isSelected && !isStart && !isEnd) className += ' range-middle';
-                    
-                    return (
-                      <div 
-                        key={day} 
-                        className={className}
-                        onClick={() => handleDateClick(day)}
-                      >
-                        {day}
-                      </div>
-                    );
-                  })}
-                </div>
-                
-                <div className="itl-popup-actions">
-                  <button className="itl-btn-clear" onClick={clearDateFilters}>
-                    Clear
-                  </button>
-                  <button className="itl-btn-cancel" onClick={() => setShowDatePicker(false)}>
-                    Cancel
-                  </button>
-                  <button className="itl-btn-apply" onClick={applyDateFilter}>
-                    Apply Filters
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-
-          
           <button className="itl-btn-secondary" onClick={handleBulkUpload}>
             <FaFileExcel size={13} />
             Bulk Upload
           </button>
-         
         </div>
-         <button className="itl-btn-primary" onClick={handleAddItem}>
+        <button className="itl-btn-primary" onClick={handleAddItem}>
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
               <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
             </svg>
@@ -1634,7 +930,7 @@ export default function ItemList() {
       </div>
 
       {/* Active filters indicator */}
-      {(searchTerm || statusFilter !== 'all' || groupFilter !== 'all' || fromDate || toDate) && (
+      {(searchTerm || groupFilter !== 'all') && (
         <div className="itl-active-filters">
           <FaFilter size={12} style={{ color: 'var(--primary-color)' }} />
           <span style={{ color: 'var(--text-primary)' }}>Active filters:</span>
@@ -1643,19 +939,9 @@ export default function ItemList() {
               <strong>Search:</strong> "{searchTerm}"
             </span>
           )}
-          {statusFilter !== 'all' && (
-            <span style={{ color: 'var(--text-primary)' }}>
-              <strong>Status:</strong> {statusFilter}
-            </span>
-          )}
           {groupFilter !== 'all' && (
             <span style={{ color: 'var(--text-primary)' }}>
               <strong>Group:</strong> {groupFilter}
-            </span>
-          )}
-          {(fromDate || toDate) && (
-            <span style={{ color: 'var(--text-primary)' }}>
-              <strong>Date:</strong> {fromDate ? formatDateForDisplay(fromDate) : 'Any'} – {toDate ? formatDateForDisplay(toDate) : 'Any'}
             </span>
           )}
           <button
@@ -1691,8 +977,6 @@ export default function ItemList() {
               <thead>
                 <tr>
                   <th className="itl-th">Item Code</th>
-                  {/* <th className="itl-th">Item Name</th> */}
-                  <th className="itl-th">Status</th>
                   <th className="itl-th">Item Group</th>
                   <th className="itl-th">UOM</th>
                   <th className="itl-th">Type</th>
@@ -1712,7 +996,7 @@ export default function ItemList() {
               <tbody>
                 {items.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="itl-empty-state">
+                    <td colSpan={5} className="itl-empty-state">
                       <div className="itl-empty-content">
                         <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                           <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
@@ -1730,12 +1014,6 @@ export default function ItemList() {
                       onClick={() => handleRowClick(row)}
                     >
                       <td className="itl-td itl-td-code">{row.item_code}</td>
-                      {/* <td className="itl-td itl-td-name">{row.item_name}</td> */}
-                      <td className="itl-td">
-                        <span className={`itl-status-badge itl-status-${row.disabled === 0 ? 'enabled' : 'disabled'}`}>
-                          {row.disabled === 0 ? 'Enabled' : 'Disabled'}
-                        </span>
-                      </td>
                       <td className="itl-td">{row.item_group}</td>
                       <td className="itl-td">{row.stock_uom}</td>
                       <td className="itl-td">
@@ -1771,135 +1049,119 @@ export default function ItemList() {
             </table>
           </div>
 
-          {/* Mobile Table Section (Customer, Status + Dropdown Button -> Date, Amount, Actions) */}
-                    <div className="sales-mobile-list-wrap">
-                      <div className="sales-mobile-list-header">
-                        <div className="sales-mobile-th-primary">
-                          <span className="sales-mobile-th-cell">Customer</span>
-                          <span className="sales-mobile-th-sep">•</span>
-                          <span className="sales-mobile-th-cell">Status</span>
-                        </div>
-                        <div className="sales-mobile-th-right">
-                          <span className="sales-count-label">
-                            {totalItems > 0
-                        ? `${getStartIndex()}–${getEndIndex()}`
-                        : '0'} of {totalItems}
-                          </span>
-                        </div>
-                      </div>
-          
-                      {items.length === 0 ? (
-                        <div className="itl-empty-state">
-                          <div className="itl-empty-content">
-                            <p>No Items found</p>
-                            <span>Try adjusting your search criteria</span>
+          {/* Mobile Table Section */}
+          <div className="sales-mobile-list-wrap">
+            <div className="sales-mobile-list-header">
+              <div className="sales-mobile-th-primary">
+                <span className="sales-mobile-th-cell">Item Code</span>
+                <span className="sales-mobile-th-sep">•</span>
+                <span className="sales-mobile-th-cell">Item Group</span>
+              </div>
+              <div className="sales-mobile-th-right">
+                <span className="sales-count-label">
+                  {totalItems > 0
+                    ? `${getStartIndex()}–${getEndIndex()}`
+                    : '0'} of {totalItems}
+                </span>
+              </div>
+            </div>
+
+            {items.length === 0 ? (
+              <div className="itl-empty-state">
+                <div className="itl-empty-content">
+                  <p>No Items found</p>
+                  <span>Try adjusting your search criteria</span>
+                </div>
+              </div>
+            ) : (
+              <div className="sales-mobile-cards">
+                {items.map((row) => {
+                  const isExpanded = expandedRows.has(row.id);
+                  return (
+                    <div
+                      key={row.id}
+                      className={`sales-mobile-card ${isExpanded ? "sales-mobile-card-expanded" : ""}`}
+                    >
+                      <div
+                        className="sales-mobile-card-header"
+                        onClick={() => toggleRowExpand(row.id)}
+                      >
+                        <div className="sales-mobile-card-primary">
+                          <div className="sales-mobile-card-primary-row">
+                            <span className="sales-mobile-item-name">
+                              {row.item_code}
+                            </span>
+                            <span className="sales-mobile-header-badge">
+                              <span className="itl-td">
+                                {row.item_group}
+                              </span>
+                            </span>
                           </div>
                         </div>
-                      ) : (
-                        <div className="sales-mobile-cards">
-                          {items.map((row) => {
-                            const isExpanded = expandedRows.has(row.id);
 
+                        <button
+                          type="button"
+                          className={`sales-mobile-dropdown-btn ${isExpanded ? "expanded" : ""}`}
+                          onClick={(e) => toggleRowExpand(row.id, e)}
+                          aria-label={isExpanded ? "Collapse item details" : "Expand item details"}
+                          title={isExpanded ? "Collapse" : "Expand"}
+                        >
+                          <FaChevronDown size={13} className="sales-mobile-chevron" />
+                        </button>
+                      </div>
 
+                      {isExpanded && (
+                        <div className="sales-mobile-card-details">
+                          <div className="sales-mobile-detail-row">
+                            <span className="sales-mobile-detail-label">UOM</span>
+                            <span className="sales-mobile-detail-value">{row.stock_uom}</span>
+                          </div>
 
+                          <div className="sales-mobile-detail-row">
+                            <span className="sales-mobile-detail-label">Type</span>
+                            <span className="sales-mobile-detail-value"> {row.is_stock_item === 1 ? 'Stock' : 'Non-Stock'}</span>
+                          </div>
 
-                            return (
-                              <div
-                                key={row.id}
-                                className={`sales-mobile-card ${isExpanded ? "sales-mobile-card-expanded" : ""}`}
+                          <div className="sales-mobile-detail-footer">
+                            <span className="sales-mobile-card-meta-text">
+                              {/*rowNumber} of {totalItems*/}
+                            </span>
+                            <div className="sales-mobile-action-buttons">
+                              <button
+                                className="qt-action-btn qt-action-edit"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleEditItem(row, e);
+                                }}
+                                title="Edit"
                               >
-                                <div
-                                  className="sales-mobile-card-header"
-                                  onClick={() => toggleRowExpand(row.id)}
-                                >
-                                  <div className="sales-mobile-card-primary">
-                                    <div className="sales-mobile-card-primary-row">
-                                      <span
-                                        className="sales-mobile-item-name"
-                                      >
-                                        {row.item_code}
-                                      </span>
-                                      <span className="sales-mobile-header-badge">
-                                        <span className="itl-td">
-                                          {row.item_group}
-                                        </span>
-                                      </span>
-                                    </div>
-                                  </div>
-
-                                  <button
-                                    type="button"
-                                    className={`sales-mobile-dropdown-btn ${isExpanded ? "expanded" : ""}`}
-                                    onClick={(e) => toggleRowExpand(row.id, e)}
-                                    aria-label={isExpanded ? "Collapse item details" : "Expand item details"}
-                                    title={isExpanded ? "Collapse" : "Expand"}
-                                  >
-                                    <FaChevronDown size={13} className="sales-mobile-chevron" />
-                                  </button>
-                                </div>
-
-                                {isExpanded && (
-                                  <div className="sales-mobile-card-details">
-                                    <div className="sales-mobile-detail-row">
-                                       <span className="sales-mobile-detail-label">Status</span>
-                                      <span className={`itl-status-badge itl-status-${row.disabled === 0 ? 'enabled' : 'disabled'}`}>
-                          {row.disabled === 0 ? 'Enabled' : 'Disabled'}
-                        </span>
-                        </div>
-
-
-                                    <div className="sales-mobile-detail-row">
-                                      <span className="sales-mobile-detail-label">UOM</span>
-                                      <span className="sales-mobile-detail-value">{row.stock_uom}</span>
-                                    </div>
-
-                                    
-                                    <div className="sales-mobile-detail-row">
-                                      <span className="sales-mobile-detail-label">Type</span>
-                                      <span className="sales-mobile-detail-value"> {row.is_stock_item === 1 ? 'Stock' : 'Non-Stock'}</span>
-                                    </div>
-
-                                    <div className="sales-mobile-detail-footer">
-                                      <span className="sales-mobile-card-meta-text">
-                                        {/*rowNumber} of {totalItems*/}
-                                      </span>
-                                      <div className="sales-mobile-action-buttons">
-                                        
-                                        <button
-                                          className="qt-action-btn qt-action-edit"
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleEditItem(row, e);
-                                          }}
-                                          title="Edit"
-                                        >
-                                          <FaEdit size={12} />
-                                        </button>
-                                        <button
-                                          className="qt-action-btn qt-action-delete"
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleDeleteItem(row.id, e);
-                                          }}
-                                          title="Delete"
-                                          disabled={deletingId === row.id}
-                                        >
-                                          {deletingId === row.id ? (
-                                            <FaSpinner className="spinning" size={12} />
-                                          ) : (
-                                            <FaTrash size={12} />
-                                          )}
-                                        </button>
-                                      </div>
-                                    </div>
-                                  </div>
+                                <FaEdit size={12} />
+                              </button>
+                              <button
+                                className="qt-action-btn qt-action-delete"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteItem(row.id, e);
+                                }}
+                                title="Delete"
+                                disabled={deletingId === row.id}
+                              >
+                                {deletingId === row.id ? (
+                                  <FaSpinner className="spinning" size={12} />
+                                ) : (
+                                  <FaTrash size={12} />
                                 )}
-                              </div>
-                            );
-                          })}
+                              </button>
+                            </div>
+                          </div>
                         </div>
                       )}
                     </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
 
           {/* Pagination */}
           {(totalItems > 0 || items.length > 0) && (

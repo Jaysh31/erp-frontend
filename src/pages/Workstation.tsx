@@ -297,27 +297,15 @@ export default function WorkstationList() {
   }, [searchTerm, statusFilter, dateFrom, dateTo]);
 
   // ─── Calculate pagination values (CLIENT-SIDE) ────────────────────────
-
-// Total number of records after search/status/date filters
-const totalFilteredItems = allWorkstations.length;
-
-// Calculate total pages correctly
-const totalPages = Math.max(
-  1,
-  Math.ceil(totalFilteredItems / itemsPerPage)
-);
-
-// Make sure current page is always valid
-const validCurrentPage = Math.min(
-  Math.max(currentPage, 1),
-  totalPages
-);
-
-// If current page becomes invalid after filtering,
-// move back to the last available page
-useEffect(() => {
-  if (currentPage > totalPages) {
-    setCurrentPage(totalPages);
+  
+  // ✅ Total filtered items = length of all fetched records
+  const totalFilteredItems = allWorkstations.length;
+  const totalPages = Math.ceil(totalFilteredItems / itemsPerPage) || 1;
+  const validCurrentPage = Math.min(currentPage, totalPages);
+  
+  // If current page is invalid, update it
+  if (validCurrentPage !== currentPage && currentPage > 1) {
+    setCurrentPage(validCurrentPage);
   }
 }, [currentPage, totalPages]);
 
@@ -434,17 +422,13 @@ const paginatedData = allWorkstations.slice(
 
   const weekdayLabels = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
 
-      // ─── Loading Screen ─────────────────────────────────────────────────────
-      if (loading) {
-        return (
-          <div className={`p-6 max-w-7xl mx-auto ${theme}`}>
-            <PageLoader 
-              message="Loading Setup & Workstation List..." 
-              //subtitle="Calculating bill of materials, operations rates, and component structures"
-            />
-          </div>
-        );
-      }
+  // ✅ FIX: The early `if (loading) return <PageLoader />` block has been
+  //    REMOVED. Previously, every keystroke-triggered fetch set
+  //    `loading = true`, which unmounted the entire page (including the
+  //    search input) and caused focus/cursor loss while typing.
+  //    The inline loading state (`{loading && <div className="wo-loading">}`)
+  //    further down in the JSX now handles the visual feedback, so the
+  //    filter bar (and the search input) stays mounted and keeps focus.
 
   // ─── Render ───────────────────────────────────────────────────────────────
 
@@ -768,7 +752,8 @@ const paginatedData = allWorkstations.slice(
             </div>
           )}
 
-          {/* Loading State */}
+          {/* Loading State — rendered inline (NOT as an early return) so the
+              search input above never unmounts and keeps focus while typing. */}
           {loading && (
             <div className="wo-loading">
               <p>Loading workstations...</p>

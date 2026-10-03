@@ -1,6 +1,5 @@
-
-import { useState, useEffect, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   FaSearch,
   FaFilter,
@@ -23,6 +22,52 @@ import "./JobCardManagement.css";
 import { useAdminTheme } from "../../admin-theme/AdminThemeContext";
 import api from "../../services/api";
 import { PageLoader } from "../components/PageLoader";
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🆕 Filter preservation helpers
+//    - JC_PRESERVE_FLAG_KEY : set to "true" before navigating to a
+//      /job-card* sub-route. Consumed on mount.
+//    - JC_FILTER_DATA_KEY   : JSON snapshot of current filters, saved on
+//      every filter change.
+//
+//    A global history observer wipes the preserve flag as soon as the
+//    URL leaves the /job-card module. That way, going to any other
+//    page (Dashboard, Work Order, GRN, …) effectively discards filters.
+// ═══════════════════════════════════════════════════════════════════════
+const JC_PRESERVE_FLAG_KEY = "__jc_preserve_filters__";
+const JC_FILTER_DATA_KEY = "__jc_list_filters__";
+
+// Install the history observer exactly once per browser tab
+if (typeof window !== "undefined" && !(window as any).__jcNavObserverInstalled) {
+  (window as any).__jcNavObserverInstalled = true;
+
+  const clearFlagIfLeavingJobCard = () => {
+    try {
+      const path = window.location.pathname;
+      // Anything outside /job-card* means we've left the module
+      if (!path.startsWith("/job-card")) {
+        sessionStorage.removeItem(JC_PRESERVE_FLAG_KEY);
+      }
+    } catch {
+      /* ignore */
+    }
+  };
+
+  const origPush = window.history.pushState;
+  const origReplace = window.history.replaceState;
+
+  window.history.pushState = function (...args: any[]) {
+    const r = origPush.apply(this as any, args as any);
+    clearFlagIfLeavingJobCard();
+    return r;
+  };
+  window.history.replaceState = function (...args: any[]) {
+    const r = origReplace.apply(this as any, args as any);
+    clearFlagIfLeavingJobCard();
+    return r;
+  };
+  window.addEventListener("popstate", clearFlagIfLeavingJobCard);
+}
 
 type Status = "Open" | "Work In Progress" | "Completed" | "On Hold" | "Cancelled";
 
@@ -72,7 +117,6 @@ interface JobCardDisplay {
   expectedEndDate: Date | null;
   actualStartDate: Date | null;
   actualEndDate: Date | null;
-  // ✅ Formatted display fields
   displayCreatedOn?: string;
   displayExpectedStart?: string;
   displayExpectedEnd?: string;
@@ -82,7 +126,6 @@ interface JobCardDisplay {
   items?: any[];
   isSubcontracted?: number;
   rawData?: any;
-
 }
 
 interface WorkOrderGroup {
@@ -111,6 +154,43 @@ const STATUS_LABELS: Record<Status, string> = {
   "On Hold": "On Hold",
   Cancelled: "Cancelled",
 };
+
+// 🆕 Map chatbot status keywords → Job Card status values
+const URL_STATUS_TO_JC_STATUS: Record<string, Status> = {
+  "completed":    "Completed",
+  "complete":     "Completed",
+  "done":         "Completed",
+  "finished":     "Completed",
+  "closed":       "Completed",
+  "open":         "Open",
+  "draft":        "Open",
+  "in process":   "Work In Progress",
+  "in-process":   "Work In Progress",
+  "in progress":  "Work In Progress",
+  "in-progress":  "Work In Progress",
+  "processing":   "Work In Progress",
+  "ongoing":      "Work In Progress",
+  "running":      "Work In Progress",
+  "work in progress": "Work In Progress",
+  "pending":      "On Hold",
+  "on hold":      "On Hold",
+  "on-hold":      "On Hold",
+  "hold":         "On Hold",
+  "cancelled":    "Cancelled",
+  "canceled":     "Cancelled",
+  "cancel":       "Cancelled",
+};
+
+function resolveJobCardStatus(rawStatus: string): Status | null {
+  if (!rawStatus) return null;
+  const norm = rawStatus.toLowerCase().trim();
+  if (URL_STATUS_TO_JC_STATUS[norm]) return URL_STATUS_TO_JC_STATUS[norm];
+
+  for (const [key, val] of Object.entries(URL_STATUS_TO_JC_STATUS)) {
+    if (norm.includes(key) || key.includes(norm)) return val;
+  }
+  return null;
+}
 
 const formatDuration = (ms: number): string => {
   const totalSeconds = Math.max(0, Math.floor(ms / 1000));
@@ -159,7 +239,13 @@ const getTimerInfo = (row: JobCardDisplay, now: Date): TimerInfo => {
 
 export default function JobCardManagement() {
   const navigate = useNavigate();
-  
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // 🆕 URL-driven status filter
+  const urlStatus = searchParams.get("status") || "";
+  const urlAutoFilter = searchParams.get("autoFilter") === "1";
+  const isUrlFiltered = !!urlStatus && urlAutoFilter;
+
   // ✅ GET THE DATE FORMAT FUNCTION FROM CONTEXT
   const { theme, formatDate } = useAdminTheme();
 
@@ -187,13 +273,114 @@ export default function JobCardManagement() {
 
   const pageSizeOptions = [10, 25, 50, 100];
 
+  // 🆕 Gates initial fetch until restoration is finished.
+  const [filtersReady, setFiltersReady] = useState(false);
+  // 🆕 Guards the "reset to page 1" effect so it doesn't clobber a
+  //    restored currentPage right after mount.
+  const isRestoringRef = useRef(false);
+
+  // ═════════════════════════════════════════════════════════════════════
+  // 🆕 RESTORE FILTERS ON MOUNT
+  // ═════════════════════════════════════════════════════════════════════
+  useEffect(() => {
+    let shouldPreserve = false;
+    try {
+      shouldPreserve = sessionStorage.getItem(JC_PRESERVE_FLAG_KEY) === "true";
+      sessionStorage.removeItem(JC_PRESERVE_FLAG_KEY);
+    } catch {
+      /* ignore */
+    }
+
+    if (shouldPreserve) {
+      try {
+        const saved = sessionStorage.getItem(JC_FILTER_DATA_KEY);
+        if (saved) {
+          const f = JSON.parse(saved);
+          isRestoringRef.current = true;
+          if (typeof f.searchTerm === "string")     setSearchTerm(f.searchTerm);
+          if (typeof f.statusFilter === "string")   setStatusFilter(f.statusFilter);
+          if (typeof f.fromDate === "string")       setFromDate(f.fromDate);
+          if (typeof f.toDate === "string")         setToDate(f.toDate);
+          if (typeof f.currentPage === "number")    setCurrentPage(f.currentPage);
+          if (typeof f.itemsPerPage === "number")   setItemsPerPage(f.itemsPerPage);
+          console.log("♻️ Restored job-card filters from session:", f);
+        }
+      } catch (e) {
+        console.warn("⚠️ Failed to restore job-card filters:", e);
+      }
+    } else {
+      // Came from outside the job-card module → discard stale filters.
+      try {
+        sessionStorage.removeItem(JC_FILTER_DATA_KEY);
+      } catch {
+        /* ignore */
+      }
+    }
+
+    setFiltersReady(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ═════════════════════════════════════════════════════════════════════
+  // 🆕 SAVE FILTERS ON EVERY CHANGE
+  // ═════════════════════════════════════════════════════════════════════
+  useEffect(() => {
+    if (!filtersReady) return;
+    try {
+      sessionStorage.setItem(
+        JC_FILTER_DATA_KEY,
+        JSON.stringify({
+          searchTerm,
+          statusFilter,
+          fromDate,
+          toDate,
+          currentPage,
+          itemsPerPage,
+        })
+      );
+    } catch {
+      /* ignore */
+    }
+  }, [
+    searchTerm,
+    statusFilter,
+    fromDate,
+    toDate,
+    currentPage,
+    itemsPerPage,
+    filtersReady,
+  ]);
+
+  // 🆕 Wrapper that sets the preserve flag before navigating to a
+  //    job-card sub-route.
+  const navigateWithPreserve = useCallback(
+    (path: string, state?: any) => {
+      try {
+        sessionStorage.setItem(JC_PRESERVE_FLAG_KEY, "true");
+      } catch {
+        /* ignore */
+      }
+      navigate(path, state ? { state } : undefined);
+    },
+    [navigate]
+  );
+
   // ✅ NEW: Format display date using context (supports all 4 formats)
   const formatDisplayDate = (dateString: string) => {
     if (!dateString) return '';
     return formatDate(dateString);
   };
 
-  // ✅ NEW: Format date for API (YYYY-MM-DD)
+  // 🆕 Sync URL status → statusFilter dropdown
+  useEffect(() => {
+    if (isUrlFiltered && urlStatus) {
+      const mapped = resolveJobCardStatus(urlStatus);
+      if (mapped) {
+        setStatusFilter(mapped);
+        setCurrentPage(1);
+      }
+    }
+  }, [isUrlFiltered, urlStatus]);
 
   useEffect(() => {
     const interval = setInterval(() => setNow(new Date()), 1000);
@@ -302,17 +489,15 @@ export default function JobCardManagement() {
   };
 
   // ─── Navigate to job card using stored data ───────────────────────────
+  // 🆕 Uses navigateWithPreserve so filters survive the round-trip.
   const navigateToJobCard = (item: JobCardDisplay) => {
     console.log("🚀 Navigating to job card:", item.recordId);
     console.log("📋 Items from stored data:", item.items);
     console.log("📦 Raw data from stored data:", item.rawData);
     
-    // Use the stored rawData which already contains items
     if (item.rawData) {
       console.log("✅ Using stored rawData with items:", item.rawData.items);
-      navigate(`/job-cards/${item.recordId}`, { 
-        state: { jobCard: item.rawData }
-      });
+      navigateWithPreserve(`/job-cards/${item.recordId}`, { jobCard: item.rawData });
     } else {
       // Fallback: try to fetch from API
       fetchAndNavigate(item.recordId);
@@ -332,16 +517,13 @@ export default function JobCardManagement() {
         console.log("✅ Job card data:", jobCard);
         console.log("📋 Items:", jobCard?.items);
         
-        navigate(`/job-cards/${id}`, { 
-          state: { jobCard: jobCard }
-        });
+        navigateWithPreserve(`/job-cards/${id}`, { jobCard: jobCard });
       } else {
-        // Last resort: navigate with minimal data
-        navigate(`/job-cards/${id}`);
+        navigateWithPreserve(`/job-cards/${id}`);
       }
     } catch (err) {
       console.error("❌ Error fetching job card:", err);
-      navigate(`/job-cards/${id}`);
+      navigateWithPreserve(`/job-cards/${id}`);
     }
   };
 
@@ -351,7 +533,6 @@ export default function JobCardManagement() {
     try {
       const params = new URLSearchParams();
       
-      // ✅ SERVER-SIDE PAGINATION PARAMS
       params.append('page', currentPage.toString());
       params.append('limit', itemsPerPage.toString());
       
@@ -394,12 +575,10 @@ export default function JobCardManagement() {
         total = 0;
       }
 
-      // ✅ Set total items from API response
       setTotalItems(total);
       setTotalPages(Math.max(1, Math.ceil(total / itemsPerPage)));
       console.log(`Total Pages: ${Math.ceil(total / itemsPerPage)}`);
 
-      // ✅ TRANSFORM DATA WITH FORMATTED DATES
       const transformed = records.map((item) => {
         const qty = item.for_quantity ?? item.requested_qty ?? 0;
         const completed = item.total_completed_qty || 0;
@@ -427,7 +606,6 @@ export default function JobCardManagement() {
           expectedEndDate: item.expected_end_date ? new Date(item.expected_end_date) : null,
           actualStartDate: item.actual_start_date ? new Date(item.actual_start_date) : null,
           actualEndDate: item.actual_end_date ? new Date(item.actual_end_date) : null,
-          // ✅ ADD FORMATTED DATES FOR DISPLAY
           displayCreatedOn: formatDisplayDate(createdOn),
           displayExpectedStart: item.expected_start_date ? formatDisplayDate(item.expected_start_date) : '',
           displayExpectedEnd: item.expected_end_date ? formatDisplayDate(item.expected_end_date) : '',
@@ -435,7 +613,7 @@ export default function JobCardManagement() {
           displayActualEnd: item.actual_end_date ? formatDisplayDate(item.actual_end_date) : '',
           items: item.items || [],
           isSubcontracted: item.is_subcontracted || 0,
-          rawData: item, // Store the full raw data with items
+          rawData: item,
         };
       });
       
@@ -469,7 +647,6 @@ export default function JobCardManagement() {
       const lossQty = sortedCards.reduce((sum, c) => sum + c.lossQty, 0);
       const progress = totalQty > 0 ? Math.round(((completedQty + lossQty) / totalQty) * 100) : 0;
       
-      // Check if any job card in this group is subcontracted
       const isSubcontracted = sortedCards.some(card => card.isSubcontracted === 1);
       
       return {
@@ -509,7 +686,6 @@ export default function JobCardManagement() {
     });
   };
 
-  // ✅ Filter groups based on search and status (client-side filtering on the current page data)
   const getFilteredGroups = () => {
     let filtered = groups;
 
@@ -532,7 +708,6 @@ export default function JobCardManagement() {
     return filtered;
   };
 
-  // ✅ Pagination calculations
   const getStartIndex = () => {
     if (totalItems === 0) return 0;
     return (currentPage - 1) * itemsPerPage + 1;
@@ -569,15 +744,22 @@ export default function JobCardManagement() {
     return pages;
   };
 
-  // ✅ Reset to page 1 when filters change
+  // 🆕 Reset to page 1 when filters change — but skip the very first run
+  //    after a restoration so we don't clobber a saved currentPage.
   useEffect(() => {
+    if (!filtersReady) return;
+    if (isRestoringRef.current) {
+      isRestoringRef.current = false;
+      return;
+    }
     setCurrentPage(1);
-  }, [searchTerm, statusFilter, fromDate, toDate]);
+  }, [searchTerm, statusFilter, fromDate, toDate, filtersReady]);
 
-  // ✅ Fetch when dependencies change
+  // 🆕 Gate the fetch until filters are ready (restored or cleared).
   useEffect(() => {
+    if (!filtersReady) return;
     fetchJobCards();
-  }, [currentPage, itemsPerPage, searchTerm, statusFilter, fromDate, toDate]);
+  }, [currentPage, itemsPerPage, searchTerm, statusFilter, fromDate, toDate, filtersReady]);
 
   const handleDelete = (item: JobCardDisplay) => {
     setSelectedItem(item);
@@ -623,20 +805,46 @@ export default function JobCardManagement() {
     setCurrentPage(1);
   };
 
-    // ─── Loading Screen ─────────────────────────────────────────────────────
-      if (loading) {
-        return (
-          <div className={`p-6 max-w-7xl mx-auto ${theme}`}>
-            <PageLoader 
-              message="Loading Manufacturing & Job Card Management..." 
-              //subtitle="Calculating bill of materials, operations rates, and component structures"
-            />
-          </div>
-        );
-      }
+  // 🆕 Clears the URL-driven status filter
+  const clearUrlStatusFilter = () => {
+    const next = new URLSearchParams(searchParams);
+    next.delete("status");
+    next.delete("autoFilter");
+    setSearchParams(next);
+    setCurrentPage(1);
+  };
+
+  // ✅ FIX: The early `if (loading) return <PageLoader />` block has been
+  //    REMOVED. Previously, every search keystroke triggered a fetch that
+  //    set `loading = true`, which unmounted the entire page (including the
+  //    search input) and caused focus/cursor loss while typing.
+  //    The inline loading state (`{loading && <div className="jc-loading">}`)
+  //    further down in the JSX now handles the visual feedback, so the
+  //    filter bar (and the search input) stays mounted and keeps focus.
 
   return (
     <div className={`jc-page ${theme}`}>
+
+      {/* 🆕 URL-driven status filter banner */}
+      {isUrlFiltered && (
+        <div className="jc-url-filter-banner">
+          <FaFilter size={12} />
+          <span>
+            Showing Job Cards with status: <strong>{resolveJobCardStatus(urlStatus) || urlStatus}</strong>
+          </span>
+          <span className="jc-url-filter-count">
+            ({totalItems} record{totalItems === 1 ? "" : "s"})
+          </span>
+          <button
+            className="jc-url-filter-clear"
+            onClick={clearUrlStatusFilter}
+            title="Clear status filter"
+          >
+            <FaTimes size={10} /> Clear
+          </button>
+        </div>
+      )}
+
       {/* Search and Filter Bar */}
       <div className="jc-filter-bar">
         <div className="jc-filter-left">
@@ -758,10 +966,15 @@ export default function JobCardManagement() {
         </div>
       </div>
 
-      {(searchTerm || statusFilter !== "all" || (fromDate && toDate)) && (
+      {(searchTerm || statusFilter !== "all" || (fromDate && toDate) || isUrlFiltered) && (
         <div className="jc-active-filters">
           <FaFilter size={12} style={{ color: "var(--primary-color)" }} />
           <span style={{ color: "var(--text-primary)" }}>Active filters:</span>
+          {isUrlFiltered && (
+            <span style={{ color: "var(--text-primary)" }}>
+              <strong>Status (URL):</strong> {resolveJobCardStatus(urlStatus) || urlStatus}
+            </span>
+          )}
           {searchTerm && (
             <span style={{ color: "var(--text-primary)" }}>
               <strong>Search:</strong> "{searchTerm}"
@@ -777,12 +990,20 @@ export default function JobCardManagement() {
               <strong>Date Range:</strong> {formatDateDisplay(fromDate)} - {formatDateDisplay(toDate)}
             </span>
           )}
-          <button onClick={clearFilters} className="jc-clear-filters">
+          <button
+            onClick={() => {
+              clearFilters();
+              if (isUrlFiltered) clearUrlStatusFilter();
+            }}
+            className="jc-clear-filters"
+          >
             <FaTimes size={10} /> Clear All
           </button>
         </div>
       )}
 
+      {/* Loading State — rendered inline (NOT as an early return) so the
+          search input above never unmounts and keeps focus while typing. */}
       {loading && (
         <div className="jc-loading">
           <FaSpinner className="spinning" size={24} />
@@ -838,7 +1059,7 @@ export default function JobCardManagement() {
                         )}
                       </div>
                       <div className="jc-group-header-right">
-                     
+                      нет
                         <div className="jc-group-progress">
                           <div className="jc-group-progress-bar">
                             <div
@@ -1100,9 +1321,66 @@ export default function JobCardManagement() {
           animation: spin 1s linear infinite;
         }
 
+        /* 🆕 URL-driven status filter banner */
+        .jc-url-filter-banner {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          margin: 12px 0 4px;
+          padding: 10px 14px;
+          background: linear-gradient(135deg, #dbeafe, #eff6ff);
+          border: 1px solid #93c5fd;
+          border-radius: 8px;
+          color: #1e40af;
+          font-size: 13px;
+          font-weight: 500;
+        }
+
+        .jc-url-filter-banner svg {
+          color: #2563eb;
+          flex-shrink: 0;
+        }
+
+        .jc-url-filter-count {
+          color: #64748b;
+          font-weight: 400;
+        }
+
+        .jc-url-filter-clear {
+          margin-left: auto;
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
+          padding: 4px 10px;
+          background: #2563eb;
+          color: #fff;
+          border: none;
+          border-radius: 6px;
+          font-size: 12px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: background 0.15s ease;
+        }
+
+        .jc-url-filter-clear:hover {
+          background: #1d4ed8;
+        }
+
+        /* Dark theme support */
+        .dark-theme .jc-url-filter-banner,
+        [data-theme="dark"] .jc-url-filter-banner {
+          background: linear-gradient(135deg, #1e3a8a, #1e40af);
+          border-color: #3b82f6;
+          color: #dbeafe;
+        }
+
+        .dark-theme .jc-url-filter-count,
+        [data-theme="dark"] .jc-url-filter-count {
+          color: #93c5fd;
+        }
+
         /* ─── Lighter Subcontracting Styles ─── */
         
-        /* Group Header - Soft orange background */
         .jc-group-subcontracted {
           background: linear-gradient(135deg, #fffbf0 0%, #fff8e8 100%) !important;
           border-left: 3px solid #ffb74d !important;
@@ -1112,7 +1390,6 @@ export default function JobCardManagement() {
           color: #e65100;
         }
 
-        /* Subcontracted Badge - Soft orange */
         .jc-subcontracted-badge {
           display: inline-flex;
           align-items: center;
@@ -1133,7 +1410,6 @@ export default function JobCardManagement() {
           color: #e65100;
         }
 
-        /* Row Background - Very light cream */
         .jc-tr-subcontracted {
           background: #fffdf7 !important;
         }
@@ -1142,7 +1418,6 @@ export default function JobCardManagement() {
           background: #fff8f0 !important;
         }
 
-        /* Truck Icon - Soft orange */
         .jc-subcontracted-icon {
           display: inline-flex;
           align-items: center;
@@ -1150,7 +1425,6 @@ export default function JobCardManagement() {
           color: #ffa726;
         }
 
-        /* Type Badges */
         .jc-type-badge {
           display: inline-flex;
           align-items: center;
@@ -1163,31 +1437,26 @@ export default function JobCardManagement() {
           letter-spacing: 0.3px;
         }
 
-        /* Subcontracted Type Badge - Soft orange */
         .jc-type-subcontracted {
           background: #fff3e0;
           color: #e65100;
           border: 1px solid #ffe0b2;
         }
 
-        /* Internal Type Badge - Soft blue */
         .jc-type-internal {
           background: #e3f2fd;
           color: #0d47a1;
           border: 1px solid #bbdefb;
         }
 
-        /* Progress Bar - Soft orange gradient for subcontracted */
         .jc-progress-subcontracted {
           background: linear-gradient(90deg, #ffb74d, #ff8a65) !important;
         }
 
-        /* Group progress fill for subcontracted */
         .jc-group-progress-fill.jc-progress-subcontracted {
           background: linear-gradient(90deg, #ffb74d, #ff8a65) !important;
         }
 
-        /* Optional: Add a subtle glow effect on hover for subcontracted rows */
         .jc-tr-subcontracted:hover {
           box-shadow: inset 0 0 0 1px #ffe0b2;
         }

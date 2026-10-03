@@ -416,10 +416,10 @@ const Customer: React.FC = () => {
     setCurrentPage(validCurrentPage);
   }
 
-  const paginatedData = filteredData.slice(
-    (validCurrentPage - 1) * itemsPerPage,
-    validCurrentPage * itemsPerPage
-  );
+  // 🆕 FIX: The server already paginates via API params (page & limit),
+  // so we must NOT slice again client-side — doing so returned an empty
+  // array on page 2+ (e.g. filtering a 10-item array with slice(10, 20)).
+  const paginatedData = filteredData;
 
   const goToPage = (page: number) => {
     if (page >= 1 && page <= totalPages) {

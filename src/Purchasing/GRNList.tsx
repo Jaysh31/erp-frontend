@@ -1,5 +1,5 @@
 import { useState, useEffect, type JSX, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   FaSearch,
   FaFilter,
@@ -19,7 +19,9 @@ import {
   FaCalendarAlt,
   FaUser,
   FaExclamationTriangle,
-    FaChevronDown,
+  FaChevronDown,
+  FaCheckCircle,
+  FaSpinner, // 🆕 added for loader
 } from 'react-icons/fa';
 import "./GRNList.css";
 import { PageLoader } from '../components/PageLoader';
@@ -76,7 +78,6 @@ interface GRNDisplay {
   isService: boolean;
   isManual: boolean;
   type: string;
-  // Formatted display fields
   displayDate?: string;
 }
 
@@ -93,11 +94,15 @@ interface ApiResponse {
   limit: number;
 }
 
+interface StatusOption {
+  value: string;
+  label: string;
+}
+
 type TabId = 'all' | 'po' | 'manual' | 'service';
 
 // ─── Date helpers ────────────────────────────────────────────────
 
-// ✅ NEW: Format date for API (YYYY-MM-DD)
 const toISODate = (d: Date): string => {
   const year = d.getFullYear();
   const month = String(d.getMonth() + 1).padStart(2, '0');
@@ -105,19 +110,83 @@ const toISODate = (d: Date): string => {
   return `${year}-${month}-${day}`;
 };
 
-// ✅ UPDATED: Format display date using context (will be replaced in component)
 const formatDisplayDate = (iso: string, formatFn?: (date: string) => string): string => {
   if (!iso) return '';
   if (formatFn) {
     return formatFn(iso);
   }
-  // Fallback if formatFn not provided
   const [y, m, d] = iso.split('-').map(Number);
   const date = new Date(y, m - 1, d);
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 };
 
 const WEEKDAY_LABELS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+
+const DEFAULT_STATUS_OPTIONS: StatusOption[] = [
+  { value: 'all', label: 'All Status' },
+  { value: 'draft', label: 'Draft' },
+  { value: 'submitted', label: 'Submitted' },
+  { value: 'partially received', label: 'Partially Received' },
+  { value: 'fully received', label: 'Fully Received' },
+  { value: 'cancelled', label: 'Cancelled' },
+  { value: 'closed', label: 'Closed' },
+];
+
+// ─── STATUS NORMALIZATION ─────────────────────────────────────
+function normalizeStatusForGRNDropdown(raw: string | null): string | null {
+  if (!raw) return null;
+  const s = raw.toLowerCase().trim();
+  switch (s) {
+    case 'draft': return 'draft';
+    case 'submitted':
+    case 'submit':
+      return 'submitted';
+    case 'partially received':
+    case 'partial':
+      return 'partially received';
+    case 'fully received':
+    case 'received':
+    case 'completed':
+    case 'complete':
+    case 'done':
+    case 'finished':
+    case 'closed':
+    case 'approved':
+    case 'accepted':
+      return 'fully received';
+    case 'cancelled':
+    case 'canceled':
+    case 'cancel':
+    case 'rejected':
+    case 'reject':
+      return 'cancelled';
+    default:
+      return s;
+  }
+}
+
+// ─── TAB NORMALIZATION ────────────────────────────────────────
+function normalizeTab(raw: string | null): TabId | null {
+  if (!raw) return null;
+  const s = raw.toLowerCase().trim();
+  if (s === 'all') return 'all';
+  if (s === 'po' || s === 'purchase order' || s === 'purchase-order') return 'po';
+  if (s === 'manual' || s === 'manual entry') return 'manual';
+  if (s === 'service') return 'service';
+  return null;
+}
+
+function extractRecords(res: any): any[] {
+  if (!res) return [];
+  const d = res?.data?.data?.data ?? res?.data?.data ?? res?.data;
+  if (Array.isArray(d)) return d;
+  if (Array.isArray(d?.data)) return d.data;
+  if (Array.isArray(d?.records)) return d.records;
+  if (Array.isArray(d?.items)) return d.items;
+  if (Array.isArray(res?.data)) return res.data;
+  if (Array.isArray(res)) return res;
+  return [];
+}
 
 // ─── Range Calendar Component ────────────────────────────────────
 
@@ -232,9 +301,15 @@ function RangeCalendar({ month, onMonthChange, fromDate, toDate, onSelect }: Ran
 
 export default function GRNList() {
   const navigate = useNavigate();
-  
-  // ✅ GET THE DATE FORMAT FUNCTION FROM CONTEXT
+  const [searchParams, setSearchParams] = useSearchParams();
+
   const { theme, formatDate } = useAdminTheme();
+
+  // ✅ FIX: Safely derive isDark from theme without the TS "no overlap" error.
+  //    The theme value may come through as a string at runtime, but its
+  //    declared type (AdminThemeType) doesn't include the literal 'dark',
+  //    so we coerce to string before comparing.
+  const isDark = String(theme) === 'dark';
 
   // ── State ──────────────────────────────────────────────────────
   const [allGrns, setAllGrns] = useState<GRNDisplay[]>([]);
@@ -246,9 +321,25 @@ export default function GRNList() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-   const [selectedItem, setSelectedItem] = useState<GRNDisplay | null>(null);
+  const [selectedItem, setSelectedItem] = useState<GRNDisplay | null>(null);
 
-  // Mobile list row expansion state
+  // 🆕 State for Success Modal and Action Loading
+  const [actionLoading, setActionLoading] = useState(false);
+  const [successModal, setSuccessModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    details: { label: string; value: string | number }[];
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    details: [],
+  });
+
+  const [statusOptions, setStatusOptions] = useState<StatusOption[]>(DEFAULT_STATUS_OPTIONS);
+  const [statusOptionsLoading, setStatusOptionsLoading] = useState(true);
+
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
 
   const toggleRowExpand = (id: string, e?: React.MouseEvent) => {
@@ -271,13 +362,171 @@ export default function GRNList() {
   const [calMonth, setCalMonth] = useState<Date>(new Date());
   const dateFilterRef = useRef<HTMLDivElement>(null);
 
-  // ✅ NEW: Format display date using context
   const formatDisplayDateWithContext = (dateString: string) => {
     if (!dateString) return '';
     return formatDate(dateString);
   };
 
-  // ✅ NEW: Format date for API (YYYY-MM-DD)
+  // ====================================================================
+  // FETCH STATUS OPTIONS FROM PURCHASE-ORDER API
+  // ====================================================================
+  useEffect(() => {
+    let cancelled = false;
+
+    const fetchStatusOptions = async () => {
+      setStatusOptionsLoading(true);
+
+      const endpoint = '/purchase-order?page=1&limit=100';
+
+      console.log('🔵 [STATUS-API] ▶️ Calling:', endpoint);
+
+      try {
+        const response = await api.get(endpoint);
+
+        console.log('🟢 [STATUS-API] ✅ Response received');
+        console.log('🟢 [STATUS-API] response.data:', response?.data);
+
+        if (cancelled) return;
+
+        const records = extractRecords(response);
+
+        console.log('🟢 [STATUS-API] Extracted records count:', records.length);
+
+        const distinct = new Set<string>();
+        records.forEach((po: any) => {
+          const st = (po?.status ?? '').toString().trim();
+          if (st) distinct.add(st);
+        });
+
+        console.log('🟢 [STATUS-API] Distinct statuses found:', Array.from(distinct));
+
+        const existing = new Set(
+          DEFAULT_STATUS_OPTIONS.map((o) => o.value.toLowerCase())
+        );
+
+        const apiOptions: StatusOption[] = Array.from(distinct)
+          .map((s) => ({
+            value: s.toLowerCase(),
+            label: s,
+          }))
+          .filter((opt) => !existing.has(opt.value));
+
+        const finalOptions: StatusOption[] = [
+          ...DEFAULT_STATUS_OPTIONS,
+          ...apiOptions,
+        ];
+
+        setStatusOptions(finalOptions);
+        console.log('🟢 [STATUS-API] Final dropdown options:', finalOptions);
+      } catch (err: any) {
+        console.error('🔴 [STATUS-API] ❌ API call failed:', err);
+        console.error('🔴 [STATUS-API] Error message:', err?.message);
+        console.error('🔴 [STATUS-API] Error response:', err?.response?.data);
+
+        if (cancelled) return;
+
+        setStatusOptions(DEFAULT_STATUS_OPTIONS);
+      } finally {
+        if (!cancelled) {
+          setStatusOptionsLoading(false);
+        }
+      }
+    };
+
+    fetchStatusOptions();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // ====================================================================
+  // READ FILTERS FROM URL QUERY PARAMS (chatbot navigation support)
+  // ====================================================================
+  useEffect(() => {
+    const urlStatus = searchParams.get('status');
+    const urlSearch = searchParams.get('search');
+    const urlDateFrom = searchParams.get('date_from');
+    const urlDateTo = searchParams.get('date_to');
+    const urlTab = searchParams.get('tab');
+    const autoFilter = searchParams.get('autoFilter');
+
+    let hasUrlFilters = false;
+
+    if (urlStatus) {
+      const normalized = normalizeStatusForGRNDropdown(urlStatus);
+      if (normalized) {
+        setStatusFilter(normalized);
+        hasUrlFilters = true;
+      }
+    }
+
+    if (urlTab) {
+      const normalizedTab = normalizeTab(urlTab);
+      if (normalizedTab) {
+        setActiveTab(normalizedTab);
+        hasUrlFilters = true;
+      }
+    }
+
+    if (urlSearch) {
+      setSearchTerm(urlSearch);
+      hasUrlFilters = true;
+    }
+
+    if (urlDateFrom) {
+      setDateFrom(urlDateFrom);
+      hasUrlFilters = true;
+    }
+    if (urlDateTo) {
+      setDateTo(urlDateTo);
+      hasUrlFilters = true;
+    }
+
+    if (hasUrlFilters) {
+      console.log('🔗 URL filters detected on GRNList:', {
+        status: urlStatus,
+        tab: urlTab,
+        search: urlSearch,
+        dateFrom: urlDateFrom,
+        dateTo: urlDateTo,
+        autoFilter,
+      });
+      setCurrentPage(1);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    const urlStatus = searchParams.get('status');
+    const urlSearch = searchParams.get('search');
+    const urlDateFrom = searchParams.get('date_from');
+    const urlDateTo = searchParams.get('date_to');
+    const urlTab = searchParams.get('tab');
+
+    if (urlStatus) {
+      const normalized = normalizeStatusForGRNDropdown(urlStatus);
+      if (normalized && statusFilter !== normalized) {
+        setStatusFilter(normalized);
+      }
+    }
+    if (urlTab) {
+      const normalizedTab = normalizeTab(urlTab);
+      if (normalizedTab && activeTab !== normalizedTab) {
+        setActiveTab(normalizedTab);
+      }
+    }
+    if (urlSearch && searchTerm !== urlSearch) {
+      setSearchTerm(urlSearch);
+    }
+    if (urlDateFrom && dateFrom !== urlDateFrom) {
+      setDateFrom(urlDateFrom);
+    }
+    if (urlDateTo && dateTo !== urlDateTo) {
+      setDateTo(urlDateTo);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   // ── Tabs config ─────────────────────────────────────────────────
   const tabs: { id: TabId; label: string; icon: JSX.Element }[] = [
@@ -302,12 +551,8 @@ export default function GRNList() {
   }, []);
 
   // ─── Helper: Format GRN Number ──────────────────────────────
-  
   const formatGRNNumber = (grnNumber: string, id: number): string => {
-    if (grnNumber && grnNumber.startsWith('GRN-') && grnNumber.length <= 12) {
-      return grnNumber;
-    }
-    return `GRN-${String(id).padStart(4, '0')}`;
+    return `GRN-${String(id).padStart(5, '0')}`;
   };
 
   // ─── Quick presets for the calendar ──────────────────────────
@@ -340,7 +585,6 @@ export default function GRNList() {
     setDateTo('');
   };
 
-  // ✅ UPDATED: Date button label using context formatter
   const dateButtonLabel = () => {
     if (dateFrom) {
       return `${formatDisplayDateWithContext(dateFrom)}${dateTo ? ' – ' + formatDisplayDateWithContext(dateTo) : ''}`;
@@ -371,6 +615,11 @@ export default function GRNList() {
         console.log('Filtering to date:', dateTo);
       }
 
+      if (statusFilter && statusFilter !== 'all') {
+        params.append('status', statusFilter);
+        console.log('Filtering by status:', statusFilter);
+      }
+
       console.log('API URL:', `/grn?${params.toString()}`);
 
       const response = await api.get<ApiResponse>(`/grn?${params.toString()}`);
@@ -378,8 +627,7 @@ export default function GRNList() {
       if (response.data.success === 1) {
         const records = response.data.data.data || [];
         console.log('Records received:', records.length);
-        
-        // ✅ TRANSFORM DATA WITH FORMATTED DATES
+
         const transformed: GRNDisplay[] = records.map((item: GRN) => {
           const isService = item.type === 'External';
           const isManual = item.purchase_order_id === null && item.customer_id === null;
@@ -411,12 +659,10 @@ export default function GRNList() {
             isService,
             isManual,
             type: item.type || '',
-            // ✅ ADD FORMATTED DATE FOR DISPLAY
             displayDate: item.grn_date ? formatDisplayDateWithContext(item.grn_date) : ''
           };
         });
 
-        // Sort by date in descending order (newest first)
         const sortedTransformed = transformed.sort((a, b) => {
           return new Date(b.dateRaw).getTime() - new Date(a.dateRaw).getTime();
         });
@@ -437,7 +683,7 @@ export default function GRNList() {
 
   useEffect(() => {
     fetchGRNs();
-  }, [searchTerm, dateFrom, dateTo]);
+  }, [searchTerm, dateFrom, dateTo, statusFilter]);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -449,7 +695,9 @@ export default function GRNList() {
     let filtered = allGrns;
 
     if (statusFilter !== 'all') {
-      filtered = filtered.filter(g => g.status === statusFilter);
+      filtered = filtered.filter(
+        (g) => g.status?.toLowerCase() === statusFilter.toLowerCase()
+      );
     }
 
     if (activeTab === 'po') {
@@ -523,13 +771,16 @@ export default function GRNList() {
   };
 
   const getStatusLabel = (status: string) => {
-    switch (status) {
-      case 'draft': return 'Draft';
-      case 'submitted': return 'Submitted';
-      case 'completed': return 'Completed';
-      case 'rejected': return 'Rejected';
-      default: return 'Draft';
-    }
+    if (!status) return 'Draft';
+    const match = statusOptions.find(
+      (o) => o.value.toLowerCase() === status.toLowerCase()
+    );
+    if (match) return match.label;
+
+    return status
+      .split(' ')
+      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+      .join(' ');
   };
 
   // ─── Handlers ────────────────────────────────────────────────────
@@ -541,30 +792,45 @@ export default function GRNList() {
 
   const confirmDelete = async () => {
     if (!selectedItem) return;
+    
+    setActionLoading(true);
+    
     try {
       const response = await api.delete(`/grn/${selectedItem.id}`);
       if (response.data.success === 1) {
         setShowDeleteConfirm(false);
-        setSelectedItem(null);
+        
+        setSuccessModal({
+          isOpen: true,
+          title: 'Success!',
+          message: 'GRN deleted successfully!',
+          details: [
+            { label: 'GRN No.', value: selectedItem.grnNo },
+            { label: 'Party', value: selectedItem.partyName },
+          ]
+        });
+        
         fetchGRNs();
+      } else {
+        alert(response.data.message || 'Failed to delete GRN');
       }
     } catch (err) {
       console.error('Error deleting GRN:', err);
       alert('Failed to delete GRN');
+    } finally {
+      setActionLoading(false);
+      setSelectedItem(null);
     }
   };
 
-  // ✅ UPDATED: View button - opens in VIEW mode (read-only)
   const handleView = (item: GRNDisplay) => {
     navigate(`/grn/${encodeURIComponent(item.id)}?mode=view`);
   };
 
-  // ✅ UPDATED: Edit button - opens in EDIT mode (editable)
   const handleEdit = (item: GRNDisplay) => {
     navigate(`/grn/${encodeURIComponent(item.id)}?mode=edit`);
   };
 
-  // ✅ UPDATED: Row click - opens in VIEW mode (read-only)
   const handleRowClick = (item: GRNDisplay) => {
     navigate(`/grn/${encodeURIComponent(item.id)}?mode=view`);
   };
@@ -576,26 +842,246 @@ export default function GRNList() {
     setDateFrom('');
     setDateTo('');
     setShowDateFilterDropdown(false);
+    setSearchParams({});
+  };
+
+  // ─── Render Success Modal ─────────────────────────────────────────
+  const renderSuccessModal = () => {
+    if (!successModal.isOpen) return null;
+
+    return (
+      <div 
+        className="grn-modal-overlay" 
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0,0,0,0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 100000,
+        }}
+        onClick={() => setSuccessModal(prev => ({ ...prev, isOpen: false }))}
+      >
+        <div 
+          className="grn-modal" 
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            background: isDark ? '#1e1e2f' : '#ffffff',
+            borderRadius: '12px',
+            maxWidth: '480px',
+            width: '90%',
+            overflow: 'hidden',
+            boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+            textAlign: 'center',
+            padding: '32px 24px',
+          }}
+        >
+          {/* Green Checkmark Icon */}
+          <div style={{
+            width: '64px',
+            height: '64px',
+            borderRadius: '50%',
+            background: '#d1fae5',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            margin: '0 auto 16px',
+          }}>
+            <FaCheckCircle size={32} style={{ color: '#10b981' }} />
+          </div>
+
+          {/* Title */}
+          <h2 style={{ 
+            margin: '0 0 8px', 
+            fontSize: '20px', 
+            fontWeight: 700,
+            color: isDark ? '#f3f4f6' : '#111827'
+          }}>
+            {successModal.title}
+          </h2>
+
+          {/* Message */}
+          <p style={{ 
+            margin: '0 0 24px', 
+            fontSize: '14px', 
+            color: isDark ? '#9ca3af' : '#6b7280'
+          }}>
+            {successModal.message}
+          </p>
+
+          {/* Details Box */}
+          <div style={{
+            background: isDark ? '#2a2a3a' : '#f9fafb',
+            borderRadius: '8px',
+            border: `1px solid ${isDark ? '#3a3a4a' : '#e5e7eb'}`,
+            padding: '16px',
+            marginBottom: '24px',
+            textAlign: 'left',
+          }}>
+            {successModal.details.map((detail, idx) => (
+              <div key={idx} style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                marginBottom: idx < successModal.details.length - 1 ? '12px' : '0',
+              }}>
+                <span style={{ 
+                  fontSize: '13px', 
+                  color: isDark ? '#9ca3af' : '#6b7280' 
+                }}>
+                  {detail.label}
+                </span>
+                <span style={{ 
+                  fontSize: '13px', 
+                  fontWeight: 600, 
+                  color: isDark ? '#e5e7eb' : '#111827' 
+                }}>
+                  {detail.value}
+                </span>
+              </div>
+            ))}
+          </div>
+
+          {/* Buttons */}
+          <div style={{
+            display: 'flex',
+            gap: '12px',
+            justifyContent: 'center',
+          }}>
+            <button
+              onClick={() => {
+                setSuccessModal(prev => ({ ...prev, isOpen: false }));
+                navigate('/grn');
+              }}
+              style={{
+                flex: 1,
+                padding: '10px 16px',
+                borderRadius: '6px',
+                border: `1px solid ${isDark ? '#3a3a4a' : '#d1d5db'}`,
+                background: 'transparent',
+                color: isDark ? '#9ca3af' : '#6b7280',
+                cursor: 'pointer',
+                fontSize: '14px',
+                fontWeight: 500,
+                transition: 'background 0.15s',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = isDark ? '#2a2a3a' : '#f3f4f6';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'transparent';
+              }}
+            >
+              Close
+            </button>
+            <button
+              onClick={() => {
+                setSuccessModal(prev => ({ ...prev, isOpen: false }));
+              }}
+              style={{
+                flex: 1,
+                padding: '10px 16px',
+                borderRadius: '6px',
+                border: 'none',
+                background: '#2563eb',
+                color: '#ffffff',
+                cursor: 'pointer',
+                fontSize: '14px',
+                fontWeight: 500,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px',
+                transition: 'background 0.15s',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = '#1d4ed8';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = '#2563eb';
+              }}
+            >
+              <FaEye size={14} />
+              View
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // ─── Render Global Loader ─────────────────────────────────────────
+  const renderGlobalLoader = () => {
+    if (!actionLoading) return null;
+
+    return (
+      <div 
+        className="grn-modal-overlay"
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0,0,0,0.4)',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 99999,
+          backdropFilter: 'blur(2px)',
+        }}
+      >
+        <div style={{
+          background: isDark ? '#1e1e2f' : '#ffffff',
+          borderRadius: '12px',
+          padding: '32px 48px',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: '16px',
+          boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+        }}>
+          <FaSpinner 
+            size={40} 
+            style={{ 
+              color: '#6366f1', 
+              animation: 'grn-spin 0.8s linear infinite' 
+            }} 
+          />
+          <p style={{
+            margin: 0,
+            fontSize: '16px',
+            fontWeight: 500,
+            color: isDark ? '#e5e7eb' : '#111827'
+          }}>
+            Processing...
+          </p>
+          <p style={{
+            margin: 0,
+            fontSize: '13px',
+            color: isDark ? '#9ca3af' : '#6b7280'
+          }}>
+            Please wait while we process your request
+          </p>
+        </div>
+      </div>
+    );
   };
 
   // ─── Render ─────────────────────────────────────────────────────
 
-  if (loading) {
-    return (
-      <div className={`grnf-page ${theme}`}>
-        <div className="grnf-inner">
-          <PageLoader 
-            message="Loading Goods Receipt Note..." 
-            //subtitle="Synchronizing warehouse receipt entries, line item counts, and supplier records"
-          />
-        </div>
-      </div>
-    );
-  }
-  
-
   return (
     <div className={`grn-page ${theme}`}>
+
+      {/* Success Modal */}
+      {renderSuccessModal()}
+
+      {/* Global Loader */}
+      {renderGlobalLoader()}
 
       {/* ─── Tabs ───────────────────────────────────── */}
       <div className="grn-tabs">
@@ -647,15 +1133,16 @@ export default function GRNList() {
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
             className="bom-filter-select"
+            disabled={statusOptionsLoading}
+            title={statusOptionsLoading ? 'Loading statuses…' : 'Filter by status'}
           >
-            <option value="all">All Status</option>
-            <option value="draft">Draft</option>
-            <option value="submitted">Submitted</option>
-            <option value="completed">Completed</option>
-            <option value="rejected">Rejected</option>
+            {statusOptions.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
           </select>
           
-          {/* Created On Button with Calendar Dropdown */}
           <div ref={dateFilterRef} style={{ position: 'relative', display: 'inline-block' }}>
             <button
               className="bom-sort-btn"
@@ -669,7 +1156,6 @@ export default function GRNList() {
               <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 4l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
             </button>
 
-            {/* Calendar Date Filter Dropdown */}
             {showDateFilterDropdown && (
               <div className="grn-date-filter-dropdown" style={{
                 position: 'absolute',
@@ -691,7 +1177,6 @@ export default function GRNList() {
                   </button>
                 </div>
 
-                {/* Selected range readout */}
                 <div style={{ display: 'flex', gap: '8px', marginBottom: '10px' }}>
                   <div style={{
                     flex: 1, padding: '6px 8px', border: '1px solid #e2e8f0', borderRadius: '4px',
@@ -707,7 +1192,6 @@ export default function GRNList() {
                   </div>
                 </div>
 
-                {/* Quick presets */}
                 <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '12px' }}>
                   {([
                     { key: 'today', label: 'Today' },
@@ -734,7 +1218,6 @@ export default function GRNList() {
                   ))}
                 </div>
 
-                {/* Calendar */}
                 <RangeCalendar
                   month={calMonth}
                   onMonthChange={setCalMonth}
@@ -781,7 +1264,7 @@ export default function GRNList() {
               </div>
             )}
           </div>
-</div>
+        </div>
           <button className="grn-btn-primary" onClick={() => navigate('/grn/new')}>
             <FaPlus size={12} /> New GRN
           </button>
@@ -800,13 +1283,47 @@ export default function GRNList() {
             <span><strong>Search:</strong> "{searchTerm}"</span>
           )}
           {statusFilter !== 'all' && (
-            <span><strong>Status:</strong> {getStatusLabel(statusFilter)}</span>
+            <span>
+              <strong>Status:</strong>{' '}
+              {statusOptions.find((o) => o.value === statusFilter)?.label ||
+                getStatusLabel(statusFilter)}
+            </span>
           )}
           {dateFrom && <span><strong>From:</strong> {formatDisplayDateWithContext(dateFrom)}</span>}
           {dateTo && <span><strong>To:</strong> {formatDisplayDateWithContext(dateTo)}</span>}
           <button onClick={clearFilters} className="grn-clear-filters">
             <FaTimes size={10} /> Clear All
           </button>
+        </div>
+      )}
+
+      {/* ─── Inline loading bar ─── */}
+      {loading && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 10,
+            padding: '10px 16px',
+            marginBottom: 8,
+            fontSize: 13,
+            color: 'var(--text-secondary, #6b7280)',
+          }}
+        >
+          <span
+            style={{
+              width: 14,
+              height: 14,
+              border: '2px solid currentColor',
+              borderTopColor: 'transparent',
+              borderRadius: '50%',
+              display: 'inline-block',
+              animation: 'grn-spin 0.8s linear infinite',
+            }}
+          />
+          Loading Goods Receipt Notes…
+          <style>{`@keyframes grn-spin { to { transform: rotate(360deg); } }`}</style>
         </div>
       )}
 
@@ -887,7 +1404,6 @@ export default function GRNList() {
                   </td>
                   <td className="grn-td grn-td-meta">
                     <div className="grn-action-buttons">
-                      {/* ✅ View button - opens in VIEW mode with ?mode=view */}
                       <button
                         className="grn-action-btn grn-action-view"
                         onClick={(e) => { e.stopPropagation(); handleView(row); }}
@@ -895,7 +1411,6 @@ export default function GRNList() {
                       >
                         <FaEye size={12} />
                       </button>
-                      {/* ✅ Edit button - opens in EDIT mode with ?mode=edit */}
                       <button
                         className="grn-action-btn grn-action-edit"
                         onClick={(e) => { e.stopPropagation(); handleEdit(row); }}
@@ -919,7 +1434,7 @@ export default function GRNList() {
         </table>
       </div>
 
-      {/* ─── Mobile UI Table / List Section (max-width: 768px) ─── */}
+      {/* ─── Mobile UI Table / List Section ─── */}
       <div className="grn-mobile-list-wrap">
         {paginatedGrns.length === 0 ? (
           <div className="grn-empty-state">
@@ -931,7 +1446,6 @@ export default function GRNList() {
           </div>
         ) : (
           <>
-            {/* Mobile Header: GRN No. / Party and Count Label */}
             <div className="grn-mobile-list-header">
               <div className="grn-mobile-th-primary">
                 <span className="grn-mobile-th-cell">GRN No. / Party</span>
@@ -945,7 +1459,6 @@ export default function GRNList() {
               </div>
             </div>
 
-            {/* Mobile Cards / Rows */}
             <div className="grn-mobile-cards">
               {paginatedGrns.map((row) => {
                 const isExpanded = expandedRows.has(row.id);
@@ -954,7 +1467,6 @@ export default function GRNList() {
                     key={row.id}
                     className={`grn-mobile-card ${isExpanded ? 'grn-mobile-card-expanded' : ''}`}
                   >
-                    {/* Card Header: GRN No., Party and Dropdown Button */}
                     <div
                       className="grn-mobile-card-header"
                       onClick={() => toggleRowExpand(row.id)}
@@ -985,7 +1497,6 @@ export default function GRNList() {
                         </span>
                       </div>
 
-                      {/* Dropdown Button */}
                       <button
                         type="button"
                         className={`grn-mobile-dropdown-btn ${isExpanded ? 'expanded' : ''}`}
@@ -997,7 +1508,6 @@ export default function GRNList() {
                       </button>
                     </div>
 
-                    {/* Expanded Section: PO, Received By, Date, Status, Qty, and 1-10 of 14 / actions */}
                     {isExpanded && (
                       <div className="grn-mobile-card-details">
                         <div className="grn-mobile-detail-row">
@@ -1035,9 +1545,6 @@ export default function GRNList() {
 
                         <div className="grn-mobile-detail-footer">
                           <span className="grn-mobile-card-meta-text">
-                            {/*totalFiltered > 0
-                              ? `${(validCurrentPage - 1) * itemsPerPage + 1}–${Math.min(validCurrentPage * itemsPerPage, totalFiltered)} of ${totalFiltered}`
-                              : '0'} (#{rowNumber})*/}
                           </span>
                           <div className="grn-action-buttons">
                             <button
