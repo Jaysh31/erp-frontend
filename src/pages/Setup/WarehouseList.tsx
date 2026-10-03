@@ -21,7 +21,6 @@ import '../Sales/SalesMobileTable.css';
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
-import { PageLoader } from "../components/PageLoader";
 
 interface Warehouse {
   id: number;

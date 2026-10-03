@@ -4251,7 +4251,6 @@ const NewDeliveryChallan: React.FC = () => {
   const subTotal = getTotalAmount();
   const totalTax = getTotalTax();
   const grandTotal = getGrandTotal();
-  const grandTotalWithRound = grandTotal + roundOff;
 
   if (isLoadingData) {
     return (
