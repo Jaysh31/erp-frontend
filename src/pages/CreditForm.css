@@ -368,6 +368,220 @@
   font-size: 13px;
   color: #9ca3af;
 }
+/* ─── Bank Details Section ─────────────────────────────────────── */
+.rd-credit-bank-details {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 16px 20px;
+  margin-top: 8px;
+}
+
+.rd-credit-bank-details h4 {
+  margin: 0 0 14px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #1e293b;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-bottom: 1px solid #e2e8f0;
+  padding-bottom: 8px;
+}
+
+.rd-credit-bank-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px 20px;
+}
+
+.rd-credit-bank-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.rd-credit-bank-label {
+  font-size: 11px;
+  color: #64748b;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.rd-credit-bank-value {
+  font-size: 14px;
+  color: #0f172a;
+  font-weight: 500;
+  word-break: break-all;
+}
+
+.rd-credit-bank-loading {
+  text-align: center;
+  padding: 20px;
+  color: #64748b;
+  font-size: 14px;
+}
+
+/* ─── UPI Section ─────────────────────────────────────────────── */
+.rd-credit-upi-section {
+  background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%);
+  border: 1px solid #a7f3d0;
+  border-radius: 12px;
+  padding: 20px;
+  margin-top: 8px;
+}
+
+.rd-credit-upi-section h4 {
+  margin: 0 0 16px 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: #065f46;
+  text-align: center;
+}
+
+.rd-credit-upi-content {
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.rd-credit-qr-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  background: #ffffff;
+  padding: 14px;
+  border-radius: 10px;
+  border: 1px solid #d1fae5;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+}
+
+.rd-credit-qr-image {
+  width: 180px;
+  height: 180px;
+  display: block;
+  border-radius: 6px;
+}
+
+.rd-credit-qr-hint {
+  margin: 0;
+  font-size: 11px;
+  color: #6b7280;
+  text-align: center;
+}
+
+.rd-credit-upi-info {
+  flex: 1;
+  min-width: 220px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.rd-credit-upi-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  position: relative;
+}
+
+.rd-credit-upi-label {
+  font-size: 11px;
+  color: #6b7280;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.rd-credit-upi-value {
+  font-size: 15px;
+  color: #065f46;
+  font-weight: 600;
+  word-break: break-all;
+}
+
+.rd-credit-upi-amount {
+  font-size: 22px;
+  color: #047857;
+}
+
+.rd-credit-copy-btn {
+  position: absolute;
+  right: 0;
+  top: 0;
+  padding: 3px 10px;
+  font-size: 11px;
+  background: #d1fae5;
+  color: #065f46;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: background 0.2s;
+}
+
+.rd-credit-copy-btn:hover {
+  background: #a7f3d0;
+}
+
+.rd-credit-upi-warning {
+  margin: 0;
+  font-size: 12px;
+  color: #d97706;
+  background: #fffbeb;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid #fde68a;
+}
+
+.rd-credit-upi-error {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #b91c1c;
+  padding: 12px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+}
+/* ─── Smaller QR code ─────────────────────────────────────── */
+.rd-credit-qr-image {
+  width: 120px;      /* ← was 180px */
+  height: 120px;     /* ← was 180px */
+  display: block;
+  border-radius: 6px;
+}
+
+.rd-credit-qr-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  background: #ffffff;
+  padding: 10px;            /* ← was 14px */
+  border-radius: 10px;
+  border: 1px solid #d1fae5;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+}
+
+.rd-credit-upi-content {
+  display: flex;
+  gap: 18px;                /* ← tighter */
+  align-items: center;      /* ← align vertically */
+  flex-wrap: wrap;
+}
+
+.rd-credit-upi-section {
+  padding: 14px 18px;       /* ← smaller padding */
+}
+
+.rd-credit-qr-hint {
+  margin: 0;
+  font-size: 10px;          /* ← smaller hint text */
+  color: #6b7280;
+  text-align: center;
+}
 /* =========================================================
    PAGE CONTAINER
    ========================================================= */
@@ -1098,3 +1312,202 @@
     width: 100%;
   }
 }
+
+/* ─── 3-column compact rows ────────────────────────────────── */
+.rd-credit-row.three-column {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px 16px;
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .rd-credit-row.three-column {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Tighten overall row spacing */
+.rd-credit-form .rd-credit-row {
+  margin-bottom: 10px;
+}
+
+.rd-credit-field label {
+  font-size: 12.5px;
+  margin-bottom: 4px;
+}
+
+.rd-credit-field input,
+.rd-credit-field select,
+.rd-credit-field textarea {
+  padding: 7px 10px;
+  font-size: 13px;
+}
+
+/* ─── Drill-down Bank Details ──────────────────────────────── */
+.rd-credit-bank-drill {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #f8fafc;
+  overflow: hidden;
+}
+
+.rd-credit-bank-drill-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  color: #1e293b;
+  text-align: left;
+  transition: background 0.15s;
+}
+
+.rd-credit-bank-drill-toggle:hover {
+  background: #eef2f7;
+}
+
+.rd-credit-bank-drill-icon {
+  font-size: 12px;
+  color: #475569;
+  width: 12px;
+  display: inline-block;
+}
+
+.rd-credit-bank-drill-sub {
+  margin-left: auto;
+  font-weight: 400;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.rd-credit-bank-drill-body {
+  padding: 10px 14px 14px;
+  border-top: 1px dashed #cbd5e1;
+  background: #ffffff;
+}
+
+/* ─── Compact grid inside drill-down ───────────────────────── */
+.rd-credit-bank-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 8px 16px;
+}
+
+.rd-credit-bank-item {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.rd-credit-bank-label {
+  font-size: 10.5px;
+  color: #64748b;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.rd-credit-bank-value {
+  font-size: 13px;
+  color: #0f172a;
+  font-weight: 500;
+  word-break: break-all;
+}
+
+/* ─── Smaller UPI QR ───────────────────────────────────────── */
+.rd-credit-qr-image {
+  width: 110px;
+  height: 110px;
+  display: block;
+  border-radius: 6px;
+}
+
+.rd-credit-qr-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  background: #ffffff;
+  padding: 8px;
+  border-radius: 8px;
+  border: 1px solid #d1fae5;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.rd-credit-qr-hint {
+  margin: 0;
+  font-size: 10px;
+  color: #6b7280;
+  text-align: center;
+}
+
+.rd-credit-upi-section {
+  background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%);
+  border: 1px solid #a7f3d0;
+  border-radius: 10px;
+  padding: 12px 16px;
+}
+
+.rd-credit-upi-section h4 {
+  margin: 0 0 10px 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: #065f46;
+  text-align: center;
+}
+
+.rd-credit-upi-content {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.rd-credit-upi-info {
+  flex: 1;
+  min-width: 200px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.rd-credit-upi-item {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  position: relative;
+}
+
+.rd-credit-upi-label {
+  font-size: 10.5px;
+  color: #6b7280;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.rd-credit-upi-value {
+  font-size: 14px;
+  color: #065f46;
+  font-weight: 600;
+  word-break: break-all;
+}
+
+.rd-credit-upi-amount {
+  font-size: 18px;
+  color: #047857;
+}
+
+/* ─── Amount highlight ─────────────────────────────────────── */
+.rd-credit-bank-amount {
+  font-size: 16px !important;
+  font-weight: 700 !important;
+  color: #047857 !important;
+}
+

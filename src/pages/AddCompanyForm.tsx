@@ -82,6 +82,8 @@ interface CompanyBankAccount {
   verified_on: string;
   is_primary: boolean;
   remarks: string;
+  opening_balance: string;
+  cash_in_account: string;
 }
 
 interface FormDraft {
@@ -212,6 +214,10 @@ const mapCompanyBankAccountRow = (row: any): CompanyBankAccount => ({
   verified_on: row.verified_on || "",
   is_primary: row.is_primary === 1 || row.is_primary === true,
   remarks: row.remarks || "",
+  opening_balance:
+    row.opening_balance !== undefined && row.opening_balance !== null ? String(row.opening_balance) : "",
+  cash_in_account:
+    row.cash_in_account !== undefined && row.cash_in_account !== null ? String(row.cash_in_account) : "",
 });
 
 const mergeBankAccounts = (
@@ -245,7 +251,6 @@ const mergeBankAccounts = (
   return merged.map((acc, i) => (i !== keepIdx && acc.is_primary ? { ...acc, is_primary: false } : acc));
 };
 
-
 const readFormDraft = (formKey: string): FormDraft | null => {
   try {
     return JSON.parse(localStorage.getItem(formKey) || "null");
@@ -254,9 +259,15 @@ const readFormDraft = (formKey: string): FormDraft | null => {
   }
 };
 
+const toNumberOrZero = (v: any): number => {
+  if (v === undefined || v === null) return 0;
+  const s = String(v).trim();
+  if (s === "") return 0;
+  const n = Number(s);
+  return Number.isFinite(n) ? n : 0;
+};
 
 const buildBankDetailPayload = (account: Record<string, any>) => ({
- 
   ...(account.recordId ? { id: Number(account.recordId) } : {}),
   ...(account.docName ? { name: account.docName } : {}),
 
@@ -290,6 +301,9 @@ const buildBankDetailPayload = (account: Record<string, any>) => ({
 
   is_primary: account.is_primary ? 1 : 0,
   remarks: account.remarks || null,
+
+  opening_balance: toNumberOrZero(account.opening_balance),
+  cash_in_account: toNumberOrZero(account.cash_in_account),
 });
 
 const AddCompanyForm: React.FC = () => {
@@ -528,7 +542,6 @@ const AddCompanyForm: React.FC = () => {
   // ─── bank details sub-flow ─────────────────────────────────────────────
 
   const openBankDetails = () => {
-
     persistFormDraft();
 
     navigate("/bank-details", {
@@ -839,8 +852,6 @@ const AddCompanyForm: React.FC = () => {
               {allValidationErrors.length} missing field(s)
             </div>
           )}
-
-
         </div>
       </div>
 
