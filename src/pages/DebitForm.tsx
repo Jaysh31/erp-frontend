@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import "./DebitForm.css";
 import api from "../services/api";
+import { FaArrowLeft, FaExclamationTriangle, FaEye } from "react-icons/fa";
 
 /* ----------------------------- Interfaces ----------------------------- */
 
@@ -526,6 +527,10 @@ const DebitForm: React.FC = () => {
 
   /* ---------------------------- Handlers ----------------------------- */
 
+  const handleCancel = () => {
+    window.history.back();
+  };
+
   const handleChange = (
     field: keyof DebitFormData,
     value: string | number
@@ -794,6 +799,8 @@ const DebitForm: React.FC = () => {
   const selectedBank =
     company?.bank_details?.find((b) => b.id === formData.bankId) || null;
 
+  const isViewMode = false;
+  const isEdit = false;
   const isPurchaseOrder = formData.referenceType === "Purchase Order";
   const refLabel = isPurchaseOrder
     ? "Purchase Order No."
@@ -820,6 +827,42 @@ const DebitForm: React.FC = () => {
 
   return (
     <div className="rd-credit-page">
+      <div className="rd-credit-top-bar">
+      <div className="pof-header">
+                <button onClick={handleCancel} className="pof-back-btn">
+                  <FaArrowLeft size={9} /> Back
+                </button>
+                <div className="pof-header-title">
+                  <h1>
+                    {isViewMode ? 'View Debit Entry' : isEdit ? 'Edit Debit Entry' : 'Debit Details'}
+                  </h1>
+                  {/*{isViewMode && (
+                    <span className="pof-view-mode-badge" style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      background: '#6366f1',
+                      color: '#ffffff',
+                      padding: '4px 12px',
+                      borderRadius: '20px',
+                      fontSize: '12px',
+                      fontWeight: 500,
+                      marginLeft: '12px',
+                    }}>/
+                      <FaEye size={12} />
+                      View Mode
+                    </span>
+                  )*/}
+                  {isEdit && !isViewMode && <span className="pof-status-badge">{formData.referenceType}</span>}
+                </div>
+                {!isViewMode && Object.keys(errors).length > 0 && (
+                  <div className="pof-error-badge">
+                    <FaExclamationTriangle size={12} />
+                    {Object.keys(errors).length} missing field{Object.keys(errors).length !== 1 ? 's' : ''}
+                  </div>
+                )}
+              </div>
+      </div>
       <div className="rd-credit-card">
         <div className="rd-credit-header">
           <h2>

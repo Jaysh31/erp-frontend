@@ -20,6 +20,7 @@ import {
 
 import { useNavigate } from "react-router-dom";
 import api from "../../services/api";
+import "./PurchasingDashboard.css";
 
 /* ============================================================
    TYPES
@@ -27,7 +28,7 @@ import api from "../../services/api";
 
 interface PurchaseInvoice {
   id?: number | string;
-  invoice_no?: string;
+  invoiceNumber: string;
   supplier_name?: string;
   supplier?: string;
   status?: string;
@@ -37,6 +38,7 @@ interface PurchaseInvoice {
   posting_date?: string;
   created_at?: string;
 }
+
 
 interface GRN {
   id?: number | string;
@@ -615,10 +617,6 @@ const PurchasingDashboard: React.FC = () => {
           <div>
             <h1>Purchasing Dashboard</h1>
 
-            <p>
-              Monitor purchase invoices, suppliers,
-              orders and goods receipts
-            </p>
           </div>
         </div>
 
@@ -881,7 +879,6 @@ const PurchasingDashboard: React.FC = () => {
             <table className="invoice-table">
               <thead>
                 <tr>
-                  <th>Invoice No</th>
                   <th>Supplier</th>
                   <th>Date</th>
                   <th>Status</th>
@@ -898,16 +895,10 @@ const PurchasingDashboard: React.FC = () => {
                     <tr
                       key={
                         invoice.id ??
-                        invoice.invoice_no ??
+                        invoice.invoiceNumber ??
                         index
                       }
                     >
-                      <td>
-                        <span className="invoice-number">
-                          {invoice.invoice_no ||
-                            "—"}
-                        </span>
-                      </td>
 
                       <td>
                         <div className="supplier-cell">

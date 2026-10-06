@@ -1398,10 +1398,10 @@ const SalesInvoice: React.FC = () => {
   const handleDuplicate = (id: string | number) => navigateWithPreserve(`/Tax-Invoice/duplicate/${id}`);
 
   const handleCancelInvoice = async (id: string | number) => {
-    if (!window.confirm('Are you sure you want to cancel this Sales Bill?')) return;
+    if (!window.confirm('Are you sure you want to cancel this Tax Invoice?')) return;
     try {
       await api.post(`/sales-invoice/${id}/cancel`, {});
-      toast.success('Sales Bill cancelled successfully');
+      toast.success('Tax Invoice cancelled successfully');
       fetchInvoices();
     } catch (err) {
       toast.error('Failed to cancel');
@@ -1412,7 +1412,7 @@ const SalesInvoice: React.FC = () => {
   };
 
   const handleSubmit = async (id: string | number) => {
-    if (!window.confirm('Submit this Sales Bill?')) return;
+    if (!window.confirm('Submit this Tax Invoice?')) return;
     try {
       await api.post(`/sales-invoice/${id}/submit`, {});
       toast.success('Submitted successfully');
@@ -1828,7 +1828,7 @@ const SalesInvoice: React.FC = () => {
           </button>
 
           <button className="qt-btn-new" onClick={handleCreate}>
-            <FaPlus size={12} /> New Sales Bill
+            <FaPlus size={12} /> New Tax Invoice
           </button>
         </div>
       </div>
@@ -1875,7 +1875,7 @@ const SalesInvoice: React.FC = () => {
               <p>No sales invoices found</p>
               <span>Try adjusting your search criteria or create a new one</span>
               <button className="qt-btn-new" onClick={handleCreate} style={{ marginTop: '12px' }}>
-                <FaPlus size={12} /> New Sales Bill
+                <FaPlus size={12} /> New Tax Invoice
               </button>
             </div>
           </div>
