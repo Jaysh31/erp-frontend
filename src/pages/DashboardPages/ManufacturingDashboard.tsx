@@ -1,10 +1,10 @@
+
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 
 import {
   FaBoxes,
   FaClock,
-  FaChartLine,
   FaIndustry,
   FaCheckCircle,
   FaExclamationTriangle,
@@ -18,7 +18,6 @@ import {
   FaCube,
   FaCubes,
   FaSyncAlt,
-  FaLayerGroup,
 } from "react-icons/fa";
 
 import {
@@ -115,6 +114,18 @@ const statusColors: Record<string, string> = {
   Pending: "#f59e0b",
 };
 
+// Soft/light backgrounds.
+// These are intentionally similar to .qa-purple { background: #f1eafe; }
+const statusLightColors: Record<string, string> = {
+  Draft: "#f1f5f9",
+  Open: "#eaf2ff",
+  "In Process": "#fff7df",
+  Completed: "#eaf8ef",
+  Stopped: "#feecec",
+  "On Hold": "#f1eafe",
+  Pending: "#fff7df",
+};
+
 // ============================================================
 // COMPONENT
 // ============================================================
@@ -176,7 +187,6 @@ export default function DashboardPage() {
 
   const [loading, setLoading] = useState(true);
 
-  // Selected Work Order Status for visual highlight
   const [selectedWorkOrderStatus, setSelectedWorkOrderStatus] =
     useState<string | null>(null);
 
@@ -794,11 +804,9 @@ export default function DashboardPage() {
           </div>
 
           <div>
-
             <h1>
               Manufacturing Dashboard
             </h1>
-
           </div>
         </div>
 
@@ -841,7 +849,6 @@ export default function DashboardPage() {
 
       <section className="manufacturing-kpis">
 
-        {/* BOM */}
         <div
           className="modern-kpi kpi-purple"
           onClick={() =>
@@ -869,7 +876,6 @@ export default function DashboardPage() {
           </small>
         </div>
 
-        {/* WORK ORDER */}
         <div
           className="modern-kpi kpi-blue"
           onClick={() =>
@@ -899,7 +905,6 @@ export default function DashboardPage() {
           </small>
         </div>
 
-        {/* JOB CARDS */}
         <div
           className="modern-kpi kpi-green"
           onClick={() =>
@@ -929,7 +934,6 @@ export default function DashboardPage() {
           </small>
         </div>
 
-        {/* STOCK ENTRY */}
         <div
           className="modern-kpi kpi-orange"
           onClick={() =>
@@ -959,7 +963,6 @@ export default function DashboardPage() {
           </small>
         </div>
 
-        {/* INVENTORY */}
         <div
           className="modern-kpi kpi-cyan"
           onClick={() =>
@@ -1028,7 +1031,6 @@ export default function DashboardPage() {
 
           <div className="work-order-layout">
 
-            {/* DONUT */}
             <div
               className="status-donut"
               style={{
@@ -1075,7 +1077,6 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* STATUS LIST */}
             <div className="status-list">
 
               {[
@@ -1652,81 +1653,89 @@ export default function DashboardPage() {
               </div>
             ) : (
               dashboardData.recentActivity.map(
-                (activity: any, index: number) => (
-                  <div
-                    className="activity-row"
-                    key={index}
-                  >
-                    <div className="activity-main">
-                      <div
-                        className="activity-icon"
+                (activity: any, index: number) => {
+                  const activityColor =
+                    statusColors[activity.status] ||
+                    "#3b82f6";
+
+                  const activityLightColor =
+                    statusLightColors[activity.status] ||
+                    "#eaf2ff";
+
+                  return (
+                    <div
+                      className="activity-row"
+                      key={index}
+                    >
+
+                      {/* ACTIVITY */}
+                      <div className="activity-main">
+
+                        <div
+                          className="activity-icon"
+                          style={{
+                            background:
+                              activityLightColor,
+                            color:
+                              activityColor,
+                          }}
+                        >
+                          {getActivityIcon(
+                            activity.status
+                          )}
+                        </div>
+
+                        <div>
+                          <strong>
+                            {activity.production_item ||
+                              activity.item_name ||
+                              activity.name ||
+                              `WO-${activity.id}`}
+                          </strong>
+
+                          <small>
+                            Qty:{" "}
+                            {activity.qty ||
+                              activity.for_quantity ||
+                              activity.requested_qty ||
+                              0}
+                          </small>
+                        </div>
+                      </div>
+
+                      {/* MODULE */}
+                      <span className="module-badge">
+                        {activity.work_order
+                          ? "Job Card"
+                          : "Work Order"}
+                      </span>
+
+                      {/* STATUS */}
+                      <span
+                        className="activity-status-badge"
                         style={{
-                          background:
-                            `${statusColors[
-                              activity.status
-                            ] || "#3b82f6"}12`,
                           color:
-                            statusColors[
-                              activity.status
-                            ] || "#3b82f6",
+                            activityColor,
+
+                          background:
+                            activityLightColor,
                         }}
                       >
-                        {getActivityIcon(
-                          activity.status
+                        {activity.status ||
+                          "Unknown"}
+                      </span>
+
+                      {/* DATE */}
+                      <span className="activity-date">
+                        {formatDate(
+                          activity.modified ||
+                            activity.creation
                         )}
-                      </div>
+                      </span>
 
-                      <div>
-                        <strong>
-                          {activity.production_item ||
-                            activity.item_name ||
-                            activity.name ||
-                            `WO-${activity.id}`}
-                        </strong>
-
-                        <small>
-                          Qty:{" "}
-                          {activity.qty ||
-                            activity.for_quantity ||
-                            activity.requested_qty ||
-                            0}
-                        </small>
-                      </div>
                     </div>
-
-                    <span className="module-badge">
-                      {activity.work_order
-                        ? "Job Card"
-                        : "Work Order"}
-                    </span>
-
-                    <span
-                      className="activity-status-badge"
-                      style={{
-                        color:
-                          statusColors[
-                            activity.status
-                          ] ||
-                          "#3b82f6",
-
-                        background:
-                          `${statusColors[
-                            activity.status
-                          ] || "#3b82f6"}15`,
-                      }}
-                    >
-                      {activity.status ||
-                        "Unknown"}
-                    </span>
-
-                    <span className="activity-date">
-                      {formatDate(
-                        activity.modified ||
-                          activity.creation
-                      )}
-                    </span>
-                  </div>
-                )
+                  );
+                }
               )
             )}
           </div>
@@ -1882,6 +1891,7 @@ export default function DashboardPage() {
 
           </div>
         </section>
+
       </main>
     </div>
   );

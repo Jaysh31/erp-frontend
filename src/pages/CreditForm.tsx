@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from "react";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import "./CreditForm.css";
 import api from "../services/api";
+import { FaArrowLeft, FaExclamationTriangle, FaEye } from "react-icons/fa";
 
 /* ----------------------------- Interfaces ----------------------------- */
 
@@ -42,55 +44,75 @@ interface Company {
   bank_details: BankDetails[];
 }
 
-/**
- * Unified reference record — used for BOTH Sales Invoice and Sales Order.
- * We normalize both API shapes into this one interface.
- */
 interface ReferenceRecord {
   id: number;
-  refNo: string;          // display: "SINV-62" or "SO-78"
+  refNo: string;
   grandTotal: number;
-  date: string;           // posting_date or transaction_date
-  customer: string;       // customer id as string (from either API)
+  date: string;
+  customer: string;
   customerName: string;
   company: string;
   currency: string;
 }
 
+interface TransactionHistoryRow {
+  id: number;
+  entry_no: string;
+  entry_date: string;
+  entry_type: "Credit" | "Debit";
+  payment_type: string;
+  total_amount: number;
+  narration: string;
+  status: string;
+  transaction_id: string | number | null;
+}
+
 type ReferenceType = "Sales Invoice" | "Sales Order";
 
 interface CreditFormData {
+  entryNo: string;
+  entryType: "Credit" | "Debit";
+  referenceNoTop: string;
+  grandTotal: number | "";
+  narrationTop: string;
+
   creditDate: string;
   companyId: number | "";
   customerId: number | "";
   customerName: string;
+  /** ✅ NEW — party name returned by the API (used in edit/view) */
+  partyName: string;
   referenceType: ReferenceType;
-  referenceId: number | "";       // generic (was salesInvoiceId)
-  referenceNo: string;            // generic (was salesInvoiceNo)
-  referenceDate: string;          // generic (was salesInvoiceDate)
-  grandTotal: number | "";
-  salesOrderNo: string;           // extra field for SO (kept from before)
+  referenceId: number | "";
+  referenceNo: string;
+  referenceDate: string;
+  salesOrderNo: string;
   deliveryNoteNo: string;
   paymentType: string;
   bankId: number | "";
   transactionId: string;
   transactionDate: string;
   amount: string;
-  narration: string;
 }
 
 /* ----------------------------- Constants ------------------------------ */
 
 const initialFormData: CreditFormData = {
+  entryNo: "",
+  entryType: "Credit",
+  referenceNoTop: "",
+  grandTotal: "",
+  narrationTop: "",
+
   creditDate: new Date().toISOString().split("T")[0],
   companyId: "",
   customerId: "",
   customerName: "",
+  partyName: "",
   referenceType: "Sales Invoice",
   referenceId: "",
   referenceNo: "",
   referenceDate: "",
-  grandTotal: "",
   salesOrderNo: "",
   deliveryNoteNo: "",
   paymentType: "NEFT",
@@ -98,7 +120,6 @@ const initialFormData: CreditFormData = {
   transactionId: "",
   transactionDate: new Date().toISOString().split("T")[0],
   amount: "",
-  narration: "",
 };
 
 const TRANSFER_MODES = [
@@ -115,6 +136,7 @@ const TRANSFER_MODES = [
 ];
 
 const REFERENCE_TYPES: ReferenceType[] = ["Sales Invoice", "Sales Order"];
+const ENTRY_TYPE_OPTIONS: Array<"Credit" | "Debit"> = ["Credit", "Debit"];
 
 /* ----------------------------- Helpers -------------------------------- */
 
@@ -144,14 +166,20 @@ const formatMoney = (v: unknown): string => {
   return n.toLocaleString("en-IN");
 };
 
-/**
- * Normalize a raw record from /sales-invoice OR /sales-order into
- * the unified ReferenceRecord shape.
- */
+const formatDateDisplay = (value: string | null | undefined): string => {
+  if (!value) return "—";
+  const d = new Date(value);
+  if (isNaN(d.getTime())) return "—";
+  return d.toLocaleDateString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+};
+
 const normalizeReference = (raw: any, type: ReferenceType): ReferenceRecord => {
   const isOrder = type === "Sales Order";
 
-  // Number: prefer naming_series + id for SO, name for SI
   let refNo = "";
   if (isOrder) {
     const prefix = (raw?.naming_series ?? "SO-").toString();
@@ -167,17 +195,12 @@ const normalizeReference = (raw: any, type: ReferenceType): ReferenceRecord => {
   }
 
   const total =
-    raw?.grand_total ??
-    raw?.rounded_total ??
-    raw?.total ??
-    raw?.net_total ??
-    0;
+    raw?.grand_total ?? raw?.rounded_total ?? raw?.total ?? raw?.net_total ?? 0;
 
   const date = isOrder
     ? raw?.transaction_date ?? raw?.delivery_date ?? ""
     : raw?.posting_date ?? raw?.date ?? "";
 
-  // Customer field name differs between the two APIs
   const customer =
     raw?.customer ??
     (raw?.customer_id != null ? String(raw.customer_id) : "");
@@ -197,6 +220,19 @@ const normalizeReference = (raw: any, type: ReferenceType): ReferenceRecord => {
 /* --------------------------- Component -------------------------------- */
 
 const CreditForm: React.FC = () => {
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+
+  const mode = searchParams.get("mode");
+  const entryId = searchParams.get("id");
+  const referenceTypeParam = searchParams.get("referenceType");
+  const referenceIdParam = searchParams.get("referenceId");
+
+  const isEditOrView = !!entryId && (mode === "edit" || mode === "view");
+  const isReadOnly = mode === "view";
+  const isViewMode = mode === "view";
+  const isEdit = mode === "edit";
+
   const [formData, setFormData] = useState<CreditFormData>(initialFormData);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [references, setReferences] = useState<ReferenceRecord[]>([]);
@@ -206,7 +242,10 @@ const CreditForm: React.FC = () => {
   const [loadingCustomers, setLoadingCustomers] = useState(false);
   const [loadingReferences, setLoadingReferences] = useState(false);
   const [loadingCompany, setLoadingCompany] = useState(false);
+  const [loadingTransaction, setLoadingTransaction] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  const [history, setHistory] = useState<TransactionHistoryRow[]>([]);
 
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [errors, setErrors] = useState<
@@ -229,7 +268,6 @@ const CreditForm: React.FC = () => {
     fetchCompanies();
   }, []);
 
-  // Sync bankId when company's bank list changes
   useEffect(() => {
     if (company?.bank_details?.length) {
       const primary =
@@ -242,14 +280,14 @@ const CreditForm: React.FC = () => {
     }
   }, [company]);
 
-  // Re-fetch references whenever customer OR reference type changes
   useEffect(() => {
+    if (isEditOrView) return;
     if (formData.customerId) {
       fetchReferences(formData.customerId as number, formData.referenceType);
     } else {
       setReferences([]);
     }
-  }, [formData.customerId, formData.referenceType]);
+  }, [formData.customerId, formData.referenceType, isEditOrView]);
 
   useEffect(() => {
     if (formData.paymentType === "Cash") setShowBankDetails(false);
@@ -270,6 +308,117 @@ const CreditForm: React.FC = () => {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  useEffect(() => {
+    if (!referenceTypeParam || !referenceIdParam) return;
+
+    const fetchTransactionDetails = async () => {
+      setLoadingTransaction(true);
+      try {
+        const url = `/account_entry/transactions/${encodeURIComponent(
+          referenceTypeParam
+        )}/${referenceIdParam}`;
+
+        const response = await api.get(url);
+
+        if (response.data?.success === 1) {
+          const rawData = response.data.data;
+          const records: any[] = Array.isArray(rawData)
+            ? rawData
+            : rawData?.records ?? [];
+
+          const current =
+            records.find((r) => String(r.id) === String(entryId)) ||
+            records[0] ||
+            {};
+
+          /* ✅ Resolve the party_name coming from the API.
+                Fall back to customer_name, then party_id. */
+          const resolvedPartyName =
+            current.party_name ??
+            current.customer_name ??
+            (current.party_id != null ? String(current.party_id) : "");
+
+          setFormData((prev) => ({
+            ...prev,
+
+            entryNo: current.entry_no ?? prev.entryNo,
+            entryType:
+              (current.entry_type as "Credit" | "Debit") ?? prev.entryType,
+            referenceNoTop: current.reference_no ?? prev.referenceNoTop,
+            grandTotal:
+              current.total_amount != null
+                ? current.total_amount
+                : prev.grandTotal,
+            narrationTop: current.narration ?? prev.narrationTop,
+
+            creditDate: toYMD(current.entry_date) || prev.creditDate,
+            companyId: current.company_id ?? prev.companyId,
+            customerId: current.party_id ?? prev.customerId,
+            customerName:
+              current.customer_name ?? current.party_name ?? prev.customerName,
+            /* ✅ NEW — persist party_name in form state */
+            partyName: resolvedPartyName || prev.partyName,
+            referenceType:
+              (current.reference_type as ReferenceType) ?? prev.referenceType,
+            referenceId: current.reference_id ?? prev.referenceId,
+            referenceNo: current.reference_no ?? prev.referenceNo,
+            referenceDate:
+              toYMD(current.reference_date) || prev.referenceDate,
+            salesOrderNo: current.sales_order_no ?? prev.salesOrderNo,
+            deliveryNoteNo: current.delivery_note_no ?? prev.deliveryNoteNo,
+            paymentType: current.payment_type ?? prev.paymentType,
+            bankId: current.bank_detail_id ?? prev.bankId,
+            transactionId:
+              current.transaction_id != null
+                ? String(current.transaction_id)
+                : prev.transactionId,
+            transactionDate:
+              toYMD(current.transaction_date) || prev.transactionDate,
+            amount:
+              current.total_amount != null
+                ? String(current.total_amount)
+                : prev.amount,
+          }));
+
+          /* ✅ Customer search input shows party_name when available */
+          setCustomerSearch(resolvedPartyName);
+
+          /* ✅ Show reference_id (e.g. 102) in the Invoice No. field */
+          setRefSearch(
+            current.reference_id != null
+              ? String(current.reference_id)
+              : current.reference_no ?? ""
+          );
+
+          const historyRows: TransactionHistoryRow[] = records
+            .filter((r) => String(r.id) !== String(entryId))
+            .map((r) => ({
+              id: r.id,
+              entry_no: r.entry_no,
+              entry_date: r.entry_date,
+              entry_type: r.entry_type,
+              payment_type: r.payment_type,
+              total_amount: r.total_amount,
+              narration: r.narration,
+              status: r.status,
+              transaction_id: r.transaction_id,
+            }));
+
+          setHistory(historyRows);
+        }
+      } catch (err: any) {
+        console.error("Failed to load transaction details:", err);
+        alert(
+          err.response?.data?.message || "Failed to load transaction details"
+        );
+      } finally {
+        setLoadingTransaction(false);
+      }
+    };
+
+    fetchTransactionDetails();
+  }, [referenceTypeParam, referenceIdParam, entryId]);
 
   /* ---------------------------- Fetchers ----------------------------- */
 
@@ -325,10 +474,6 @@ const CreditForm: React.FC = () => {
     }
   };
 
-  /**
-   * Fetch Sales Invoices OR Sales Orders depending on the current
-   * referenceType, then normalize both into ReferenceRecord[].
-   */
   const fetchReferences = async (
     customerId: number,
     type: ReferenceType
@@ -373,6 +518,10 @@ const CreditForm: React.FC = () => {
 
   /* ---------------------------- Handlers ----------------------------- */
 
+  const handleCancel = () => {
+    navigate(-1);
+  };
+
   const handleChange = (
     field: keyof CreditFormData,
     value: string | number
@@ -381,11 +530,6 @@ const CreditForm: React.FC = () => {
     setErrors((prev) => ({ ...prev, [field]: "" }));
   };
 
-  /**
-   * Changing the reference type resets the selected reference
-   * but keeps the customer, so the user can pick the same customer's
-   * invoice vs sales order.
-   */
   const handleReferenceTypeChange = (type: ReferenceType) => {
     setFormData((prev) => ({
       ...prev,
@@ -393,7 +537,6 @@ const CreditForm: React.FC = () => {
       referenceId: "",
       referenceNo: "",
       referenceDate: "",
-      grandTotal: "",
       salesOrderNo: "",
       deliveryNoteNo: "",
       amount: "",
@@ -415,10 +558,10 @@ const CreditForm: React.FC = () => {
       bankId: primary?.id || "",
       customerId: "",
       customerName: "",
+      partyName: "",
       referenceId: "",
       referenceNo: "",
       referenceDate: "",
-      grandTotal: "",
       salesOrderNo: "",
       deliveryNoteNo: "",
       amount: "",
@@ -435,10 +578,12 @@ const CreditForm: React.FC = () => {
       ...prev,
       customerId: customer.id,
       customerName: displayName,
+      /* ✅ When the user picks a customer, also mirror into partyName
+            so downstream save/summary logic has a consistent value */
+      partyName: displayName,
       referenceId: "",
       referenceNo: "",
       referenceDate: "",
-      grandTotal: "",
       salesOrderNo: "",
       deliveryNoteNo: "",
       amount: "",
@@ -453,6 +598,7 @@ const CreditForm: React.FC = () => {
       ...prev,
       referenceId: ref.id,
       referenceNo: ref.refNo,
+      referenceNoTop: ref.refNo,
       referenceDate: toYMD(ref.date),
       grandTotal: ref.grandTotal || "",
       salesOrderNo:
@@ -470,10 +616,10 @@ const CreditForm: React.FC = () => {
       ...prev,
       customerId: "",
       customerName: "",
+      partyName: "",
       referenceId: "",
       referenceNo: "",
       referenceDate: "",
-      grandTotal: "",
       salesOrderNo: "",
       deliveryNoteNo: "",
       amount: "",
@@ -489,12 +635,21 @@ const CreditForm: React.FC = () => {
       referenceId: "",
       referenceNo: "",
       referenceDate: "",
-      grandTotal: "",
       salesOrderNo: "",
       deliveryNoteNo: "",
       amount: "",
     }));
     setRefSearch("");
+  };
+
+  const openHistoryEntry = (row: TransactionHistoryRow) => {
+    const params = new URLSearchParams({
+      id: String(row.id),
+      mode: isReadOnly ? "view" : "edit",
+      referenceType: referenceTypeParam || formData.referenceType,
+      referenceId: String(referenceIdParam || formData.referenceId),
+    });
+    navigate(`/receivables/new-credits?${params.toString()}`);
   };
 
   /* ---------------------------- Filters ------------------------------ */
@@ -527,10 +682,10 @@ const CreditForm: React.FC = () => {
     if (formData.paymentType !== "Cash" && !formData.transactionId.trim())
       newErrors.transactionId =
         "Transaction ID is required for non-cash payments";
-    if (!formData.amount || Number(formData.amount) <= 0)
+    if (!formData.grandTotal || Number(formData.grandTotal) <= 0)
       newErrors.amount = "Enter a valid amount";
-    if (!formData.narration.trim())
-      newErrors.narration = "Narration is required";
+    if (!formData.narrationTop.trim())
+      newErrors.narrationTop = "Narration is required";
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -542,19 +697,22 @@ const CreditForm: React.FC = () => {
     const isSO = formData.referenceType === "Sales Order";
 
     const payload = {
+      entry_no: formData.entryNo || undefined,
+      entry_type: formData.entryType,
+
       entry_date: toYMD(formData.creditDate),
-      entry_type: "Credit",
       company_id: formData.companyId || company?.id || 1,
       bank_detail_id: formData.bankId || null,
       transaction_id: formData.transactionId.trim(),
       transaction_date: toYMD(formData.transactionDate),
       party_type: "Customer",
       party_id: formData.customerId,
+      /* ✅ Send party_name along with the rest of the payload */
+      party_name: formData.partyName || formData.customerName || "",
       reference_type: formData.referenceType,
       reference_id: formData.referenceId,
-      reference_no: formData.referenceNo,
+      reference_no: formData.referenceNo || formData.referenceNoTop,
       reference_date: toYMD(formData.referenceDate),
-      // Backwards-compatible keys (kept for API)
       purchase_invoice_no: isSO ? null : formData.referenceNo,
       sales_invoice_no: isSO ? null : formData.referenceNo,
       purchase_order_no: null,
@@ -562,17 +720,19 @@ const CreditForm: React.FC = () => {
       grn_no: null,
       delivery_note_no: formData.deliveryNoteNo,
       currency: company?.default_currency?.toUpperCase() || "INR",
-      total_amount: Number(formData.amount),
+      total_amount: Number(formData.grandTotal || formData.amount) || 0,
       payment_type: formData.paymentType,
-      narration: formData.narration,
+      narration: formData.narrationTop,
       status: "Draft",
       created_by: 1,
       modified_by: 1,
     };
 
-    console.log("Account Entry Payload:", payload);
+    if (isEditOrView && entryId) {
+      const response = await api.put(`/account_entry/${entryId}`, payload);
+      return response.data;
+    }
     const response = await api.post("/account_entry", payload);
-    console.log("Account entry saved:", response.data);
     return response.data;
   };
 
@@ -582,30 +742,35 @@ const CreditForm: React.FC = () => {
     setSuccessMessage(null);
     try {
       const result = await saveCreditDetails();
+      const entryNo =
+        result?.data?.entry_no || formData.entryNo || "ACC-XXXXX";
 
-      const entryNo = result?.data?.entry_no || "ACC-XXXXX";
       setSuccessMessage(
-        `✅ Account entry ${entryNo} created successfully for ${formData.referenceType} ${formData.referenceNo}.`
+        isEditOrView
+          ? `✅ Account entry ${entryNo} updated successfully.`
+          : `✅ Account entry ${entryNo} created successfully.`
       );
 
-      const defaultBankId =
-        company?.bank_details?.find((b) => b.is_primary === 1)?.id ||
-        company?.bank_details?.[0]?.id ||
-        "";
+      if (!isEditOrView) {
+        const defaultBankId =
+          company?.bank_details?.find((b) => b.is_primary === 1)?.id ||
+          company?.bank_details?.[0]?.id ||
+          "";
 
-      setFormData({
-        ...initialFormData,
-        creditDate: new Date().toISOString().split("T")[0],
-        transactionDate: new Date().toISOString().split("T")[0],
-        companyId: formData.companyId,
-        referenceType: formData.referenceType, // keep the user's choice
-        bankId: defaultBankId,
-      });
-      setCustomerSearch("");
-      setRefSearch("");
-      setReferences([]);
-      setErrors({});
-      setShowBankDetails(false);
+        setFormData({
+          ...initialFormData,
+          creditDate: new Date().toISOString().split("T")[0],
+          transactionDate: new Date().toISOString().split("T")[0],
+          companyId: formData.companyId,
+          referenceType: formData.referenceType,
+          bankId: defaultBankId,
+        });
+        setCustomerSearch("");
+        setRefSearch("");
+        setReferences([]);
+        setErrors({});
+        setShowBankDetails(false);
+      }
 
       setTimeout(() => setSuccessMessage(null), 5000);
     } catch (err: any) {
@@ -634,7 +799,7 @@ const CreditForm: React.FC = () => {
     const upiId = selectedBank.upi_id;
     const name =
       selectedBank.account_holder_name || company?.company_name || "";
-    const amount = formData.amount || "0";
+    const amount = formData.grandTotal || formData.amount || "0";
     const note = `Payment for ${formData.referenceNo || "Invoice"}`;
     const upiString = `upi://pay?pa=${encodeURIComponent(
       upiId
@@ -648,21 +813,63 @@ const CreditForm: React.FC = () => {
 
   /* ------------------------------ Render ----------------------------- */
 
+  if (loadingTransaction) {
+    return (
+      <div className="rd-credit-page">
+        <div className="rd-credit-card">
+          <div style={{ padding: 40, textAlign: "center" }}>
+            Loading transaction details…
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="rd-credit-page">
        <div className="rd-credit-top-bar">
-      <button
-        type="button"
-        className="rd-credit-back-btn"
-        onClick={() => window.history.back()}
-      >
-        <span className="rd-credit-back-icon">←</span>
-        <span>Back</span>
-      </button>
-    </div>
+      <div className="pof-header">
+                      <button onClick={handleCancel} className="pof-back-btn">
+                        <FaArrowLeft size={9} /> Back
+                      </button>
+                      <div className="pof-header-title">
+                        <h1>
+                          {isViewMode ? 'View Credit Entry' : isEdit ? 'Edit Credit Entry' : 'Credit Details'}
+                        </h1>
+                        {isViewMode && (
+                          <span className="pof-view-mode-badge" style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            background: '#6366f1',
+                            color: '#ffffff',
+                            padding: '4px 12px',
+                            borderRadius: '20px',
+                            fontSize: '12px',
+                            fontWeight: 500,
+                            marginLeft: '12px',
+                          }}>
+                            <FaEye size={12} />
+                            View Mode
+                          </span>
+                        )}
+                        {isEdit && !isViewMode && <span className="pof-status-badge">{formData.referenceType}</span>}
+                      </div>
+                      {!isViewMode && Object.keys(errors).length > 0 && (
+                        <div className="pof-error-badge">
+                          <FaExclamationTriangle size={12} />
+                          {Object.keys(errors).length} missing field{Object.keys(errors).length !== 1 ? 's' : ''}
+                        </div>
+                      )}
+                    </div>
+      </div>
+      
       <div className="rd-credit-card">
         <div className="rd-credit-header">
-          <h2>REFERENCE DETAILS – CREDIT FORM</h2>
+          <h2>
+            REFERENCE DETAILS – CREDIT FORM
+            {isReadOnly ? " (View)" : isEditOrView ? " (Edit)" : ""}
+          </h2>
         </div>
 
         {successMessage && (
@@ -672,8 +879,38 @@ const CreditForm: React.FC = () => {
         )}
 
         <div className="rd-credit-form">
-          {/* ROW 1 — Credit Date | Company | Customer | Reference Type */}
+          {/* ═══ ROW 1 — Entry No | Entry Type | Credit Date | Company ═══ */}
           <div className="rd-credit-row four-column">
+            <div className="rd-credit-field">
+              <label>Entry No</label>
+              <input
+                type="text"
+                value={formData.entryNo}
+                placeholder="Auto-generated"
+                disabled
+              />
+            </div>
+
+            <div className="rd-credit-field">
+              <label>Entry Type</label>
+              <select
+                value={formData.entryType}
+                onChange={(e) =>
+                  handleChange(
+                    "entryType",
+                    e.target.value as "Credit" | "Debit"
+                  )
+                }
+                disabled={isReadOnly}
+              >
+                {ENTRY_TYPE_OPTIONS.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             <div className="rd-credit-field">
               <label>
                 Credit Date <span>*</span>
@@ -682,6 +919,7 @@ const CreditForm: React.FC = () => {
                 type="date"
                 value={formData.creditDate}
                 onChange={(e) => handleChange("creditDate", e.target.value)}
+                disabled={isReadOnly}
               />
               {errors.creditDate && (
                 <small className="rd-credit-error">{errors.creditDate}</small>
@@ -695,7 +933,7 @@ const CreditForm: React.FC = () => {
               <select
                 value={formData.companyId}
                 onChange={(e) => handleCompanyChange(Number(e.target.value))}
-                disabled={loadingCompany}
+                disabled={loadingCompany || isReadOnly}
               >
                 <option value="">
                   {loadingCompany
@@ -712,7 +950,10 @@ const CreditForm: React.FC = () => {
                 <small className="rd-credit-error">{errors.companyId}</small>
               )}
             </div>
+          </div>
 
+          {/* ═══ ROW 2 — Customer | Reference Type | Reference No ═══ */}
+          <div className="rd-credit-row three-column">
             <div className="rd-credit-field">
               <label>
                 Customer <span>*</span>
@@ -726,28 +967,35 @@ const CreditForm: React.FC = () => {
                         ? "Loading customers..."
                         : "Search or select customer"
                     }
-                    value={customerSearch}
+                    /* ✅ In edit/view, show the resolved party_name from API */
+                    value={
+                      isEditOrView && formData.partyName
+                        ? formData.partyName
+                        : customerSearch
+                    }
                     onChange={(e) => {
                       setCustomerSearch(e.target.value);
                       setShowCustomerDropdown(true);
                     }}
                     onFocus={() => setShowCustomerDropdown(true)}
-                    disabled={loadingCustomers}
+                    disabled={loadingCustomers || isReadOnly}
                   />
-                  {customerSearch && (
-                    <button
-                      type="button"
-                      className="rd-credit-searchable-clear"
-                      onClick={clearCustomer}
-                      title="Clear"
-                    >
-                      ✕
-                    </button>
-                  )}
+                  {((isEditOrView && formData.partyName) ||
+                    (!isEditOrView && customerSearch)) &&
+                    !isReadOnly && (
+                      <button
+                        type="button"
+                        className="rd-credit-searchable-clear"
+                        onClick={clearCustomer}
+                        title="Clear"
+                      >
+                        ✕
+                      </button>
+                    )}
                   <span className="rd-credit-searchable-chevron">▾</span>
                 </div>
 
-                {showCustomerDropdown && (
+                {showCustomerDropdown && !isReadOnly && (
                   <div className="rd-credit-searchable-menu">
                     {filteredCustomers.length === 0 ? (
                       <div className="rd-credit-searchable-empty">
@@ -790,6 +1038,7 @@ const CreditForm: React.FC = () => {
                 onChange={(e) =>
                   handleReferenceTypeChange(e.target.value as ReferenceType)
                 }
+                disabled={isReadOnly}
               >
                 {REFERENCE_TYPES.map((rt) => (
                   <option key={rt} value={rt}>
@@ -801,9 +1050,22 @@ const CreditForm: React.FC = () => {
                 <small className="rd-credit-error">{errors.referenceType}</small>
               )}
             </div>
+
+            <div className="rd-credit-field">
+              <label>Reference No</label>
+              <input
+                type="text"
+                value={formData.referenceNoTop}
+                placeholder="e.g. SINV-63"
+                onChange={(e) =>
+                  handleChange("referenceNoTop", e.target.value)
+                }
+                disabled={isReadOnly}
+              />
+            </div>
           </div>
 
-          {/* ROW 2 — Reference No. | Payment Mode | Receiving Bank */}
+          {/* ═══ ROW 3 — Invoice No. | Payment Mode | Total Amount ═══ */}
           <div className="rd-credit-row three-column">
             <div className="rd-credit-field">
               <label>
@@ -820,9 +1082,11 @@ const CreditForm: React.FC = () => {
                       setShowRefDropdown(true);
                     }}
                     onFocus={() => setShowRefDropdown(true)}
-                    disabled={!formData.customerId || loadingReferences}
+                    disabled={
+                      !formData.customerId || loadingReferences || isReadOnly
+                    }
                   />
-                  {refSearch && (
+                  {refSearch && !isReadOnly && (
                     <button
                       type="button"
                       className="rd-credit-searchable-clear"
@@ -835,12 +1099,14 @@ const CreditForm: React.FC = () => {
                   <span className="rd-credit-searchable-chevron">▾</span>
                 </div>
 
-                {showRefDropdown && (
+                {showRefDropdown && !isReadOnly && (
                   <div className="rd-credit-searchable-menu">
                     {filteredReferences.length === 0 ? (
                       <div className="rd-credit-searchable-empty">
                         {references.length === 0
-                          ? `No ${isSalesOrder ? "sales orders" : "invoices"} found`
+                          ? `No ${
+                              isSalesOrder ? "sales orders" : "invoices"
+                            } found`
                           : "No matching results"}
                       </div>
                     ) : (
@@ -887,6 +1153,7 @@ const CreditForm: React.FC = () => {
               <select
                 value={formData.paymentType}
                 onChange={(e) => handleChange("paymentType", e.target.value)}
+                disabled={isReadOnly}
               >
                 {TRANSFER_MODES.map((mode) => (
                   <option key={mode.value} value={mode.value}>
@@ -899,6 +1166,39 @@ const CreditForm: React.FC = () => {
               )}
             </div>
 
+            <div className="rd-credit-field">
+              <label>
+                Total Amount <span>*</span>
+              </label>
+              <div className="rd-credit-amount">
+                <span>₹</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="0.00"
+                  value={formData.grandTotal}
+                  onChange={(e) => {
+                    const v =
+                      e.target.value === "" ? "" : Number(e.target.value);
+                    setFormData((prev) => ({
+                      ...prev,
+                      grandTotal: v,
+                      amount: v === "" ? "" : String(v),
+                    }));
+                    setErrors((prev) => ({ ...prev, amount: "" }));
+                  }}
+                  disabled={isReadOnly}
+                />
+              </div>
+              {errors.amount && (
+                <small className="rd-credit-error">{errors.amount}</small>
+              )}
+            </div>
+          </div>
+
+          {/* ═══ ROW 4 — Receiving Bank | Transaction ID | Transaction Date ═══ */}
+          <div className="rd-credit-row three-column">
             {formData.paymentType !== "Cash" && (
               <div className="rd-credit-field">
                 <label>
@@ -918,6 +1218,7 @@ const CreditForm: React.FC = () => {
                           e.target.value ? Number(e.target.value) : ""
                         )
                       }
+                      disabled={isReadOnly}
                     >
                       <option value="">-- Select --</option>
                       {company.bank_details.map((bank) => (
@@ -938,10 +1239,7 @@ const CreditForm: React.FC = () => {
                 )}
               </div>
             )}
-          </div>
 
-          {/* ROW 3 — Transaction ID | Transaction Date | Amount */}
-          <div className="rd-credit-row three-column">
             <div className="rd-credit-field">
               <label>
                 Transaction ID / UTR{" "}
@@ -958,7 +1256,7 @@ const CreditForm: React.FC = () => {
                 onChange={(e) =>
                   handleChange("transactionId", e.target.value)
                 }
-                disabled={formData.paymentType === "Cash"}
+                disabled={formData.paymentType === "Cash" || isReadOnly}
               />
               {errors.transactionId && (
                 <small className="rd-credit-error">
@@ -975,207 +1273,303 @@ const CreditForm: React.FC = () => {
                 onChange={(e) =>
                   handleChange("transactionDate", e.target.value)
                 }
+                disabled={isReadOnly}
               />
-            </div>
-
-            <div className="rd-credit-field">
-              <label>
-                Amount <span>*</span>
-              </label>
-              <div className="rd-credit-amount">
-                <span>₹</span>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  placeholder="Enter amount"
-                  value={formData.amount}
-                  onChange={(e) => handleChange("amount", e.target.value)}
-                />
-              </div>
-              {errors.amount && (
-                <small className="rd-credit-error">{errors.amount}</small>
-              )}
             </div>
           </div>
 
-          {/* Narration */}
+          {/* ═══ ROW 5 — Narration ═══ */}
           <div className="rd-credit-row">
             <div className="rd-credit-field">
               <label>
                 Narration <span>*</span>
               </label>
-              <textarea
-                placeholder="Add narration"
-                value={formData.narration}
-                onChange={(e) => handleChange("narration", e.target.value)}
+              <input
+                type="text"
+                placeholder="e.g. wooden stool"
+                value={formData.narrationTop}
+                onChange={(e) =>
+                  handleChange("narrationTop", e.target.value)
+                }
+                disabled={isReadOnly}
               />
-              {errors.narration && (
-                <small className="rd-credit-error">{errors.narration}</small>
+              {errors.narrationTop && (
+                <small className="rd-credit-error">
+                  {errors.narrationTop}
+                </small>
               )}
             </div>
           </div>
 
-          {/* DRILL-DOWN: Bank Details */}
-          {formData.paymentType !== "Cash" && selectedBank && (
-            <div className="rd-credit-row">
-              <div className="rd-credit-bank-drill">
-                <button
-                  type="button"
-                  className="rd-credit-bank-drill-toggle"
-                  onClick={() => setShowBankDetails((v) => !v)}
-                  aria-expanded={showBankDetails}
-                >
-                  <span className="rd-credit-bank-drill-icon">
-                    {showBankDetails ? "▾" : "▸"}
-                  </span>
-                  <span>Bank Details for Payment</span>
-                  <span className="rd-credit-bank-drill-sub">
-                    {selectedBank.bank_name} · {selectedBank.account_number}
-                  </span>
-                </button>
+          {/* DRILL-DOWN: Bank Details — hidden in view mode */}
+          {!isReadOnly &&
+            formData.paymentType !== "Cash" &&
+            selectedBank && (
+              <div className="rd-credit-row">
+                <div className="rd-credit-bank-drill">
+                  <button
+                    type="button"
+                    className="rd-credit-bank-drill-toggle"
+                    onClick={() => setShowBankDetails((v) => !v)}
+                    aria-expanded={showBankDetails}
+                  >
+                    <span className="rd-credit-bank-drill-icon">
+                      {showBankDetails ? "▾" : "▸"}
+                    </span>
+                    <span>Bank Details for Payment</span>
+                    <span className="rd-credit-bank-drill-sub">
+                      {selectedBank.bank_name} · {selectedBank.account_number}
+                    </span>
+                  </button>
 
-                {showBankDetails && (
-                  <div className="rd-credit-bank-drill-body">
-                    <div className="rd-credit-bank-grid">
-                      <div className="rd-credit-bank-item">
-                        <span className="rd-credit-bank-label">
-                          Account Holder
+                  {showBankDetails && (
+                    <div className="rd-credit-bank-drill-body">
+                      <div className="rd-credit-bank-grid">
+                        <div className="rd-credit-bank-item">
+                          <span className="rd-credit-bank-label">
+                            Account Holder
+                          </span>
+                          <span className="rd-credit-bank-value">
+                            {selectedBank.account_holder_name}
+                          </span>
+                        </div>
+                        <div className="rd-credit-bank-item">
+                          <span className="rd-credit-bank-label">
+                            Account Type
+                          </span>
+                          <span className="rd-credit-bank-value">
+                            {selectedBank.account_type}
+                          </span>
+                        </div>
+                        <div className="rd-credit-bank-item">
+                          <span className="rd-credit-bank-label">
+                            Bank Name
+                          </span>
+                          <span className="rd-credit-bank-value">
+                            {selectedBank.bank_name}
+                          </span>
+                        </div>
+                        <div className="rd-credit-bank-item">
+                          <span className="rd-credit-bank-label">Branch</span>
+                          <span className="rd-credit-bank-value">
+                            {selectedBank.branch_name}
+                          </span>
+                        </div>
+                        <div className="rd-credit-bank-item">
+                          <span className="rd-credit-bank-label">
+                            Account Number
+                          </span>
+                          <span className="rd-credit-bank-value">
+                            {selectedBank.account_number}
+                          </span>
+                        </div>
+                        <div className="rd-credit-bank-item">
+                          <span className="rd-credit-bank-label">
+                            IFSC Code
+                          </span>
+                          <span className="rd-credit-bank-value">
+                            {selectedBank.ifsc_code}
+                          </span>
+                        </div>
+                        {selectedBank.upi_id && (
+                          <div className="rd-credit-bank-item">
+                            <span className="rd-credit-bank-label">
+                              UPI ID
+                            </span>
+                            <span className="rd-credit-bank-value">
+                              {selectedBank.upi_id}
+                            </span>
+                          </div>
+                        )}
+                        <div className="rd-credit-bank-item">
+                          <span className="rd-credit-bank-label">
+                            Currency
+                          </span>
+                          <span className="rd-credit-bank-value">
+                            {selectedBank.currency}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+          {/* ✅ UPI QR — HIDDEN in view/edit; shown only on new-entry form */}
+          {!isEditOrView &&
+            formData.paymentType === "UPI" &&
+            selectedBank?.upi_id && (
+              <div className="rd-credit-row">
+                <div className="rd-credit-upi-section">
+                  <h4>Scan &amp; Pay via UPI</h4>
+                  <div className="rd-credit-upi-content">
+                    <div className="rd-credit-qr-box">
+                      <img
+                        src={getUpiQrUrl()}
+                        alt="UPI QR Code"
+                        className="rd-credit-qr-image"
+                      />
+                      <p className="rd-credit-qr-hint">
+                        Scan with any UPI app
+                      </p>
+                    </div>
+                    <div className="rd-credit-upi-info">
+                      <div className="rd-credit-upi-item">
+                        <span className="rd-credit-upi-label">UPI ID</span>
+                        <span className="rd-credit-upi-value">
+                          {selectedBank.upi_id}
                         </span>
-                        <span className="rd-credit-bank-value">
+                        <button
+                          type="button"
+                          className="rd-credit-copy-btn"
+                          onClick={() => {
+                            navigator.clipboard.writeText(
+                              selectedBank.upi_id || ""
+                            );
+                            alert("UPI ID copied!");
+                          }}
+                        >
+                          Copy
+                        </button>
+                      </div>
+                      <div className="rd-credit-upi-item">
+                        <span className="rd-credit-upi-label">
+                          Payee Name
+                        </span>
+                        <span className="rd-credit-upi-value">
                           {selectedBank.account_holder_name}
                         </span>
                       </div>
-                      <div className="rd-credit-bank-item">
-                        <span className="rd-credit-bank-label">
-                          Account Type
-                        </span>
-                        <span className="rd-credit-bank-value">
-                          {selectedBank.account_type}
-                        </span>
-                      </div>
-                      <div className="rd-credit-bank-item">
-                        <span className="rd-credit-bank-label">Bank Name</span>
-                        <span className="rd-credit-bank-value">
-                          {selectedBank.bank_name}
-                        </span>
-                      </div>
-                      <div className="rd-credit-bank-item">
-                        <span className="rd-credit-bank-label">Branch</span>
-                        <span className="rd-credit-bank-value">
-                          {selectedBank.branch_name}
-                        </span>
-                      </div>
-                      <div className="rd-credit-bank-item">
-                        <span className="rd-credit-bank-label">
-                          Account Number
-                        </span>
-                        <span className="rd-credit-bank-value">
-                          {selectedBank.account_number}
-                        </span>
-                      </div>
-                      <div className="rd-credit-bank-item">
-                        <span className="rd-credit-bank-label">IFSC Code</span>
-                        <span className="rd-credit-bank-value">
-                          {selectedBank.ifsc_code}
-                        </span>
-                      </div>
-                      {selectedBank.upi_id && (
-                        <div className="rd-credit-bank-item">
-                          <span className="rd-credit-bank-label">UPI ID</span>
-                          <span className="rd-credit-bank-value">
-                            {selectedBank.upi_id}
+                      {formData.grandTotal && (
+                        <div className="rd-credit-upi-item">
+                          <span className="rd-credit-upi-label">Amount</span>
+                          <span className="rd-credit-upi-value rd-credit-upi-amount">
+                            ₹{formatMoney(formData.grandTotal)}
                           </span>
                         </div>
                       )}
-                      <div className="rd-credit-bank-item">
-                        <span className="rd-credit-bank-label">Currency</span>
-                        <span className="rd-credit-bank-value">
-                          {selectedBank.currency}
-                        </span>
-                      </div>
                     </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* UPI QR */}
-          {formData.paymentType === "UPI" && selectedBank?.upi_id && (
-            <div className="rd-credit-row">
-              <div className="rd-credit-upi-section">
-                <h4>Scan &amp; Pay via UPI</h4>
-                <div className="rd-credit-upi-content">
-                  <div className="rd-credit-qr-box">
-                    <img
-                      src={getUpiQrUrl()}
-                      alt="UPI QR Code"
-                      className="rd-credit-qr-image"
-                    />
-                    <p className="rd-credit-qr-hint">
-                      Scan with any UPI app
-                    </p>
-                  </div>
-                  <div className="rd-credit-upi-info">
-                    <div className="rd-credit-upi-item">
-                      <span className="rd-credit-upi-label">UPI ID</span>
-                      <span className="rd-credit-upi-value">
-                        {selectedBank.upi_id}
-                      </span>
-                      <button
-                        type="button"
-                        className="rd-credit-copy-btn"
-                        onClick={() => {
-                          navigator.clipboard.writeText(
-                            selectedBank.upi_id || ""
-                          );
-                          alert("UPI ID copied!");
-                        }}
-                      >
-                        Copy
-                      </button>
-                    </div>
-                    <div className="rd-credit-upi-item">
-                      <span className="rd-credit-upi-label">Payee Name</span>
-                      <span className="rd-credit-upi-value">
-                        {selectedBank.account_holder_name}
-                      </span>
-                    </div>
-                    {formData.amount && (
-                      <div className="rd-credit-upi-item">
-                        <span className="rd-credit-upi-label">Amount</span>
-                        <span className="rd-credit-upi-value rd-credit-upi-amount">
-                          ₹{formatMoney(formData.amount)}
-                        </span>
-                      </div>
-                    )}
                   </div>
                 </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {formData.paymentType === "UPI" && !selectedBank?.upi_id && (
-            <div className="rd-credit-row">
-              <div className="rd-credit-upi-error">
-                ⚠️ No UPI ID configured for the selected bank. Please choose
-                another bank or a different payment mode.
+          {/* UPI error — only on new entry form */}
+          {!isEditOrView &&
+            formData.paymentType === "UPI" &&
+            !selectedBank?.upi_id && (
+              <div className="rd-credit-row">
+                <div className="rd-credit-upi-error">
+                  ⚠️ No UPI ID configured for the selected bank. Please choose
+                  another bank or a different payment mode.
+                </div>
               </div>
+            )}
+
+          {/* ═══ TRANSACTION HISTORY ═══ */}
+          {isEditOrView && (
+            <div className="rd-credit-history">
+              <h4 className="rd-credit-history-title">
+                Transaction History — {formData.referenceType}{" "}
+                {formData.referenceNoTop || formData.referenceNo || "—"}
+              </h4>
+
+              {history.length === 0 ? (
+                <div className="rd-credit-history-empty">
+                  No previous transactions for this reference.
+                </div>
+              ) : (
+                <div className="rd-credit-history-table-wrap">
+                  <table className="rd-credit-history-table">
+                    <thead>
+                      <tr>
+                        <th>Entry No</th>
+                        <th>Date</th>
+                        <th>Type</th>
+                        <th>Payment Mode</th>
+                        <th>Transaction ID</th>
+                        <th>Amount</th>
+                        <th>Narration</th>
+                        <th>Status</th>
+                        <th className="rd-credit-history-actions-col">
+                          Actions
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {history.map((row) => (
+                        <tr key={row.id}>
+                          <td className="rd-credit-history-no">
+                            {row.entry_no}
+                          </td>
+                          <td>{formatDateDisplay(row.entry_date)}</td>
+                          <td>
+                            <span
+                              className={`rd-credit-history-badge ${
+                                row.entry_type === "Credit"
+                                  ? "rd-credit-history-badge--credit"
+                                  : "rd-credit-history-badge--debit"
+                              }`}
+                            >
+                              {row.entry_type}
+                            </span>
+                          </td>
+                          <td>
+                            <span className="rd-credit-history-mode">
+                              {row.payment_type || "—"}
+                            </span>
+                          </td>
+                          <td className="rd-credit-history-txn">
+                            {row.transaction_id || "—"}
+                          </td>
+                          <td className="rd-credit-history-amount">
+                            ₹{formatMoney(row.total_amount)}
+                          </td>
+                          <td className="rd-credit-history-narration">
+                            {row.narration || "—"}
+                          </td>
+                          <td>
+                            <span
+                              className={`rd-credit-history-status rd-credit-history-status--${(
+                                row.status || "Draft"
+                              ).toLowerCase()}`}
+                            >
+                              {row.status}
+                            </span>
+                          </td>
+                          <td className="rd-credit-history-actions">
+                            <button
+                              type="button"
+                              className="rd-credit-history-btn rd-credit-history-btn--view"
+                              onClick={() => openHistoryEntry(row)}
+                              title={isReadOnly ? "View" : "Open"}
+                            >
+                              {isReadOnly ? "View" : "Open"}
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           )}
 
           {/* ACTIONS */}
-          <div className="rd-credit-actions">
-            <button
-              type="button"
-              className="rd-credit-save-continue"
-              onClick={handleSaveContinue}
-              disabled={saving}
-            >
-              {saving ? "Saving..." : "Save"}
-            </button>
-          </div>
+          {!isReadOnly && (
+            <div className="rd-credit-actions">
+              <button
+                type="button"
+                className="rd-credit-save-continue"
+                onClick={handleSaveContinue}
+                disabled={saving}
+              >
+                {saving ? "Saving..." : isEditOrView ? "Update" : "Save"}
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>

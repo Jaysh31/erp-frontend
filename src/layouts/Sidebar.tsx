@@ -404,7 +404,7 @@ export default function Sidebar({
         { title: 'Sales Order', icon: <SalesOrderIcon />, path: '/sales-order', apiSubmodule: 'Sales Order' },
         { title: 'Proforma Invoice', icon: <SalesOrderIcon />, path: '/proforma-invoice', apiSubmodule: 'Proforma Invoice' },
         { title: 'Delivery Challans', icon: <ReceiptIcon />, path: '/delivery-challan', apiSubmodule: 'Delivery Challans' },
-        { title: 'Tax Invoice/Sale Bill', icon: <InvoiceIcon />, path: '/Tax-Invoice', apiSubmodule: 'Tax Invoice/Sale Bill' }
+        { title: 'Tax Invoice', icon: <InvoiceIcon />, path: '/Tax-Invoice', apiSubmodule: 'Tax Invoice' }
       ]
     },
     {
