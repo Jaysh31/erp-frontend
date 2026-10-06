@@ -451,7 +451,7 @@ export default function SalesDashboard() {
       icon: <FaClipboardList />,
       color: "info",
       trend: "billing",
-      path: "/sales-bill"
+      path: "/Tax-Invoice"
     },
     {
       id: "avg-order",
@@ -477,7 +477,7 @@ export default function SalesDashboard() {
     { id: "new-lead", label: "New Lead", icon: <FaUsers />, path: "/leads/new" },
     { id: "new-quotation", label: "New Quotation", icon: <FaFileInvoice />, path: "/quotation/new" },
     { id: "new-order", label: "New Sales Order", icon: <FaShoppingCart />, path: "/sales-order/new" },
-    { id: "new-invoice", label: "New Invoice", icon: <FaClipboardList />, path: "/sales-bill" },
+    { id: "new-invoice", label: "New Invoice", icon: <FaClipboardList />, path: "/Tax-Invoice/new" },
     { id: "new-delivery", label: "New Delivery Note", icon: <FaTruck />, path: "/delivery-challan" },
   ];
 

@@ -2381,7 +2381,7 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
                         Item Code <span style={{ color: "#dc2626" }}>*</span>
                       </th>
                       <th>Item Name</th>
-                      <th>Item Group</th>
+                      {/*<th>Item Group</th>*/}
                       <th>
                         Qty <span style={{ color: "#dc2626" }}>*</span>
                       </th>
@@ -2442,7 +2442,7 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
                             tabIndex={-1}
                           />
                         </td>
-                        <td>
+                        {/*<td>
                           <input
                             className="nbom-table-input nbom-table-input--readonly"
                             value={row.itemGroup || ""}
@@ -2450,7 +2450,7 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
                             tabIndex={-1}
                             style={{ minWidth: 120 }}
                           />
-                        </td>
+                        </td>*/}
                         <td>
                           <DigitInput
                             value={row.qty}

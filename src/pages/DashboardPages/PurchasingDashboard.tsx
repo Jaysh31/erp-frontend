@@ -1,58 +1,63 @@
-// PurchasingDashboard.tsx
-import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+/* ============================================================
+   PURCHASING DASHBOARD
+   PREMIUM ERP UI
+   ============================================================ */
+
+import React, { useEffect, useState } from "react";
 import {
-  FaShoppingCart, FaMoneyBillWave, FaUsers, 
-  FaFileInvoice, FaCheckCircle, FaClock, 
-  FaPlus, FaArrowRight, FaTruck, FaBoxes,
-  FaDollarSign} from "react-icons/fa";
-import "./PurchasingDashboard.css";
-import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
+  FaFileInvoice,
+  FaMoneyBillWave,
+  FaClock,
+  FaCheckCircle,
+  FaDollarSign,
+  FaUsers,
+  FaBoxes,
+  FaShoppingCart,
+  FaArrowRight,
+  FaExclamationTriangle,
+  FaSyncAlt,
+} from "react-icons/fa";
+
+import { useNavigate } from "react-router-dom";
 import api from "../../services/api";
 
-// Define types
+/* ============================================================
+   TYPES
+   ============================================================ */
+
 interface PurchaseInvoice {
-  id: number;
-  name: string;
-  supplier_name: string;
-  supplier: string;
-  status: string;
-  grand_total: number;
-  total: number;
-  net_total: number;
-  total_qty: number;
-  posting_date: string;
-  creation: string;
-  items: any[];
-  [key: string]: any;
+  id?: number | string;
+  invoice_no?: string;
+  supplier_name?: string;
+  supplier?: string;
+  status?: string;
+  grand_total?: number | string;
+  total?: number | string;
+  net_total?: number | string;
+  posting_date?: string;
+  created_at?: string;
 }
 
 interface GRN {
-  id: number;
-  grn_number: string;
-  grn_date: string;
-  supplier_name: string;
-  supplier_id: number;
-  status: string;
-  total_received_qty: number;
-  total_accepted_qty: number;
-  total_rejected_qty: number;
-  [key: string]: any;
+  id?: number | string;
+  grn_no?: string;
+  supplier_name?: string;
+  status?: string;
+  received_qty?: number | string;
+  rejected_qty?: number | string;
+  posting_date?: string;
+  created_at?: string;
 }
 
 interface PurchaseOrder {
-  id: number;
-  name: string;
-  title: string;
-  supplier_name: string;
-  supplier: string;
-  status: string;
-  grand_total: number;
-  total: number;
-  net_total: number;
-  total_qty: number;
-  transaction_date: string;
-  [key: string]: any;
+  id?: number | string;
+  po_no?: string;
+  supplier_name?: string;
+  status?: string;
+  grand_total?: number | string;
+  total?: number | string;
+  posting_date?: string;
+  created_at?: string;
 }
 
 interface DashboardStats {
@@ -72,10 +77,52 @@ interface DashboardStats {
   totalRejectedQty: number;
 }
 
-export default function PurchasingDashboard() {
-  const { theme } = useAdminTheme();
+interface StatCard {
+  id: string;
+  title: string;
+  value: string | number;
+  icon: React.ReactNode;
+  color: string;
+  trend: string;
+  path: string;
+}
+
+/* ============================================================
+   HELPERS
+   ============================================================ */
+
+const getArrayData = (response: any): any[] => {
+  const data =
+    response?.data?.data?.records ??
+    response?.data?.data?.data ??
+    response?.data?.data ??
+    response?.data?.records ??
+    [];
+
+  return Array.isArray(data) ? data : [];
+};
+
+const getNumber = (value: any): number => {
+  const numberValue = Number(value);
+
+  return Number.isFinite(numberValue) ? numberValue : 0;
+};
+
+const normalizeStatus = (status?: string): string => {
+  return String(status || "").trim().toLowerCase();
+};
+
+/* ============================================================
+   COMPONENT
+   ============================================================ */
+
+const PurchasingDashboard: React.FC = () => {
   const navigate = useNavigate();
-  const [loading, setLoading] = useState(true);
+
+  /* ============================================================
+     STATE
+     ============================================================ */
+
   const [stats, setStats] = useState<DashboardStats>({
     totalInvoices: 0,
     totalSpend: 0,
@@ -90,56 +137,191 @@ export default function PurchasingDashboard() {
     totalGRNs: 0,
     totalPOs: 0,
     totalReceivedQty: 0,
-    totalRejectedQty: 0
+    totalRejectedQty: 0,
   });
-  const [recentOrders, setRecentOrders] = useState<PurchaseInvoice[]>([]);
-  const [, setRecentGRNs] = useState<GRN[]>([]);
-  const [, setPurchaseOrders] = useState<PurchaseOrder[]>([]);
 
-  // Fetch all data
-  useEffect(() => {
-    fetchAllData();
-  }, []);
+  const [recentInvoices, setRecentInvoices] = useState<
+    PurchaseInvoice[]
+  >([]);
 
-  const fetchAllData = async () => {
-    setLoading(true);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [refreshing, setRefreshing] = useState<boolean>(false);
+  const [error, setError] = useState<string>("");
+
+  /* ============================================================
+     FETCH DASHBOARD DATA
+     ============================================================ */
+
+  const fetchDashboardData = async (isRefresh = false) => {
     try {
-      // Fetch all three APIs in parallel
-      const [invoicesRes, grnsRes, posRes] = await Promise.all([
+      if (isRefresh) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+      }
+
+      setError("");
+
+      /* --------------------------------------------------------
+         API CALLS
+
+         Supplier API is intentionally called with limit=1
+         because we only need the API's total count.
+         -------------------------------------------------------- */
+
+      const [
+        invoicesRes,
+        grnsRes,
+        posRes,
+        suppliersRes,
+      ] = await Promise.all([
         api.get("/purchase-invoice?limit=1000"),
         api.get("/grn?limit=10000"),
-        api.get("/purchase-order?limit=1000")
+        api.get("/purchase-order?limit=1000"),
+        api.get("/supplier?limit=1"),
       ]);
 
-      // Process Purchase Invoices
-      const invoices = invoicesRes.data?.data?.records || invoicesRes.data?.data || [];
-      const invoicesArray = Array.isArray(invoices) ? invoices : [];
-      
-      // Process GRNs
-      const grns = grnsRes.data?.data?.data || grnsRes.data?.data || [];
-      const grnsArray = Array.isArray(grns) ? grns : [];
-      
-      // Process Purchase Orders
-      const pos = posRes.data?.data?.records || posRes.data?.data || [];
-      const posArray = Array.isArray(pos) ? pos : [];
+      /* ========================================================
+         EXTRACT DATA
+         ======================================================== */
 
-      // Calculate invoice stats
-      const totalInvoices = invoicesArray.length;
-      const totalSpend = invoicesArray.reduce((sum: number, o: PurchaseInvoice) => sum + (o.grand_total || o.total || 0), 0);
-      const draftInvoices = invoicesArray.filter((o: PurchaseInvoice) => o.status === "Draft").length;
-      const submittedInvoices = invoicesArray.filter((o: PurchaseInvoice) => o.status === "Submitted").length;
-      const completedInvoices = invoicesArray.filter((o: PurchaseInvoice) => o.status === "Completed" || o.status === "Paid").length;
-      const cancelledInvoices = invoicesArray.filter((o: PurchaseInvoice) => o.status === "Cancelled").length;
-      const openInvoices = draftInvoices + submittedInvoices;
+      const invoices = getArrayData(invoicesRes);
+      const grns = getArrayData(grnsRes);
+      const purchaseOrders = getArrayData(posRes);
 
-      // Get unique suppliers from invoices
-      const uniqueSuppliers = new Set(invoicesArray.map((o: PurchaseInvoice) => o.supplier_name || o.supplier));
-      const supplierCount = uniqueSuppliers.size;
+      /* ========================================================
+         SUPPLIER TOTAL
 
-      // Calculate GRN stats
-      const totalGRNs = grnsArray.length;
-      const totalReceivedQty = grnsArray.reduce((sum: number, g: GRN) => sum + (g.total_received_qty || 0), 0);
-      const totalRejectedQty = grnsArray.reduce((sum: number, g: GRN) => sum + (g.total_rejected_qty || 0), 0);
+         Supplier API response expected:
+
+         response.data.data.total
+
+         Example:
+
+         {
+           success: 1,
+           data: {
+             records: [...],
+             total: 25,
+             totalPages: 25
+           }
+         }
+         ======================================================== */
+
+      const supplierApiData = suppliersRes?.data?.data;
+
+      const supplierCount = Number(
+        supplierApiData?.total ??
+          supplierApiData?.totalRecords ??
+          supplierApiData?.count ??
+          0
+      );
+
+      /* ========================================================
+         INVOICE STATISTICS
+         ======================================================== */
+
+      const totalInvoices = invoices.length;
+
+      const totalSpend = invoices.reduce(
+        (sum: number, invoice: PurchaseInvoice) => {
+          const amount = getNumber(
+            invoice.grand_total ??
+              invoice.total ??
+              invoice.net_total ??
+              0
+          );
+
+          return sum + amount;
+        },
+        0
+      );
+
+      const draftInvoices = invoices.filter(
+        (invoice: PurchaseInvoice) =>
+          normalizeStatus(invoice.status) === "draft"
+      ).length;
+
+      const submittedInvoices = invoices.filter(
+        (invoice: PurchaseInvoice) =>
+          normalizeStatus(invoice.status) === "submitted"
+      ).length;
+
+      const completedInvoices = invoices.filter(
+        (invoice: PurchaseInvoice) => {
+          const status = normalizeStatus(invoice.status);
+
+          return (
+            status === "completed" ||
+            status === "paid" ||
+            status === "fully paid"
+          );
+        }
+      ).length;
+
+      const cancelledInvoices = invoices.filter(
+        (invoice: PurchaseInvoice) =>
+          normalizeStatus(invoice.status) === "cancelled"
+      ).length;
+
+      const overdueInvoices = invoices.filter(
+        (invoice: PurchaseInvoice) =>
+          normalizeStatus(invoice.status) === "overdue"
+      ).length;
+
+      const openInvoices =
+        draftInvoices + submittedInvoices;
+
+      const averageOrderValue =
+        totalInvoices > 0
+          ? totalSpend / totalInvoices
+          : 0;
+
+      /* ========================================================
+         GRN STATISTICS
+         ======================================================== */
+
+      const totalGRNs = grns.length;
+
+      const totalReceivedQty = grns.reduce(
+        (sum: number, grn: GRN) => {
+          return (
+            sum +
+            getNumber(
+              grn.received_qty ??
+                (grn as any).received_quantity ??
+                (grn as any).total_received_qty ??
+                0
+            )
+          );
+        },
+        0
+      );
+
+      const totalRejectedQty = grns.reduce(
+        (sum: number, grn: GRN) => {
+          return (
+            sum +
+            getNumber(
+              grn.rejected_qty ??
+                (grn as any).rejected_quantity ??
+                (grn as any).total_rejected_qty ??
+                0
+            )
+          );
+        },
+        0
+      );
+
+      /* ========================================================
+         PURCHASE ORDER STATISTICS
+         ======================================================== */
+
+      const totalPOs = purchaseOrders.length;
+
+      /* ========================================================
+         UPDATE STATS
+         ======================================================== */
 
       setStats({
         totalInvoices,
@@ -149,49 +331,90 @@ export default function PurchasingDashboard() {
         cancelledInvoices,
         draftInvoices,
         submittedInvoices,
-        overdueInvoices: 0, // You can calculate based on due dates if available
-        averageOrderValue: totalInvoices > 0 ? totalSpend / totalInvoices : 0,
+        overdueInvoices,
+        averageOrderValue,
         supplierCount,
         totalGRNs,
-        totalPOs: posArray.length,
+        totalPOs,
         totalReceivedQty,
-        totalRejectedQty
+        totalRejectedQty,
       });
 
-      // Set recent orders (invoices)
-      setRecentOrders(invoicesArray.slice(0, 5));
-      
-      // Set recent GRNs
-      setRecentGRNs(grnsArray.slice(0, 5));
-      
-      // Set purchase orders
-      setPurchaseOrders(posArray);
+      /* ========================================================
+         RECENT INVOICES
 
-    } catch (error) {
-      console.error("Error fetching purchasing data:", error);
+         Sort newest first.
+         ======================================================== */
+
+      const sortedInvoices = [...invoices].sort(
+        (a: PurchaseInvoice, b: PurchaseInvoice) => {
+          const dateA = new Date(
+            a.posting_date ||
+              a.created_at ||
+              ""
+          ).getTime();
+
+          const dateB = new Date(
+            b.posting_date ||
+              b.created_at ||
+              ""
+          ).getTime();
+
+          return dateB - dateA;
+        }
+      );
+
+      setRecentInvoices(sortedInvoices.slice(0, 5));
+    } catch (err: any) {
+      console.error(
+        "Purchasing dashboard API error:",
+        err
+      );
+
+      setError(
+        err?.response?.data?.message ||
+          "Failed to load purchasing dashboard data."
+      );
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
+
+  /* ============================================================
+     INITIAL LOAD
+     ============================================================ */
+
+  useEffect(() => {
+    fetchDashboardData();
+  }, []);
+
+  /* ============================================================
+     NAVIGATION
+     ============================================================ */
 
   const handleNavigate = (path: string) => {
-    if (path) {
-      navigate(path);
-    }
+    if (!path) return;
+
+    navigate(path);
   };
 
-  // Status color mapping
-  const statusColors: Record<string, string> = {
-    'Draft': '#94a3b8',
-    'Submitted': '#3b82f6',
-    'Approved': '#f59e0b',
-    'Completed': '#22c55e',
-    'Paid': '#22c55e',
-    'Cancelled': '#ef4444'
-  };
+  /* ============================================================
+     STAT CARDS
 
-  // Stat cards configuration with navigation paths
-  const statCards = [
+     IMPORTANT:
+     Each card uses the "value" property.
+
+     The previous incorrect code used:
+       stat.totalSuppliers
+
+     That property does not exist on statCards.
+
+     Correct:
+       stat.value
+     ============================================================ */
+
+  const statCards: StatCard[] = [
     {
       id: "total-invoices",
       title: "Total Invoices",
@@ -199,17 +422,19 @@ export default function PurchasingDashboard() {
       icon: <FaFileInvoice />,
       color: "primary",
       trend: "all invoices",
-      path: "/purchase-invoice"
+      path: "/purchase-invoice",
     },
+
     {
       id: "total-spend",
       title: "Total Spend",
-      value: `₹${stats.totalSpend.toLocaleString()}`,
+      value: `₹${stats.totalSpend.toLocaleString("en-IN")}`,
       icon: <FaMoneyBillWave />,
       color: "success",
       trend: "total value",
-      path: ""
+      path: "",
     },
+
     {
       id: "open-invoices",
       title: "Open Invoices",
@@ -217,8 +442,9 @@ export default function PurchasingDashboard() {
       icon: <FaClock />,
       color: "warning",
       trend: `(${stats.draftInvoices} Draft, ${stats.submittedInvoices} Submitted)`,
-      path: ""
+      path: "",
     },
+
     {
       id: "completed",
       title: "Completed",
@@ -226,17 +452,21 @@ export default function PurchasingDashboard() {
       icon: <FaCheckCircle />,
       color: "info",
       trend: "paid & completed",
-      path: ""
+      path: "",
     },
+
     {
       id: "avg-order",
       title: "Avg Order Value",
-      value: `₹${Math.round(stats.averageOrderValue).toLocaleString()}`,
+      value: `₹${Math.round(
+        stats.averageOrderValue
+      ).toLocaleString("en-IN")}`,
       icon: <FaDollarSign />,
       color: "primary",
       trend: "per invoice",
-      path: ""
+      path: "",
     },
+
     {
       id: "suppliers",
       title: "Suppliers",
@@ -244,8 +474,9 @@ export default function PurchasingDashboard() {
       icon: <FaUsers />,
       color: "info",
       trend: "active suppliers",
-      path: "/supplier"
+      path: "/supplier",
     },
+
     {
       id: "grn-total",
       title: "Total GRNs",
@@ -253,8 +484,9 @@ export default function PurchasingDashboard() {
       icon: <FaBoxes />,
       color: "primary",
       trend: `Received: ${stats.totalReceivedQty} units`,
-      path: "/grn"
+      path: "/grn",
     },
+
     {
       id: "po-total",
       title: "Purchase Orders",
@@ -262,121 +494,564 @@ export default function PurchasingDashboard() {
       icon: <FaShoppingCart />,
       color: "success",
       trend: "active POs",
-      path: "/purchase-order"
+      path: "/purchase-order",
+    },
+  ];
+
+  /* ============================================================
+     STATUS COLORS
+     ============================================================ */
+
+  const getStatusClass = (status?: string) => {
+    const normalized = normalizeStatus(status);
+
+    switch (normalized) {
+      case "draft":
+        return "draft";
+
+      case "pending":
+        return "pending";
+
+      case "submitted":
+        return "submitted";
+
+      case "approved":
+        return "approved";
+
+      case "processing":
+        return "processing";
+
+      case "completed":
+      case "paid":
+      case "fully paid":
+        return "completed";
+
+      case "cancelled":
+      case "canceled":
+        return "cancelled";
+
+      case "overdue":
+        return "overdue";
+
+      default:
+        return "default";
     }
-  ];
+  };
 
-  const quickActions = [
-    { id: "new-invoice", label: "Purchase Invoice", icon: <FaFileInvoice />, path: "/purchase-invoice/new" },
-    { id: "new-order", label: "Purchase Order", icon: <FaShoppingCart />, path: "/purchase-order/new" },
-    { id: "new-grn", label: "New GRN", icon: <FaTruck />, path: "/grn/new" },
-    { id: "supplier-list", label: "Suppliers", icon: <FaUsers />, path: "/supplier" },
-  ];
+  /* ============================================================
+     FORMAT DATE
+     ============================================================ */
 
-  return (
-    <div className={`dashboard purchasing-dashboard ${theme}`}>
-      <div className="dashboard-header">
-        <div className="header-left">
-          <h1> Purchasing Dashboard</h1>
-          {/*<p className="header-subtitle">🛒Real-time procurement overview and insights</p>*/}
-        </div>
-        <div className="header-right">
-          <button className="btn-primary" onClick={() => handleNavigate("/purchase-invoice/new")}>
-            <FaPlus /> New Purchase Invoice
-          </button>
-          <button className="btn-secondary" onClick={() => handleNavigate("/purchase-order/new")}>
-            <FaShoppingCart /> New Purchase Order
-          </button>
+  const formatDate = (date?: string) => {
+    if (!date) return "—";
+
+    const parsedDate = new Date(date);
+
+    if (Number.isNaN(parsedDate.getTime())) {
+      return date;
+    }
+
+    return parsedDate.toLocaleDateString("en-IN", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
+  };
+
+  /* ============================================================
+     FORMAT AMOUNT
+     ============================================================ */
+
+  const formatAmount = (
+    invoice: PurchaseInvoice
+  ) => {
+    const amount = getNumber(
+      invoice.grand_total ??
+        invoice.total ??
+        invoice.net_total ??
+        0
+    );
+
+    return `₹${amount.toLocaleString("en-IN", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`;
+  };
+
+  /* ============================================================
+     LOADING STATE
+     ============================================================ */
+
+  if (loading) {
+    return (
+      <div className="purchasing-dashboard">
+        <div className="dashboard-loading">
+          <div className="loading-spinner">
+            <FaSyncAlt />
+          </div>
+
+          <p>Loading purchasing dashboard...</p>
         </div>
       </div>
+    );
+  }
 
-      {/* Stats Grid */}
+  /* ============================================================
+     MAIN UI
+     ============================================================ */
+
+  return (
+    <div className="purchasing-dashboard">
+      {/* ======================================================
+          HEADER
+          ====================================================== */}
+
+      <div className="dashboard-header">
+        <div className="dashboard-header-left">
+          <div className="dashboard-title-icon">
+            <FaShoppingCart />
+          </div>
+
+          <div>
+            <h1>Purchasing Dashboard</h1>
+
+            <p>
+              Monitor purchase invoices, suppliers,
+              orders and goods receipts
+            </p>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          className={`refresh-button ${
+            refreshing ? "refreshing" : ""
+          }`}
+          onClick={() => fetchDashboardData(true)}
+          disabled={refreshing}
+        >
+          <FaSyncAlt />
+
+          <span>
+            {refreshing ? "Refreshing..." : "Refresh"}
+          </span>
+        </button>
+      </div>
+
+      {/* ======================================================
+          ERROR
+          ====================================================== */}
+
+      {error && (
+        <div className="dashboard-error">
+          <FaExclamationTriangle />
+
+          <span>{error}</span>
+
+          <button
+            type="button"
+            onClick={() => fetchDashboardData()}
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
+      {/* ======================================================
+          STATISTICS
+          ====================================================== */}
+
       <div className="stats-grid">
         {statCards.map((stat) => (
-          <div 
-            key={stat.id} 
-            className={`stat-card stat-${stat.color} ${!stat.path ? 'stat-disabled' : ''}`}
-            onClick={() => stat.path && handleNavigate(stat.path)}
-            style={{ cursor: stat.path ? 'pointer' : 'default' }}
+          <div
+            key={stat.id}
+            className={`stat-card stat-${stat.color} ${
+              !stat.path ? "stat-disabled" : ""
+            }`}
+            onClick={() =>
+              stat.path &&
+              handleNavigate(stat.path)
+            }
+            style={{
+              cursor: stat.path
+                ? "pointer"
+                : "default",
+            }}
           >
-            <div className="stat-icon">{stat.icon}</div>
-            <div className="stat-content">
-              <div className="stat-title">{stat.title}</div>
-              <div className="stat-value">{stat.value}</div>
-              <div className="stat-trend">{stat.trend}</div>
+            <div className="stat-icon">
+              {stat.icon}
             </div>
+
+            <div className="stat-content">
+              <div className="stat-title">
+                {stat.title}
+              </div>
+
+              {/* IMPORTANT:
+                  Show API-calculated card value */}
+              <div className="stat-value">
+                {stat.value}
+              </div>
+
+              <div className="stat-trend">
+                {stat.trend}
+              </div>
+            </div>
+
+            {stat.path && (
+              <div className="stat-arrow">
+                <FaArrowRight />
+              </div>
+            )}
           </div>
         ))}
       </div>
 
-      <div className="dashboard-grid">
-        
+      {/* ======================================================
+          SECONDARY SUMMARY
+          ====================================================== */}
 
-        {/* Quick Actions */}
-        <div className="card quick-actions">
-          <div className="card-header">
-            <h3>Quick Actions</h3>
-            <span className="badge">Favorites</span>
-          </div>
-          <div className="actions-grid">
-            {quickActions.map((action) => (
-              <button 
-                key={action.id}
-                className="action-btn"
-                onClick={() => handleNavigate(action.path)}
-              >
-                <span className="action-icon">{action.icon}</span>
-                <span className="action-label">{action.label}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Recent Purchase Invoices */}
-        <div className="card recent-purchase-orders">
-          <div className="card-header">
-            <h3>Recent Purchase Bill</h3>
-            <button className="view-all" onClick={() => handleNavigate("/purchase-invoice")}>
-              View All <FaArrowRight />
-            </button>
-          </div>
-          <div className="order-list">
-            {loading ? (
-              <div className="order-item">Loading...</div>
-            ) : recentOrders.length === 0 ? (
-              <div className="order-item">No recent invoices</div>
-            ) : (
-              recentOrders.map((order: PurchaseInvoice) => (
-                <div key={order.id} className="order-item" onClick={() => handleNavigate(`/purchase-invoice/edit/${order.id}`)}>
-                  <div className="order-info">
-                    <div className="order-supplier">{order.supplier_name || 'Unknown Supplier'}</div>
-                    <div className="order-meta">
-                      <span className="order-status" style={{ backgroundColor: statusColors[order.status] || '#94a3b8' }}>
-                        {order.status}
-                      </span>
-                      <span className="order-date">
-                        {new Date(order.posting_date || order.creation || order.modified).toLocaleDateString()}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="order-amount">
-                    <span className="amount-value">₹{(order.grand_total || order.total || 0).toLocaleString()}</span>
-                    <span className="order-items">{order.items?.length || 0} items</span>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-
-        {/* Procurement Metrics */}
-       
+      <div className="dashboard-summary-grid">
+        <div className="summary-card">
+          <div className="summary-card-header">
+            <div>
+              <h3>Invoice Overview</h3>
+              <p>Current purchase invoice status</p>
             </div>
 
+            <FaFileInvoice />
+          </div>
 
-      <style>{`
-       
-      `}</style>
+          <div className="summary-items">
+            <div className="summary-item">
+              <span className="summary-label">
+                Draft
+              </span>
+
+              <strong>
+                {stats.draftInvoices}
+              </strong>
+            </div>
+
+            <div className="summary-item">
+              <span className="summary-label">
+                Submitted
+              </span>
+
+              <strong>
+                {stats.submittedInvoices}
+              </strong>
+            </div>
+
+            <div className="summary-item">
+              <span className="summary-label">
+                Completed
+              </span>
+
+              <strong>
+                {stats.completedInvoices}
+              </strong>
+            </div>
+
+            <div className="summary-item">
+              <span className="summary-label">
+                Overdue
+              </span>
+
+              <strong className="danger-text">
+                {stats.overdueInvoices}
+              </strong>
+            </div>
+          </div>
+        </div>
+
+        <div className="summary-card">
+          <div className="summary-card-header">
+            <div>
+              <h3>Goods Receipt</h3>
+              <p>GRN quantity summary</p>
+            </div>
+
+            <FaBoxes />
+          </div>
+
+          <div className="summary-items">
+            <div className="summary-item">
+              <span className="summary-label">
+                Total GRNs
+              </span>
+
+              <strong>
+                {stats.totalGRNs}
+              </strong>
+            </div>
+
+            <div className="summary-item">
+              <span className="summary-label">
+                Received Qty
+              </span>
+
+              <strong>
+                {stats.totalReceivedQty}
+              </strong>
+            </div>
+
+            <div className="summary-item">
+              <span className="summary-label">
+                Rejected Qty
+              </span>
+
+              <strong className="danger-text">
+                {stats.totalRejectedQty}
+              </strong>
+            </div>
+          </div>
+        </div>
+
+        <div className="summary-card">
+          <div className="summary-card-header">
+            <div>
+              <h3>Supplier Overview</h3>
+              <p>Supplier master information</p>
+            </div>
+
+            <FaUsers />
+          </div>
+
+          <div className="supplier-total">
+            <span>Total Suppliers</span>
+
+            <strong>
+              {stats.supplierCount}
+            </strong>
+          </div>
+
+          <button
+            type="button"
+            className="summary-action"
+            onClick={() =>
+              handleNavigate("/supplier")
+            }
+          >
+            View Suppliers
+            <FaArrowRight />
+          </button>
+        </div>
+      </div>
+
+      {/* ======================================================
+          RECENT PURCHASE INVOICES
+          ====================================================== */}
+
+      <div className="recent-section">
+        <div className="section-header">
+          <div>
+            <h2>Recent Purchase Bills</h2>
+
+            <p>
+              Latest purchase invoices from the system
+            </p>
+          </div>
+
+          <button
+            type="button"
+            className="view-all-button"
+            onClick={() =>
+              handleNavigate("/purchase-invoice")
+            }
+          >
+            View All
+            <FaArrowRight />
+          </button>
+        </div>
+
+        {recentInvoices.length === 0 ? (
+          <div className="empty-state">
+            <FaFileInvoice />
+
+            <h3>No Purchase Bills Found</h3>
+
+            <p>
+              Purchase invoices will appear here
+              once they are created.
+            </p>
+          </div>
+        ) : (
+          <div className="invoice-table-wrapper">
+            <table className="invoice-table">
+              <thead>
+                <tr>
+                  <th>Invoice No</th>
+                  <th>Supplier</th>
+                  <th>Date</th>
+                  <th>Status</th>
+                  <th>Amount</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {recentInvoices.map(
+                  (
+                    invoice: PurchaseInvoice,
+                    index: number
+                  ) => (
+                    <tr
+                      key={
+                        invoice.id ??
+                        invoice.invoice_no ??
+                        index
+                      }
+                    >
+                      <td>
+                        <span className="invoice-number">
+                          {invoice.invoice_no ||
+                            "—"}
+                        </span>
+                      </td>
+
+                      <td>
+                        <div className="supplier-cell">
+                          {invoice.supplier_name ||
+                            invoice.supplier ||
+                            "—"}
+                        </div>
+                      </td>
+
+                      <td>
+                        {formatDate(
+                          invoice.posting_date ||
+                            invoice.created_at
+                        )}
+                      </td>
+
+                      <td>
+                        <span
+                          className={`order-status ${getStatusClass(
+                            invoice.status
+                          )}`}
+                        >
+                          {invoice.status ||
+                            "Unknown"}
+                        </span>
+                      </td>
+
+                      <td>
+                        <strong className="amount-cell">
+                          {formatAmount(invoice)}
+                        </strong>
+                      </td>
+                    </tr>
+                  )
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* ======================================================
+          QUICK ACTIONS
+          ====================================================== */}
+
+      <div className="quick-actions">
+        <div className="quick-actions-header">
+          <div>
+            <h2>Quick Actions</h2>
+
+            <p>
+              Access frequently used purchasing modules
+            </p>
+          </div>
+        </div>
+
+        <div className="quick-actions-grid">
+          <button
+            type="button"
+            className="quick-action-card"
+            onClick={() =>
+              handleNavigate("/purchase-invoice")
+            }
+          >
+            <div className="quick-action-icon">
+              <FaFileInvoice />
+            </div>
+
+            <div>
+              <strong>Purchase Invoices</strong>
+              <span>
+                Manage purchase bills
+              </span>
+            </div>
+
+            <FaArrowRight />
+          </button>
+
+          <button
+            type="button"
+            className="quick-action-card"
+            onClick={() =>
+              handleNavigate("/purchase-order")
+            }
+          >
+            <div className="quick-action-icon">
+              <FaShoppingCart />
+            </div>
+
+            <div>
+              <strong>Purchase Orders</strong>
+              <span>
+                Manage purchase orders
+              </span>
+            </div>
+
+            <FaArrowRight />
+          </button>
+
+          <button
+            type="button"
+            className="quick-action-card"
+            onClick={() =>
+              handleNavigate("/supplier")
+            }
+          >
+            <div className="quick-action-icon">
+              <FaUsers />
+            </div>
+
+            <div>
+              <strong>Suppliers</strong>
+              <span>
+                Manage supplier master
+              </span>
+            </div>
+
+            <FaArrowRight />
+          </button>
+
+          <button
+            type="button"
+            className="quick-action-card"
+            onClick={() =>
+              handleNavigate("/grn")
+            }
+          >
+            <div className="quick-action-icon">
+              <FaBoxes />
+            </div>
+
+            <div>
+              <strong>GRN</strong>
+              <span>
+                Manage goods receipts
+              </span>
+            </div>
+
+            <FaArrowRight />
+          </button>
+        </div>
+      </div>
     </div>
   );
-}
+};
+
+export default PurchasingDashboard;

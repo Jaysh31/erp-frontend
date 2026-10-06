@@ -49,7 +49,7 @@ if (typeof window !== "undefined" && !(window as any).__siNavObserverInstalled) 
   const clearFlagIfLeavingSalesBill = () => {
     try {
       const path = window.location.pathname;
-      if (!path.startsWith("/sales-bill")) {
+      if (!path.startsWith("/Tax-Invoice")) {
         sessionStorage.removeItem(SI_PRESERVE_FLAG_KEY);
       }
     } catch {
@@ -1372,7 +1372,7 @@ const SalesInvoice: React.FC = () => {
   };
 
   // ===== ACTIONS =====
-  const handleCreate = () => navigateWithPreserve('/sales-bill/new');
+  const handleCreate = () => navigateWithPreserve('/Tax-Invoice/new');
   const handleRefresh = () => fetchInvoices();
   
   const handleView = (id: string | number) => {
@@ -1380,7 +1380,7 @@ const SalesInvoice: React.FC = () => {
     setShowMoreMenu(null);
     setMenuPosition(null);
     activeButtonRef.current = null;
-    navigateWithPreserve(`/sales-bill/view/${invoiceId}`, {
+    navigateWithPreserve(`/Tax-Invoice/view/${invoiceId}`, {
       state: { invoiceId, mode: 'view' }
     });
   };
@@ -1390,12 +1390,12 @@ const SalesInvoice: React.FC = () => {
     setShowMoreMenu(null);
     setMenuPosition(null);
     activeButtonRef.current = null;
-    navigateWithPreserve(`/sales-bill/edit/${invoiceId}`, {
+    navigateWithPreserve(`/Tax-Invoice/edit/${invoiceId}`, {
       state: { invoiceId, mode: 'edit' }
     });
   };
   
-  const handleDuplicate = (id: string | number) => navigateWithPreserve(`/sales-bill/duplicate/${id}`);
+  const handleDuplicate = (id: string | number) => navigateWithPreserve(`/Tax-Invoice/duplicate/${id}`);
 
   const handleCancelInvoice = async (id: string | number) => {
     if (!window.confirm('Are you sure you want to cancel this Sales Bill?')) return;

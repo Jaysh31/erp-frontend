@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  FaBoxes, FaTags, FaBuilding, FaWarehouse,
+  FaBoxes, FaTags, FaWarehouse,
   FaPlus,
   FaRuler, FaIndustry,
   FaDownload, FaSpinner, FaExclamationTriangle
@@ -367,15 +367,7 @@ export default function SetupDashboard() {
       trend: "categories",
       path: stats.totalItemGroups > 0 ? "/item-group" : ""
     },
-    {
-      id: "brands",
-      title: "Brands",
-      value: stats.totalBrands,
-      icon: <FaBuilding />,
-      color: "success",
-      trend: "manufacturers",
-      path: stats.totalBrands > 0 ? "" : ""
-    },
+    
     {
       id: "warehouses",
       title: "Warehouses",
