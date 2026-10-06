@@ -305,7 +305,6 @@ const GAEForm: React.FC = () => {
     }
   }, [company]);
 
-  // Only fetch references for non-Miscellaneous types
   useEffect(() => {
     if (
       formData.partyId &&
@@ -516,6 +515,19 @@ const GAEForm: React.FC = () => {
     setErrors((prev) => ({ ...prev, partyId: "" }));
   };
 
+  /* ✅ NEW — for Customer, allow typing a free-text name (no ID needed) */
+  const handlePartyNameTyped = (value: string) => {
+    setPartySearch(value);
+    setShowPartyDropdown(true);
+    setFormData((prev) => ({
+      ...prev,
+      partyName: value,
+      // if user is typing, clear the picked id so it's treated as free-text
+      partyId: "",
+    }));
+    setErrors((prev) => ({ ...prev, partyId: "" }));
+  };
+
   const handleReferenceSelect = (ref: ReferenceRecord) => {
     setFormData((prev) => ({
       ...prev,
@@ -587,6 +599,8 @@ const GAEForm: React.FC = () => {
   });
 
   const isMisc = formData.referenceType === "Miscellaneous";
+  const isCustomer = formData.partyType === "Customer";
+  const isSupplier = formData.partyType === "Supplier";
 
   /* -------------------------- Validation ----------------------------- */
 
@@ -596,16 +610,23 @@ const GAEForm: React.FC = () => {
     if (!formData.entryDate) newErrors.entryDate = "Entry date is required";
     if (!formData.entryType) newErrors.entryType = "Entry type is required";
     if (!formData.companyId) newErrors.companyId = "Company is required";
-    if (!formData.partyId)
-      newErrors.partyId = `${formData.partyType} is required`;
+
+    /* ✅ Party is required, but for Customer either ID or typed name works */
+    if (isCustomer) {
+      if (!formData.partyId && !formData.partyName.trim()) {
+        newErrors.partyId = "Enter a customer name";
+      }
+    } else {
+      // Supplier still requires picking from the dropdown
+      if (!formData.partyId) {
+        newErrors.partyId = `${formData.partyType} is required`;
+      }
+    }
+
     if (!formData.referenceType)
       newErrors.referenceType = "Reference type is required";
 
-    // Only require a reference ID when it's not Miscellaneous
-    if (!isMisc && !formData.referenceId) {
-      newErrors.referenceId = `${formData.referenceType} is required`;
-    }
-    // For Miscellaneous, require a free-text reference
+    /* ✅ Reference is NO LONGER mandatory except for Miscellaneous */
     if (isMisc && !formData.miscReference.trim()) {
       newErrors.miscReference = "Please enter a reference";
     }
@@ -638,8 +659,12 @@ const GAEForm: React.FC = () => {
 
     const referenceNo = isMisc
       ? formData.miscReference.trim()
-      : formData.referenceNo;
-    const referenceId = isMisc ? 0 : formData.referenceId;
+      : formData.referenceNo || "";
+    const referenceId = isMisc ? 0 : formData.referenceId || 0;
+
+    /* ✅ For Customer with typed name (no pick), party_id can be null */
+    const partyId = formData.partyId ? formData.partyId : null;
+    const partyName = formData.partyName || "";
 
     const payload = {
       entry_date: toYMD(formData.entryDate),
@@ -648,17 +673,21 @@ const GAEForm: React.FC = () => {
       bank_detail_id: formData.bankId || null,
       transaction_id: formData.transactionId.trim(),
       transaction_date: toYMD(formData.transactionDate),
+
       party_type: formData.partyType,
-      party_id: formData.partyId,
+      party_id: partyId,
+      /* ✅ send party_name so backend can store free-text customers */
+      party_name: partyName,
+
       reference_type: formData.referenceType,
       reference_id: referenceId,
       reference_no: referenceNo,
       reference_date: toYMD(formData.referenceDate),
 
-      purchase_invoice_no: isSupplierDoc && !isOrder ? referenceNo : null,
-      purchase_order_no: isSupplierDoc && isOrder ? referenceNo : null,
-      sales_invoice_no: !isSupplierDoc && !isOrder ? referenceNo : null,
-      sales_order_no: !isSupplierDoc && isOrder ? referenceNo : null,
+      purchase_invoice_no: isSupplierDoc && !isOrder ? referenceNo || null : null,
+      purchase_order_no: isSupplierDoc && isOrder ? referenceNo || null : null,
+      sales_invoice_no: !isSupplierDoc && !isOrder ? referenceNo || null : null,
+      sales_order_no: !isSupplierDoc && isOrder ? referenceNo || null : null,
       grn_no: null,
       delivery_note_no: null,
 
@@ -684,7 +713,9 @@ const GAEForm: React.FC = () => {
     try {
       const result = await saveEntry();
       const entryNo = result?.data?.entry_no || "ACC-XXXXX";
-      const refDisplay = isMisc ? formData.miscReference : formData.referenceNo;
+      const refDisplay = isMisc
+        ? formData.miscReference
+        : formData.referenceNo || "(no reference)";
       setSuccessMessage(
         `✅ ${formData.entryType} entry ${entryNo} created for ${formData.referenceType} ${refDisplay}.`
       );
@@ -724,7 +755,6 @@ const GAEForm: React.FC = () => {
   const selectedBank =
     company?.bank_details?.find((b) => b.id === formData.bankId) || null;
 
-  const isSupplier = formData.partyType === "Supplier";
   const referenceTypes: ReferenceType[] = isSupplier
     ? SUPPLIER_REF_TYPES
     : CUSTOMER_REF_TYPES;
@@ -850,15 +880,23 @@ const GAEForm: React.FC = () => {
                     placeholder={
                       loadingParties
                         ? `Loading ${formData.partyType.toLowerCase()}s...`
+                        : isCustomer
+                        ? `Search or type a customer name`
                         : `Search or select ${formData.partyType.toLowerCase()}`
                     }
+                    /* ✅ For Customer: input is always editable (free-text supported)
+                       For Supplier: same, but validation still requires a pick */
                     value={partySearch}
                     onChange={(e) => {
-                      setPartySearch(e.target.value);
-                      setShowPartyDropdown(true);
+                      if (isCustomer) {
+                        handlePartyNameTyped(e.target.value);
+                      } else {
+                        setPartySearch(e.target.value);
+                        setShowPartyDropdown(true);
+                      }
                     }}
                     onFocus={() => setShowPartyDropdown(true)}
-                    disabled={loadingParties}
+                    disabled={loadingParties && !isCustomer}
                   />
                   {partySearch && (
                     <button
@@ -891,7 +929,9 @@ const GAEForm: React.FC = () => {
 
                     {filteredParties.length === 0 ? (
                       <div className="rd-credit-searchable-empty">
-                        No {formData.partyType.toLowerCase()}s found
+                        {isCustomer && partySearch.trim()
+                          ? `Use "${partySearch.trim()}" as customer name`
+                          : `No ${formData.partyType.toLowerCase()}s found`}
                       </div>
                     ) : (
                       filteredParties.slice(0, 100).map((party) => (
@@ -918,6 +958,18 @@ const GAEForm: React.FC = () => {
               </div>
               {errors.partyId && (
                 <small className="rd-credit-error">{errors.partyId}</small>
+              )}
+              {isCustomer && !formData.partyId && formData.partyName && (
+                <small
+                  style={{
+                    display: "block",
+                    marginTop: 4,
+                    color: "#64748b",
+                    fontSize: 11,
+                  }}
+                >
+                  Using typed name "{formData.partyName}" (no ID)
+                </small>
               )}
             </div>
 
@@ -967,7 +1019,11 @@ const GAEForm: React.FC = () => {
             ) : (
               <div className="rd-credit-field">
                 <label>
-                  {formData.referenceType} No. <span>*</span>
+                  {formData.referenceType} No.{" "}
+                  {/* ✅ no longer mandatory */}
+                  <span style={{ color: "#94a3b8", fontWeight: 400 }}>
+                    (optional)
+                  </span>
                 </label>
                 <div className="rd-credit-searchable" ref={refRef}>
                   <div className="rd-credit-searchable-input">
@@ -1035,11 +1091,6 @@ const GAEForm: React.FC = () => {
                     </div>
                   )}
                 </div>
-                {errors.referenceId && (
-                  <small className="rd-credit-error">
-                    {errors.referenceId}
-                  </small>
-                )}
               </div>
             )}
 

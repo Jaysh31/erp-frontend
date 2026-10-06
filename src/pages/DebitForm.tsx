@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import "./DebitForm.css";
 import api from "../services/api";
 import { FaArrowLeft, FaExclamationTriangle, FaEye } from "react-icons/fa";
@@ -58,13 +59,29 @@ interface ReferenceRecord {
   currency: string;
 }
 
+interface TransactionHistoryRow {
+  id: number;
+  entry_no: string;
+  entry_date: string;
+  entry_type: "Credit" | "Debit";
+  payment_type: string;
+  total_amount: number;
+  narration: string;
+  status: string;
+  transaction_id: string | number | null;
+}
+
 type ReferenceType = "Purchase Bill" | "Purchase Order";
 
 interface DebitFormData {
+  entryNo: string;
+  entryType: "Credit" | "Debit";
   debitDate: string;
   companyId: number | "";
   supplierId: number | "";
   supplierName: string;
+  /** ✅ party_name returned by the API (used in edit/view) */
+  partyName: string;
   referenceType: ReferenceType;
   referenceId: number | "";
   referenceNo: string;
@@ -83,10 +100,13 @@ interface DebitFormData {
 /* ----------------------------- Constants ------------------------------ */
 
 const initialFormData: DebitFormData = {
+  entryNo: "",
+  entryType: "Debit",
   debitDate: new Date().toISOString().split("T")[0],
   companyId: "",
   supplierId: "",
   supplierName: "",
+  partyName: "",
   referenceType: "Purchase Bill",
   referenceId: "",
   referenceNo: "",
@@ -116,6 +136,7 @@ const TRANSFER_MODES = [
 ];
 
 const REFERENCE_TYPES: ReferenceType[] = ["Purchase Bill", "Purchase Order"];
+const ENTRY_TYPE_OPTIONS: Array<"Credit" | "Debit"> = ["Credit", "Debit"];
 
 /* ----------------------------- Helpers -------------------------------- */
 
@@ -145,6 +166,17 @@ const formatMoney = (v: unknown): string => {
   return n.toLocaleString("en-IN");
 };
 
+const formatDateDisplay = (value: string | null | undefined): string => {
+  if (!value) return "—";
+  const d = new Date(value);
+  if (isNaN(d.getTime())) return "—";
+  return d.toLocaleDateString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+};
+
 /**
  * Normalize a raw record from /purchase-invoice OR /purchase-order
  * into the unified ReferenceRecord shape.
@@ -152,14 +184,10 @@ const formatMoney = (v: unknown): string => {
 const normalizeReference = (raw: any, type: ReferenceType): ReferenceRecord => {
   const isOrder = type === "Purchase Order";
 
-  // Number: prefer naming_series + id
   let refNo = "";
   if (isOrder) {
-    // Purchase Order: name is already like "PO-2026-368"
     refNo = String(raw?.name ?? (raw?.id != null ? `PO-${raw.id}` : ""));
   } else {
-    // Purchase Invoice (Bill): name is "PINV", id is 102
-    // Prefer explicit name; fallback to "PINV-{id}"
     const prefix = (raw?.naming_series ?? "PINV-").toString();
     refNo =
       raw?.name && raw.name !== prefix.replace(/-$/, "")
@@ -181,7 +209,6 @@ const normalizeReference = (raw: any, type: ReferenceType): ReferenceRecord => {
     ? raw?.transaction_date ?? raw?.schedule_date ?? ""
     : raw?.posting_date ?? raw?.bill_date ?? raw?.date ?? "";
 
-  // Supplier field name is `supplier` on both APIs
   const supplier =
     raw?.supplier ?? (raw?.supplier_id != null ? String(raw.supplier_id) : "");
 
@@ -200,6 +227,17 @@ const normalizeReference = (raw: any, type: ReferenceType): ReferenceRecord => {
 /* --------------------------- Component -------------------------------- */
 
 const DebitForm: React.FC = () => {
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+
+  const mode = searchParams.get("mode");
+  const entryId = searchParams.get("id");
+  const referenceTypeParam = searchParams.get("referenceType");
+  const referenceIdParam = searchParams.get("referenceId");
+
+  const isEditOrView = !!entryId && (mode === "edit" || mode === "view");
+  const isReadOnly = mode === "view";
+
   const [formData, setFormData] = useState<DebitFormData>(initialFormData);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [references, setReferences] = useState<ReferenceRecord[]>([]);
@@ -209,7 +247,10 @@ const DebitForm: React.FC = () => {
   const [loadingSuppliers, setLoadingSuppliers] = useState(false);
   const [loadingReferences, setLoadingReferences] = useState(false);
   const [loadingCompany, setLoadingCompany] = useState(false);
+  const [loadingTransaction, setLoadingTransaction] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  const [history, setHistory] = useState<TransactionHistoryRow[]>([]);
 
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [errors, setErrors] = useState<
@@ -245,12 +286,13 @@ const DebitForm: React.FC = () => {
   }, [company]);
 
   useEffect(() => {
+    if (isEditOrView) return;
     if (formData.supplierId) {
       fetchReferences(formData.supplierId as number, formData.referenceType);
     } else {
       setReferences([]);
     }
-  }, [formData.supplierId, formData.referenceType]);
+  }, [formData.supplierId, formData.referenceType, isEditOrView]);
 
   useEffect(() => {
     if (formData.paymentType === "Cash") setShowBankDetails(false);
@@ -271,6 +313,121 @@ const DebitForm: React.FC = () => {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  /* ✅ Load transaction details for edit/view */
+  useEffect(() => {
+    if (!referenceTypeParam || !referenceIdParam) return;
+
+    const fetchTransactionDetails = async () => {
+      setLoadingTransaction(true);
+      try {
+        const url = `/account_entry/transactions/${encodeURIComponent(
+          referenceTypeParam
+        )}/${referenceIdParam}`;
+
+        const response = await api.get(url);
+
+        if (response.data?.success === 1) {
+          const rawData = response.data.data;
+          const records: any[] = Array.isArray(rawData)
+            ? rawData
+            : rawData?.records ?? [];
+
+          const current =
+            records.find((r) => String(r.id) === String(entryId)) ||
+            records[0] ||
+            {};
+
+          /* ✅ Resolve party_name — API returns it directly for Debit */
+          const resolvedPartyName =
+            current.party_name ??
+            current.supplier_name ??
+            (current.party_id != null ? String(current.party_id) : "");
+
+          const isPO = current.reference_type === "Purchase Order";
+
+          setFormData((prev) => ({
+            ...prev,
+
+            entryNo: current.entry_no ?? prev.entryNo,
+            entryType:
+              (current.entry_type as "Credit" | "Debit") ?? prev.entryType,
+            debitDate: toYMD(current.entry_date) || prev.debitDate,
+            companyId: current.company_id ?? prev.companyId,
+            supplierId: current.party_id ?? prev.supplierId,
+            supplierName:
+              current.supplier_name ??
+              current.party_name ??
+              prev.supplierName,
+            /* ✅ NEW — persist party_name */
+            partyName: resolvedPartyName || prev.partyName,
+            referenceType:
+              (current.reference_type as ReferenceType) ?? prev.referenceType,
+            referenceId: current.reference_id ?? prev.referenceId,
+            referenceNo: current.reference_no ?? prev.referenceNo,
+            referenceDate:
+              toYMD(current.reference_date) || prev.referenceDate,
+            grandTotal:
+              current.total_amount != null
+                ? current.total_amount
+                : prev.grandTotal,
+            purchaseOrderNo:
+              current.purchase_order_no ??
+              (isPO ? current.reference_no : prev.purchaseOrderNo),
+            grnNo: current.grn_no ?? prev.grnNo,
+            paymentType: current.payment_type ?? prev.paymentType,
+            bankId: current.bank_detail_id ?? prev.bankId,
+            transactionId:
+              current.transaction_id != null
+                ? String(current.transaction_id)
+                : prev.transactionId,
+            transactionDate:
+              toYMD(current.transaction_date) || prev.transactionDate,
+            amount:
+              current.total_amount != null
+                ? String(current.total_amount)
+                : prev.amount,
+            narration: current.narration ?? prev.narration,
+          }));
+
+          /* ✅ Supplier input shows party_name when available */
+          setSupplierSearch(resolvedPartyName);
+
+          /* ✅ Show reference_id (e.g. 95) in the PO/PBill field */
+          setRefSearch(
+            current.reference_id != null
+              ? String(current.reference_id)
+              : current.reference_no ?? ""
+          );
+
+          const historyRows: TransactionHistoryRow[] = records
+            .filter((r) => String(r.id) !== String(entryId))
+            .map((r) => ({
+              id: r.id,
+              entry_no: r.entry_no,
+              entry_date: r.entry_date,
+              entry_type: r.entry_type,
+              payment_type: r.payment_type,
+              total_amount: r.total_amount,
+              narration: r.narration,
+              status: r.status,
+              transaction_id: r.transaction_id,
+            }));
+
+          setHistory(historyRows);
+        }
+      } catch (err: any) {
+        console.error("Failed to load transaction details:", err);
+        alert(
+          err.response?.data?.message || "Failed to load transaction details"
+        );
+      } finally {
+        setLoadingTransaction(false);
+      }
+    };
+
+    fetchTransactionDetails();
+  }, [referenceTypeParam, referenceIdParam, entryId]);
 
   /* ---------------------------- Fetchers ----------------------------- */
 
@@ -326,10 +483,6 @@ const DebitForm: React.FC = () => {
     }
   };
 
-  /**
-   * Fetch Purchase Invoices OR Purchase Orders depending on the current
-   * referenceType, then normalize both into ReferenceRecord[].
-   */
   const fetchReferences = async (
     supplierId: number,
     type: ReferenceType
@@ -338,7 +491,7 @@ const DebitForm: React.FC = () => {
     try {
       const endpoint =
         type === "Purchase Order"
-          ? "/purchase-order?page=1&limit=10"
+          ? "/purchase-order?page=1&limit=10000"
           : "/purchase-invoice?page=1&limit=10000";
 
       const response = await api.get(endpoint);
@@ -415,6 +568,7 @@ const DebitForm: React.FC = () => {
       bankId: primary?.id || "",
       supplierId: "",
       supplierName: "",
+      partyName: "",
       referenceId: "",
       referenceNo: "",
       referenceDate: "",
@@ -435,6 +589,8 @@ const DebitForm: React.FC = () => {
       ...prev,
       supplierId: supplier.id,
       supplierName: displayName,
+      /* ✅ mirror into partyName so save/payload is consistent */
+      partyName: displayName,
       referenceId: "",
       referenceNo: "",
       referenceDate: "",
@@ -472,6 +628,7 @@ const DebitForm: React.FC = () => {
       ...prev,
       supplierId: "",
       supplierName: "",
+      partyName: "",
       referenceId: "",
       referenceNo: "",
       referenceDate: "",
@@ -497,6 +654,16 @@ const DebitForm: React.FC = () => {
       amount: "",
     }));
     setRefSearch("");
+  };
+
+  const openHistoryEntry = (row: TransactionHistoryRow) => {
+    const params = new URLSearchParams({
+      id: String(row.id),
+      mode: isReadOnly ? "view" : "edit",
+      referenceType: referenceTypeParam || formData.referenceType,
+      referenceId: String(referenceIdParam || formData.referenceId),
+    });
+    navigate(`/receivables/new-debits?${params.toString()}`);
   };
 
   /* ---------------------------- Filters ------------------------------ */
@@ -544,19 +711,21 @@ const DebitForm: React.FC = () => {
     const isPO = formData.referenceType === "Purchase Order";
 
     const payload = {
+      entry_no: formData.entryNo || undefined,
       entry_date: toYMD(formData.debitDate),
-      entry_type: "Debit",
+      entry_type: formData.entryType || "Debit",
       company_id: formData.companyId || company?.id || 1,
       bank_detail_id: formData.bankId || null,
       transaction_id: formData.transactionId.trim(),
       transaction_date: toYMD(formData.transactionDate),
       party_type: "Supplier",
       party_id: formData.supplierId,
+      /* ✅ Send party_name along with the rest of the payload */
+      party_name: formData.partyName || formData.supplierName || "",
       reference_type: formData.referenceType,
       reference_id: formData.referenceId,
       reference_no: formData.referenceNo,
       reference_date: toYMD(formData.referenceDate),
-      // Backwards-compatible keys (kept for API)
       purchase_invoice_no: isPO ? null : formData.referenceNo,
       sales_invoice_no: null,
       purchase_order_no: isPO ? formData.referenceNo : formData.purchaseOrderNo,
@@ -572,9 +741,11 @@ const DebitForm: React.FC = () => {
       modified_by: 1,
     };
 
-    console.log("Account Entry Payload (Debit):", payload);
+    if (isEditOrView && entryId) {
+      const response = await api.put(`/account_entry/${entryId}`, payload);
+      return response.data;
+    }
     const response = await api.post("/account_entry", payload);
-    console.log("Debit entry saved:", response.data);
     return response.data;
   };
 
@@ -584,30 +755,35 @@ const DebitForm: React.FC = () => {
     setSuccessMessage(null);
     try {
       const result = await saveDebitDetails();
+      const entryNo =
+        result?.data?.entry_no || formData.entryNo || "ACC-XXXXX";
 
-      const entryNo = result?.data?.entry_no || "ACC-XXXXX";
       setSuccessMessage(
-        `✅ Account entry ${entryNo} created successfully for ${formData.referenceType} ${formData.referenceNo}.`
+        isEditOrView
+          ? `✅ Account entry ${entryNo} updated successfully.`
+          : `✅ Account entry ${entryNo} created successfully for ${formData.referenceType} ${formData.referenceNo}.`
       );
 
-      const defaultBankId =
-        company?.bank_details?.find((b) => b.is_primary === 1)?.id ||
-        company?.bank_details?.[0]?.id ||
-        "";
+      if (!isEditOrView) {
+        const defaultBankId =
+          company?.bank_details?.find((b) => b.is_primary === 1)?.id ||
+          company?.bank_details?.[0]?.id ||
+          "";
 
-      setFormData({
-        ...initialFormData,
-        debitDate: new Date().toISOString().split("T")[0],
-        transactionDate: new Date().toISOString().split("T")[0],
-        companyId: formData.companyId,
-        referenceType: formData.referenceType,
-        bankId: defaultBankId,
-      });
-      setSupplierSearch("");
-      setRefSearch("");
-      setReferences([]);
-      setErrors({});
-      setShowBankDetails(false);
+        setFormData({
+          ...initialFormData,
+          debitDate: new Date().toISOString().split("T")[0],
+          transactionDate: new Date().toISOString().split("T")[0],
+          companyId: formData.companyId,
+          referenceType: formData.referenceType,
+          bankId: defaultBankId,
+        });
+        setSupplierSearch("");
+        setRefSearch("");
+        setReferences([]);
+        setErrors({});
+        setShowBankDetails(false);
+      }
 
       setTimeout(() => setSuccessMessage(null), 5000);
     } catch (err: any) {
@@ -626,7 +802,9 @@ const DebitForm: React.FC = () => {
   const isViewMode = false;
   const isEdit = false;
   const isPurchaseOrder = formData.referenceType === "Purchase Order";
-  const refLabel = isPurchaseOrder ? "Purchase Order No." : "Purchase Bill No.";
+  const refLabel = isPurchaseOrder
+    ? "Purchase Order No."
+    : "Purchase Bill No.";
   const refPlaceholder = !formData.supplierId
     ? "Select supplier first"
     : loadingReferences
@@ -634,6 +812,18 @@ const DebitForm: React.FC = () => {
     : `Search ${isPurchaseOrder ? "purchase order" : "purchase bill"}`;
 
   /* ------------------------------ Render ----------------------------- */
+
+  if (loadingTransaction) {
+    return (
+      <div className="rd-credit-page">
+        <div className="rd-credit-card">
+          <div style={{ padding: 40, textAlign: "center" }}>
+            Loading transaction details…
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="rd-credit-page">
@@ -675,7 +865,10 @@ const DebitForm: React.FC = () => {
       </div>
       <div className="rd-credit-card">
         <div className="rd-credit-header">
-          <h2>REFERENCE DETAILS – DEBIT FORM</h2>
+          <h2>
+            REFERENCE DETAILS – DEBIT FORM
+            {isReadOnly ? " (View)" : isEditOrView ? " (Edit)" : ""}
+          </h2>
         </div>
 
         {successMessage && (
@@ -685,8 +878,38 @@ const DebitForm: React.FC = () => {
         )}
 
         <div className="rd-credit-form">
-          {/* ROW 1 — Debit Date | Company | Supplier | Reference Type */}
+          {/* ROW 1 — Entry No | Entry Type | Debit Date | Company */}
           <div className="rd-credit-row four-column">
+            <div className="rd-credit-field">
+              <label>Entry No</label>
+              <input
+                type="text"
+                value={formData.entryNo}
+                placeholder="Auto-generated"
+                disabled
+              />
+            </div>
+
+            <div className="rd-credit-field">
+              <label>Entry Type</label>
+              <select
+                value={formData.entryType}
+                onChange={(e) =>
+                  handleChange(
+                    "entryType",
+                    e.target.value as "Credit" | "Debit"
+                  )
+                }
+                disabled={isReadOnly}
+              >
+                {ENTRY_TYPE_OPTIONS.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             <div className="rd-credit-field">
               <label>
                 Debit Date <span>*</span>
@@ -695,6 +918,7 @@ const DebitForm: React.FC = () => {
                 type="date"
                 value={formData.debitDate}
                 onChange={(e) => handleChange("debitDate", e.target.value)}
+                disabled={isReadOnly}
               />
               {errors.debitDate && (
                 <small className="rd-credit-error">{errors.debitDate}</small>
@@ -708,7 +932,7 @@ const DebitForm: React.FC = () => {
               <select
                 value={formData.companyId}
                 onChange={(e) => handleCompanyChange(Number(e.target.value))}
-                disabled={loadingCompany}
+                disabled={loadingCompany || isReadOnly}
               >
                 <option value="">
                   {loadingCompany
@@ -725,7 +949,10 @@ const DebitForm: React.FC = () => {
                 <small className="rd-credit-error">{errors.companyId}</small>
               )}
             </div>
+          </div>
 
+          {/* ROW 2 — Supplier | Reference Type */}
+          <div className="rd-credit-row three-column">
             <div className="rd-credit-field">
               <label>
                 Supplier <span>*</span>
@@ -739,28 +966,35 @@ const DebitForm: React.FC = () => {
                         ? "Loading suppliers..."
                         : "Search or select supplier"
                     }
-                    value={supplierSearch}
+                    /* ✅ In edit/view, show the resolved party_name from API */
+                    value={
+                      isEditOrView && formData.partyName
+                        ? formData.partyName
+                        : supplierSearch
+                    }
                     onChange={(e) => {
                       setSupplierSearch(e.target.value);
                       setShowSupplierDropdown(true);
                     }}
                     onFocus={() => setShowSupplierDropdown(true)}
-                    disabled={loadingSuppliers}
+                    disabled={loadingSuppliers || isReadOnly}
                   />
-                  {supplierSearch && (
-                    <button
-                      type="button"
-                      className="rd-credit-searchable-clear"
-                      onClick={clearSupplier}
-                      title="Clear"
-                    >
-                      ✕
-                    </button>
-                  )}
+                  {((isEditOrView && formData.partyName) ||
+                    (!isEditOrView && supplierSearch)) &&
+                    !isReadOnly && (
+                      <button
+                        type="button"
+                        className="rd-credit-searchable-clear"
+                        onClick={clearSupplier}
+                        title="Clear"
+                      >
+                        ✕
+                      </button>
+                    )}
                   <span className="rd-credit-searchable-chevron">▾</span>
                 </div>
 
-                {showSupplierDropdown && (
+                {showSupplierDropdown && !isReadOnly && (
                   <div className="rd-credit-searchable-menu">
                     {filteredSuppliers.length === 0 ? (
                       <div className="rd-credit-searchable-empty">
@@ -803,6 +1037,7 @@ const DebitForm: React.FC = () => {
                 onChange={(e) =>
                   handleReferenceTypeChange(e.target.value as ReferenceType)
                 }
+                disabled={isReadOnly}
               >
                 {REFERENCE_TYPES.map((rt) => (
                   <option key={rt} value={rt}>
@@ -816,7 +1051,7 @@ const DebitForm: React.FC = () => {
             </div>
           </div>
 
-          {/* ROW 2 — Reference No. | Payment Mode | Paying Bank */}
+          {/* ROW 3 — Reference No. | Payment Mode | Paying Bank */}
           <div className="rd-credit-row three-column">
             <div className="rd-credit-field">
               <label>
@@ -833,9 +1068,11 @@ const DebitForm: React.FC = () => {
                       setShowRefDropdown(true);
                     }}
                     onFocus={() => setShowRefDropdown(true)}
-                    disabled={!formData.supplierId || loadingReferences}
+                    disabled={
+                      !formData.supplierId || loadingReferences || isReadOnly
+                    }
                   />
-                  {refSearch && (
+                  {refSearch && !isReadOnly && (
                     <button
                       type="button"
                       className="rd-credit-searchable-clear"
@@ -848,12 +1085,16 @@ const DebitForm: React.FC = () => {
                   <span className="rd-credit-searchable-chevron">▾</span>
                 </div>
 
-                {showRefDropdown && (
+                {showRefDropdown && !isReadOnly && (
                   <div className="rd-credit-searchable-menu">
                     {filteredReferences.length === 0 ? (
                       <div className="rd-credit-searchable-empty">
                         {references.length === 0
-                          ? `No ${isPurchaseOrder ? "purchase orders" : "purchase bills"} found`
+                          ? `No ${
+                              isPurchaseOrder
+                                ? "purchase orders"
+                                : "purchase bills"
+                            } found`
                           : "No matching results"}
                       </div>
                     ) : (
@@ -900,6 +1141,7 @@ const DebitForm: React.FC = () => {
               <select
                 value={formData.paymentType}
                 onChange={(e) => handleChange("paymentType", e.target.value)}
+                disabled={isReadOnly}
               >
                 {TRANSFER_MODES.map((mode) => (
                   <option key={mode.value} value={mode.value}>
@@ -931,6 +1173,7 @@ const DebitForm: React.FC = () => {
                           e.target.value ? Number(e.target.value) : ""
                         )
                       }
+                      disabled={isReadOnly}
                     >
                       <option value="">-- Select --</option>
                       {company.bank_details.map((bank) => (
@@ -953,7 +1196,7 @@ const DebitForm: React.FC = () => {
             )}
           </div>
 
-          {/* ROW 3 — Transaction ID | Transaction Date | Amount */}
+          {/* ROW 4 — Transaction ID | Transaction Date | Amount */}
           <div className="rd-credit-row three-column">
             <div className="rd-credit-field">
               <label>
@@ -971,7 +1214,7 @@ const DebitForm: React.FC = () => {
                 onChange={(e) =>
                   handleChange("transactionId", e.target.value)
                 }
-                disabled={formData.paymentType === "Cash"}
+                disabled={formData.paymentType === "Cash" || isReadOnly}
               />
               {errors.transactionId && (
                 <small className="rd-credit-error">
@@ -988,6 +1231,7 @@ const DebitForm: React.FC = () => {
                 onChange={(e) =>
                   handleChange("transactionDate", e.target.value)
                 }
+                disabled={isReadOnly}
               />
             </div>
 
@@ -1004,6 +1248,7 @@ const DebitForm: React.FC = () => {
                   placeholder="Enter amount"
                   value={formData.amount}
                   onChange={(e) => handleChange("amount", e.target.value)}
+                  disabled={isReadOnly}
                 />
               </div>
               {errors.amount && (
@@ -1022,6 +1267,7 @@ const DebitForm: React.FC = () => {
                 placeholder="Add narration"
                 value={formData.narration}
                 onChange={(e) => handleChange("narration", e.target.value)}
+                disabled={isReadOnly}
               />
               {errors.narration && (
                 <small className="rd-credit-error">{errors.narration}</small>
@@ -1029,94 +1275,194 @@ const DebitForm: React.FC = () => {
             </div>
           </div>
 
-          {/* DRILL-DOWN: Bank Details */}
-          {formData.paymentType !== "Cash" && selectedBank && (
-            <div className="rd-credit-row">
-              <div className="rd-credit-bank-drill">
-                <button
-                  type="button"
-                  className="rd-credit-bank-drill-toggle"
-                  onClick={() => setShowBankDetails((v) => !v)}
-                  aria-expanded={showBankDetails}
-                >
-                  <span className="rd-credit-bank-drill-icon">
-                    {showBankDetails ? "▾" : "▸"}
-                  </span>
-                  <span>Bank Details for Payment</span>
-                  <span className="rd-credit-bank-drill-sub">
-                    {selectedBank.bank_name} · {selectedBank.account_number}
-                  </span>
-                </button>
+          {/* DRILL-DOWN: Bank Details — hidden in view mode */}
+          {!isReadOnly &&
+            formData.paymentType !== "Cash" &&
+            selectedBank && (
+              <div className="rd-credit-row">
+                <div className="rd-credit-bank-drill">
+                  <button
+                    type="button"
+                    className="rd-credit-bank-drill-toggle"
+                    onClick={() => setShowBankDetails((v) => !v)}
+                    aria-expanded={showBankDetails}
+                  >
+                    <span className="rd-credit-bank-drill-icon">
+                      {showBankDetails ? "▾" : "▸"}
+                    </span>
+                    <span>Bank Details for Payment</span>
+                    <span className="rd-credit-bank-drill-sub">
+                      {selectedBank.bank_name} · {selectedBank.account_number}
+                    </span>
+                  </button>
 
-                {showBankDetails && (
-                  <div className="rd-credit-bank-drill-body">
-                    <div className="rd-credit-bank-grid">
-                      <div className="rd-credit-bank-item">
-                        <span className="rd-credit-bank-label">
-                          Account Holder
-                        </span>
-                        <span className="rd-credit-bank-value">
-                          {selectedBank.account_holder_name}
-                        </span>
-                      </div>
-                      <div className="rd-credit-bank-item">
-                        <span className="rd-credit-bank-label">
-                          Account Type
-                        </span>
-                        <span className="rd-credit-bank-value">
-                          {selectedBank.account_type}
-                        </span>
-                      </div>
-                      <div className="rd-credit-bank-item">
-                        <span className="rd-credit-bank-label">Bank Name</span>
-                        <span className="rd-credit-bank-value">
-                          {selectedBank.bank_name}
-                        </span>
-                      </div>
-                      <div className="rd-credit-bank-item">
-                        <span className="rd-credit-bank-label">Branch</span>
-                        <span className="rd-credit-bank-value">
-                          {selectedBank.branch_name}
-                        </span>
-                      </div>
-                      <div className="rd-credit-bank-item">
-                        <span className="rd-credit-bank-label">
-                          Account Number
-                        </span>
-                        <span className="rd-credit-bank-value">
-                          {selectedBank.account_number}
-                        </span>
-                      </div>
-                      <div className="rd-credit-bank-item">
-                        <span className="rd-credit-bank-label">IFSC Code</span>
-                        <span className="rd-credit-bank-value">
-                          {selectedBank.ifsc_code}
-                        </span>
-                      </div>
-                      <div className="rd-credit-bank-item">
-                        <span className="rd-credit-bank-label">Currency</span>
-                        <span className="rd-credit-bank-value">
-                          {selectedBank.currency}
-                        </span>
+                  {showBankDetails && (
+                    <div className="rd-credit-bank-drill-body">
+                      <div className="rd-credit-bank-grid">
+                        <div className="rd-credit-bank-item">
+                          <span className="rd-credit-bank-label">
+                            Account Holder
+                          </span>
+                          <span className="rd-credit-bank-value">
+                            {selectedBank.account_holder_name}
+                          </span>
+                        </div>
+                        <div className="rd-credit-bank-item">
+                          <span className="rd-credit-bank-label">
+                            Account Type
+                          </span>
+                          <span className="rd-credit-bank-value">
+                            {selectedBank.account_type}
+                          </span>
+                        </div>
+                        <div className="rd-credit-bank-item">
+                          <span className="rd-credit-bank-label">
+                            Bank Name
+                          </span>
+                          <span className="rd-credit-bank-value">
+                            {selectedBank.bank_name}
+                          </span>
+                        </div>
+                        <div className="rd-credit-bank-item">
+                          <span className="rd-credit-bank-label">Branch</span>
+                          <span className="rd-credit-bank-value">
+                            {selectedBank.branch_name}
+                          </span>
+                        </div>
+                        <div className="rd-credit-bank-item">
+                          <span className="rd-credit-bank-label">
+                            Account Number
+                          </span>
+                          <span className="rd-credit-bank-value">
+                            {selectedBank.account_number}
+                          </span>
+                        </div>
+                        <div className="rd-credit-bank-item">
+                          <span className="rd-credit-bank-label">
+                            IFSC Code
+                          </span>
+                          <span className="rd-credit-bank-value">
+                            {selectedBank.ifsc_code}
+                          </span>
+                        </div>
+                        <div className="rd-credit-bank-item">
+                          <span className="rd-credit-bank-label">
+                            Currency
+                          </span>
+                          <span className="rd-credit-bank-value">
+                            {selectedBank.currency}
+                          </span>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
+            )}
+
+          {/* ═══ TRANSACTION HISTORY ═══ */}
+          {isEditOrView && (
+            <div className="rd-credit-history">
+              <h4 className="rd-credit-history-title">
+                Transaction History — {formData.referenceType}{" "}
+                {formData.referenceNo || "—"}
+              </h4>
+
+              {history.length === 0 ? (
+                <div className="rd-credit-history-empty">
+                  No previous transactions for this reference.
+                </div>
+              ) : (
+                <div className="rd-credit-history-table-wrap">
+                  <table className="rd-credit-history-table">
+                    <thead>
+                      <tr>
+                        <th>Entry No</th>
+                        <th>Date</th>
+                        <th>Type</th>
+                        <th>Payment Mode</th>
+                        <th>Transaction ID</th>
+                        <th>Amount</th>
+                        <th>Narration</th>
+                        <th>Status</th>
+                        <th className="rd-credit-history-actions-col">
+                          Actions
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {history.map((row) => (
+                        <tr key={row.id}>
+                          <td className="rd-credit-history-no">
+                            {row.entry_no}
+                          </td>
+                          <td>{formatDateDisplay(row.entry_date)}</td>
+                          <td>
+                            <span
+                              className={`rd-credit-history-badge ${
+                                row.entry_type === "Credit"
+                                  ? "rd-credit-history-badge--credit"
+                                  : "rd-credit-history-badge--debit"
+                              }`}
+                            >
+                              {row.entry_type}
+                            </span>
+                          </td>
+                          <td>
+                            <span className="rd-credit-history-mode">
+                              {row.payment_type || "—"}
+                            </span>
+                          </td>
+                          <td className="rd-credit-history-txn">
+                            {row.transaction_id || "—"}
+                          </td>
+                          <td className="rd-credit-history-amount">
+                            ₹{formatMoney(row.total_amount)}
+                          </td>
+                          <td className="rd-credit-history-narration">
+                            {row.narration || "—"}
+                          </td>
+                          <td>
+                            <span
+                              className={`rd-credit-history-status rd-credit-history-status--${(
+                                row.status || "Draft"
+                              ).toLowerCase()}`}
+                            >
+                              {row.status}
+                            </span>
+                          </td>
+                          <td className="rd-credit-history-actions">
+                            <button
+                              type="button"
+                              className="rd-credit-history-btn rd-credit-history-btn--view"
+                              onClick={() => openHistoryEntry(row)}
+                              title={isReadOnly ? "View" : "Open"}
+                            >
+                              {isReadOnly ? "View" : "Open"}
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           )}
 
           {/* ACTIONS */}
-          <div className="rd-credit-actions">
-            <button
-              type="button"
-              className="rd-credit-save-continue"
-              onClick={handleSaveContinue}
-              disabled={saving}
-            >
-              {saving ? "Saving..." : "Save"}
-            </button>
-          </div>
+          {!isReadOnly && (
+            <div className="rd-credit-actions">
+              <button
+                type="button"
+                className="rd-credit-save-continue"
+                onClick={handleSaveContinue}
+                disabled={saving}
+              >
+                {saving ? "Saving..." : isEditOrView ? "Update" : "Save"}
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>
