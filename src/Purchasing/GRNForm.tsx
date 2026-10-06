@@ -5,6 +5,7 @@
 //        can easily switch to another PO after making a selection.
 // FIXED: PO dropdown no longer filters by the auto-set supplier, so ALL POs
 //        are always visible and selectable.
+// FIXED: Delivery charge input causing white screen due to string/number type mismatch. Totals now update correctly.
 
 import { useState, useEffect, type FormEvent, useRef } from "react"; 
 import { useNavigate, useParams, useLocation, useSearchParams } from "react-router-dom"; 
@@ -1025,8 +1026,8 @@ export default function GRNForm() {
     // 🆕 Keep the search term empty so the next focus shows the full PO list
     //    again. The input will display `formData.purchaseOrder` while
     //    unfocused thanks to the `poDisplayValue` computed above.
-    setPOSearchTerm('');
-    setIsPOFocused(false);
+    setPOSearchTerm(''); 
+    setIsPOFocused(false); 
     if (poDetail.supplier_name) { 
       setSupplierSearchTerm(poDetail.supplier_name); 
     } 
@@ -1580,8 +1581,16 @@ export default function GRNForm() {
  
   // ─── Handlers ──────────────────────────────────────────────────────── 
   const handleFieldChange = (field: keyof GRNData, value: any) => { 
-    if (isViewMode) return;
-    setFormData(prev => ({ ...prev, [field]: value })); 
+    if (isViewMode) return; 
+    
+    // Ensure deliveryCharge is always stored as a number to prevent 
+    // "toFixed is not a function" crashes and string concatenation issues.
+    let processedValue = value;
+    if (field === 'deliveryCharge') {
+      processedValue = value === '' || isNaN(Number(value)) ? 0 : Number(value);
+    }
+
+    setFormData(prev => ({ ...prev, [field]: processedValue })); 
     setIsDirty(true); 
     if (errors[field]) { 
       setErrors(prev => { 
@@ -2024,8 +2033,11 @@ export default function GRNForm() {
     }, 
     { subtotal: 0, sgst: 0, cgst: 0, itemsTotal: 0 } 
   ); 
-  const deliveryChargeAmount = formData.freeDelivery ? 0 : (formData.deliveryCharge || 0); 
-  const grandTotal = billTotals.itemsTotal + deliveryChargeAmount; 
+  
+  // FIX: Ensure deliveryChargeAmount is always a Number to prevent string 
+  // concatenation and the "toFixed is not a function" crash.
+  const deliveryChargeAmount = formData.freeDelivery ? 0 : (Number(formData.deliveryCharge) || 0); 
+  const grandTotal = Number(billTotals.itemsTotal) + deliveryChargeAmount; 
  
   // ─── Get draft items ────────────────────────────────────────────────── 
   const draftItems = formData.items.filter(item => item.isDraft === true); 
@@ -2774,7 +2786,6 @@ export default function GRNForm() {
   }; 
  
  
- 
   if (loading) {
     return (
       <div className={`grnf-page ${theme}`}>
@@ -2911,7 +2922,7 @@ export default function GRNForm() {
             <h1>
               {isViewMode ? 'View Goods Receipt Note' : isNew ? 'New Goods Receipt Note' : `${formData.grn_number}`}
             </h1>
-            {renderViewModeBadge()}
+            {renderViewModeBadge()} 
           </div> 
           <button type="button" onClick={handlePrint} className="grnf-print-btn"> 
             <FaPrint size={12} /> Print 

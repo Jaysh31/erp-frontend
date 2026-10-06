@@ -1,4 +1,5 @@
 import { useState, useEffect, type FormEvent } from "react";
+import ReactDOM from "react-dom";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import {
   FaArrowLeft,
@@ -14,9 +15,12 @@ import {
   FaHashtag,
   FaAlignLeft,
   FaCheckSquare,
+  FaCheck,
+  FaEye,
 } from 'react-icons/fa';
 import "./UOMForm.css";
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
+import api from '../../services/api';
 
 interface ValidationError {
   field: string;
@@ -24,9 +28,256 @@ interface ValidationError {
   message: string;
 }
 
-const AUTH_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjMsImVtYWlsIjoiamF5ZXNod2FrbGUxMEBnbWFpbC5jb20iLCJpYXQiOjE3ODkwMzY0NDcsImV4cCI6MTc4OTEyMjg0N30.SzSd1wlUZ5VomUTL4GlQ_N24zdGPgHpuNdatB2GQZuo";
+// ═══════════════════════════════════════════════════════════════════════════
+// 🆕 FULL-SCREEN LOADER OVERLAY
+// ═══════════════════════════════════════════════════════════════════════════
 
-const API_BASE_URL = "https://erp.sculptortechpvtltd.com/api";
+interface LoaderOverlayProps {
+  isOpen: boolean;
+  message?: string;
+  subtitle?: string;
+}
+
+const LoaderOverlay: React.FC<LoaderOverlayProps> = ({
+  isOpen,
+  message = 'Please wait...',
+  subtitle,
+}) => {
+  if (!isOpen) return null;
+
+  return ReactDOM.createPortal(
+    <div
+      className="uomf-loader-overlay"
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(15, 23, 42, 0.45)',
+        backdropFilter: 'blur(2px)',
+        WebkitBackdropFilter: 'blur(2px)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 20000,
+        padding: '20px',
+      }}
+    >
+      <div
+        className="uomf-loader-card"
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: '#ffffff',
+          borderRadius: '16px',
+          padding: '32px 40px',
+          minWidth: '280px',
+          maxWidth: '380px',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '16px',
+          boxShadow: '0 20px 60px rgba(0, 0, 0, 0.25)',
+          textAlign: 'center',
+        }}
+      >
+        <div
+          className="uomf-loader-spinner"
+          style={{
+            width: '52px',
+            height: '52px',
+            borderRadius: '50%',
+            border: '4px solid #e5e7eb',
+            borderTopColor: '#6366f1',
+            animation: 'uomfSpin 0.9s linear infinite',
+          }}
+        />
+        <div
+          className="uomf-loader-message"
+          style={{
+            fontSize: '16px',
+            fontWeight: 600,
+            color: '#111827',
+          }}
+        >
+          {message}
+        </div>
+        {subtitle && (
+          <div
+            className="uomf-loader-subtitle"
+            style={{
+              fontSize: '13px',
+              color: '#6b7280',
+              marginTop: '-8px',
+            }}
+          >
+            {subtitle}
+          </div>
+        )}
+      </div>
+      <style>{`
+        @keyframes uomfSpin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
+    </div>,
+    document.body
+  );
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 🆕 SUCCESS MODAL
+// ═══════════════════════════════════════════════════════════════════════════
+
+interface SuccessModalProps {
+  isOpen: boolean;
+  title: string;
+  message: string;
+  details: { label: string; value: string | number }[];
+  onClose: () => void;
+  onView: () => void;
+}
+
+const SuccessModal: React.FC<SuccessModalProps> = ({
+  isOpen,
+  title,
+  message,
+  details,
+  onClose,
+  onView,
+}) => {
+  if (!isOpen) return null;
+
+  return ReactDOM.createPortal(
+    <div
+      className="uomf-success-overlay"
+      onClick={onClose}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(0,0,0,0.5)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 30000,
+        padding: '20px',
+      }}
+    >
+      <div
+        className="uomf-success-modal"
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: '#ffffff',
+          borderRadius: '12px',
+          maxWidth: '480px',
+          width: '100%',
+          overflow: 'hidden',
+          boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+          textAlign: 'center',
+          padding: '32px 24px',
+        }}
+      >
+        <div
+          style={{
+            width: '64px',
+            height: '64px',
+            borderRadius: '50%',
+            background: '#d1fae5',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            margin: '0 auto 16px',
+          }}
+        >
+          <FaCheck size={28} style={{ color: '#10b981' }} />
+        </div>
+
+        <h2 style={{ margin: '0 0 8px', fontSize: '20px', fontWeight: 700, color: '#111827' }}>
+          {title}
+        </h2>
+
+        <p style={{ margin: '0 0 24px', fontSize: '14px', color: '#6b7280' }}>
+          {message}
+        </p>
+
+        {details.length > 0 && (
+          <div
+            style={{
+              background: '#f9fafb',
+              borderRadius: '8px',
+              border: '1px solid #e5e7eb',
+              padding: '16px',
+              marginBottom: '24px',
+              textAlign: 'left',
+            }}
+          >
+            {details.map((detail, idx) => (
+              <div
+                key={idx}
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  marginBottom: idx < details.length - 1 ? '12px' : '0',
+                }}
+              >
+                <span style={{ fontSize: '13px', color: '#6b7280' }}>{detail.label}</span>
+                <span style={{ fontSize: '13px', fontWeight: 600, color: '#111827' }}>
+                  {detail.value}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
+          <button
+            onClick={onClose}
+            style={{
+              flex: 1,
+              padding: '10px 16px',
+              borderRadius: '6px',
+              border: '1px solid #d1d5db',
+              background: 'transparent',
+              color: '#6b7280',
+              cursor: 'pointer',
+              fontSize: '14px',
+              fontWeight: 500,
+              transition: 'background 0.15s',
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = '#f3f4f6'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+          >
+            Close
+          </button>
+          <button
+            onClick={onView}
+            style={{
+              flex: 1,
+              padding: '10px 16px',
+              borderRadius: '6px',
+              border: 'none',
+              background: '#2563eb',
+              color: '#ffffff',
+              cursor: 'pointer',
+              fontSize: '14px',
+              fontWeight: 500,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px',
+              transition: 'background 0.15s',
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = '#1d4ed8'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = '#2563eb'; }}
+          >
+            <FaEye size={14} />
+            View
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+};
 
 export default function UOMForm() {
   const { id } = useParams<{ id: string }>();
@@ -37,10 +288,7 @@ export default function UOMForm() {
   const uomName = isNew ? "New UOM" : decodeURIComponent(id || "");
   const isEditMode = !isNew;
 
-  // Get data passed from list page (if available)
   const passedData = (location.state as any)?.uomData;
-  
-  // ─── View Mode Flag ──────────────────────────────────────────────────
   const isViewMode = (location.state as any)?.viewMode === true;
 
   const [form, setForm] = useState({
@@ -56,37 +304,47 @@ export default function UOMForm() {
   const [comment, setComment] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [errors, ] = useState<{ [key: string]: string }>({});
+  const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const [showValidationSummary, setShowValidationSummary] = useState(false);
   const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
 
-  // ─── Fetch Existing UOM Data on Load ─────────────────────────────────
-  useEffect(() => {
-    if (!isNew && id) {
-      fetchUOMData(id);
-    }
-  }, [id, isNew]);
+  // 🆕 Global loader state — 'save' | null
+  const [loaderAction, setLoaderAction] = useState<'save' | null>(null);
 
+  // 🆕 Success modal state
+  const [successModal, setSuccessModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    details: { label: string; value: string | number }[];
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    details: [],
+  });
+
+  // ─── Fetch Existing UOM Data on Load ────────────────────────────────
+  // Uses the shared `api` service so auth + base URL are handled centrally.
   const fetchUOMData = async (uomId: string) => {
     setLoading(true);
     try {
-      const response = await fetch(
-        `${API_BASE_URL}/uom/${encodeURIComponent(uomId)}`,
-        {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${AUTH_TOKEN}`,
-          },
-        }
+      // Backend pattern: GET /uom returns the list; find by name.
+      const response = await api.get('/uom');
+      const raw = response.data?.data;
+      const list: any[] = Array.isArray(raw)
+        ? raw
+        : Array.isArray(raw?.records)
+        ? raw.records
+        : Array.isArray(raw?.data)
+        ? raw.data
+        : [];
+
+      const target = decodeURIComponent(String(uomId)).toLowerCase();
+      const data = list.find(
+        (o: any) =>
+          String(o.uom_name || o.name || '').toLowerCase() === target
       );
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch UOM: ${response.status}`);
-      }
-
-      const json = await response.json();
-      const data = json.data || json;
 
       if (data) {
         setForm({
@@ -96,9 +354,10 @@ export default function UOMForm() {
           commonCode: data.common_code || data.commonCode || "",
           description: data.description || "",
           enabled: data.enabled !== undefined ? Boolean(data.enabled) : true,
-          mustBeWholeNumber: data.must_be_whole_number !== undefined
-            ? Boolean(data.must_be_whole_number)
-            : false,
+          mustBeWholeNumber:
+            data.must_be_whole_number !== undefined
+              ? Boolean(data.must_be_whole_number)
+              : false,
         });
       }
     } catch (err) {
@@ -108,23 +367,28 @@ export default function UOMForm() {
     }
   };
 
-  // ─── Validation ──────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!isNew && id) {
+      fetchUOMData(id);
+    }
+  }, [id, isNew]);
+
+  // ─── Validation ────────────────────────────────────────────────────
   const getAllValidationErrors = (): ValidationError[] => {
     const allErrors: ValidationError[] = [];
-
     if (isNew && !form.name.trim()) {
       allErrors.push({ field: 'name', label: 'UOM Name', message: 'UOM name is required' });
     }
-
     return allErrors;
   };
 
+  // ─── Save ──────────────────────────────────────────────────────────
+  // 🆕 Uses the shared `api` service and the pattern used by all other
+  //    working forms: PUT /uom with the id/name in the BODY (not in URL).
   const handleSave = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
-    if (isViewMode) {
-      return;
-    }
+    if (isViewMode) return;
 
     const validationErrorsList = getAllValidationErrors();
     if (validationErrorsList.length > 0) {
@@ -134,9 +398,13 @@ export default function UOMForm() {
     }
 
     setSubmitting(true);
+    setLoaderAction('save');
+    setErrors({});
+
     try {
-      const payload = {
+      const payload: any = {
         uom_name: form.name,
+        name: form.name, // send both — backend may use either
         category: form.category,
         symbol: form.symbol,
         common_code: form.commonCode,
@@ -145,31 +413,60 @@ export default function UOMForm() {
         must_be_whole_number: form.mustBeWholeNumber ? 1 : 0,
       };
 
-      const url = isEditMode
-        ? `${API_BASE_URL}/uom/${encodeURIComponent(id || "")}`
-        : `${API_BASE_URL}/uom`;
-
-      const method = isEditMode ? "PUT" : "POST";
-
-      const response = await fetch(url, {
-        method,
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${AUTH_TOKEN}`,
-        },
-        body: JSON.stringify(payload),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to save UOM: ${response.status}`);
+      let response;
+      if (isEditMode) {
+        // 🆕 id/name goes in the BODY (matches Operation/Warehouse pattern)
+        response = await api.put('/uom', {
+          id: decodeURIComponent(id || ''),
+          uom_name: form.name,
+          name: form.name,
+          ...payload,
+        });
+      } else {
+        response = await api.post('/uom', payload);
       }
 
-      navigate('/uom');
-    } catch (err) {
+      if (response.data?.success === 1) {
+        setSuccessModal({
+          isOpen: true,
+          title: 'Success!',
+          message: isEditMode
+            ? 'UOM updated successfully!'
+            : 'UOM created successfully!',
+          details: [
+            { label: 'UOM Name', value: form.name || '—' },
+            { label: 'Category', value: form.category || '—' },
+            { label: 'Symbol', value: form.symbol || '—' },
+            { label: 'Enabled', value: form.enabled ? 'Yes' : 'No' },
+          ],
+        });
+      } else {
+        const msg = response.data?.message || 'Failed to save UOM';
+        setErrors({ submit: msg });
+        console.error('Failed to save UOM:', msg);
+      }
+    } catch (err: any) {
       console.error("Error saving UOM:", err);
+      const msg =
+        err?.response?.data?.message ||
+        err?.message ||
+        'An error occurred while saving';
+      setErrors({ submit: msg });
     } finally {
       setSubmitting(false);
+      setLoaderAction(null);
     }
+  };
+
+  // 🆕 Close button on success modal → listing page.
+  const handleSuccessClose = () => {
+    setSuccessModal(prev => ({ ...prev, isOpen: false }));
+    navigate('/uom');
+  };
+
+  // 🆕 View button on success modal → stay on the page.
+  const handleSuccessView = () => {
+    setSuccessModal(prev => ({ ...prev, isOpen: false }));
   };
 
   const hasErrors = getAllValidationErrors().length > 0;
@@ -187,6 +484,27 @@ export default function UOMForm() {
 
   return (
     <div className={`uomf-page ${theme}`}>
+      {/* 🆕 Full-screen loader */}
+      <LoaderOverlay
+        isOpen={loaderAction === 'save'}
+        message={isEditMode ? 'Updating UOM...' : 'Creating UOM...'}
+        subtitle={
+          isEditMode
+            ? 'Please wait while we save your changes.'
+            : 'Please wait while we create the UOM.'
+        }
+      />
+
+      {/* 🆕 Success modal */}
+      <SuccessModal
+        isOpen={successModal.isOpen}
+        title={successModal.title}
+        message={successModal.message}
+        details={successModal.details}
+        onClose={handleSuccessClose}
+        onView={handleSuccessView}
+      />
+
       <div className="uomf-inner">
 
         {/* ─── Validation Summary Modal ────────────────────────────── */}
@@ -238,13 +556,32 @@ export default function UOMForm() {
               {isNew ? 'New UOM' : isViewMode ? `View: ${uomName}` : `Edit: ${uomName}`}
             </h1>
           </div>
-          {hasErrors && (
+          {hasErrors && !isViewMode && (
             <div className="error-badge">
               <FaExclamationTriangle size={12} />
               {getAllValidationErrors().length} missing field{getAllValidationErrors().length !== 1 ? 's' : ''}
             </div>
           )}
         </div>
+
+        {/* Show API error banner if any */}
+        {errors.submit && (
+          <div className="opf-alert opf-alert-error" style={{
+            background: '#fee2e2',
+            color: '#991b1b',
+            padding: '10px 14px',
+            borderRadius: '6px',
+            marginBottom: '12px',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center'
+          }}>
+            <span>{errors.submit}</span>
+            <button onClick={() => setErrors({})} style={{
+              background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '16px'
+            }}>×</button>
+          </div>
+        )}
 
         <form onSubmit={handleSave}>
 
@@ -275,7 +612,6 @@ export default function UOMForm() {
               <div className="uomf-field">
                 <label className="uomf-label"><FaList className="uomf-label-icon" />Category</label>
                 {isViewMode ? (
-                  /* In view mode: show as plain text input (no dropdown) */
                   <input
                     type="text"
                     value={form.category}
@@ -283,7 +619,6 @@ export default function UOMForm() {
                     readOnly
                   />
                 ) : (
-                  /* In edit mode: show the actual select dropdown */
                   <select
                     className="form-field"
                     value={form.category}
@@ -399,12 +734,8 @@ export default function UOMForm() {
 
                 <div className="uomf-divider" />
 
-                <div className="uomf-activity-header">
-                  
-                </div>
-
-                <ul className="uomf-activity-list">
-                </ul>
+                <div className="uomf-activity-header"></div>
+                <ul className="uomf-activity-list"></ul>
               </>
             )}
           </div>

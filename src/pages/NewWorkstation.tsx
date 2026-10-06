@@ -1,14 +1,16 @@
 import React, { useState, useEffect, useRef } from "react";
+import ReactDOM from "react-dom";
 import {
   Home,
   ChevronRight,
   X,
   Save,
   AlertTriangle,
-  
   Plus,
   Trash2,
   Calendar,
+  Check,
+  Eye,
 } from "lucide-react";
 import "./NewWorkstation.css";
 import api from '../../src/services/api';
@@ -56,6 +58,258 @@ const STATUS_OPTIONS = [
   "Production"
 ];
 
+// ═══════════════════════════════════════════════════════════════════════════
+// 🆕 FULL-SCREEN LOADER OVERLAY
+// ═══════════════════════════════════════════════════════════════════════════
+
+interface LoaderOverlayProps {
+  isOpen: boolean;
+  message?: string;
+  subtitle?: string;
+}
+
+const LoaderOverlay: React.FC<LoaderOverlayProps> = ({
+  isOpen,
+  message = 'Please wait...',
+  subtitle,
+}) => {
+  if (!isOpen) return null;
+
+  return ReactDOM.createPortal(
+    <div
+      className="nws-loader-overlay"
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(15, 23, 42, 0.45)',
+        backdropFilter: 'blur(2px)',
+        WebkitBackdropFilter: 'blur(2px)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 20000,
+        padding: '20px',
+      }}
+    >
+      <div
+        className="nws-loader-card"
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: '#ffffff',
+          borderRadius: '16px',
+          padding: '32px 40px',
+          minWidth: '280px',
+          maxWidth: '380px',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '16px',
+          boxShadow: '0 20px 60px rgba(0, 0, 0, 0.25)',
+          textAlign: 'center',
+        }}
+      >
+        <div
+          className="nws-loader-spinner"
+          style={{
+            width: '52px',
+            height: '52px',
+            borderRadius: '50%',
+            border: '4px solid #e5e7eb',
+            borderTopColor: '#6366f1',
+            animation: 'nwsSpin 0.9s linear infinite',
+          }}
+        />
+        <div
+          className="nws-loader-message"
+          style={{
+            fontSize: '16px',
+            fontWeight: 600,
+            color: '#111827',
+          }}
+        >
+          {message}
+        </div>
+        {subtitle && (
+          <div
+            className="nws-loader-subtitle"
+            style={{
+              fontSize: '13px',
+              color: '#6b7280',
+              marginTop: '-8px',
+            }}
+          >
+            {subtitle}
+          </div>
+        )}
+      </div>
+      <style>{`
+        @keyframes nwsSpin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
+    </div>,
+    document.body
+  );
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 🆕 SUCCESS MODAL
+// ═══════════════════════════════════════════════════════════════════════════
+
+interface SuccessModalProps {
+  isOpen: boolean;
+  title: string;
+  message: string;
+  details: { label: string; value: string | number }[];
+  onClose: () => void;
+  onView: () => void;
+}
+
+const SuccessModal: React.FC<SuccessModalProps> = ({
+  isOpen,
+  title,
+  message,
+  details,
+  onClose,
+  onView,
+}) => {
+  if (!isOpen) return null;
+
+  return ReactDOM.createPortal(
+    <div
+      className="nws-success-overlay"
+      onClick={onClose}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(0,0,0,0.5)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 30000,
+        padding: '20px',
+      }}
+    >
+      <div
+        className="nws-success-modal"
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: '#ffffff',
+          borderRadius: '12px',
+          maxWidth: '480px',
+          width: '100%',
+          overflow: 'hidden',
+          boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+          textAlign: 'center',
+          padding: '32px 24px',
+        }}
+      >
+        {/* Green check icon */}
+        <div
+          style={{
+            width: '64px',
+            height: '64px',
+            borderRadius: '50%',
+            background: '#d1fae5',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            margin: '0 auto 16px',
+          }}
+        >
+          <Check size={32} style={{ color: '#10b981' }} />
+        </div>
+
+        <h2 style={{ margin: '0 0 8px', fontSize: '20px', fontWeight: 700, color: '#111827' }}>
+          {title}
+        </h2>
+
+        <p style={{ margin: '0 0 24px', fontSize: '14px', color: '#6b7280' }}>
+          {message}
+        </p>
+
+        {details.length > 0 && (
+          <div
+            style={{
+              background: '#f9fafb',
+              borderRadius: '8px',
+              border: '1px solid #e5e7eb',
+              padding: '16px',
+              marginBottom: '24px',
+              textAlign: 'left',
+            }}
+          >
+            {details.map((detail, idx) => (
+              <div
+                key={idx}
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  marginBottom: idx < details.length - 1 ? '12px' : '0',
+                }}
+              >
+                <span style={{ fontSize: '13px', color: '#6b7280' }}>{detail.label}</span>
+                <span style={{ fontSize: '13px', fontWeight: 600, color: '#111827' }}>
+                  {detail.value}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
+          <button
+            onClick={onClose}
+            style={{
+              flex: 1,
+              padding: '10px 16px',
+              borderRadius: '6px',
+              border: '1px solid #d1d5db',
+              background: 'transparent',
+              color: '#6b7280',
+              cursor: 'pointer',
+              fontSize: '14px',
+              fontWeight: 500,
+              transition: 'background 0.15s',
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = '#f3f4f6'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+          >
+            Close
+          </button>
+          <button
+            onClick={onView}
+            style={{
+              flex: 1,
+              padding: '10px 16px',
+              borderRadius: '6px',
+              border: 'none',
+              background: '#2563eb',
+              color: '#ffffff',
+              cursor: 'pointer',
+              fontSize: '14px',
+              fontWeight: 500,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px',
+              transition: 'background 0.15s',
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = '#1d4ed8'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = '#2563eb'; }}
+          >
+            <Eye size={14} />
+            View
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+};
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 interface NewWorkstationProps {
@@ -64,14 +318,34 @@ interface NewWorkstationProps {
   isViewMode?: boolean;
 }
 
-const NewWorkstation: React.FC<NewWorkstationProps> = ({ onBack, editData, isViewMode = false }) => {
+const NewWorkstation: React.FC<NewWorkstationProps> = ({
+  onBack,
+  editData,
+  isViewMode = false,
+}) => {
   const [saving, setSaving] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
   const [isEditMode, setIsEditMode] = useState(false);
-  
+
+  // 🆕 Global loader state.
+  const [loaderAction, setLoaderAction] = useState<'save' | null>(null);
+
+  // 🆕 Success modal state.
+  const [successModal, setSuccessModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    details: { label: string; value: string | number }[];
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    details: [],
+  });
+
   // ─── Errors state ──────────────────────────────────────────────────────────
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
-  
+
   // ─── Dynamic lists state ──────────────────────────────────────────────────
   const [workstationTypes, setWorkstationTypes] = useState<string[]>([
     "Assembly",
@@ -96,13 +370,13 @@ const NewWorkstation: React.FC<NewWorkstationProps> = ({ onBack, editData, isVie
   ]);
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [, setWarehousesLoading] = useState(false);
-  
+
   // ─── New item input states ─────────────────────────────────────────────────
   const [newType, setNewType] = useState('');
   const [showNewTypeInput, setShowNewTypeInput] = useState(false);
   const [newFloor, setNewFloor] = useState('');
   const [showNewFloorInput, setShowNewFloorInput] = useState(false);
-  
+
   // ─── Holiday selection state ──────────────────────────────────────────────
   const [showHolidayPicker, setShowHolidayPicker] = useState(false);
   const [selectedHolidays, setSelectedHolidays] = useState<string[]>([]);
@@ -143,13 +417,13 @@ const NewWorkstation: React.FC<NewWorkstationProps> = ({ onBack, editData, isVie
       if (response.data.success === 1) {
         const data = response.data.data;
         let warehouseList: Warehouse[] = [];
-        
+
         if (Array.isArray(data)) {
           warehouseList = data;
         } else if (data && 'records' in data) {
           warehouseList = data.records || [];
         }
-        
+
         setWarehouses(warehouseList.filter(w => w.disabled === 0));
       }
     } catch (err) {
@@ -183,7 +457,7 @@ const NewWorkstation: React.FC<NewWorkstationProps> = ({ onBack, editData, isVie
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (
-        holidayContainerRef.current && 
+        holidayContainerRef.current &&
         !holidayContainerRef.current.contains(event.target as Node) &&
         holidayPickerRef.current &&
         !holidayPickerRef.current.contains(event.target as Node)
@@ -191,19 +465,17 @@ const NewWorkstation: React.FC<NewWorkstationProps> = ({ onBack, editData, isVie
         setShowHolidayPicker(false);
       }
     };
-    
+
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   // ─── Validation Functions ──────────────────────────────────────────────────
 
-  // Only alphabets and spaces (for name fields)
   const isValidAlphabetOnly = (value: string): boolean => {
     return /^[A-Za-z\s]*$/.test(value);
   };
 
-  // Only numbers (for numeric fields)
   const isValidNumberOnly = (value: string): boolean => {
     return /^\d*\.?\d*$/.test(value);
   };
@@ -216,21 +488,21 @@ const NewWorkstation: React.FC<NewWorkstationProps> = ({ onBack, editData, isVie
           return 'Workstation name should contain only alphabets and spaces';
         }
         return '';
-      
+
       case 'workstation_type':
         if (!value?.trim()) return 'Workstation type is required';
         if (!isValidAlphabetOnly(value.trim())) {
           return 'Workstation type should contain only alphabets and spaces';
         }
         return '';
-      
+
       case 'plant_floor':
         if (!value?.trim()) return 'Plant floor is required';
         if (!isValidAlphabetOnly(value.trim())) {
           return 'Plant floor should contain only alphabets and spaces';
         }
         return '';
-      
+
       case 'production_capacity':
         const capStr = String(value);
         if (!capStr.trim()) return 'Production capacity is required';
@@ -240,7 +512,7 @@ const NewWorkstation: React.FC<NewWorkstationProps> = ({ onBack, editData, isVie
         const cap = Number(value);
         if (cap < 1) return 'Production capacity must be at least 1';
         return '';
-      
+
       case 'hour_rate':
         const rateStr = String(value);
         if (!rateStr.trim()) return 'Hour rate is required';
@@ -250,7 +522,7 @@ const NewWorkstation: React.FC<NewWorkstationProps> = ({ onBack, editData, isVie
         const rate = Number(value);
         if (rate < 0) return 'Hour rate cannot be negative';
         return '';
-      
+
       case 'total_working_hours':
         const hoursStr = String(value);
         if (!hoursStr.trim()) return 'Working hours is required';
@@ -261,18 +533,18 @@ const NewWorkstation: React.FC<NewWorkstationProps> = ({ onBack, editData, isVie
         if (hours < 0) return 'Working hours cannot be negative';
         if (hours === 0) return 'Working hours must be greater than 0';
         return '';
-      
+
       case 'warehouse':
         if (!value?.trim()) return 'Warehouse is required';
         return '';
-      
+
       case 'status':
         if (!value?.trim()) return 'Status is required';
         return '';
-      
+
       case 'description':
         return ''; // Optional field
-      
+
       default:
         return '';
     }
@@ -280,7 +552,7 @@ const NewWorkstation: React.FC<NewWorkstationProps> = ({ onBack, editData, isVie
 
   const validateAllFields = (): { [key: string]: string } => {
     const newErrors: { [key: string]: string } = {};
-    
+
     const requiredFields = [
       'workstation_name',
       'workstation_type',
@@ -307,35 +579,31 @@ const NewWorkstation: React.FC<NewWorkstationProps> = ({ onBack, editData, isVie
   const handleChange = (field: keyof WorkstationFormData) => (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
   ) => {
-    // If in view mode, prevent changes
     if (isViewMode) return;
 
-    const value = e.target.type === 'checkbox' 
+    const value = e.target.type === 'checkbox'
       ? (e.target as HTMLInputElement).checked ? 1 : 0
       : e.target.value;
-    
-    // For numeric fields, only allow numbers
+
     if (field === 'production_capacity' || field === 'hour_rate' || field === 'total_working_hours') {
       const numValue = String(value);
       if (numValue !== '' && !/^\d*\.?\d*$/.test(numValue)) {
-        return; // Don't update if not a valid number
+        return;
       }
     }
-    
-    // For text fields, restrict to alphabets and spaces
+
     if (field === 'workstation_name' || field === 'workstation_type' || field === 'plant_floor') {
       const textValue = String(value);
       if (textValue !== '' && !/^[A-Za-z\s]*$/.test(textValue)) {
-        return; // Don't update if not alphabets only
+        return;
       }
     }
-    
+
     setFormData(prev => ({
       ...prev,
       [field]: value,
     }));
-    
-    // Validate field on change
+
     const error = validateField(field, value);
     setErrors(prev => ({ ...prev, [field]: error }));
   };
@@ -351,7 +619,6 @@ const NewWorkstation: React.FC<NewWorkstationProps> = ({ onBack, editData, isVie
       }
       setWorkstationTypes(prev => [...prev, newType.trim()]);
       setFormData(prev => ({ ...prev, workstation_type: newType.trim() }));
-      // Clear error for workstation_type
       setErrors(prev => ({ ...prev, workstation_type: '' }));
       setNewType('');
       setShowNewTypeInput(false);
@@ -369,7 +636,6 @@ const NewWorkstation: React.FC<NewWorkstationProps> = ({ onBack, editData, isVie
       }
       setPlantFloors(prev => [...prev, newFloor.trim()]);
       setFormData(prev => ({ ...prev, plant_floor: newFloor.trim() }));
-      // Clear error for plant_floor
       setErrors(prev => ({ ...prev, plant_floor: '' }));
       setNewFloor('');
       setShowNewFloorInput(false);
@@ -381,7 +647,7 @@ const NewWorkstation: React.FC<NewWorkstationProps> = ({ onBack, editData, isVie
   const handleAddHoliday = () => {
     if (isViewMode) return;
     if (holidayDate) {
-      const holiday = holidayDescription 
+      const holiday = holidayDescription
         ? `${holidayDate} - ${holidayDescription}`
         : holidayDate;
       if (!selectedHolidays.includes(holiday)) {
@@ -414,7 +680,7 @@ const NewWorkstation: React.FC<NewWorkstationProps> = ({ onBack, editData, isVie
 
   const handleSave = async () => {
     if (isViewMode) return;
-    
+
     const allErrors = validateAllFields();
     if (Object.keys(allErrors).length > 0) {
       setErrors(allErrors);
@@ -422,6 +688,7 @@ const NewWorkstation: React.FC<NewWorkstationProps> = ({ onBack, editData, isVie
     }
 
     setSaving(true);
+    setLoaderAction('save');
     setApiError(null);
 
     try {
@@ -435,7 +702,7 @@ const NewWorkstation: React.FC<NewWorkstationProps> = ({ onBack, editData, isVie
         status: formData.status || "Active",
         hour_rate: formData.hour_rate || 0,
         description: formData.description || "",
-        holiday_list: selectedHolidays.length > 0 
+        holiday_list: selectedHolidays.length > 0
           ? `Custom: ${selectedHolidays.join(', ')}`
           : formData.holiday_list || "India Holidays",
         total_working_hours: formData.total_working_hours || 8,
@@ -444,17 +711,40 @@ const NewWorkstation: React.FC<NewWorkstationProps> = ({ onBack, editData, isVie
 
       let response;
       if (isEditMode && formData.id) {
-        response = await api.put('/workstation', { 
+        response = await api.put('/workstation', {
           id: formData.id,
-          ...payload 
+          ...payload
         });
       } else {
         response = await api.post('/workstation', payload);
       }
-      
+
       if (response.data.success === 1) {
-        alert(`✅ Workstation ${isEditMode ? 'updated' : 'created'} successfully!`);
-        if (onBack) onBack();
+        const responseData = response.data.data;
+        const newId = responseData?.id || formData.id || '—';
+        const name = formData.workstation_name.trim();
+
+        // 🆕 Show the success modal instead of alert + auto-navigate.
+        setSuccessModal({
+          isOpen: true,
+          title: 'Success!',
+          message: isEditMode
+            ? 'Workstation updated successfully!'
+            : 'Workstation created successfully!',
+          details: [
+            { label: 'Workstation', value: name },
+            { label: 'ID', value: String(newId) },
+            { label: 'Type', value: formData.workstation_type || '—' },
+            { label: 'Status', value: formData.status || '—' },
+          ],
+        });
+
+        // If we created a new workstation, remember its ID so subsequent
+        // saves become updates.
+        if (!isEditMode && responseData?.id) {
+          setFormData(prev => ({ ...prev, id: responseData.id }));
+          setIsEditMode(true);
+        }
       } else {
         setApiError(response.data?.message || `Failed to ${isEditMode ? 'update' : 'create'} workstation`);
       }
@@ -469,15 +759,53 @@ const NewWorkstation: React.FC<NewWorkstationProps> = ({ onBack, editData, isVie
       }
     } finally {
       setSaving(false);
+      setLoaderAction(null);
     }
   };
 
+  // 🆕 Close button on the success modal → return to listing page.
+  const handleSuccessClose = () => {
+    setSuccessModal(prev => ({ ...prev, isOpen: false }));
+    if (onBack) onBack();
+  };
+
+  // 🆕 View button on the success modal → simply dismiss the modal.
+  //    The form stays exactly as it is on the current page.
+  const handleSuccessView = () => {
+    setSuccessModal(prev => ({ ...prev, isOpen: false }));
+  };
+
   const hasErrors = Object.keys(validateAllFields()).length > 0;
+
+  const loaderMessage = isEditMode
+    ? 'Updating Workstation...'
+    : 'Creating Workstation...';
+
+  const loaderSubtitle = isEditMode
+    ? 'Please wait while we save your changes.'
+    : 'Please wait while we create the workstation.';
 
   // ─── Render ───────────────────────────────────────────────────────────────
 
   return (
     <div className="nws-page">
+      {/* 🆕 Full-screen loader during create/update */}
+      <LoaderOverlay
+        isOpen={loaderAction === 'save'}
+        message={loaderMessage}
+        subtitle={loaderSubtitle}
+      />
+
+      {/* 🆕 Success Modal */}
+      <SuccessModal
+        isOpen={successModal.isOpen}
+        title={successModal.title}
+        message={successModal.message}
+        details={successModal.details}
+        onClose={handleSuccessClose}
+        onView={handleSuccessView}
+      />
+
       {/* ── Topbar ────────────────────────────────────────────── */}
       <div className="nws-topbar">
         <nav className="nws-breadcrumb" aria-label="Breadcrumb">
@@ -557,7 +885,7 @@ const NewWorkstation: React.FC<NewWorkstationProps> = ({ onBack, editData, isVie
                   <span className="nws-error-text">{errors.workstation_name}</span>
                 )}
               </div>
-              
+
               <div className="nws-field">
                 <label className="nws-label required-star">Workstation Type</label>
                 <div className="nws-select-with-add">
@@ -573,7 +901,7 @@ const NewWorkstation: React.FC<NewWorkstationProps> = ({ onBack, editData, isVie
                     ))}
                   </select>
                   {!isViewMode && !showNewTypeInput ? (
-                    <button 
+                    <button
                       className="nws-add-btn"
                       onClick={() => setShowNewTypeInput(true)}
                       title="Add new type"
@@ -606,7 +934,7 @@ const NewWorkstation: React.FC<NewWorkstationProps> = ({ onBack, editData, isVie
                   <span className="nws-error-text">{errors.workstation_type}</span>
                 )}
               </div>
-              
+
               <div className="nws-field">
                 <label className="nws-label required-star">Plant Floor</label>
                 <div className="nws-select-with-add">
@@ -621,7 +949,7 @@ const NewWorkstation: React.FC<NewWorkstationProps> = ({ onBack, editData, isVie
                     ))}
                   </select>
                   {!isViewMode && !showNewFloorInput ? (
-                    <button 
+                    <button
                       className="nws-add-btn"
                       onClick={() => setShowNewFloorInput(true)}
                       title="Add new floor"
@@ -654,7 +982,7 @@ const NewWorkstation: React.FC<NewWorkstationProps> = ({ onBack, editData, isVie
                   <span className="nws-error-text">{errors.plant_floor}</span>
                 )}
               </div>
-              
+
               <div className="nws-field">
                 <label className="nws-label required-star">Status</label>
                 <select
@@ -785,14 +1113,14 @@ const NewWorkstation: React.FC<NewWorkstationProps> = ({ onBack, editData, isVie
               <div className="nws-field">
                 <label className="nws-label">Holiday List</label>
                 <div className="nws-holiday-container" ref={holidayContainerRef}>
-                  <button 
+                  <button
                     className={`nws-holiday-toggle ${isViewMode ? 'nws-holiday-toggle-readonly' : ''}`}
                     onClick={toggleHolidayPicker}
                     type="button"
                     disabled={isViewMode}
                   >
                     <Calendar size={16} />
-                    {selectedHolidays.length > 0 
+                    {selectedHolidays.length > 0
                       ? `${selectedHolidays.length} holidays selected`
                       : formData.holiday_list || 'Select holidays'}
                   </button>
@@ -845,33 +1173,22 @@ const NewWorkstation: React.FC<NewWorkstationProps> = ({ onBack, editData, isVie
             <Save size={14} /> {saving ? 'Saving...' : (isEditMode ? 'Update Workstation' : 'Create Workstation')}
           </button>
         )}
-        {isViewMode && isEditMode && (
-          <button 
-            type="button" 
-            className="nws-footer-btn nws-footer-btn--primary" 
-            onClick={() => {
-              if (onBack) onBack();
-            }}
-          >
-            Close
-          </button>
-        )}
       </div>
 
-      {/* ── Holiday Picker Portal (moved to end) ────────────────────── */}
+      {/* ── Holiday Picker Portal ────────────────────── */}
       {showHolidayPicker && !isViewMode && createPortal(
-        <div 
+        <div
           className="nws-holiday-picker-portal"
           ref={holidayPickerRef}
           style={{
             position: 'fixed',
-            top: holidayContainerRef.current 
+            top: holidayContainerRef.current
               ? holidayContainerRef.current.getBoundingClientRect().bottom + window.scrollY + 4
               : 0,
-            left: holidayContainerRef.current 
+            left: holidayContainerRef.current
               ? holidayContainerRef.current.getBoundingClientRect().left + window.scrollX
               : 0,
-            width: holidayContainerRef.current 
+            width: holidayContainerRef.current
               ? holidayContainerRef.current.getBoundingClientRect().width
               : 300,
             zIndex: 9999,
@@ -901,7 +1218,7 @@ const NewWorkstation: React.FC<NewWorkstationProps> = ({ onBack, editData, isVie
                 <Plus size={12} /> Add
               </button>
             </div>
-            
+
             <div className="nws-holiday-list">
               {selectedHolidays.length === 0 ? (
                 <p className="nws-no-holidays">No holidays selected</p>
@@ -909,7 +1226,7 @@ const NewWorkstation: React.FC<NewWorkstationProps> = ({ onBack, editData, isVie
                 selectedHolidays.map((holiday, index) => (
                   <div key={index} className="nws-holiday-item">
                     <span>{holiday}</span>
-                    <button 
+                    <button
                       className="nws-remove-holiday"
                       onClick={(e) => {
                         e.stopPropagation();
@@ -922,10 +1239,10 @@ const NewWorkstation: React.FC<NewWorkstationProps> = ({ onBack, editData, isVie
                 ))
               )}
             </div>
-            
+
             <div className="nws-holiday-presets">
               <span>Presets:</span>
-              <button 
+              <button
                 className="nws-preset-btn"
                 onClick={(e) => {
                   e.stopPropagation();

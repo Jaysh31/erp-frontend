@@ -3396,6 +3396,8 @@ async function answerQuestion(
     lines.push("");
 
     const tableRows: (string | number)[][] = [];
+    // 🆕 Parallel array of routes — each summary row navigates to its list page
+    const summaryRoutes: string[] = [];
 
     if (show("sales") && (soRes || qRes || leadRes)) {
       const soCount = soRes ? getTotalCount(soRes) : 0;
@@ -3405,9 +3407,18 @@ async function answerQuestion(
       const qs = qRes ? unwrap(qRes) : [];
       const rev = so.reduce((s: number, o: any) => s + (o.grand_total || 0), 0);
       const quoteVal = qs.reduce((s: number, x: any) => s + (x.grand_total || 0), 0);
-      if (leadRes) tableRows.push(["🛒 Sales", "Leads", leadCount, "—"]);
-      if (qRes) tableRows.push(["🛒 Sales", "Quotations", qCount, fmtLakh(quoteVal)]);
-      if (soRes) tableRows.push(["🛒 Sales", "Sales Orders", soCount, fmtLakh(rev)]);
+      if (leadRes) {
+        tableRows.push(["🛒 Sales", "Leads", leadCount, "—"]);
+        summaryRoutes.push("/lead");
+      }
+      if (qRes) {
+        tableRows.push(["🛒 Sales", "Quotations", qCount, fmtLakh(quoteVal)]);
+        summaryRoutes.push("/quotation");
+      }
+      if (soRes) {
+        tableRows.push(["🛒 Sales", "Sales Orders", soCount, fmtLakh(rev)]);
+        summaryRoutes.push("/sales-order");
+      }
     }
 
     if (show("purchasing") && (piRes || poRes || grnRes)) {
@@ -3416,18 +3427,36 @@ async function answerQuestion(
       const grnCount = grnRes ? getTotalCount(grnRes) : 0;
       const pi = piRes ? unwrap(piRes) : [];
       const spend = pi.reduce((s: number, i: any) => s + (i.grand_total || i.total || 0), 0);
-      if (poRes) tableRows.push(["🛍️ Purchasing", "Purchase Orders", poCount, "—"]);
-      if (grnRes) tableRows.push(["🛍️ Purchasing", "GRNs", grnCount, "—"]);
-      if (piRes) tableRows.push(["🛍️ Purchasing", "Purchase Invoices", piCount, fmtLakh(spend)]);
+      if (poRes) {
+        tableRows.push(["🛍️ Purchasing", "Purchase Orders", poCount, "—"]);
+        summaryRoutes.push("/purchase-order");
+      }
+      if (grnRes) {
+        tableRows.push(["🛍️ Purchasing", "GRNs", grnCount, "—"]);
+        summaryRoutes.push("/grn");
+      }
+      if (piRes) {
+        tableRows.push(["🛍️ Purchasing", "Purchase Invoices", piCount, fmtLakh(spend)]);
+        summaryRoutes.push("/purchase-invoice");
+      }
     }
 
     if (show("manufacturing") && (woRes || jcRes || bomRes)) {
       const woCount = woRes ? getTotalCount(woRes) : 0;
       const jcCount = jcRes ? getTotalCount(jcRes) : 0;
       const bomCount = bomRes ? getTotalCount(bomRes) : 0;
-      if (bomRes) tableRows.push(["🏭 Manufacturing", "BOMs", bomCount, "—"]);
-      if (woRes) tableRows.push(["🏭 Manufacturing", "Work Orders", woCount, "—"]);
-      if (jcRes) tableRows.push(["🏭 Manufacturing", "Job Cards", jcCount, "—"]);
+      if (bomRes) {
+        tableRows.push(["🏭 Manufacturing", "BOMs", bomCount, "—"]);
+        summaryRoutes.push("/bom");
+      }
+      if (woRes) {
+        tableRows.push(["🏭 Manufacturing", "Work Orders", woCount, "—"]);
+        summaryRoutes.push("/work-order");
+      }
+      if (jcRes) {
+        tableRows.push(["🏭 Manufacturing", "Job Cards", jcCount, "—"]);
+        summaryRoutes.push("/job-card");
+      }
     }
 
     if (show("inventory") && invRes) {
@@ -3435,36 +3464,53 @@ async function answerQuestion(
       const inv = unwrap(invRes);
       const stockVal = inv.reduce((s: number, i: any) => s + (i.stock_value || 0), 0);
       tableRows.push(["📦 Inventory", "Items", invCount, fmtLakh(stockVal)]);
+      summaryRoutes.push("/InventoryList");
     }
 
     if (show("setup") && (itemRes || igRes || whRes)) {
       const itemCount = itemRes ? getTotalCount(itemRes) : 0;
       const igCount = igRes ? getTotalCount(igRes) : 0;
       const whCount = whRes ? getTotalCount(whRes) : 0;
-      if (itemRes) tableRows.push(["⚙️ Setup", "Items", itemCount, "—"]);
-      if (igRes) tableRows.push(["⚙️ Setup", "Item Groups", igCount, "—"]);
-      if (whRes) tableRows.push(["⚙️ Setup", "Warehouses", whCount, "—"]);
+      if (itemRes) {
+        tableRows.push(["⚙️ Setup", "Items", itemCount, "—"]);
+        summaryRoutes.push("/item-list");
+      }
+      if (igRes) {
+        tableRows.push(["⚙️ Setup", "Item Groups", igCount, "—"]);
+        summaryRoutes.push("/item-group");
+      }
+      if (whRes) {
+        tableRows.push(["⚙️ Setup", "Warehouses", whCount, "—"]);
+        summaryRoutes.push("/warehouse");
+      }
     }
 
     if (show("quality") && qiRes) {
       const qiCount = getTotalCount(qiRes);
       tableRows.push(["✅ Quality", "Inspections", qiCount, "—"]);
+      summaryRoutes.push("/quality-inspection");
     }
 
     if (show("organization") && coRes) {
       const coCount = getTotalCount(coRes);
       tableRows.push(["🏢 Organization", "Companies", coCount, "—"]);
+      summaryRoutes.push("/company");
     }
 
     if (tableRows.length > 0) {
       lines.push(
         renderTable(["Module", "Metric", "Count", "Value"], tableRows)
       );
+      lines.push("");
+      lines.push("_Tap any row to open its list page._");
     } else {
       lines.push("_No summary data available._");
     }
 
-    return { text: lines.join("\n").trim() };
+    return {
+      text: lines.join("\n").trim(),
+      tableRoutes: summaryRoutes.length > 0 ? summaryRoutes : undefined,
+    };
   }
 
   if (has("revenue", "sales value", "total sales", "sales amount")) {
@@ -3760,16 +3806,7 @@ async function answerQuestion(
   }
 
   return {
-    text:
-      `🤖 I couldn't reach the AI service. ${aiResult.error ?? ""}\n\n` +
-      `Try asking:\n` +
-      `• "How many sales orders?"\n` +
-      `• "How many warehouses?"\n` +
-      `• "Show me raw items"\n` +
-      `• "Navigate on 12abc detail page"\n` +
-      `• "Production capacity for wooden study table"\n` +
-      `• "Show me flow of this page"\n` +
-      `• "Summary"`,
+    text: "I don't have this question answer currently.",
   };
 }
 
@@ -3895,8 +3932,15 @@ export default function ChatBot() {
       const [header, ...body] = tableBuffer;
       const currentRowOffset = rowIndex;
       out.push(
-        <div key={`table-${tableKey++}`} className="chat-table-wrap">
-          <table className="chat-table">
+        <div 
+          key={`table-${tableKey++}`} 
+          className="chat-table-wrap" 
+          style={{ overflowX: "auto", width: "100%" }}
+        >
+          <table 
+            className="chat-table" 
+            style={{ whiteSpace: "nowrap", minWidth: "100%" }}
+          >
             <thead>
               <tr>
                 {header.map((h, i) => (

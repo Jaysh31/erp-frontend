@@ -1056,7 +1056,7 @@ interface SuccessModalProps {
   itemName: string;
   itemCode: string;
   itemId?: number;
-  isUpdate?: boolean; // Added to differentiate between create and update
+  isUpdate?: boolean;
 }
 
 function SuccessModal({ isOpen, onClose, onView, itemName, itemCode, itemId, isUpdate = false }: SuccessModalProps) {
@@ -1199,7 +1199,6 @@ function SuccessModal({ isOpen, onClose, onView, itemName, itemCode, itemId, isU
   return (
     <div style={overlayStyle} onClick={onClose}>
       <div style={modalStyle} onClick={(e) => e.stopPropagation()}>
-        {/* Header */}
         <div style={headerStyle}>
           <div style={iconWrapperStyle}>
             <FaCheck size={32} />
@@ -1208,7 +1207,6 @@ function SuccessModal({ isOpen, onClose, onView, itemName, itemCode, itemId, isU
           <p style={subtitleStyle}>{isUpdate ? 'Item updated successfully!' : 'Item created successfully!'}</p>
         </div>
 
-        {/* Body */}
         <div style={bodyStyle}>
           <div style={detailsStyle}>
             <div style={rowStyle}>
@@ -1228,7 +1226,6 @@ function SuccessModal({ isOpen, onClose, onView, itemName, itemCode, itemId, isU
           </div>
         </div>
 
-        {/* Actions */}
         <div style={actionsStyle}>
           <button style={closeBtnStyle} onClick={onClose}>
             Close
@@ -1243,7 +1240,7 @@ function SuccessModal({ isOpen, onClose, onView, itemName, itemCode, itemId, isU
 }
 
 // ────────────────────────────────────────────────────────────────────────
-// Duplicate Item Warning Modal with Inline Styles
+// Duplicate Item Warning Modal
 // ────────────────────────────────────────────────────────────────────────
 interface DuplicateWarningModalProps {
   isOpen: boolean;
@@ -1258,7 +1255,6 @@ function DuplicateWarningModal({ isOpen, onClose, existingItem, itemName, itemCo
 
   const navigate = useNavigate();
 
-  // ─── Styles ──────────────────────────────────────────────────────────
   const overlayStyle: React.CSSProperties = {
     position: 'fixed',
     top: 0,
@@ -1428,7 +1424,6 @@ function DuplicateWarningModal({ isOpen, onClose, existingItem, itemName, itemCo
   return (
     <div style={overlayStyle} onClick={onClose}>
       <div style={modalStyle} onClick={(e) => e.stopPropagation()}>
-        {/* Header */}
         <div style={headerStyle}>
           <div style={headerLeftStyle}>
             <div style={iconWrapperStyle}>
@@ -1441,7 +1436,6 @@ function DuplicateWarningModal({ isOpen, onClose, existingItem, itemName, itemCo
           </button>
         </div>
 
-        {/* Body */}
         <div style={bodyStyle}>
           <p style={warningTextStyle}>
             This item already exists in the system. Please use a different name or code.
@@ -1501,20 +1495,16 @@ export default function ItemForm() {
   const [warehouseManuallyChanged, setWarehouseManuallyChanged] = useState(false);
   const [previousItemGroup, setPreviousItemGroup] = useState<string>("");
 
-  // ─── Success Modal State ────────────────────────────────────────────
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [savedItemData, setSavedItemData] = useState<{ id: number; name: string; code: string; isUpdate?: boolean } | null>(null);
 
-  // ─── State for Add UOM Modal ────────────────────────────────────────
   const [showAddUOMModal, setShowAddUOMModal] = useState(false);
   const [addingUOM, setAddingUOM] = useState(false);
   const [pendingUOMName, setPendingUOMName] = useState("");
 
-  // ─── State for Duplicate Warning Modal ─────────────────────────────
   const [showDuplicateWarning, setShowDuplicateWarning] = useState(false);
   const [duplicateItemData, setDuplicateItemData] = useState<any>(null);
 
-  // ─── State for UOM Categories ──────────────────────────────────────
   const [uomCategories, setUomCategories] = useState<UOMCategory[]>([]);
   const [loadingCategories, setLoadingCategories] = useState(false);
 
@@ -1567,7 +1557,6 @@ export default function ItemForm() {
   const currentTax = taxes.find((t) => t.tax_id.toString() === form.taxId);
   const taxPercentage = currentTax ? parseFloat(currentTax.tax_type.replace("GST", "")) || 0 : 0;
 
-  // ─── Helper function to determine if item group is raw material ───
   const isRawMaterialGroup = (groupName: string): boolean => {
     if (!groupName) return false;
     const rawMaterialGroups = [
@@ -1582,7 +1571,6 @@ export default function ItemForm() {
     return rawMaterialGroups.some(g => lowerGroup.includes(g));
   };
 
-  // ─── Helper function to determine if item group is product ────────
   const isProductGroup = (groupName: string): boolean => {
     if (!groupName) return false;
     const productGroups = [
@@ -1594,7 +1582,6 @@ export default function ItemForm() {
     return productGroups.some(g => lowerGroup.includes(g));
   };
 
-  // ─── Get pricing label based on item group ────────────────────────
   const getPricingLabel = (groupName: string): string => {
     if (isRawMaterialGroup(groupName)) {
       return "Standard purchase rate (base price)";
@@ -1609,7 +1596,6 @@ export default function ItemForm() {
     return "Standard rate (base price)";
   };
 
-  // ─── Get pricing hint based on item group ─────────────────────────
   const getPricingHint = (groupName: string): string => {
     if (isRawMaterialGroup(groupName)) {
       return "The cost at which you purchase this item.";
@@ -1781,15 +1767,19 @@ export default function ItemForm() {
   };
 
   // ─── ✅ GET API: Fetch Item Groups ──────────────────────────────────
+  // ✅ FIX: Removed the `?type=Input%0Material` filter so that ALL item groups are fetched
   const fetchItemGroups = async () => {
     setLoadingGroups(true);
     try {
-      const response = await api.get("/item-group?type=Input%0Material");
+      const response = await api.get("/item-group?type=all");
+      console.log("Item Group Response:", response.data);
       if (response.data.success === 1) {
-        setItemGroups(response.data.data);
+        const groups = response.data.data?.records || response.data.data || [];
+        setItemGroups(groups);
       }
     } catch (err) {
       console.error("Error fetching item groups:", err);
+      toast.error("Failed to load item groups");
     } finally {
       setLoadingGroups(false);
     }
@@ -1890,7 +1880,6 @@ export default function ItemForm() {
     }
   };
 
-  // ─── Handle Custom UOM Value Confirmation ──────────────────────────
   const handleCustomUOMConfirm = (customValue: string) => {
     const exists = uoms.some(
       (u) => u.uom_name.trim().toLowerCase() === customValue.trim().toLowerCase()
@@ -1906,7 +1895,6 @@ export default function ItemForm() {
     setShowAddUOMModal(true);
   };
 
-  // ─── Check for Duplicate Item ──────────────────────────────────────
   const checkDuplicateItem = (): { isDuplicate: boolean; existingItem: any | null } => {
     if (!isNew) return { isDuplicate: false, existingItem: null };
     
@@ -2261,12 +2249,10 @@ export default function ItemForm() {
     setImageFile(null);
   };
 
-  // ─── Navigate to listing page ──────────────────────────────────────
   const navigateToList = () => {
     navigate("/item-list");
   };
 
-  // ─── Handle View Item ─────────────────────────────────────────────
   const handleViewItem = () => {
     if (savedItemData) {
       setShowSuccessModal(false);
@@ -2274,7 +2260,6 @@ export default function ItemForm() {
     }
   };
 
-  // ─── Handle Close Success Modal ────────────────────────────────────
   const handleCloseSuccessModal = () => {
     setShowSuccessModal(false);
     setSavedItemData(null);
@@ -2292,13 +2277,11 @@ export default function ItemForm() {
     }
     setValidationErrors([]);
 
-    // ─── ✅ CHECK FOR DUPLICATE ITEM ──────────────────────────────────────
     if (isNew) {
       const { isDuplicate, existingItem } = checkDuplicateItem();
       if (isDuplicate && existingItem) {
         setDuplicateItemData(existingItem);
         setShowDuplicateWarning(true);
-        // Scroll to item name field to highlight it
         const nameField = document.querySelector('input[name="itemName"]') as HTMLInputElement;
         if (nameField) {
           nameField.focus();
@@ -2533,16 +2516,13 @@ export default function ItemForm() {
       setIsDirty(false);
       toast.success(isNew ? "Item created successfully!" : "Item updated successfully!");
 
-      // ─── Hide loader ────────────────────────────────────────────────
       setSubmitting(false);
 
-      // ─── Show Success Modal for BOTH create and update ─────────────
-      // Always show the success modal after successful save
       setSavedItemData({
         id: savedItemId,
         name: form.itemName.trim(),
         code: form.itemCode || form.itemName.toUpperCase().replace(/\s+/g, "-"),
-        isUpdate: !isNew, // Flag to indicate if this is an update
+        isUpdate: !isNew,
       });
       setShowSuccessModal(true);
 
@@ -2577,7 +2557,6 @@ export default function ItemForm() {
 
   return (
     <div className="itf-page">
-      {/* ─── Success Modal ───────────────────────────────────────────── */}
       {showSuccessModal && savedItemData && (
         <SuccessModal
           isOpen={showSuccessModal}
@@ -2590,7 +2569,6 @@ export default function ItemForm() {
         />
       )}
 
-      {/* ─── Duplicate Warning Modal ──────────────────────────────────── */}
       <DuplicateWarningModal
         isOpen={showDuplicateWarning}
         onClose={() => {
@@ -2602,7 +2580,6 @@ export default function ItemForm() {
         itemCode={form.itemCode}
       />
 
-      {/* Top Bar */}
       <div className="itf-topbar">
         <div className="itf-breadcrumb">
           <button onClick={navigateToList} className="itf-back-btn">
@@ -2619,13 +2596,10 @@ export default function ItemForm() {
         </div>
       </div>
 
-      {/* Main Content */}
       <div className="itf-body">
         <form onSubmit={handleSave} className="itf-form">
           <div className="itf-grid-main">
-            {/* Left column */}
             <div className="itf-col-left">
-              {/* Item Details Card - 3 columns */}
               <div className="itf-card">
                 <SectionTitle icon={<FaTag size={14} />} subtitle="Core identity and classification for this item.">
                   Item details
@@ -2737,9 +2711,7 @@ export default function ItemForm() {
                 <div className="itf-divider" />
               </div>
 
-              {/* Pricing, Opening Stock, Warehouse - 50:50 split */}
               <div className="itf-grid-2-50">
-                {/* Left: Pricing */}
                 <div className="itf-col-left-50">
                   <div className="itf-card">
                     <SectionTitle icon={<FaCalculator size={14} />} subtitle="Set the purchase cost and tax — MRP updates automatically.">
@@ -2804,9 +2776,7 @@ export default function ItemForm() {
                   </div>
                 </div>
 
-                {/* Right: Opening Stock + Warehouse */}
                 <div className="itf-col-right-50">
-                  {/* Opening Stock Card */}
                   <div className="itf-card">
                     <SectionTitle icon={<FaWarehouse size={14} />} subtitle="Record any stock on hand when this item is created.">
                       Opening stock
@@ -2814,7 +2784,6 @@ export default function ItemForm() {
                     <OpeningStockTable entries={openingStockEntries} onChange={setOpeningStockEntries} />
                   </div>
 
-                  {/* Warehouse Card */}
                   <div className="itf-card">
                     <SectionTitle
                       icon={<FaWarehouse size={14} />}
@@ -2901,7 +2870,6 @@ export default function ItemForm() {
               </div>
             </div>
 
-            {/* Right column - Image & Summary */}
             <div className="itf-col-right">
               <div className="itf-card itf-card-sticky">
                 <SectionTitle icon={<FaImage size={14} />}>Item image</SectionTitle>
@@ -2932,7 +2900,6 @@ export default function ItemForm() {
             </div>
           </div>
 
-          {/* ─── Footer with Save Button ───────────────────────────────── */}
           <div className="itf-footer">
             <div className="itf-footer-actions">
               <button 
@@ -2956,7 +2923,6 @@ export default function ItemForm() {
         </form>
       </div>
 
-      {/* ─── Add UOM Modal ─────────────────────────────────────────────── */}
       <AddUOMModal
         isOpen={showAddUOMModal}
         onClose={() => {

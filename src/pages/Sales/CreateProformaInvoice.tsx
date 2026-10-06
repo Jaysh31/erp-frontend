@@ -180,6 +180,10 @@ interface ProformaPayload {
     discount_percentage: number;
     weight_per_unit: number;
     weight_uom: string;
+    tax_rate?: number;
+    item_tax_rate?: number | string;
+    item_tax_template?: string;
+    tax_id?: number;
   }>;
   payment_schedule?: Array<{
     payment_term: string;
@@ -212,8 +216,9 @@ const addDays = (date: string, days: number): string => {
 
 const extractTaxValue = (taxType: string): number => {
   if (!taxType) return 0;
-  const match = taxType.match(/(\d+)/);
-  return match ? parseInt(match[0], 10) : 0;
+  // ✅ FIXED: Handles decimals correctly (e.g., "12.5%")
+  const match = taxType.match(/(\d+(\.\d+)?)/);
+  return match ? parseFloat(match[1]) : 0;
 };
 
 const getTaxIdFromRate = (taxRate: number, taxOpts: TaxOption[]): number | undefined => {
@@ -957,12 +962,8 @@ const CreateProformaInvoice: React.FC = () => {
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // 🆕 Tracks the type of in-flight API operation so the loader can show
-  //    an appropriate message (create vs. save draft).
   const [apiAction, setApiAction] = useState<'create' | 'draft' | null>(null);
 
-  // 🆕 When the user clicks Close on the success modal we briefly show
-  //    the loader before navigating away, so the transition feels smooth.
   const [isNavigating, setIsNavigating] = useState(false);
 
   const [isLoading] = useState<boolean>(false);
@@ -976,7 +977,6 @@ const CreateProformaInvoice: React.FC = () => {
   const [, setTaxOptionsLoaded] = useState<boolean>(false);
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
 
-  // Success Modal state
   const [showSuccessModal, setShowSuccessModal] = useState<boolean>(false);
   const [successData, setSuccessData] = useState<{
     proformaNumber: string;
@@ -990,7 +990,6 @@ const CreateProformaInvoice: React.FC = () => {
     message: ''
   });
 
-  // Payment Schedule state
   const [paymentSchedule, setPaymentSchedule] = useState<PaymentScheduleRow[]>([
     { id: '1', paymentTerm: 'On Delivery', dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], durationDays: 7, invoicePortion: 100, paymentAmount: 0, paidAmount: 0, status: 'Pending' }
   ]);
@@ -998,7 +997,6 @@ const CreateProformaInvoice: React.FC = () => {
 
   const proformaAPI = new ProformaAPI();
 
-  // ─── Payment Term Templates ──────────────────────────
   const paymentTermTemplates: PaymentTermTemplate[] = [
     {
       id: 'on_delivery',
@@ -1060,7 +1058,6 @@ const CreateProformaInvoice: React.FC = () => {
     },
   ];
 
-  // ─── Apply Payment Template ──────────────────────────
   const applyPaymentTemplate = (templateId: string) => {
     if (isReadOnly) return;
     const template = paymentTermTemplates.find(t => t.id === templateId);
@@ -1090,7 +1087,6 @@ const CreateProformaInvoice: React.FC = () => {
     toast.success(`Applied "${template.name}" payment terms`);
   };
 
-  // ─── Payment Schedule CRUD ──────────────────────────
   const addPaymentSchedule = () => {
     if (isReadOnly) return;
     const newId = String(paymentSchedule.length + 1);
@@ -1140,7 +1136,6 @@ const CreateProformaInvoice: React.FC = () => {
     updatePaymentRow(index, { durationDays, dueDate });
   };
 
-  // ─── Fetch Tax Options ─────────────────────────────
   const fetchTaxOptions = async () => {
     setLoadingTaxOptions(true);
     try {
@@ -1170,14 +1165,12 @@ const CreateProformaInvoice: React.FC = () => {
     }
   };
 
-  // ─── Effects ───────────────────────────────────────
   useEffect(() => {
     fetchTaxOptions();
     fetchAllItems();
     fetchWarehouses();
   }, []);
 
-  // ─── Load the Sales Order used as the Proforma Invoice source ───────────
   useEffect(() => {
     if (!id || recordLoaded) return;
     fetchExistingSalesOrder(id);
@@ -1255,9 +1248,59 @@ const CreateProformaInvoice: React.FC = () => {
       const quantity = Number(it.qty ?? it.quantity ?? 0);
       const rate = Number(it.rate ?? 0);
       const amount = Number(it.amount ?? quantity * rate);
-      const tax = Number(it.tax_rate ?? it.gst_rate ?? it.tax ?? 0);
+      
+      // ✅ FIXED: Robust extraction of tax from various possible API fields
+      let tax = 0;
+      
+      // 1. Try direct numeric fields
+      if (it.tax_rate !== undefined && it.tax_rate !== null) {
+        tax = Number(it.tax_rate);
+      } else if (it.gst_rate !== undefined && it.gst_rate !== null) {
+        tax = Number(it.gst_rate);
+      } else if (it.tax !== undefined && it.tax !== null) {
+        tax = Number(it.tax);
+      }
+      
+      // 2. Try item_tax_rate (could be number, string, or object)
+      if (tax === 0 && it.item_tax_rate) {
+        if (typeof it.item_tax_rate === 'object') {
+          const vals = Object.values(it.item_tax_rate);
+          if (vals.length > 0) tax = Number(vals[0]) || 0;
+        } else {
+          const match = String(it.item_tax_rate).match(/(\d+(\.\d+)?)/);
+          if (match) tax = parseFloat(match[1]);
+        }
+      }
+      
+      // 3. Try item_tax_template string (e.g., "GST 18%")
+      if (tax === 0 && it.item_tax_template) {
+        const match = String(it.item_tax_template).match(/(\d+(\.\d+)?)/);
+        if (match) tax = parseFloat(match[1]);
+      }
+      
+      // 4. Try summing component rates (IGST, CGST, SGST)
+      if (tax === 0) {
+        const cgst = Number(it.cgst_rate) || 0;
+        const sgst = Number(it.sgst_rate) || 0;
+        const igst = Number(it.igst_rate) || 0;
+        tax = cgst + sgst + igst;
+      }
+      
+      // 5. Fallback to tax_id lookup if taxOptions are available
+      const itemTaxId = it.item_tax_id || it.tax_id;
+      if (tax === 0 && itemTaxId && taxOptions.length > 0) {
+        const matchedTax = taxOptions.find(t => t.tax_id === Number(itemTaxId));
+        if (matchedTax) {
+          tax = extractTaxValue(matchedTax.tax_type);
+        }
+      }
+      
+      // Ensure tax is a valid number
+      if (isNaN(tax)) tax = 0;
+      
       const taxAmount = Number(it.tax_amount ?? ((amount * tax) / 100));
       const itemCode = it.item_code || it.item_name || '';
+      
       return {
         id: String(it.id ?? index + 1),
         itemCode,
@@ -1269,7 +1312,7 @@ const CreateProformaInvoice: React.FC = () => {
         rate,
         amount,
         tax,
-        tax_id: it.item_tax_id ? Number(it.item_tax_id) : (it.tax_id ? Number(it.tax_id) : getTaxIdFromRate(tax, taxOptions)),
+        tax_id: itemTaxId ? Number(itemTaxId) : getTaxIdFromRate(tax, taxOptions),
         taxAmount,
         totalAmount: Number(it.net_amount ?? (amount + taxAmount)),
         type: isService ? 'service' : 'product',
@@ -1317,7 +1360,6 @@ const CreateProformaInvoice: React.FC = () => {
     setRoundOff(Number((savedGrandTotal - calculatedGrandTotal).toFixed(2)));
   };
 
-  // Update payment amounts when grand total changes
   useEffect(() => {
     const grandTotal = getGrandTotalWithRound();
     setPaymentSchedule(prev =>
@@ -1613,6 +1655,11 @@ const CreateProformaInvoice: React.FC = () => {
           discount_percentage: item.discountPercentage || 0,
           weight_per_unit: item.weightPerUnit || 0,
           weight_uom: item.weightUom || 'kg',
+          // ✅ ADDED: Send tax details to backend so they are saved
+          tax_rate: item.tax || 0,
+          item_tax_rate: item.tax || 0,
+          item_tax_template: item.tax ? `GST ${item.tax}%` : '',
+          tax_id: item.tax_id
         })),
       payment_schedule: paymentSchedule.map(p => ({
         payment_term: p.paymentTerm || 'On Delivery',
@@ -1704,7 +1751,6 @@ const CreateProformaInvoice: React.FC = () => {
     }
   };
 
-  // ✅ CHANGED: "View Proforma" now keeps the form open in read-only mode
   const handleViewProforma = () => {
     setShowSuccessModal(false);
 
@@ -1721,16 +1767,9 @@ const CreateProformaInvoice: React.FC = () => {
     }
   };
 
-  // 🆕 Close now shows the loader briefly before navigating away,
-  // so the user gets a smooth transition to the listing page.
   const handleCloseModal = () => {
-    // Close the modal right away.
     setShowSuccessModal(false);
-
-    // Show the loader for a brief moment while we prepare to navigate.
     setIsNavigating(true);
-
-    // Give the loader a tick to paint, then navigate.
     setTimeout(() => {
       navigate('/proforma-invoice');
     }, 350);
@@ -1783,7 +1822,6 @@ const CreateProformaInvoice: React.FC = () => {
     );
   }
 
-  // 🆕 Compute the loader message based on the current in-flight action.
   const loaderMessage =
     isNavigating
       ? 'Returning to Proforma list...'
@@ -1828,7 +1866,6 @@ const CreateProformaInvoice: React.FC = () => {
           scrollbar-color: var(--text-secondary, #cbd5e1) var(--border-color, #f1f5f9);
         }
 
-        /* ✅ Read-only mode styles */
         .npi-readonly .npi-input,
         .npi-readonly .npi-select,
         .npi-readonly .npi-table-input,
@@ -1865,14 +1902,12 @@ const CreateProformaInvoice: React.FC = () => {
         }
       `}</style>
 
-      {/* 🆕 Full-screen loader for create/draft/close actions */}
       <LoaderOverlay
         isOpen={isSubmitting || isNavigating}
         message={loaderMessage}
         subtitle={loaderSubtitle}
       />
 
-      {/* Success Modal */}
       <SuccessModal
         isOpen={showSuccessModal}
         onClose={handleCloseModal}
@@ -1884,7 +1919,6 @@ const CreateProformaInvoice: React.FC = () => {
         totalAmount={successData.totalAmount}
       />
 
-      {/* Header */}
       <div className="npi-header">
         <div className="npi-header-left">
           <button onClick={handleCancel} className="npi-back-btn">
@@ -1926,13 +1960,9 @@ const CreateProformaInvoice: React.FC = () => {
         </div>
       </div>
 
-      {/* MAIN BOX - Add read-only class */}
       <div className={`npi-main-box ${isReadOnly ? 'npi-readonly' : ''}`}>
-        {/* TWO COLUMN LAYOUT */}
         <div className="npi-compact-layout">
-          {/* LEFT COLUMN */}
           <div className="npi-left-column">
-            {/* Customer */}
             <div className="npi-section-header">
               <FaBuilding className="npi-section-icon" />
               <span>Customer Details</span>
@@ -1954,7 +1984,6 @@ const CreateProformaInvoice: React.FC = () => {
               </div>
             </div>
 
-            {/* Proforma Details */}
             <div className="npi-section-header" style={{ marginTop: '1rem' }}>
               <FaFileAlt className="npi-section-icon" />
               <span>Proforma Details</span>
@@ -2034,7 +2063,6 @@ const CreateProformaInvoice: React.FC = () => {
             </div>
           </div>
 
-          {/* RIGHT COLUMN - CUSTOMER DETAIL CARD */}
           <div className="npi-right-column">
             {customerData ? (
               <div className="npi-detail-card">
@@ -2095,7 +2123,6 @@ const CreateProformaInvoice: React.FC = () => {
           </div>
         </div>
 
-        {/* FULL WIDTH - ITEMS SECTION */}
         <div className="npi-items-full">
           <div className="npi-items-header">
             <span className="npi-items-title">
@@ -2238,17 +2265,13 @@ const CreateProformaInvoice: React.FC = () => {
           </div>
         </div>
 
-        {/* BOTTOM SECTION - Payment Schedule */}
         <div className="npi-bottom-section">
-          {/* LEFT COLUMN */}
           <div className="npi-bottom-left">
-            {/* Payment Schedule Header */}
             <div className="npi-section-header">
               <FaCreditCard className="npi-section-icon" />
               <span>Payment Schedule</span>
             </div>
 
-            {/* Payment Terms Template Dropdown */}
             <div className="npi-field" style={{ marginBottom: '0.5rem' }}>
               <div className="npi-field-row" style={{ gridTemplateColumns: '1fr auto' }}>
                 <select
@@ -2288,7 +2311,6 @@ const CreateProformaInvoice: React.FC = () => {
               </div>
             </div>
 
-            {/* Payment Schedule Table */}
             <div className="npi-payment-table-wrap">
               <table className="npi-payment-table">
                 <thead>
@@ -2376,7 +2398,6 @@ const CreateProformaInvoice: React.FC = () => {
               </button>
             )}
 
-            {/* Remarks */}
             <div className="npi-field" style={{ marginTop: '1rem' }}>
               <label className="npi-label">Remarks / Notes</label>
               <input
@@ -2394,7 +2415,6 @@ const CreateProformaInvoice: React.FC = () => {
             </div>
           </div>
 
-          {/* RIGHT COLUMN: Financial Summary */}
           <div className="npi-bottom-right">
             <div className="npi-detail-card npi-summary-card">
               <div className="npi-card-header">
@@ -2452,7 +2472,6 @@ const CreateProformaInvoice: React.FC = () => {
         </div>
       </div>
 
-      {/* Action Buttons */}
       <div className="npi-form-footer">
         <button onClick={() => window.print()} className="npi-btn npi-btn-print">
           <FaPrint size={11} /> Print

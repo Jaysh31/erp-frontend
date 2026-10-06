@@ -595,6 +595,8 @@ function WarehousePickerField({
                 return;
               }
               if (!disabled) {
+                onChange("", ""); // Clear parent state
+                setSelectedName("");
                 setTerm("");
                 setOpen(true);
               }
@@ -770,7 +772,11 @@ function BomSearchField({
                 isProgrammaticFocus.current = false;
                 return;
               }
-              if (!disabled) { setTerm(""); setOpen(true); }
+              if (!disabled) { 
+                onClear(); // Clear parent state
+                setTerm(""); 
+                setOpen(true); 
+              }
             }}
             onKeyDown={e => e.key === "Escape" && setOpen(false)}
             placeholder={filterType === "External" ? "Search External BOM by item code or name…" : "Search BOM by item code or name…"}
@@ -816,10 +822,6 @@ function BomSearchField({
 }
 
 // ─── OperationPickerField ─────────────────────────────────────────────────────
-// 🔧 FIX: no longer calls onTextChange on every keystroke.
-// It only syncs the typed value to the parent on blur or on Enter.
-// That way the parent form does NOT re-render while the user is typing,
-// so the input keeps focus and the caret stays put.
 
 function OperationPickerField({
   value, operations, loading, onSelect, onTextChange, disabled = false,
@@ -837,8 +839,6 @@ function OperationPickerField({
   const wrapRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const isProgrammaticFocus = useRef(false);
-  // Tracks whether the user has actually typed since focus, so we don't
-  // accidentally overwrite the parent value on a plain focus/blur cycle.
   const hasTypedRef = useRef(false);
 
   const filtered = term.trim()
@@ -887,7 +887,6 @@ function OperationPickerField({
     }
   });
 
-  // Flush the typed text to the parent (only if the user typed something).
   const flushText = () => {
     if (hasTypedRef.current) {
       hasTypedRef.current = false;
@@ -907,8 +906,6 @@ function OperationPickerField({
             spellCheck={false}
             value={open ? term : value}
             onChange={e => {
-              // 🔧 Only update local state here — do NOT call onTextChange
-              // (which would update the parent and remount / re-render us).
               setTerm(e.target.value);
               hasTypedRef.current = true;
               if (!open) openDropdown();
@@ -919,6 +916,8 @@ function OperationPickerField({
                 return;
               }
               hasTypedRef.current = false;
+              onTextChange?.("");
+              setTerm("");
               openDropdown();
             }}
             onBlur={flushText}
@@ -982,12 +981,13 @@ function OperationPickerField({
 // ─── ItemPickerField ──────────────────────────────────────────────────────────
 
 function ItemPickerField({
-  value, items, loading, onSelect, disabled = false, placeholder = "Search raw material…",
+  value, items, loading, onSelect, onClear, disabled = false, placeholder = "Search raw material…",
 }: {
   value: string;
   items: RawItemMaster[];
   loading?: boolean;
   onSelect: (item: RawItemMaster) => void;
+  onClear?: () => void;
   disabled?: boolean;
   placeholder?: string;
 }) {
@@ -1063,6 +1063,8 @@ function ItemPickerField({
                 isProgrammaticFocus.current = false;
                 return;
               }
+              onClear?.();
+              setTerm("");
               openDropdown();
             }}
             onKeyDown={e => e.key === "Escape" && setOpen(false)}
@@ -1127,16 +1129,13 @@ export default function WorkOrderForm() {
   const [validationErrors, setValidationErrors] = useState<{ field: string; label: string; message: string }[]>([]);
   const [] = useState(false);
 
-  // ─── Chatbot handoff guard ─────────────────────────────────────────────
   const handoffApplied = useRef(false);
 
-  // WIP Warehouse state
   const [selectedWipWarehouse, setSelectedWipWarehouse] = useState<{ id: number; name: string }>({
     id: 10,
     name: "Work In Progress"
   });
 
-  // Reset the form to a blank state whenever we land on the "new" route.
   useEffect(() => {
     if (isNew) {
       handoffApplied.current = false;
@@ -1156,7 +1155,6 @@ export default function WorkOrderForm() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
-  // ─── 🆕 Chatbot handoff reader ─────────────────────────────────────────
   useEffect(() => {
     if (isNew || !id || handoffApplied.current) return;
 
@@ -1247,7 +1245,6 @@ export default function WorkOrderForm() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, isNew]);
 
-  // Stock Warning Modal state
   const [stockWarningModal, setStockWarningModal] = useState<{
     show: boolean;
     message: string;
@@ -1260,7 +1257,6 @@ export default function WorkOrderForm() {
     woId: undefined,
   });
 
-  // ─── Work Order Completion summary state ───────────────────────────────
   const [completionSummary, setCompletionSummary] = useState<{
     show: boolean;
     loading: boolean;
@@ -1281,18 +1277,15 @@ export default function WorkOrderForm() {
     fgWarehouseName?: string;
   } | null>(null);
 
-  // GRN state
   const [grnList, setGrnList] = useState<GRNData[]>([]);
   const [grnLoading, setGrnLoading] = useState(false);
   const [grnError, setGrnError] = useState<string | null>(null);
   const [showGrnModal, setShowGrnModal] = useState(false);
   const [grnDetailLoading, setGrnDetailLoading] = useState(false);
 
-  // Operation master state
   const [operationMasters, setOperationMasters] = useState<OperationMaster[]>([]);
   const [operationsLoading, setOperationsLoading] = useState(false);
 
-  // Raw item master state
   const [rawItems, setRawItems] = useState<RawItemMaster[]>([]);
   const [rawItemsLoading, setRawItemsLoading] = useState(false);
 
@@ -1301,12 +1294,10 @@ export default function WorkOrderForm() {
   >([]);
   const [, setAvailabilityWarehouse] = useState<string>("");
 
-  // BOM state (Internal WO)
   const [selectedBomLabel, setSelectedBomLabel] = useState("");
   const [bomDetail, setBomDetail] = useState<{ bom: BomDetail; items: BomApiItem[]; operations: BomApiOperation[] } | null>(null);
   const [bomLoading, setBomLoading] = useState(false);
 
-  // BOM state (External WO)
   const [selectedExternalBomLabel, setSelectedExternalBomLabel] = useState("");
   const [, setExternalBomDetail] = useState<
     { bom: BomDetail; items: BomApiItem[]; operations: BomApiOperation[] } | null
@@ -1317,7 +1308,6 @@ export default function WorkOrderForm() {
   >([]);
   const [maxProducibleQty, setMaxProducibleQty] = useState<number | null>(null);
 
-  // Media upload state
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadingMedia, setUploadingMedia] = useState(false);
   const [pendingMedia, setPendingMedia] = useState<
@@ -1703,12 +1693,16 @@ export default function WorkOrderForm() {
       .catch(() => setApiError("Failed to load BOM operations"));
   };
 
+  // ✅ FIX: Now clears item_to_manufacture & item_name too, so the Change button
+  // actually reverts the UI back to the BomSearchField — matching Internal WO behavior.
   const handleClearExternalBom = () => {
     setSelectedExternalBomLabel("");
     setExternalBomDetail(null);
     setWo(prev => ({
       ...prev,
       bom_no: "",
+      item_to_manufacture: "",
+      item_name: "",
       operations: [emptyOp()],
       lead_time_mins: 0,
       planned_operating_cost: 0,
@@ -3187,6 +3181,16 @@ const handleCompleteWorkOrder = async () => {
                                       items={rawItems}
                                       loading={rawItemsLoading}
                                       disabled={disabled}
+                                      onClear={() => {
+                                        setWo(prev => ({
+                                          ...prev,
+                                          required_items: prev.required_items.map(r =>
+                                            r.id === ri.id
+                                              ? { ...r, item_id: undefined, item_code: "", item_name: "", uom: "", rate: 0, amount: 0 }
+                                              : r
+                                          )
+                                        }));
+                                      }}
                                       onSelect={(it) => {
                                         setWo(prev => ({
                                           ...prev,
@@ -3532,6 +3536,16 @@ const handleCompleteWorkOrder = async () => {
                                   items={rawItems}
                                   loading={rawItemsLoading}
                                   disabled={disabled}
+                                  onClear={() => {
+                                    setWo(prev => ({
+                                      ...prev,
+                                      required_items: prev.required_items.map(r =>
+                                        r.id === ri.id
+                                          ? { ...r, item_id: undefined, item_code: "", item_name: "", uom: "", rate: 0, amount: 0 }
+                                          : r
+                                      )
+                                    }));
+                                  }}
                                   onSelect={(it) => {
                                     setWo(prev => ({
                                       ...prev,
