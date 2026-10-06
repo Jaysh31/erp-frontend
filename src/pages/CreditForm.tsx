@@ -650,6 +650,16 @@ const CreditForm: React.FC = () => {
 
   return (
     <div className="rd-credit-page">
+       <div className="rd-credit-top-bar">
+      <button
+        type="button"
+        className="rd-credit-back-btn"
+        onClick={() => window.history.back()}
+      >
+        <span className="rd-credit-back-icon">←</span>
+        <span>Back</span>
+      </button>
+    </div>
       <div className="rd-credit-card">
         <div className="rd-credit-header">
           <h2>REFERENCE DETAILS – CREDIT FORM</h2>

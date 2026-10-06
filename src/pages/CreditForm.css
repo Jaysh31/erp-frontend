@@ -606,6 +606,53 @@
   overflow-x: hidden;
 }
 
+/* ============================================================
+   CREDIT FORM - TOP BACK BUTTON
+============================================================ */
+
+.rd-credit-top-bar {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.rd-credit-back-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+
+  height: 40px;
+  padding: 0 18px;
+
+  border: 1px solid #d8e3ef;
+  border-radius: 6px;
+
+  background: #ffffff;
+  color: #2563a6;
+
+  font-size: 14px;
+  font-weight: 600;
+
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.rd-credit-back-btn:hover {
+  background: #2563a6;
+  border-color: #2563a6;
+  color: #ffffff;
+  box-shadow: 0 3px 8px rgba(37, 99, 166, 0.18);
+}
+
+.rd-credit-back-icon {
+  font-size: 20px;
+  line-height: 1;
+  font-weight: 500;
+  margin-top: -1px;
+}
+
 .rd-credit-page::-webkit-scrollbar {
   width: 6px;
 }
