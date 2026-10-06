@@ -286,7 +286,7 @@ export default function AccountingDashboard() {
                     <div className="transaction-description">{transaction.description}</div>
                     <div className="transaction-meta">
                       <span className="transaction-category" style={{ 
-                        backgroundColor: categoryColors[transaction.category] || '#94a3b8' 
+                        backgroundColor: categoryColors[transaction.category] || '#fdfeff' 
                       }}>
                         {transaction.category}
                       </span>

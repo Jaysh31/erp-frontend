@@ -1,45 +1,2173 @@
-/* PurchasingDashboard.css */
-.purchasing-dashboard .order-item {
+/* =========================================================
+   PURCHASING DASHBOARD
+   PREMIUM MODERN ERP UI
+   ========================================================= */
+
+.purchasing-dashboard {
+  --purchase-primary: #6366f1;
+  --purchase-primary-dark: #4f46e5;
+  --purchase-primary-light: #818cf8;
+
+  --purchase-success: #16a34a;
+  --purchase-success-light: #22c55e;
+
+  --purchase-warning: #f59e0b;
+  --purchase-warning-light: #fbbf24;
+
+  --purchase-danger: #ef4444;
+  --purchase-danger-light: #f87171;
+
+  --purchase-info: #0ea5e9;
+  --purchase-purple: #8b5cf6;
+
+  --purchase-card: var(--card-bg, #ffffff);
+  --purchase-surface: var(--nav-hover, #f8fafc);
+  --purchase-border: var(--border-color, #e2e8f0);
+
+  --purchase-text: var(--text-primary, #1e293b);
+  --purchase-muted: var(--text-secondary, #64748b);
+
+  --purchase-radius: 18px;
+  --purchase-radius-sm: 12px;
+
+  --purchase-shadow:
+    0 4px 16px rgba(15, 23, 42, 0.055),
+    0 1px 3px rgba(15, 23, 42, 0.04);
+
+  --purchase-shadow-hover:
+    0 20px 40px rgba(79, 70, 229, 0.13),
+    0 6px 16px rgba(15, 23, 42, 0.08);
+
+  width: 100%;
+  min-height: 100%;
+
+  padding: 24px;
+
+  box-sizing: border-box;
+
+  color: var(--purchase-text);
+
+  font-family:
+    Inter,
+    "Segoe UI",
+    Roboto,
+    Arial,
+    sans-serif;
+
+  background:
+    linear-gradient(
+      180deg,
+      rgba(248, 250, 252, 0.65),
+      rgba(255, 255, 255, 0.96)
+    );
+}
+
+
+/* =========================================================
+   HEADER
+   ========================================================= */
+
+.purchasing-dashboard .dashboard-header {
+  position: relative;
+
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  padding: 12px;
-  background: var(--nav-hover, #f8fafc);
-  border-radius: 8px;
+  justify-content: space-between;
+
+  gap: 20px;
+
+  margin-bottom: 24px;
+  padding: 22px 24px;
+
+  border: 1px solid var(--purchase-border);
+
+  border-radius: 20px;
+
+  background:
+    linear-gradient(
+      135deg,
+      #ffffff 0%,
+      #f8f9ff 55%,
+      #f5f3ff 100%
+    );
+
+  box-shadow: var(--purchase-shadow);
+
+  overflow: hidden;
+}
+
+
+.purchasing-dashboard .dashboard-header::before {
+  content: "";
+
+  position: absolute;
+
+  top: -100px;
+  right: -80px;
+
+  width: 260px;
+  height: 260px;
+
+  border-radius: 50%;
+
+  background:
+    radial-gradient(
+      circle,
+      rgba(99, 102, 241, 0.13),
+      transparent 68%
+    );
+
+  pointer-events: none;
+}
+
+
+.purchasing-dashboard .dashboard-header-left {
+  position: relative;
+  z-index: 1;
+
+  display: flex;
+  align-items: center;
+
+  gap: 16px;
+
+  min-width: 0;
+}
+
+
+.purchasing-dashboard .dashboard-title-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  width: 54px;
+  height: 54px;
+
+  flex: 0 0 54px;
+
+  border-radius: 16px;
+
+  color: #ffffff;
+
+  font-size: 22px;
+
+  background:
+    linear-gradient(
+      135deg,
+      var(--purchase-primary),
+      var(--purchase-purple)
+    );
+
+  box-shadow:
+    0 10px 22px rgba(99, 102, 241, 0.27),
+    inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+
+
+.purchasing-dashboard .dashboard-header h1 {
+  margin: 0;
+
+  font-size: 25px;
+
+  font-weight: 800;
+
+  line-height: 1.2;
+
+  letter-spacing: -0.5px;
+
+  color: var(--purchase-text);
+}
+
+
+.purchasing-dashboard .dashboard-header p {
+  margin: 6px 0 0;
+
+  color: var(--purchase-muted);
+
+  font-size: 13px;
+
+  line-height: 1.5;
+}
+
+
+/* =========================================================
+   REFRESH BUTTON
+   ========================================================= */
+
+.purchasing-dashboard .refresh-button {
+  position: relative;
+  z-index: 2;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  gap: 8px;
+
+  min-height: 40px;
+
+  padding: 9px 15px;
+
+  border: 1px solid rgba(99, 102, 241, 0.22);
+
+  border-radius: 11px;
+
+  background: #ffffff;
+
+  color: var(--purchase-primary);
+
+  font-size: 12px;
+
+  font-weight: 700;
+
   cursor: pointer;
-  transition: all 0.2s;
-  margin-bottom: 8px;
+
+  box-shadow:
+    0 4px 10px rgba(15, 23, 42, 0.05);
+
+  transition:
+    transform 0.2s ease,
+    background 0.2s ease,
+    color 0.2s ease,
+    box-shadow 0.2s ease;
 }
 
-.purchasing-dashboard .order-item:hover {
-  background: var(--nav-active, #f1f5f9);
-  transform: translateX(4px);
+
+.purchasing-dashboard .refresh-button:hover {
+  transform: translateY(-2px);
+
+  color: #ffffff;
+
+  background:
+    linear-gradient(
+      135deg,
+      var(--purchase-primary),
+      var(--purchase-primary-dark)
+    );
+
+  box-shadow:
+    0 8px 18px rgba(79, 70, 229, 0.22);
 }
 
-.order-supplier {
-  font-size: 14px;
+
+.purchasing-dashboard .refresh-button:active {
+  transform: translateY(0);
+}
+
+
+.purchasing-dashboard .refresh-button:disabled {
+  opacity: 0.7;
+
+  cursor: not-allowed;
+}
+
+
+.purchasing-dashboard .refresh-button.refreshing svg {
+  animation:
+    purchasing-spin 0.9s linear infinite;
+}
+
+
+@keyframes purchasing-spin {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+
+/* =========================================================
+   ERROR
+   ========================================================= */
+
+.purchasing-dashboard .dashboard-error {
+  display: flex;
+  align-items: center;
+
+  gap: 10px;
+
+  margin-bottom: 20px;
+
+  padding: 13px 16px;
+
+  border: 1px solid rgba(239, 68, 68, 0.18);
+
+  border-radius: 12px;
+
+  background:
+    linear-gradient(
+      135deg,
+      rgba(254, 242, 242, 0.95),
+      rgba(255, 247, 247, 0.95)
+    );
+
+  color: #b91c1c;
+
+  font-size: 13px;
+
+  font-weight: 600;
+}
+
+
+.purchasing-dashboard .dashboard-error svg {
+  flex: 0 0 auto;
+}
+
+
+.purchasing-dashboard .dashboard-error span {
+  flex: 1;
+}
+
+
+.purchasing-dashboard .dashboard-error button {
+  border: 0;
+
+  padding: 6px 12px;
+
+  border-radius: 8px;
+
+  color: #ffffff;
+
+  background: #dc2626;
+
+  font-size: 11px;
+
+  font-weight: 700;
+
+  cursor: pointer;
+}
+
+
+
+
+/* =========================================================
+   STAT CARD
+   ========================================================= */
+
+
+
+
+.purchasing-dashboard .stat-disabled {
+  cursor: default;
+}
+
+
+/* =========================================================
+   STAT ICON
+   ========================================================= */
+
+
+
+
+
+/* =========================================================
+   STAT CONTENT
+   ========================================================= */
+
+.purchasing-dashboard .stat-content {
+  position: relative;
+  z-index: 2;
+
+  min-width: 0;
+
+  flex: 1;
+}
+
+
+.purchasing-dashboard .stat-title {
+  margin-bottom: 5px;
+
+  color: var(--purchase-muted);
+
+  font-size: 11px;
+
+  font-weight: 700;
+
+  text-transform: uppercase;
+
+  letter-spacing: 0.45px;
+
+  white-space: nowrap;
+
+  overflow: hidden;
+
+  text-overflow: ellipsis;
+}
+
+
+.purchasing-dashboard .stat-value {
+  color: var(--purchase-text);
+
+  font-size: 24px;
+
+  font-weight: 850;
+
+  line-height: 1.15;
+
+  letter-spacing: -0.7px;
+
+  white-space: nowrap;
+
+  overflow: hidden;
+
+  text-overflow: ellipsis;
+}
+
+
+.purchasing-dashboard .stat-trend {
+  margin-top: 5px;
+
+  color: var(--purchase-muted);
+
+  font-size: 10px;
+
   font-weight: 500;
-  color: var(--text-primary, #a6bfe8);
+
+  line-height: 1.3;
+
+  white-space: nowrap;
+
+  overflow: hidden;
+
+  text-overflow: ellipsis;
 }
 
-/* Dark Theme */
-.dark-theme.purchasing-dashboard .order-item {
-  background: var(--nav-hover, rgba(255, 255, 255, 0.05));
+
+/* =========================================================
+   STAT ARROW
+   ========================================================= */
+
+.purchasing-dashboard .stat-arrow {
+  position: relative;
+  z-index: 2;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  width: 28px;
+  height: 28px;
+
+  flex: 0 0 28px;
+
+  border-radius: 50%;
+
+  color: var(--purchase-primary);
+
+  background:
+    rgba(99, 102, 241, 0.08);
+
+  font-size: 10px;
+
+  opacity: 0.55;
+
+  transition:
+    transform 0.2s ease,
+    opacity 0.2s ease,
+    background 0.2s ease;
 }
 
-.dark-theme.purchasing-dashboard .order-item:hover {
-  background: var(--nav-active, rgba(59, 130, 246, 0.15));
+
+
+
+/* =========================================================
+   SUMMARY GRID
+   ========================================================= */
+
+.purchasing-dashboard .dashboard-summary-grid {
+  display: grid;
+
+  grid-template-columns:
+    repeat(3, minmax(0, 1fr));
+
+  gap: 16px;
+
+  margin-bottom: 22px;
 }
 
-.dark-theme.purchasing-dashboard .order-supplier {
-  color: var(--text-primary, #f8fafc);
+
+/* =========================================================
+   SUMMARY CARD
+   ========================================================= */
+
+.purchasing-dashboard .summary-card {
+  position: relative;
+
+  padding: 19px;
+
+  border: 1px solid var(--purchase-border);
+
+  border-radius: var(--purchase-radius);
+
+  background: var(--purchase-card);
+
+  box-shadow: var(--purchase-shadow);
+
+  overflow: hidden;
+
+  transition:
+    transform 0.25s ease,
+    box-shadow 0.25s ease,
+    border-color 0.25s ease;
 }
 
-/* Responsive */
-@media (max-width: 768px) {
-  .purchasing-dashboard .order-item {
-    flex-direction: column;
-    align-items: flex-start;
+
+.purchasing-dashboard .summary-card:hover {
+  transform: translateY(-3px);
+
+  border-color:
+    rgba(99, 102, 241, 0.22);
+
+  box-shadow:
+    0 14px 30px rgba(15, 23, 42, 0.08);
+}
+
+
+.purchasing-dashboard .summary-card-header {
+  display: flex;
+
+  align-items: flex-start;
+  justify-content: space-between;
+
+  gap: 15px;
+
+  padding-bottom: 14px;
+
+  border-bottom:
+    1px solid var(--purchase-border);
+}
+
+
+.purchasing-dashboard .summary-card-header h3 {
+  margin: 0;
+
+  color: var(--purchase-text);
+
+  font-size: 15px;
+
+  font-weight: 800;
+}
+
+
+.purchasing-dashboard .summary-card-header p {
+  margin: 4px 0 0;
+
+  color: var(--purchase-muted);
+
+  font-size: 11px;
+}
+
+
+.purchasing-dashboard .summary-card-header > svg {
+  display: flex;
+
+  padding: 9px;
+
+  width: 34px;
+  height: 34px;
+
+  box-sizing: border-box;
+
+  border-radius: 10px;
+
+  color: var(--purchase-primary);
+
+  background:
+    rgba(99, 102, 241, 0.09);
+}
+
+
+/* =========================================================
+   SUMMARY ITEMS
+   ========================================================= */
+
+.purchasing-dashboard .summary-items {
+  display: grid;
+
+  grid-template-columns:
+    repeat(2, minmax(0, 1fr));
+
+  gap: 10px;
+
+  padding-top: 14px;
+}
+
+
+.purchasing-dashboard .summary-item {
+  display: flex;
+
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 8px;
+
+  padding: 10px 11px;
+
+  border-radius: 10px;
+
+  background:
+    var(--purchase-surface);
+}
+
+
+.purchasing-dashboard .summary-label {
+  color: var(--purchase-muted);
+
+  font-size: 10px;
+
+  font-weight: 600;
+}
+
+
+.purchasing-dashboard .summary-item strong {
+  color: var(--purchase-text);
+
+  font-size: 15px;
+
+  font-weight: 800;
+}
+
+
+.purchasing-dashboard .danger-text {
+  color: var(--purchase-danger) !important;
+}
+
+
+/* =========================================================
+   SUPPLIER TOTAL
+   ========================================================= */
+
+.purchasing-dashboard .supplier-total {
+  display: flex;
+
+  align-items: center;
+  justify-content: space-between;
+
+  padding: 19px 2px 13px;
+}
+
+
+.purchasing-dashboard .supplier-total span {
+  color: var(--purchase-muted);
+
+  font-size: 12px;
+
+  font-weight: 600;
+}
+
+
+.purchasing-dashboard .supplier-total strong {
+  color: var(--purchase-primary);
+
+  font-size: 28px;
+
+  font-weight: 850;
+
+  letter-spacing: -0.8px;
+}
+
+
+/* =========================================================
+   SUMMARY ACTION
+   ========================================================= */
+
+.purchasing-dashboard .summary-action {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  width: 100%;
+
+  padding: 10px 12px;
+
+  border: 1px solid rgba(99, 102, 241, 0.15);
+
+  border-radius: 10px;
+
+  color: var(--purchase-primary);
+
+  background:
+    rgba(99, 102, 241, 0.06);
+
+  font-size: 11px;
+
+  font-weight: 750;
+
+  cursor: pointer;
+
+  transition:
+    background 0.2s ease,
+    color 0.2s ease,
+    transform 0.2s ease;
+}
+
+
+.purchasing-dashboard .summary-action:hover {
+  transform: translateX(2px);
+
+  color: #ffffff;
+
+  background:
+    linear-gradient(
+      135deg,
+      var(--purchase-primary),
+      var(--purchase-primary-dark)
+    );
+}
+
+
+.purchasing-dashboard .summary-action svg {
+  font-size: 9px;
+}
+
+
+/* =========================================================
+   RECENT SECTION
+   ========================================================= */
+
+
+/* =========================================================
+   SECTION HEADER
+   ========================================================= */
+
+.purchasing-dashboard .section-header {
+  display: flex;
+
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 15px;
+
+  padding: 19px 20px;
+
+  border-bottom:
+    1px solid var(--purchase-border);
+
+  background:
+    linear-gradient(
+      180deg,
+      rgba(248, 250, 252, 0.65),
+      transparent
+    );
+}
+
+
+.purchasing-dashboard .section-header h2 {
+  margin: 0;
+
+  color: var(--purchase-text);
+
+  font-size: 16px;
+
+  font-weight: 800;
+}
+
+
+.purchasing-dashboard .section-header p {
+  margin: 4px 0 0;
+
+  color: var(--purchase-muted);
+
+  font-size: 11px;
+}
+
+
+/* =========================================================
+   VIEW ALL
+   ========================================================= */
+
+.purchasing-dashboard .view-all-button {
+  display: inline-flex;
+  align-items: center;
+
+  gap: 7px;
+
+  padding: 8px 12px;
+
+  border: 1px solid rgba(99, 102, 241, 0.15);
+
+  border-radius: 9px;
+
+  color: var(--purchase-primary);
+
+  background:
+    rgba(99, 102, 241, 0.06);
+
+  font-size: 11px;
+
+  font-weight: 750;
+
+  cursor: pointer;
+
+  transition:
+    transform 0.2s ease,
+    color 0.2s ease,
+    background 0.2s ease;
+}
+
+
+.purchasing-dashboard .view-all-button:hover {
+  transform: translateX(2px);
+
+  color: #ffffff;
+
+  background:
+    linear-gradient(
+      135deg,
+      var(--purchase-primary),
+      var(--purchase-primary-dark)
+    );
+}
+
+
+/* =========================================================
+   INVOICE TABLE
+   ========================================================= */
+
+.purchasing-dashboard .invoice-table-wrapper {
+  width: 100%;
+
+  overflow-x: auto;
+}
+
+
+.purchasing-dashboard .invoice-table {
+  width: 100%;
+
+  min-width: 680px;
+
+  border-collapse: collapse;
+
+  table-layout: auto;
+}
+
+
+.purchasing-dashboard .invoice-table th {
+  padding: 11px 18px;
+
+  border-bottom:
+    1px solid var(--purchase-border);
+
+  color: var(--purchase-muted);
+
+  background:
+    var(--purchase-surface);
+
+  font-size: 10px;
+
+  font-weight: 800;
+
+  text-align: left;
+
+  text-transform: uppercase;
+
+  letter-spacing: 0.5px;
+
+  white-space: nowrap;
+}
+
+
+.purchasing-dashboard .invoice-table td {
+  padding: 14px 18px;
+
+  border-bottom:
+    1px solid var(--purchase-border);
+
+  color: var(--purchase-text);
+
+  font-size: 12px;
+
+  vertical-align: middle;
+}
+
+
+.purchasing-dashboard .invoice-table tbody tr {
+  transition:
+    background 0.2s ease,
+    transform 0.2s ease;
+}
+
+
+.purchasing-dashboard .invoice-table tbody tr:hover {
+  background:
+    rgba(99, 102, 241, 0.035);
+}
+
+
+.purchasing-dashboard .invoice-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+
+/* =========================================================
+   INVOICE NUMBER
+   ========================================================= */
+
+.purchasing-dashboard .invoice-number {
+  display: inline-flex;
+
+  padding: 5px 8px;
+
+  border-radius: 7px;
+
+  color: var(--purchase-primary);
+
+  background:
+    rgba(99, 102, 241, 0.08);
+
+  font-size: 11px;
+
+  font-weight: 750;
+}
+
+
+/* =========================================================
+   SUPPLIER CELL
+   ========================================================= */
+
+.purchasing-dashboard .supplier-cell {
+  max-width: 230px;
+
+  overflow: hidden;
+
+  color: var(--purchase-text);
+
+  font-size: 12px;
+
+  font-weight: 650;
+
+  text-overflow: ellipsis;
+
+  white-space: nowrap;
+}
+
+
+/* =========================================================
+   AMOUNT
+   ========================================================= */
+
+.purchasing-dashboard .amount-cell {
+  color: var(--purchase-text);
+
+  font-size: 12px;
+
+  font-weight: 800;
+
+  white-space: nowrap;
+}
+
+
+/* =========================================================
+   ORDER STATUS
+   ========================================================= */
+
+.purchasing-dashboard .order-status {
+  display: inline-flex;
+
+  align-items: center;
+  justify-content: center;
+
+  gap: 6px;
+
+  min-width: 74px;
+
+  padding: 6px 11px;
+
+  border-radius: 999px;
+
+  color: #ffffff;
+
+  font-size: 9px;
+
+  font-weight: 800;
+
+  line-height: 1;
+
+  letter-spacing: 0.25px;
+
+  text-transform: capitalize;
+
+  white-space: nowrap;
+
+  border: 1px solid rgba(255, 255, 255, 0.2);
+
+  box-shadow:
+    0 4px 9px rgba(15, 23, 42, 0.13),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18);
+
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    filter 0.2s ease;
+}
+
+
+.purchasing-dashboard .order-status::before {
+  content: "";
+
+  width: 5px;
+  height: 5px;
+
+  flex: 0 0 5px;
+
+  border-radius: 50%;
+
+  background: rgba(255, 255, 255, 0.95);
+
+  box-shadow:
+    0 0 0 3px rgba(255, 255, 255, 0.13);
+}
+
+
+/* =========================================================
+   STATUS COLORS
+
+   !important is intentional because your JSX may have
+   inline backgroundColor.
+   ========================================================= */
+
+.purchasing-dashboard .order-status.draft {
+  background:
+    linear-gradient(
+      135deg,
+      #64748b,
+      #94a3b8
+    ) !important;
+}
+
+
+.purchasing-dashboard .order-status.pending {
+  background:
+    linear-gradient(
+      135deg,
+      #d97706,
+      #f59e0b
+    ) !important;
+}
+
+
+.purchasing-dashboard .order-status.submitted {
+  background:
+    linear-gradient(
+      135deg,
+      #0369a1,
+      #0ea5e9
+    ) !important;
+}
+
+
+.purchasing-dashboard .order-status.approved {
+  background:
+    linear-gradient(
+      135deg,
+      #2563eb,
+      #3b82f6
+    ) !important;
+}
+
+
+.purchasing-dashboard .order-status.processing {
+  background:
+    linear-gradient(
+      135deg,
+      #7c3aed,
+      #8b5cf6
+    ) !important;
+}
+
+
+.purchasing-dashboard .order-status.completed {
+  background:
+    linear-gradient(
+      135deg,
+      #15803d,
+      #22c55e
+    ) !important;
+}
+
+
+.purchasing-dashboard .order-status.cancelled {
+  background:
+    linear-gradient(
+      135deg,
+      #dc2626,
+      #ef4444
+    ) !important;
+}
+
+
+.purchasing-dashboard .order-status.overdue {
+  background:
+    linear-gradient(
+      135deg,
+      #b91c1c,
+      #f43f5e
+    ) !important;
+}
+
+
+.purchasing-dashboard .order-status.default {
+  background:
+    linear-gradient(
+      135deg,
+      #475569,
+      #64748b
+    ) !important;
+}
+
+
+/* =========================================================
+   EMPTY STATE
+   ========================================================= */
+
+.purchasing-dashboard .empty-state {
+  display: flex;
+
+  align-items: center;
+  justify-content: center;
+
+  flex-direction: column;
+
+  min-height: 220px;
+
+  padding: 30px;
+
+  text-align: center;
+}
+
+
+.purchasing-dashboard .empty-state > svg {
+  width: 42px;
+  height: 42px;
+
+  margin-bottom: 13px;
+
+  padding: 12px;
+
+  box-sizing: border-box;
+
+  border-radius: 13px;
+
+  color: var(--purchase-primary);
+
+  background:
+    rgba(99, 102, 241, 0.09);
+}
+
+
+.purchasing-dashboard .empty-state h3 {
+  margin: 0 0 5px;
+
+  color: var(--purchase-text);
+
+  font-size: 15px;
+
+  font-weight: 800;
+}
+
+
+.purchasing-dashboard .empty-state p {
+  margin: 0;
+
+  max-width: 360px;
+
+  color: var(--purchase-muted);
+
+  font-size: 11px;
+
+  line-height: 1.5;
+}
+
+
+/* =========================================================
+   QUICK ACTIONS
+   ========================================================= */
+
+.purchasing-dashboard .quick-actions {
+  padding: 20px;
+
+  border: 1px solid var(--purchase-border);
+
+  border-radius: var(--purchase-radius);
+
+  background: var(--purchase-card);
+
+  box-shadow: var(--purchase-shadow);
+}
+
+
+.purchasing-dashboard .quick-actions-header {
+  margin-bottom: 15px;
+}
+
+
+.purchasing-dashboard .quick-actions-header h2 {
+  margin: 0;
+
+  color: var(--purchase-text);
+
+  font-size: 16px;
+
+  font-weight: 800;
+}
+
+
+.purchasing-dashboard .quick-actions-header p {
+  margin: 4px 0 0;
+
+  color: var(--purchase-muted);
+
+  font-size: 11px;
+}
+
+
+/* =========================================================
+   QUICK ACTION GRID
+   ========================================================= */
+
+.purchasing-dashboard .quick-actions-grid {
+  display: grid;
+
+  grid-template-columns:
+    repeat(4, minmax(0, 1fr));
+
+  gap: 12px;
+}
+
+
+/* =========================================================
+   QUICK ACTION CARD
+   ========================================================= */
+
+.purchasing-dashboard .quick-action-card {
+  display: flex;
+
+  align-items: center;
+
+  gap: 11px;
+
+  min-width: 0;
+
+  padding: 13px;
+
+  border: 1px solid var(--purchase-border);
+
+  border-radius: 13px;
+
+  background:
+    linear-gradient(
+      145deg,
+      var(--purchase-card),
+      var(--purchase-surface)
+    );
+
+  color: var(--purchase-text);
+
+  text-align: left;
+
+  cursor: pointer;
+
+  box-shadow:
+    0 2px 7px rgba(15, 23, 42, 0.035);
+
+  transition:
+    transform 0.23s ease,
+    border-color 0.23s ease,
+    box-shadow 0.23s ease,
+    background 0.23s ease;
+}
+
+
+.purchasing-dashboard .quick-action-card:hover {
+  transform: translateY(-3px);
+
+  border-color:
+    rgba(99, 102, 241, 0.28);
+
+  background:
+    linear-gradient(
+      145deg,
+      #ffffff,
+      #f7f7ff
+    );
+
+  box-shadow:
+    0 12px 25px rgba(79, 70, 229, 0.10);
+}
+
+
+.purchasing-dashboard .quick-action-card > svg {
+  margin-left: auto;
+
+  flex: 0 0 auto;
+
+  color: var(--purchase-muted);
+
+  font-size: 9px;
+
+  transition:
+    transform 0.2s ease,
+    color 0.2s ease;
+}
+
+
+.purchasing-dashboard .quick-action-card:hover > svg {
+  transform: translateX(3px);
+
+  color: var(--purchase-primary);
+}
+
+
+/* =========================================================
+   QUICK ACTION ICON
+   ========================================================= */
+
+.purchasing-dashboard .quick-action-icon {
+  display: flex;
+
+  align-items: center;
+  justify-content: center;
+
+  width: 38px;
+  height: 38px;
+
+  flex: 0 0 38px;
+
+  border-radius: 11px;
+
+  color: var(--purchase-primary);
+
+  background:
+    linear-gradient(
+      135deg,
+      rgba(99, 102, 241, 0.14),
+      rgba(129, 140, 248, 0.07)
+    );
+
+  font-size: 14px;
+
+  transition:
+    transform 0.2s ease;
+}
+
+
+.purchasing-dashboard .quick-action-card:hover
+.quick-action-icon {
+  transform: scale(1.06);
+}
+
+
+.purchasing-dashboard .quick-action-card > div:nth-child(2) {
+  min-width: 0;
+}
+
+
+.purchasing-dashboard .quick-action-card strong {
+  display: block;
+
+  color: var(--purchase-text);
+
+  font-size: 11px;
+
+  font-weight: 800;
+
+  white-space: nowrap;
+
+  overflow: hidden;
+
+  text-overflow: ellipsis;
+}
+
+
+.purchasing-dashboard .quick-action-card span {
+  display: block;
+
+  margin-top: 3px;
+
+  color: var(--purchase-muted);
+
+  font-size: 9px;
+
+  white-space: nowrap;
+
+  overflow: hidden;
+
+  text-overflow: ellipsis;
+}
+
+
+/* =========================================================
+   LOADING
+   ========================================================= */
+
+.purchasing-dashboard .dashboard-loading {
+  display: flex;
+
+  align-items: center;
+  justify-content: center;
+
+  flex-direction: column;
+
+  min-height: 420px;
+
+  color: var(--purchase-muted);
+}
+
+
+.purchasing-dashboard .loading-spinner {
+  display: flex;
+
+  align-items: center;
+  justify-content: center;
+
+  width: 46px;
+  height: 46px;
+
+  margin-bottom: 14px;
+
+  border-radius: 14px;
+
+  color: var(--purchase-primary);
+
+  background:
+    rgba(99, 102, 241, 0.09);
+
+  font-size: 19px;
+
+  animation:
+    purchasing-spin 1s linear infinite;
+}
+
+
+.purchasing-dashboard .dashboard-loading p {
+  margin: 0;
+
+  font-size: 12px;
+
+  font-weight: 600;
+}
+
+
+/* =========================================================
+   DARK THEME
+   ========================================================= */
+
+.dark-theme.purchasing-dashboard {
+  --purchase-card: #172033;
+
+  --purchase-surface:
+    rgba(255, 255, 255, 0.045);
+
+  --purchase-border:
+    rgba(148, 163, 184, 0.15);
+
+  --purchase-text: #f8fafc;
+
+  --purchase-muted: #94a3b8;
+
+  --purchase-shadow:
+    0 7px 22px rgba(0, 0, 0, 0.2);
+
+  --purchase-shadow-hover:
+    0 20px 42px rgba(0, 0, 0, 0.32);
+
+  background:
+    linear-gradient(
+      180deg,
+      #0f172a,
+      #111827
+    );
+}
+
+
+/* =========================================================
+   DARK HEADER
+   ========================================================= */
+
+.dark-theme.purchasing-dashboard .dashboard-header {
+  background:
+    linear-gradient(
+      135deg,
+      #172033,
+      #111827
+    );
+
+  border-color:
+    rgba(148, 163, 184, 0.15);
+}
+
+
+.dark-theme.purchasing-dashboard
+.dashboard-header::before {
+  background:
+    radial-gradient(
+      circle,
+      rgba(99, 102, 241, 0.16),
+      transparent 68%
+    );
+}
+
+
+.dark-theme.purchasing-dashboard .refresh-button {
+  background: #1e293b;
+
+  border-color:
+    rgba(129, 140, 248, 0.22);
+
+  color: #a5b4fc;
+}
+
+
+.dark-theme.purchasing-dashboard
+.refresh-button:hover {
+  color: #ffffff;
+
+  background:
+    linear-gradient(
+      135deg,
+      #6366f1,
+      #4f46e5
+    );
+}
+
+
+
+
+
+
+
+/* =========================================================
+   RECENT PURCHASE BILLS + QUICK ACTIONS
+   SIDE-BY-SIDE LAYOUT
+   ========================================================= */
+
+.purchasing-dashboard .recent-quick-layout {
+  display: grid;
+
+  grid-template-columns:
+    minmax(0, 1.7fr)
+    minmax(320px, 1fr);
+
+  gap: 1px;
+
+  align-items: stretch;
+
+  margin-bottom: 22px;
+}
+
+
+/* =========================================================
+   RECENT PURCHASE BILLS
+   ========================================================= */
+
+.purchasing-dashboard .recent-section {
+  min-width: 0;
+
+  margin-bottom: 0;
+
+  border: 1px solid var(--purchase-border);
+
+  border-radius: var(--purchase-radius);
+
+  background: var(--purchase-card);
+
+  box-shadow: var(--purchase-shadow);
+
+  overflow: hidden;
+
+  transition:
+    transform 0.25s ease,
+    box-shadow 0.25s ease,
+    border-color 0.25s ease;
+}
+
+
+.purchasing-dashboard .recent-section:hover {
+  border-color:
+    rgba(99, 102, 241, 0.18);
+
+  box-shadow:
+    0 14px 30px rgba(15, 23, 42, 0.07);
+}
+
+
+/* =========================================================
+   QUICK ACTIONS
+   ========================================================= */
+
+.purchasing-dashboard .quick-actions {
+  min-width: 0;
+
+  height: 100%;
+
+  box-sizing: border-box;
+
+  padding: 20px;
+
+  margin-bottom: 0;
+
+  border: 1px solid var(--purchase-border);
+
+  border-radius: var(--purchase-radius);
+
+  background: var(--purchase-card);
+
+  box-shadow: var(--purchase-shadow);
+
+  transition:
+    transform 0.25s ease,
+    box-shadow 0.25s ease,
+    border-color 0.25s ease;
+}
+
+
+.purchasing-dashboard .quick-actions:hover {
+  border-color:
+    rgba(99, 102, 241, 0.18);
+
+  box-shadow:
+    0 14px 30px rgba(15, 23, 42, 0.07);
+}
+
+
+/* =========================================================
+   QUICK ACTION GRID
+   Make actions vertical inside right panel
+   ========================================================= */
+
+.purchasing-dashboard .quick-actions-grid {
+  display: grid;
+
+  grid-template-columns: 1fr;
+
+  gap: 10px;
+}
+
+
+/* =========================================================
+   QUICK ACTION CARD
+   ========================================================= */
+
+.purchasing-dashboard .quick-action-card {
+  width: 100%;
+
+  min-height: 58px;
+
+  box-sizing: border-box;
+}
+
+
+/* =========================================================
+   TABLET
+   ========================================================= */
+
+@media (max-width: 1100px) {
+
+  .purchasing-dashboard .recent-quick-layout {
+    grid-template-columns:
+      minmax(0, 1.4fr)
+      minmax(280px, 1fr);
+
+    gap: 14px;
+  }
+}
+
+
+/* =========================================================
+   MOBILE / TABLET
+   ========================================================= */
+
+@media (max-width: 850px) {
+
+  .purchasing-dashboard .recent-quick-layout {
+    grid-template-columns: 1fr;
+
+    gap: 14px;
+  }
+
+
+  .purchasing-dashboard .recent-section {
+    margin-bottom: 0;
+  }
+
+
+  .purchasing-dashboard .quick-actions {
+    height: auto;
+  }
+
+
+  .purchasing-dashboard .quick-actions-grid {
+    grid-template-columns:
+      repeat(2, minmax(0, 1fr));
+  }
+}
+
+
+/* =========================================================
+   SMALL MOBILE
+   ========================================================= */
+
+@media (max-width: 480px) {
+
+  .purchasing-dashboard .recent-quick-layout {
+    gap: 12px;
+  }
+
+
+  .purchasing-dashboard .quick-actions {
+    padding: 15px;
+  }
+
+
+  .purchasing-dashboard .quick-actions-grid {
+    grid-template-columns: 1fr;
+
     gap: 8px;
   }
 }
+
+
+
+
+/* =========================================================
+   DARK STAT CARDS
+   ========================================================= */
+
+
+/* =========================================================
+   DARK SUMMARY
+   ========================================================= */
+
+.dark-theme.purchasing-dashboard .summary-card {
+  background:
+    linear-gradient(
+      145deg,
+      #172033,
+      #111827
+    );
+
+  border-color:
+    rgba(148, 163, 184, 0.15);
+}
+
+
+.dark-theme.purchasing-dashboard
+.summary-item {
+  background:
+    rgba(255, 255, 255, 0.04);
+}
+
+
+/* =========================================================
+   DARK RECENT
+   ========================================================= */
+
+.dark-theme.purchasing-dashboard
+.recent-section {
+  background: #172033;
+
+  border-color:
+    rgba(148, 163, 184, 0.15);
+}
+
+
+.dark-theme.purchasing-dashboard
+.section-header {
+  background:
+    rgba(255, 255, 255, 0.025);
+}
+
+
+.dark-theme.purchasing-dashboard
+.invoice-table th {
+  background:
+    rgba(255, 255, 255, 0.035);
+}
+
+
+.dark-theme.purchasing-dashboard
+.invoice-table tbody tr:hover {
+  background:
+    rgba(99, 102, 241, 0.07);
+}
+
+
+/* =========================================================
+   DARK QUICK ACTIONS
+   ========================================================= */
+
+.dark-theme.purchasing-dashboard
+.quick-actions {
+  background:
+    linear-gradient(
+      145deg,
+      #172033,
+      #111827
+    );
+
+  border-color:
+    rgba(148, 163, 184, 0.15);
+}
+
+
+.dark-theme.purchasing-dashboard
+.quick-action-card {
+  background:
+    rgba(255, 255, 255, 0.035);
+
+  border-color:
+    rgba(148, 163, 184, 0.14);
+}
+
+
+.dark-theme.purchasing-dashboard
+.quick-action-card:hover {
+  background:
+    rgba(99, 102, 241, 0.09);
+
+  border-color:
+    rgba(129, 140, 248, 0.28);
+}
+
+
+/* =========================================================
+   DARK ERROR
+   ========================================================= */
+
+.dark-theme.purchasing-dashboard
+.dashboard-error {
+  background:
+    rgba(127, 29, 29, 0.22);
+
+  border-color:
+    rgba(248, 113, 113, 0.2);
+
+  color: #fca5a5;
+}
+
+
+/* =========================================================
+   RESPONSIVE — TABLET
+   ========================================================= */
+
+@media (max-width: 1200px) {
+
+  .purchasing-dashboard {
+    padding: 20px;
+  }
+
+
+
+  .purchasing-dashboard .dashboard-summary-grid {
+    grid-template-columns:
+      repeat(2, minmax(0, 1fr));
+  }
+
+
+  .purchasing-dashboard
+  .dashboard-summary-grid
+  .summary-card:last-child {
+    grid-column: 1 / -1;
+  }
+
+
+  .purchasing-dashboard .quick-actions-grid {
+    grid-template-columns:
+      repeat(2, minmax(0, 1fr));
+  }
+}
+
+
+/* =========================================================
+   RESPONSIVE — MOBILE
+   ========================================================= */
+
+@media (max-width: 768px) {
+
+  .purchasing-dashboard {
+    padding: 14px;
+  }
+
+
+  .purchasing-dashboard .dashboard-header {
+    align-items: flex-start;
+
+    flex-direction: column;
+
+    padding: 17px;
+
+    border-radius: 16px;
+  }
+
+
+  .purchasing-dashboard .dashboard-header-left {
+    width: 100%;
+  }
+
+
+  .purchasing-dashboard .dashboard-title-icon {
+    width: 46px;
+    height: 46px;
+
+    flex-basis: 46px;
+
+    border-radius: 13px;
+
+    font-size: 18px;
+  }
+
+
+  .purchasing-dashboard .dashboard-header h1 {
+    font-size: 20px;
+  }
+
+
+  .purchasing-dashboard .dashboard-header p {
+    font-size: 11px;
+  }
+
+
+  .purchasing-dashboard .refresh-button {
+    width: 100%;
+  }
+
+
+
+
+
+
+  .purchasing-dashboard .stat-title {
+    font-size: 9px;
+  }
+
+
+  .purchasing-dashboard .stat-value {
+    font-size: 20px;
+  }
+
+
+  .purchasing-dashboard .stat-trend {
+    font-size: 8px;
+  }
+
+
+  .purchasing-dashboard .stat-arrow {
+    display: none;
+  }
+
+
+  .purchasing-dashboard .dashboard-summary-grid {
+    grid-template-columns: 1fr;
+
+    gap: 12px;
+  }
+
+
+  .purchasing-dashboard
+  .dashboard-summary-grid
+  .summary-card:last-child {
+    grid-column: auto;
+  }
+
+
+  .purchasing-dashboard .summary-card {
+    padding: 16px;
+  }
+
+
+  .purchasing-dashboard .section-header {
+    align-items: flex-start;
+
+    flex-direction: column;
+
+    padding: 16px;
+  }
+
+
+  .purchasing-dashboard .view-all-button {
+    width: 100%;
+  }
+
+
+  .purchasing-dashboard .quick-actions {
+    padding: 16px;
+  }
+
+
+  .purchasing-dashboard .quick-actions-grid {
+    grid-template-columns: 1fr;
+
+    gap: 9px;
+  }
+}
+
+
+/* =========================================================
+   RESPONSIVE — SMALL MOBILE
+   ========================================================= */
+
+@media (max-width: 480px) {
+
+  .purchasing-dashboard {
+    padding: 10px;
+  }
+
+
+  .purchasing-dashboard .dashboard-header {
+    margin-bottom: 14px;
+
+    padding: 14px;
+  }
+
+
+  .purchasing-dashboard .dashboard-title-icon {
+    width: 42px;
+    height: 42px;
+
+    flex-basis: 42px;
+  }
+
+
+  .purchasing-dashboard .dashboard-header h1 {
+    font-size: 18px;
+  }
+
+
+  .purchasing-dashboard .dashboard-header p {
+    font-size: 10px;
+  }
+
+
+
+
+
+
+
+  .purchasing-dashboard .stat-title {
+    font-size: 8px;
+
+    letter-spacing: 0.25px;
+  }
+
+
+  .purchasing-dashboard .stat-value {
+    font-size: 17px;
+
+    letter-spacing: -0.4px;
+  }
+
+
+  .purchasing-dashboard .stat-trend {
+    margin-top: 3px;
+
+    font-size: 7px;
+  }
+
+
+  .purchasing-dashboard .summary-items {
+    gap: 7px;
+  }
+
+
+  .purchasing-dashboard .summary-item {
+    padding: 9px;
+  }
+
+
+  .purchasing-dashboard .summary-label {
+    font-size: 9px;
+  }
+
+
+  .purchasing-dashboard .summary-item strong {
+    font-size: 13px;
+  }
+
+
+  .purchasing-dashboard .invoice-table th,
+  .purchasing-dashboard .invoice-table td {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+
+  .purchasing-dashboard .order-status {
+    min-width: auto;
+
+    padding: 5px 8px;
+
+    font-size: 8px;
+  }
+
+
+  .purchasing-dashboard .order-status::before {
+    width: 4px;
+    height: 4px;
+
+    flex-basis: 4px;
+  }
+}
+
+
+/* =========================================================
+   CUSTOM SCROLLBAR
+   ========================================================= */
+
+.purchasing-dashboard ::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+
+.purchasing-dashboard ::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+
+.purchasing-dashboard ::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+
+  background:
+    linear-gradient(
+      180deg,
+      #a5b4fc,
+      #6366f1
+    );
+}
+
+
+.purchasing-dashboard
+.invoice-table-wrapper::-webkit-scrollbar {
+  height: 5px;
+}
+
+
+/* =========================================================
+   FOCUS ACCESSIBILITY
+   ========================================================= */
+
+.purchasing-dashboard button:focus-visible {
+  outline: none;
+
+  box-shadow:
+    0 0 0 3px rgba(99, 102, 241, 0.18);
+}
+
+
+/* =========================================================
+   REDUCED MOTION
+   ========================================================= */
+
+@media (prefers-reduced-motion: reduce) {
+
+  .purchasing-dashboard *,
+  .purchasing-dashboard *::before,
+  .purchasing-dashboard *::after {
+    transition: none !important;
+
+    animation: none !important;
+  }
+}
+

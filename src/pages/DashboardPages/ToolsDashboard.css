@@ -1,193 +1,887 @@
-/* ToolsDashboard.css */
+/* =========================================================
+   ToolsDashboard.css
+   Premium / Modern Tools Dashboard
+   ========================================================= */
+
+.tools-dashboard {
+  --tools-primary: #6366f1;
+  --tools-primary-dark: #4f46e5;
+  --tools-secondary: #8b5cf6;
+  --tools-cyan: #06b6d4;
+  --tools-success: #10b981;
+  --tools-warning: #f59e0b;
+  --tools-danger: #ef4444;
+
+  --tools-text: #1e293b;
+  --tools-muted: #64748b;
+  --tools-light: #94a3b8;
+  --tools-border: rgba(15, 23, 42, 0.08);
+}
+
+
+/* =========================================================
+   CATEGORIES GRID
+   ========================================================= */
+
 .tools-dashboard .categories-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
 }
+
+
+/* =========================================================
+   CATEGORY CARD
+   ========================================================= */
 
 .tools-dashboard .category-card {
+  position: relative;
+
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 12px;
-  background: var(--nav-hover, #f8fafc);
-  border-radius: 8px;
-  transition: all 0.2s;
+  gap: 15px;
+
+  min-height: 82px;
+  padding: 16px 18px;
+
+  background: linear-gradient(
+    145deg,
+    #ffffff 0%,
+    #f8fafc 100%
+  );
+
+  border: 1px solid var(--tools-border);
+  border-radius: 17px;
+
+  box-shadow:
+    0 5px 18px rgba(15, 23, 42, 0.055),
+    0 1px 3px rgba(15, 23, 42, 0.04);
+
   cursor: pointer;
+  overflow: hidden;
+
+  transition:
+    transform 0.3s ease,
+    box-shadow 0.3s ease,
+    border-color 0.3s ease,
+    background 0.3s ease;
 }
+
+
+/* Top animated line */
+
+.tools-dashboard .category-card::before {
+  content: "";
+
+  position: absolute;
+  top: 0;
+  left: 18px;
+  right: 18px;
+
+  height: 3px;
+
+  border-radius: 0 0 8px 8px;
+
+  background: linear-gradient(
+    90deg,
+    var(--tools-primary),
+    var(--tools-secondary),
+    var(--tools-cyan)
+  );
+
+  transform: scaleX(0);
+  transform-origin: left;
+
+  transition: transform 0.35s ease;
+}
+
+
+/* Background glow */
+
+.tools-dashboard .category-card::after {
+  content: "";
+
+  position: absolute;
+
+  width: 110px;
+  height: 110px;
+
+  right: -55px;
+  bottom: -60px;
+
+  border-radius: 50%;
+
+  background: rgba(99, 102, 241, 0.07);
+
+  transition: transform 0.4s ease;
+}
+
 
 .tools-dashboard .category-card:hover {
-  background: var(--nav-active, #f1f5f9);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  transform: translateY(-6px);
+
+  border-color: rgba(99, 102, 241, 0.2);
+
+  background: linear-gradient(
+    145deg,
+    #ffffff 0%,
+    #f5f7ff 100%
+  );
+
+  box-shadow:
+    0 18px 35px rgba(15, 23, 42, 0.10),
+    0 6px 14px rgba(99, 102, 241, 0.08);
 }
 
-.category-icon {
-  width: 40px;
-  height: 40px;
-  border-radius: 8px;
+
+.tools-dashboard .category-card:hover::before {
+  transform: scaleX(1);
+}
+
+
+.tools-dashboard .category-card:hover::after {
+  transform: scale(1.7);
+}
+
+
+/* =========================================================
+   CATEGORY ICON
+   ========================================================= */
+
+.tools-dashboard .category-icon {
+  position: relative;
+  z-index: 2;
+
+  width: 48px;
+  height: 48px;
+
+  border-radius: 14px;
+
   display: flex;
   align-items: center;
   justify-content: center;
-  color: white;
-  font-size: 18px;
+
+  color: #ffffff;
+  font-size: 19px;
+
   flex-shrink: 0;
+
+  background: linear-gradient(
+    135deg,
+    var(--tools-primary),
+    var(--tools-secondary)
+  );
+
+  box-shadow:
+    0 8px 18px rgba(99, 102, 241, 0.25);
+
+  transition:
+    transform 0.3s ease,
+    box-shadow 0.3s ease;
 }
 
-.category-info {
+
+.tools-dashboard .category-card:hover .category-icon {
+  transform: scale(1.08) rotate(-3deg);
+
+  box-shadow:
+    0 11px 24px rgba(99, 102, 241, 0.32);
+}
+
+
+/* Different category colors */
+
+.tools-dashboard .category-card:nth-child(2) .category-icon {
+  background: linear-gradient(
+    135deg,
+    #06b6d4,
+    #0ea5e9
+  );
+
+  box-shadow:
+    0 8px 18px rgba(14, 165, 233, 0.22);
+}
+
+
+.tools-dashboard .category-card:nth-child(3) .category-icon {
+  background: linear-gradient(
+    135deg,
+    #10b981,
+    #059669
+  );
+
+  box-shadow:
+    0 8px 18px rgba(16, 185, 129, 0.22);
+}
+
+
+.tools-dashboard .category-card:nth-child(4) .category-icon {
+  background: linear-gradient(
+    135deg,
+    #f59e0b,
+    #f97316
+  );
+
+  box-shadow:
+    0 8px 18px rgba(245, 158, 11, 0.22);
+}
+
+
+.tools-dashboard .category-card:nth-child(5) .category-icon {
+  background: linear-gradient(
+    135deg,
+    #ec4899,
+    #db2777
+  );
+
+  box-shadow:
+    0 8px 18px rgba(236, 72, 153, 0.22);
+}
+
+
+.tools-dashboard .category-card:nth-child(6) .category-icon {
+  background: linear-gradient(
+    135deg,
+    #14b8a6,
+    #0d9488
+  );
+
+  box-shadow:
+    0 8px 18px rgba(20, 184, 166, 0.22);
+}
+
+
+/* =========================================================
+   CATEGORY INFO
+   ========================================================= */
+
+.tools-dashboard .category-info {
+  position: relative;
+  z-index: 2;
+
   flex: 1;
+  min-width: 0;
 }
 
-.category-name {
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--text-primary, #1e293b);
+
+.tools-dashboard .category-name {
+  font-size: 14px;
+  font-weight: 700;
+
+  line-height: 1.35;
+
+  color: var(--tools-text);
+
+  transition: color 0.25s ease;
 }
 
-.category-count {
+
+.tools-dashboard .category-card:hover .category-name {
+  color: var(--tools-primary-dark);
+}
+
+
+.tools-dashboard .category-count {
+  margin-top: 4px;
+
   font-size: 12px;
-  color: var(--text-secondary, #64748b);
+  font-weight: 500;
+
+  color: var(--tools-muted);
 }
 
-/* Tools List */
-.tools-list {
+
+/* =========================================================
+   TOOLS LIST
+   ========================================================= */
+
+.tools-dashboard .tools-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
 }
 
-.tool-item {
+
+/* =========================================================
+   TOOL ITEM
+   ========================================================= */
+
+.tools-dashboard .tool-item {
+  position: relative;
+
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 12px;
-  background: var(--nav-hover, #f8fafc);
-  border-radius: 8px;
+  gap: 14px;
+
+  padding: 15px 17px;
+
+  background: linear-gradient(
+    145deg,
+    #ffffff 0%,
+    #f8fafc 100%
+  );
+
+  border: 1px solid var(--tools-border);
+  border-radius: 15px;
+
+  box-shadow:
+    0 4px 14px rgba(15, 23, 42, 0.045);
+
   cursor: pointer;
-  transition: all 0.2s;
+  overflow: hidden;
+
+  transition:
+    transform 0.28s ease,
+    box-shadow 0.28s ease,
+    border-color 0.28s ease,
+    background 0.28s ease;
 }
 
-.tool-item:hover {
-  background: var(--nav-active, #f1f5f9);
-  transform: translateX(4px);
+
+/* Left accent */
+
+.tools-dashboard .tool-item::before {
+  content: "";
+
+  position: absolute;
+
+  left: 0;
+  top: 12px;
+  bottom: 12px;
+
+  width: 3px;
+
+  border-radius: 0 6px 6px 0;
+
+  background: linear-gradient(
+    180deg,
+    var(--tools-primary),
+    var(--tools-secondary)
+  );
+
+  transform: scaleY(0.4);
+
+  transition: transform 0.3s ease;
 }
 
-.tool-icon {
-  width: 36px;
-  height: 36px;
-  border-radius: 8px;
+
+.tools-dashboard .tool-item:hover {
+  transform: translateX(5px);
+
+  border-color: rgba(99, 102, 241, 0.16);
+
+  background: linear-gradient(
+    145deg,
+    #ffffff 0%,
+    #f5f7ff 100%
+  );
+
+  box-shadow:
+    0 12px 27px rgba(15, 23, 42, 0.09),
+    0 4px 10px rgba(99, 102, 241, 0.06);
+}
+
+
+.tools-dashboard .tool-item:hover::before {
+  transform: scaleY(1);
+}
+
+
+/* =========================================================
+   TOOL ICON
+   ========================================================= */
+
+.tools-dashboard .tool-icon {
+  position: relative;
+  z-index: 2;
+
+  width: 44px;
+  height: 44px;
+
+  border-radius: 12px;
+
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--primary-color, #3b82f6);
-  color: white;
-  font-size: 16px;
+
+  background: linear-gradient(
+    135deg,
+    var(--tools-primary),
+    var(--tools-secondary)
+  );
+
+  color: #ffffff;
+
+  font-size: 17px;
+
   flex-shrink: 0;
+
+  box-shadow:
+    0 7px 16px rgba(99, 102, 241, 0.20);
+
+  transition:
+    transform 0.3s ease,
+    box-shadow 0.3s ease;
 }
 
-.tool-info {
+
+.tools-dashboard .tool-item:hover .tool-icon {
+  transform: scale(1.08) rotate(-3deg);
+
+  box-shadow:
+    0 10px 21px rgba(99, 102, 241, 0.28);
+}
+
+
+/* Different tool colors */
+
+.tools-dashboard .tool-item:nth-child(2) .tool-icon {
+  background: linear-gradient(
+    135deg,
+    #06b6d4,
+    #0ea5e9
+  );
+}
+
+
+.tools-dashboard .tool-item:nth-child(3) .tool-icon {
+  background: linear-gradient(
+    135deg,
+    #10b981,
+    #059669
+  );
+}
+
+
+.tools-dashboard .tool-item:nth-child(4) .tool-icon {
+  background: linear-gradient(
+    135deg,
+    #f59e0b,
+    #f97316
+  );
+}
+
+
+/* =========================================================
+   TOOL INFORMATION
+   ========================================================= */
+
+.tools-dashboard .tool-info {
   flex: 1;
+  min-width: 0;
 }
 
-.tool-name {
+
+.tools-dashboard .tool-name {
   font-size: 14px;
+  font-weight: 700;
+
+  color: var(--tools-text);
+
+  line-height: 1.35;
+
+  transition: color 0.25s ease;
+}
+
+
+.tools-dashboard .tool-item:hover .tool-name {
+  color: var(--tools-primary-dark);
+}
+
+
+.tools-dashboard .tool-type {
+  margin-top: 4px;
+
+  font-size: 11px;
   font-weight: 500;
-  color: var(--text-primary, #1e293b);
+
+  color: var(--tools-muted);
 }
 
-.tool-type {
-  font-size: 12px;
-  color: var(--text-secondary, #64748b);
-}
 
-.tool-stats {
+/* =========================================================
+   TOOL STATS
+   ========================================================= */
+
+.tools-dashboard .tool-stats {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 4px;
-}
+  gap: 6px;
 
-.tool-users {
-  font-size: 12px;
-  color: var(--text-secondary, #64748b);
-}
-
-.tool-status {
-  font-size: 11px;
-  padding: 2px 10px;
-  border-radius: 12px;
-  color: white;
-  font-weight: 500;
-}
-
-/* Activity Type Icon */
-.activity-type-icon {
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--primary-color, #3b82f6);
-  color: white;
-  font-size: 14px;
   flex-shrink: 0;
 }
 
-/* Dark Theme */
-.dark-theme.tools-dashboard .category-card,
+
+.tools-dashboard .tool-users {
+  font-size: 11px;
+  font-weight: 600;
+
+  color: var(--tools-muted);
+
+  white-space: nowrap;
+}
+
+
+/* =========================================================
+   TOOL STATUS
+   ========================================================= */
+
+.tools-dashboard .tool-status {
+  font-size: 10px;
+  font-weight: 700;
+
+  padding: 5px 11px;
+
+  border-radius: 20px;
+
+  color: #ffffff;
+
+  box-shadow:
+    0 3px 8px rgba(15, 23, 42, 0.08);
+
+  letter-spacing: 0.15px;
+}
+
+
+/* =========================================================
+   ACTIVITY TYPE ICON
+   ========================================================= */
+
+.tools-dashboard .activity-type-icon {
+  width: 36px;
+  height: 36px;
+
+  border-radius: 11px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  background: linear-gradient(
+    135deg,
+    var(--tools-primary),
+    var(--tools-secondary)
+  );
+
+  color: #ffffff;
+
+  font-size: 14px;
+
+  flex-shrink: 0;
+
+  box-shadow:
+    0 6px 14px rgba(99, 102, 241, 0.20);
+
+  transition:
+    transform 0.25s ease,
+    box-shadow 0.25s ease;
+}
+
+
+.tools-dashboard .activity-type-icon:hover {
+  transform: scale(1.08);
+
+  box-shadow:
+    0 8px 18px rgba(99, 102, 241, 0.28);
+}
+
+
+/* =========================================================
+   DARK THEME
+   ========================================================= */
+
+.dark-theme.tools-dashboard {
+  --tools-text: #f8fafc;
+  --tools-muted: #94a3b8;
+  --tools-light: #64748b;
+  --tools-border: rgba(255, 255, 255, 0.08);
+}
+
+
+/* Category */
+
+.dark-theme.tools-dashboard .category-card {
+  background: linear-gradient(
+    145deg,
+    #182131 0%,
+    #111827 100%
+  );
+
+  border-color: rgba(255, 255, 255, 0.07);
+
+  box-shadow:
+    0 6px 20px rgba(0, 0, 0, 0.24);
+}
+
+
+.dark-theme.tools-dashboard .category-card:hover {
+  background: linear-gradient(
+    145deg,
+    #1e293b 0%,
+    #172033 100%
+  );
+
+  border-color: rgba(129, 140, 248, 0.22);
+
+  box-shadow:
+    0 17px 34px rgba(0, 0, 0, 0.34);
+}
+
+
+.dark-theme.tools-dashboard .category-name {
+  color: #f8fafc;
+}
+
+
+.dark-theme.tools-dashboard .category-card:hover .category-name {
+  color: #a5b4fc;
+}
+
+
+/* Tool item */
+
 .dark-theme.tools-dashboard .tool-item {
-  background: var(--nav-hover, rgba(255, 255, 255, 0.05));
+  background: linear-gradient(
+    145deg,
+    #182131 0%,
+    #111827 100%
+  );
+
+  border-color: rgba(255, 255, 255, 0.07);
+
+  box-shadow:
+    0 5px 18px rgba(0, 0, 0, 0.23);
 }
 
-.dark-theme.tools-dashboard .category-card:hover,
+
 .dark-theme.tools-dashboard .tool-item:hover {
-  background: var(--nav-active, rgba(59, 130, 246, 0.15));
+  background: linear-gradient(
+    145deg,
+    #1e293b 0%,
+    #172033 100%
+  );
+
+  border-color: rgba(129, 140, 248, 0.20);
+
+  box-shadow:
+    0 14px 30px rgba(0, 0, 0, 0.34);
 }
 
-.dark-theme.tools-dashboard .category-name,
+
 .dark-theme.tools-dashboard .tool-name {
-  color: var(--text-primary, #f8fafc);
+  color: #f8fafc;
 }
 
-.dark-theme.tools-dashboard .category-count,
+
+.dark-theme.tools-dashboard .tool-item:hover .tool-name {
+  color: #a5b4fc;
+}
+
+
 .dark-theme.tools-dashboard .tool-type,
 .dark-theme.tools-dashboard .tool-users {
-  color: var(--text-secondary, #94a3b8);
+  color: #94a3b8;
 }
 
-/* Responsive */
-@media (max-width: 1024px) {
+
+/* =========================================================
+   RESPONSIVE
+   ========================================================= */
+
+@media (max-width: 1100px) {
   .tools-dashboard .categories-grid {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
 
 @media (max-width: 768px) {
   .tools-dashboard .categories-grid {
     grid-template-columns: 1fr;
+    gap: 13px;
   }
-  
+
+  .tools-dashboard .category-card {
+    min-height: 76px;
+    padding: 14px 15px;
+  }
+
   .tools-dashboard .tool-item {
     flex-wrap: wrap;
   }
-  
+
   .tools-dashboard .tool-stats {
     flex-direction: row;
     align-items: center;
+
     width: 100%;
+
+    justify-content: flex-end;
+    gap: 12px;
+
+    padding-left: 58px;
+  }
+}
+
+
+@media (max-width: 480px) {
+  .tools-dashboard .category-card {
+    border-radius: 14px;
+  }
+
+  .tools-dashboard .category-icon {
+    width: 43px;
+    height: 43px;
+
+    border-radius: 12px;
+
+    font-size: 17px;
+  }
+
+  .tools-dashboard .category-name {
+    font-size: 13px;
+  }
+
+  .tools-dashboard .tool-item {
+    flex-direction: column;
+    align-items: flex-start;
+
+    padding: 14px;
+  }
+
+  .tools-dashboard .tool-info {
+    width: 100%;
+  }
+
+  .tools-dashboard .tool-stats {
+    width: 100%;
+
+    padding-left: 0;
+
+    flex-direction: row;
+
     justify-content: space-between;
   }
 }
 
-@media (max-width: 480px) {
-  .tools-dashboard .tool-item {
-    flex-direction: column;
-    align-items: flex-start;
+
+/* =========================================================
+   ACCESSIBILITY
+   ========================================================= */
+
+@media (prefers-reduced-motion: reduce) {
+  .tools-dashboard .category-card,
+  .tools-dashboard .tool-item,
+  .tools-dashboard .category-icon,
+  .tools-dashboard .tool-icon,
+  .tools-dashboard .activity-type-icon,
+  .tools-dashboard .category-card::before,
+  .tools-dashboard .category-card::after,
+  .tools-dashboard .tool-item::before {
+    transition: none;
   }
-  
-  .tools-dashboard .tool-stats {
-    flex-direction: row;
-    width: 100%;
+
+  .tools-dashboard .category-card:hover,
+  .tools-dashboard .tool-item:hover {
+    transform: none;
+  }
+}
+
+
+
+/* =========================================================
+   QUICK ACCESS TOOLS + RECENT ACTIVITY
+   SAME HEIGHT
+   ========================================================= */
+
+/* Parent grid containing both sections */
+.tools-dashboard .dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+
+  align-items: stretch;
+}
+
+
+/* Both cards stretch to the same height */
+.tools-dashboard .dashboard-grid > .card {
+  height: 100%;
+  min-height: 100%;
+
+  display: flex;
+  flex-direction: column;
+}
+
+
+/* Card header stays at the top */
+.tools-dashboard .dashboard-grid > .card .card-header {
+  flex-shrink: 0;
+}
+
+
+/* Content fills remaining height */
+.tools-dashboard .dashboard-grid > .card > .tools-list,
+.tools-dashboard .dashboard-grid > .card > .activity-list {
+  flex: 1;
+
+  display: flex;
+  flex-direction: column;
+}
+
+
+/* Make activity items use available space */
+.tools-dashboard .dashboard-grid > .card > .activity-list > * {
+  flex-shrink: 0;
+}
+
+
+/* =========================================================
+   IF QUICK ACCESS USES .tools-list
+   ========================================================= */
+
+.tools-dashboard .tools-list {
+  flex: 1;
+}
+
+
+/* =========================================================
+   RECENT ACTIVITY
+   ========================================================= */
+
+.tools-dashboard .activity-list {
+  flex: 1;
+
+  display: flex;
+  flex-direction: column;
+
+  gap: 10px;
+}
+
+
+/* =========================================================
+   EQUAL CARD VISUAL HEIGHT
+   ========================================================= */
+
+.tools-dashboard .dashboard-grid > .card {
+  box-sizing: border-box;
+
+  border-radius: 18px;
+}
+
+
+/* =========================================================
+   RESPONSIVE
+   ========================================================= */
+
+@media (max-width: 768px) {
+  .tools-dashboard .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .tools-dashboard .dashboard-grid > .card {
+    height: auto;
+    min-height: 0;
   }
 }

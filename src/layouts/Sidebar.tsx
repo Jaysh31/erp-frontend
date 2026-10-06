@@ -49,7 +49,7 @@ const ROUTE_MODULE_MAP: Array<{ prefix: string; module: string }> = [
   { prefix: "/sales-order", module: "sales" },
   { prefix: "/proforma-invoice", module: "sales" },
   { prefix: "/delivery-challan", module: "sales" },
-  { prefix: "/sales-bill", module: "sales" },
+  { prefix: "/Tax-Invoice", module: "sales" },
   { prefix: "/sales-invoice", module: "sales" },
   { prefix: "/customer", module: "sales" },
   { prefix: "/sales/item-list", module: "sales" },
@@ -154,7 +154,7 @@ const ROUTE_CATEGORY_MAP: Array<{ prefix: string; category: string }> = [
   { prefix: "/sales-order", category: "Sales" },
   { prefix: "/proforma-invoice", category: "Sales" },
   { prefix: "/delivery-challan", category: "Sales" },
-  { prefix: "/sales-bill", category: "Sales" },
+  { prefix: "/Tax-Invoice", category: "Sales" },
   { prefix: "/customer", category: "Customers" },
   { prefix: "sales/item-list", category: "Items & Pricing" },
   { prefix: "sales/item-group", category: "Items & Pricing" },
@@ -404,7 +404,7 @@ export default function Sidebar({
         { title: 'Sales Order', icon: <SalesOrderIcon />, path: '/sales-order', apiSubmodule: 'Sales Order' },
         { title: 'Proforma Invoice', icon: <SalesOrderIcon />, path: '/proforma-invoice', apiSubmodule: 'Proforma Invoice' },
         { title: 'Delivery Challans', icon: <ReceiptIcon />, path: '/delivery-challan', apiSubmodule: 'Delivery Challans' },
-        { title: 'Tax Invoice/Sale Bill', icon: <InvoiceIcon />, path: '/sales-bill', apiSubmodule: 'Tax Invoice/Sale Bill' }
+        { title: 'Tax Invoice/Sale Bill', icon: <InvoiceIcon />, path: '/Tax-Invoice', apiSubmodule: 'Tax Invoice/Sale Bill' }
       ]
     },
     {

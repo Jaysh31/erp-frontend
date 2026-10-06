@@ -10,6 +10,7 @@ import ChatBot from "./pages/components/chatbot/ChatBot";
 
 
 import DashboardPage from "./pages/DashboardPages/DashboardPage";
+import ManufacturingDashboard from "./pages/DashboardPages/ManufacturingDashboard";
 import ItemGroupForm from "./pages/Setup/Itemgroupform";
 import ItemGroupList from "./pages/Setup/Itemgrouplist";
 import Itemlist from "./pages/Setup/Itemlist";
@@ -202,15 +203,15 @@ function App() {
                 {/* ✅ ADDED: /customer/:id → /customer/view/:id */}
                 <Route path="/customer/:id" element={<RedirectTo to={(id) => `/customer/view/${id}`} />} />
 
-                <Route path="/sales-bill" element={<SalesInvoice />} />
-                <Route path="/sales-bill/new" element={<CreateSalesBill />} />
-                <Route path="/sales-bill/edit/:id" element={<CreateSalesBill />} />
-                <Route path="/sales-bill/view/:id" element={<CreateSalesBill />} />
-                {/* Redirect: /sales-bill/:id → /sales-bill/edit/:id */}
-                <Route path="/sales-bill/:id" element={<RedirectTo to={(id) => `/sales-bill/edit/${id}`} />} />
+                <Route path="/Tax-Invoice" element={<SalesInvoice />} />
+                <Route path="/Tax-Invoice/new" element={<CreateSalesBill />} />
+                <Route path="/Tax-Invoice/edit/:id" element={<CreateSalesBill />} />
+                <Route path="/Tax-Invoice/view/:id" element={<CreateSalesBill />} />
+                {/* Redirect: /Tax-Invoice/:id → /Tax-Invoice/edit/:id */}
+                <Route path="/Tax-Invoice/:id" element={<RedirectTo to={(id) => `/Tax-Invoice/edit/${id}`} />} />
 
                 {/* Module Dashboards */}
-                <Route path="/dashboard/manufacturing" element={<DashboardPage />} />
+                <Route path="/dashboard/manufacturing" element={<ManufacturingDashboard />} />
                 <Route path="/dashboard/sales" element={<SalesDashboard />} />
                 <Route path="/dashboard/setup" element={<SetupDashboard />} />
                 <Route path="/dashboard/purchasing" element={<PurchasingDashboard />} />

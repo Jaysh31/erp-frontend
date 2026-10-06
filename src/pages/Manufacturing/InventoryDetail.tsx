@@ -442,20 +442,7 @@ export default function InventoryDetail() {
                 </div>
               </div>
             </div>
-            <div className="inv-detail-header-right">
-              <div className="inv-detail-stat">
-                <label>Total Stock Value</label>
-                <span className="inv-detail-stat-value">
-                  {formatCurrency(totalStockValue)}
-                </span>
-              </div>
-              <div className="inv-detail-stat">
-                <label>Current Stock</label>
-                <span className="inv-detail-stat-value">
-                  {filteredCurrentStock} {item_details.stock_uom}
-                </span>
-              </div>
-            </div>
+            
           </div>
         </div>
 

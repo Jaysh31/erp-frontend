@@ -1,301 +1,898 @@
-/* OrganizationDashboard.css */
+/* =========================================================
+   OrganizationDashboard.css
+   Modern ERP Organization Dashboard
+   ========================================================= */
+
+.organization-dashboard {
+  --org-primary: #6366f1;
+  --org-primary-dark: #4f46e5;
+  --org-primary-soft: rgba(99, 102, 241, 0.10);
+
+  --org-success: #16a34a;
+  --org-warning: #d97706;
+  --org-danger: #dc2626;
+  --org-info: #0284c7;
+
+  --org-card: var(--card-bg, #ffffff);
+  --org-surface: var(--nav-hover, #f8fafc);
+  --org-border: var(--border-color, #e2e8f0);
+
+  --org-text: var(--text-primary, #0f172a);
+  --org-muted: var(--text-secondary, #64748b);
+
+  --org-shadow:
+    0 8px 24px rgba(15, 23, 42, 0.06);
+
+  --org-shadow-hover:
+    0 16px 35px rgba(15, 23, 42, 0.10);
+
+  --org-radius: 14px;
+
+  color: var(--org-text);
+}
+
+
+/* =========================================================
+   COMPANY LIST
+   ========================================================= */
+
 .organization-dashboard .company-item {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 16px;
-  padding: 14px;
-  background: var(--nav-hover, #f8fafc);
-  border-radius: 8px;
+
+  padding: 16px;
+
+  background:
+    linear-gradient(
+      135deg,
+      var(--org-card) 0%,
+      var(--org-surface) 100%
+    );
+
+  border: 1px solid var(--org-border);
+  border-radius: var(--org-radius);
+
   cursor: pointer;
-  transition: all 0.2s;
-  margin-bottom: 10px;
+
+  transition:
+    transform 0.25s ease,
+    box-shadow 0.25s ease,
+    border-color 0.25s ease,
+    background 0.25s ease;
+
+  margin-bottom: 12px;
+
+  overflow: hidden;
 }
+
+
+/* Left accent line */
+
+.organization-dashboard .company-item::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 12px;
+  bottom: 12px;
+
+  width: 3px;
+
+  background: linear-gradient(
+    180deg,
+    var(--org-primary),
+    #8b5cf6
+  );
+
+  border-radius: 0 4px 4px 0;
+
+  opacity: 0;
+  transform: scaleY(0.5);
+
+  transition:
+    opacity 0.25s ease,
+    transform 0.25s ease;
+}
+
 
 .organization-dashboard .company-item:hover {
-  background: var(--nav-active, #f1f5f9);
-  transform: translateX(4px);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  transform: translateY(-3px);
+
+  border-color: rgba(99, 102, 241, 0.25);
+
+  box-shadow: var(--org-shadow-hover);
+
+  background:
+    linear-gradient(
+      135deg,
+      #ffffff 0%,
+      rgba(99, 102, 241, 0.04) 100%
+    );
 }
 
-.company-icon {
-  width: 40px;
-  height: 40px;
-  border-radius: 8px;
+
+.organization-dashboard .company-item:hover::before {
+  opacity: 1;
+  transform: scaleY(1);
+}
+
+
+/* =========================================================
+   COMPANY ICON
+   ========================================================= */
+
+.organization-dashboard .company-icon {
+  width: 46px;
+  height: 46px;
+
+  border-radius: 12px;
+
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--primary-color, #3b82f6);
-  color: white;
-  font-size: 18px;
+
+  background:
+    linear-gradient(
+      135deg,
+      var(--org-primary),
+      #8b5cf6
+    );
+
+  color: #ffffff;
+
+  font-size: 19px;
+
   flex-shrink: 0;
+
+  box-shadow:
+    0 6px 14px rgba(99, 102, 241, 0.25);
+
+  transition:
+    transform 0.25s ease,
+    box-shadow 0.25s ease;
 }
 
-.company-info {
+
+.organization-dashboard .company-item:hover .company-icon {
+  transform: scale(1.06) rotate(-2deg);
+
+  box-shadow:
+    0 9px 20px rgba(99, 102, 241, 0.32);
+}
+
+
+/* =========================================================
+   COMPANY INFORMATION
+   ========================================================= */
+
+.organization-dashboard .company-info {
   flex: 1;
+  min-width: 0;
 }
 
-.company-name {
+
+.organization-dashboard .company-name {
   font-size: 15px;
-  font-weight: 600;
-  color: var(--text-primary, #1e293b);
+  font-weight: 700;
+
+  color: var(--org-text);
+
+  line-height: 1.35;
+
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.company-meta {
+
+.organization-dashboard .company-meta {
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin-top: 4px;
+
+  gap: 9px;
+
+  margin-top: 6px;
+
   flex-wrap: wrap;
 }
 
-.company-code {
+
+.organization-dashboard .company-code {
+  display: inline-flex;
+  align-items: center;
+
+  font-size: 11px;
+  line-height: 1;
+
+  padding: 5px 9px;
+
+  background:
+    linear-gradient(
+      135deg,
+      var(--org-primary),
+      var(--org-primary-dark)
+    );
+
+  color: #ffffff;
+
+  border-radius: 6px;
+
+  font-weight: 700;
+  letter-spacing: 0.2px;
+
+  box-shadow:
+    0 3px 8px rgba(99, 102, 241, 0.18);
+}
+
+
+.organization-dashboard .company-type {
   font-size: 12px;
-  padding: 2px 8px;
-  background: var(--primary-color, #3b82f6);
-  color: white;
-  border-radius: 4px;
+
+  color: var(--org-muted);
+
   font-weight: 500;
 }
 
-.company-type {
-  font-size: 12px;
-  color: var(--text-secondary, #64748b);
-}
 
-.company-location {
-  font-size: 12px;
-  color: var(--text-secondary, #94a3b8);
+.organization-dashboard .company-location {
   display: flex;
   align-items: center;
-  gap: 4px;
+
+  gap: 5px;
+
+  font-size: 12px;
+
+  color: var(--org-muted);
+
+  line-height: 1.4;
 }
 
-.company-stats {
+
+.organization-dashboard .company-location svg {
+  color: var(--org-primary);
+}
+
+
+/* =========================================================
+   COMPANY STATS
+   ========================================================= */
+
+.organization-dashboard .company-stats {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 4px;
-}
 
-.company-employees {
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--text-primary, #1e293b);
-}
+  gap: 6px;
 
-.company-status {
-  font-size: 11px;
-  padding: 2px 10px;
-  border-radius: 12px;
-  color: white;
-  font-weight: 500;
-}
-
-/* Department Distribution */
-.department-list {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.department-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.department-info {
-  flex: 0 0 180px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.department-name {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--text-primary, #1e293b);
-}
-
-.dept-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  display: inline-block;
-}
-
-.department-count {
-  font-size: 12px;
-  color: var(--text-secondary, #64748b);
-}
-
-.department-bar {
-  flex: 1;
-  height: 8px;
-  background: var(--nav-hover, #f1f5f9);
-  border-radius: 4px;
-  overflow: hidden;
-  position: relative;
-}
-
-.department-fill {
-  height: 100%;
-  border-radius: 4px;
-  transition: width 0.8s ease;
-}
-
-.department-percentage {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-primary, #1e293b);
-  min-width: 40px;
-  text-align: right;
-}
-
-/* Activity Type Icon */
-.activity-type-icon {
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--primary-color, #3b82f6);
-  color: white;
-  font-size: 14px;
   flex-shrink: 0;
 }
 
-.activity-user {
-  font-size: 12px;
-  color: var(--text-secondary, #64748b);
+
+.organization-dashboard .company-employees {
+  font-size: 13px;
+
+  font-weight: 700;
+
+  color: var(--org-text);
+
+  white-space: nowrap;
 }
 
-/* ───────────────────────────────────────────────────────────────────
-   RECENT ACTIVITY SCROLLBAR
-   Makes the activity-list scrollbar soft and visible on both themes.
-   Without this, the default browser scrollbar is a harsh black bar
-   that looks out of place against the card background.
-─────────────────────────────────────────────────────────────────── */
+
+/* =========================================================
+   COMPANY STATUS
+   ========================================================= */
+
+.organization-dashboard .company-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  min-width: 66px;
+
+  font-size: 10px;
+
+  padding: 5px 10px;
+
+  border-radius: 999px;
+
+  color: #ffffff;
+
+  font-weight: 700;
+
+  letter-spacing: 0.2px;
+
+  box-shadow:
+    0 3px 8px rgba(0, 0, 0, 0.08);
+}
+
+
+/* =========================================================
+   DEPARTMENT DISTRIBUTION
+   ========================================================= */
+
+.organization-dashboard .department-list {
+  display: flex;
+  flex-direction: column;
+
+  gap: 14px;
+}
+
+
+.organization-dashboard .department-item {
+  display: flex;
+  align-items: center;
+
+  gap: 14px;
+
+  padding: 8px 0;
+
+  transition:
+    transform 0.2s ease;
+}
+
+
+.organization-dashboard .department-item:hover {
+  transform: translateX(3px);
+}
+
+
+.organization-dashboard .department-info {
+  flex: 0 0 180px;
+
+  display: flex;
+  align-items: center;
+
+  gap: 9px;
+
+  min-width: 0;
+}
+
+
+.organization-dashboard .department-name {
+  display: flex;
+  align-items: center;
+
+  gap: 8px;
+
+  font-size: 13px;
+
+  font-weight: 600;
+
+  color: var(--org-text);
+
+  min-width: 0;
+}
+
+
+.organization-dashboard .dept-dot {
+  width: 9px;
+  height: 9px;
+
+  border-radius: 50%;
+
+  display: inline-block;
+
+  flex-shrink: 0;
+
+  box-shadow:
+    0 0 0 4px rgba(99, 102, 241, 0.08);
+}
+
+
+.organization-dashboard .department-count {
+  font-size: 11px;
+
+  color: var(--org-muted);
+
+  white-space: nowrap;
+}
+
+
+/* =========================================================
+   DEPARTMENT PROGRESS BAR
+   ========================================================= */
+
+.organization-dashboard .department-bar {
+  flex: 1;
+
+  height: 9px;
+
+  background:
+    linear-gradient(
+      90deg,
+      var(--org-surface),
+      rgba(226, 232, 240, 0.65)
+    );
+
+  border: 1px solid var(--org-border);
+
+  border-radius: 999px;
+
+  overflow: hidden;
+
+  position: relative;
+}
+
+
+.organization-dashboard .department-fill {
+  height: 100%;
+
+  border-radius: 999px;
+
+  transition:
+    width 0.8s cubic-bezier(0.22, 1, 0.36, 1);
+
+  position: relative;
+
+  overflow: hidden;
+}
+
+
+/* Shimmer */
+
+.organization-dashboard .department-fill::after {
+  content: "";
+
+  position: absolute;
+
+  top: 0;
+  left: -100%;
+
+  width: 60%;
+  height: 100%;
+
+  background:
+    linear-gradient(
+      90deg,
+      transparent,
+      rgba(255, 255, 255, 0.28),
+      transparent
+    );
+
+  animation: orgBarShimmer 2.8s infinite;
+}
+
+
+@keyframes orgBarShimmer {
+  0% {
+    left: -100%;
+  }
+
+  100% {
+    left: 160%;
+  }
+}
+
+
+.organization-dashboard .department-percentage {
+  font-size: 12px;
+
+  font-weight: 700;
+
+  color: var(--org-text);
+
+  min-width: 42px;
+
+  text-align: right;
+}
+
+
+/* =========================================================
+   ACTIVITY TYPE ICON
+   ========================================================= */
+
+.organization-dashboard .activity-type-icon {
+  width: 36px;
+  height: 36px;
+
+  border-radius: 10px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  background:
+    linear-gradient(
+      135deg,
+      var(--org-primary),
+      #8b5cf6
+    );
+
+  color: #ffffff;
+
+  font-size: 14px;
+
+  flex-shrink: 0;
+
+  box-shadow:
+    0 5px 12px rgba(99, 102, 241, 0.20);
+
+  transition:
+    transform 0.2s ease;
+}
+
+
+.organization-dashboard .activity-type-icon:hover {
+  transform: scale(1.07);
+}
+
+
+.organization-dashboard .activity-user {
+  font-size: 11px;
+
+  color: var(--org-muted);
+
+  font-weight: 500;
+}
+
+
+/* =========================================================
+   RECENT ACTIVITY LIST
+   ========================================================= */
 
 .organization-dashboard .activity-list {
-  /* Firefox */
   scrollbar-width: thin;
-  scrollbar-color: rgba(148, 163, 184, 0.55) transparent;
+
+  scrollbar-color:
+    rgba(148, 163, 184, 0.55)
+    transparent;
 }
 
-/* WebKit (Chrome, Edge, Safari) */
+
 .organization-dashboard .activity-list::-webkit-scrollbar {
-  width: 8px;
+  width: 7px;
 }
+
 
 .organization-dashboard .activity-list::-webkit-scrollbar-track {
   background: transparent;
-  border-radius: 8px;
+
+  border-radius: 10px;
 }
+
 
 .organization-dashboard .activity-list::-webkit-scrollbar-thumb {
-  background: rgba(148, 163, 184, 0.55);
-  border-radius: 8px;
-  border: 2px solid transparent;
+  background:
+    linear-gradient(
+      180deg,
+      rgba(148, 163, 184, 0.6),
+      rgba(100, 116, 139, 0.5)
+    );
+
+  border-radius: 999px;
+
+  border: 1px solid transparent;
+
   background-clip: padding-box;
 }
+
 
 .organization-dashboard .activity-list::-webkit-scrollbar-thumb:hover {
-  background: rgba(100, 116, 139, 0.75);
+  background:
+    linear-gradient(
+      180deg,
+      rgba(99, 102, 241, 0.7),
+      rgba(79, 70, 229, 0.65)
+    );
+
   background-clip: padding-box;
 }
 
-/* Light theme — softer gray-blue so it's visible on white cards */
+
+/* =========================================================
+   ACTIVITY ITEMS
+   If these classes exist in your JSX
+   ========================================================= */
+
+.organization-dashboard .activity-item {
+  transition:
+    background 0.2s ease,
+    transform 0.2s ease;
+}
+
+
+.organization-dashboard .activity-item:hover {
+  transform: translateX(3px);
+}
+
+
+/* =========================================================
+   LIGHT THEME
+   ========================================================= */
+
 .organization-dashboard.light .activity-list {
-  scrollbar-color: rgba(100, 116, 139, 0.45) transparent;
+  scrollbar-color:
+    rgba(100, 116, 139, 0.45)
+    transparent;
 }
+
+
 .organization-dashboard.light .activity-list::-webkit-scrollbar-thumb {
-  background: rgba(100, 116, 139, 0.45);
+  background:
+    rgba(100, 116, 139, 0.45);
+
   background-clip: padding-box;
 }
+
+
 .organization-dashboard.light .activity-list::-webkit-scrollbar-thumb:hover {
-  background: rgba(71, 85, 105, 0.7);
+  background:
+    rgba(71, 85, 105, 0.7);
+
   background-clip: padding-box;
 }
 
-/* Dark theme — lighter slate so it's visible on dark cards */
-.organization-dashboard.dark .activity-list {
-  scrollbar-color: rgba(148, 163, 184, 0.5) transparent;
-}
-.organization-dashboard.dark .activity-list::-webkit-scrollbar-thumb {
-  background: rgba(148, 163, 184, 0.5);
-  background-clip: padding-box;
-}
-.organization-dashboard.dark .activity-list::-webkit-scrollbar-thumb:hover {
-  background: rgba(203, 213, 225, 0.75);
-  background-clip: padding-box;
+
+/* =========================================================
+   DARK THEME
+   ========================================================= */
+
+.dark-theme.organization-dashboard {
+  --org-card: #111827;
+  --org-surface: #182235;
+  --org-border: rgba(148, 163, 184, 0.14);
+
+  --org-text: #f8fafc;
+  --org-muted: #94a3b8;
+
+  --org-shadow:
+    0 8px 25px rgba(0, 0, 0, 0.22);
+
+  --org-shadow-hover:
+    0 18px 40px rgba(0, 0, 0, 0.32);
 }
 
-/* Dark Theme */
-.dark-theme.organization-dashboard .company-item,
-.dark-theme.organization-dashboard .department-bar {
-  background: var(--nav-hover, rgba(255, 255, 255, 0.05));
+
+.dark-theme.organization-dashboard .company-item {
+  background:
+    linear-gradient(
+      135deg,
+      rgba(30, 41, 59, 0.95),
+      rgba(15, 23, 42, 0.96)
+    );
+
+  border-color:
+    rgba(148, 163, 184, 0.14);
 }
+
 
 .dark-theme.organization-dashboard .company-item:hover {
-  background: var(--nav-active, rgba(59, 130, 246, 0.15));
+  background:
+    linear-gradient(
+      135deg,
+      rgba(30, 41, 59, 1),
+      rgba(49, 46, 129, 0.18)
+    );
+
+  border-color:
+    rgba(99, 102, 241, 0.35);
 }
+
 
 .dark-theme.organization-dashboard .company-name,
 .dark-theme.organization-dashboard .department-name,
 .dark-theme.organization-dashboard .company-employees,
 .dark-theme.organization-dashboard .department-percentage {
-  color: var(--text-primary, #f8fafc);
+  color: #f8fafc;
 }
+
 
 .dark-theme.organization-dashboard .company-type,
 .dark-theme.organization-dashboard .company-location,
 .dark-theme.organization-dashboard .department-count,
 .dark-theme.organization-dashboard .activity-user {
-  color: var(--text-secondary, #94a3b8);
+  color: #94a3b8;
 }
 
-/* Responsive */
+
+.dark-theme.organization-dashboard .department-bar {
+  background:
+    rgba(255, 255, 255, 0.055);
+
+  border-color:
+    rgba(148, 163, 184, 0.12);
+}
+
+
+.dark-theme.organization-dashboard .activity-list {
+  scrollbar-color:
+    rgba(148, 163, 184, 0.5)
+    transparent;
+}
+
+
+.dark-theme.organization-dashboard .activity-list::-webkit-scrollbar-thumb {
+  background:
+    rgba(148, 163, 184, 0.5);
+
+  background-clip: padding-box;
+}
+
+
+.dark-theme.organization-dashboard .activity-list::-webkit-scrollbar-thumb:hover {
+  background:
+    rgba(203, 213, 225, 0.75);
+
+  background-clip: padding-box;
+}
+
+
+/* =========================================================
+   RESPONSIVE - TABLET
+   ========================================================= */
+
 @media (max-width: 1024px) {
-  .department-info {
-    flex: 0 0 140px;
+
+  .organization-dashboard .department-info {
+    flex: 0 0 145px;
+  }
+
+  .organization-dashboard .company-item {
+    gap: 13px;
+    padding: 14px;
+  }
+
+  .organization-dashboard .company-icon {
+    width: 42px;
+    height: 42px;
   }
 }
+
+
+/* =========================================================
+   RESPONSIVE - MOBILE
+   ========================================================= */
 
 @media (max-width: 768px) {
+
   .organization-dashboard .company-item {
     flex-wrap: wrap;
+
+    padding: 14px;
   }
-  
+
+  .organization-dashboard .company-info {
+    min-width: calc(100% - 62px);
+  }
+
   .organization-dashboard .company-stats {
     flex-direction: row;
+
     align-items: center;
+
     width: 100%;
+
     justify-content: space-between;
-    margin-top: 4px;
+
+    margin-top: 3px;
+
+    padding-top: 10px;
+
+    border-top:
+      1px solid var(--org-border);
   }
-  
-  .department-item {
+
+
+  .organization-dashboard .department-item {
     flex-wrap: wrap;
+
+    gap: 9px;
   }
-  
-  .department-info {
+
+
+  .organization-dashboard .department-info {
     flex: 1 1 100%;
+
+    justify-content: space-between;
   }
-  
-  .department-percentage {
-    min-width: auto;
+
+
+  .organization-dashboard .department-bar {
+    min-width: 0;
+  }
+
+
+  .organization-dashboard .department-percentage {
+    min-width: 38px;
   }
 }
 
+
+/* =========================================================
+   RESPONSIVE - SMALL MOBILE
+   ========================================================= */
+
 @media (max-width: 480px) {
+
+  .organization-dashboard .company-item {
+    gap: 11px;
+
+    padding: 12px;
+  }
+
+
+  .organization-dashboard .company-icon {
+    width: 40px;
+    height: 40px;
+
+    border-radius: 10px;
+
+    font-size: 17px;
+  }
+
+
+  .organization-dashboard .company-name {
+    font-size: 14px;
+  }
+
+
   .organization-dashboard .company-meta {
     flex-direction: column;
+
     align-items: flex-start;
-    gap: 4px;
+
+    gap: 5px;
+  }
+
+
+  .organization-dashboard .company-stats {
+    padding-top: 9px;
+  }
+
+
+  .organization-dashboard .company-employees {
+    font-size: 12px;
+  }
+
+
+  .organization-dashboard .department-list {
+    gap: 11px;
+  }
+
+
+  .organization-dashboard .department-name {
+    font-size: 12px;
+  }
+
+
+  .organization-dashboard .department-count {
+    font-size: 11px;
+  }
+
+
+  .organization-dashboard .department-bar {
+    height: 8px;
+  }
+
+
+  .organization-dashboard .department-percentage {
+    font-size: 11px;
+  }
+
+
+  .organization-dashboard .activity-type-icon {
+    width: 32px;
+    height: 32px;
+
+    border-radius: 9px;
+  }
+}
+
+
+/* =========================================================
+   REDUCED MOTION
+   ========================================================= */
+
+@media (prefers-reduced-motion: reduce) {
+
+  .organization-dashboard *,
+  .organization-dashboard *::before,
+  .organization-dashboard *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+
+    transition-duration: 0.01ms !important;
   }
 }

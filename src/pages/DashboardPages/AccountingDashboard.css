@@ -1,175 +1,829 @@
-/* AccountingDashboard.css */
+/* =========================================================
+   AccountingDashboard.css
+   Modern ERP Accounting Dashboard
+   ========================================================= */
+
+.accounting-dashboard {
+  --accounting-primary: #6366f1;
+  --accounting-primary-dark: #4f46e5;
+  --accounting-primary-soft: rgba(99, 102, 241, 0.10);
+
+  --accounting-income: #16a34a;
+  --accounting-income-soft: rgba(22, 163, 74, 0.10);
+
+  --accounting-expense: #dc2626;
+  --accounting-expense-soft: rgba(220, 38, 38, 0.10);
+
+  --accounting-warning: #d97706;
+  --accounting-warning-soft: rgba(217, 119, 6, 0.10);
+
+  --accounting-card: var(--card-bg, #ffffff);
+  --accounting-surface: var(--nav-hover, #f8fafc);
+  --accounting-border: var(--border-color, #e2e8f0);
+
+  --accounting-text: var(--text-primary, #0f172a);
+  --accounting-muted: var(--text-secondary, #64748b);
+
+  --accounting-shadow:
+    0 6px 20px rgba(15, 23, 42, 0.055);
+
+  --accounting-shadow-hover:
+    0 14px 32px rgba(15, 23, 42, 0.10);
+
+  --accounting-radius: 14px;
+
+  color: var(--accounting-text);
+}
+
+
+/* =========================================================
+   TRANSACTION ITEM
+   ========================================================= */
+
 .accounting-dashboard .transaction-item {
+  position: relative;
+
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 12px;
-  background: var(--nav-hover, #f8fafc);
-  border-radius: 8px;
-  transition: all 0.2s;
-  margin-bottom: 8px;
+
+  gap: 18px;
+
+  padding: 15px 16px;
+
+  background:
+    linear-gradient(
+      135deg,
+      var(--accounting-card) 0%,
+      var(--accounting-surface) 100%
+    );
+
+  border: 1px solid var(--accounting-border);
+
+  border-radius: var(--accounting-radius);
+
+  transition:
+    transform 0.25s ease,
+    box-shadow 0.25s ease,
+    border-color 0.25s ease,
+    background 0.25s ease;
+
+  margin-bottom: 10px;
+
+  overflow: hidden;
 }
+
+
+/* Left accent */
+
+.accounting-dashboard .transaction-item::before {
+  content: "";
+
+  position: absolute;
+
+  left: 0;
+  top: 10px;
+  bottom: 10px;
+
+  width: 3px;
+
+  background:
+    linear-gradient(
+      180deg,
+      var(--accounting-primary),
+      #8b5cf6
+    );
+
+  border-radius: 0 5px 5px 0;
+
+  opacity: 0;
+
+  transform: scaleY(0.5);
+
+  transition:
+    opacity 0.25s ease,
+    transform 0.25s ease;
+}
+
 
 .accounting-dashboard .transaction-item:hover {
-  background: var(--nav-active, #f1f5f9);
-  transform: translateX(4px);
+  transform: translateY(-3px);
+
+  border-color:
+    rgba(99, 102, 241, 0.25);
+
+  box-shadow:
+    var(--accounting-shadow-hover);
+
+  background:
+    linear-gradient(
+      135deg,
+      #ffffff,
+      rgba(99, 102, 241, 0.035)
+    );
 }
 
-.transaction-description {
+
+.accounting-dashboard .transaction-item:hover::before {
+  opacity: 1;
+
+  transform: scaleY(1);
+}
+
+
+/* =========================================================
+   TRANSACTION DESCRIPTION
+   ========================================================= */
+
+.accounting-dashboard .transaction-description {
   font-size: 14px;
-  font-weight: 500;
-  color: var(--text-primary, #1e293b);
+
+  font-weight: 700;
+
+  color: var(--accounting-text);
+
+  line-height: 1.4;
+
+  transition: color 0.2s ease;
 }
 
-.transaction-meta {
+
+.accounting-dashboard .transaction-item:hover .transaction-description {
+  color: var(--accounting-primary);
+}
+
+
+/* =========================================================
+   TRANSACTION META
+   ========================================================= */
+
+.accounting-dashboard .transaction-meta {
   display: flex;
+
   align-items: center;
+
   gap: 8px;
-  margin-top: 4px;
+
+  margin-top: 6px;
+
+  flex-wrap: wrap;
 }
 
-.transaction-category {
+
+.accounting-dashboard .transaction-category {
+  display: inline-flex;
+
+  align-items: center;
+
+  min-height: 22px;
+
+  font-size: 10px;
+
+  padding: 4px 9px;
+
+  border-radius: 999px;
+
+  color: #ffffff;
+
+  font-weight: 700;
+
+  letter-spacing: 0.2px;
+
+  box-shadow:
+    0 3px 8px rgba(0, 0, 0, 0.08);
+}
+
+
+.accounting-dashboard .transaction-date {
   font-size: 11px;
-  padding: 2px 10px;
-  border-radius: 12px;
-  color: white;
+
+  color: var(--accounting-muted);
+
   font-weight: 500;
 }
 
-.transaction-date {
-  font-size: 11px;
-  color: var(--text-secondary, #94a3b8);
-}
 
-.transaction-amount {
+/* =========================================================
+   TRANSACTION AMOUNT
+   ========================================================= */
+
+.accounting-dashboard .transaction-amount {
   text-align: right;
+
+  min-width: 120px;
+
+  flex-shrink: 0;
 }
 
-.amount {
-  font-size: 16px;
-  font-weight: 600;
+
+.accounting-dashboard .amount {
   display: block;
+
+  font-size: 16px;
+
+  font-weight: 800;
+
+  line-height: 1.3;
+
+  letter-spacing: -0.2px;
 }
 
-.amount.income {
-  color: #22c55e;
+
+.accounting-dashboard .amount.income {
+  color: var(--accounting-income);
 }
 
-.amount.expense {
-  color: #ef4444;
+
+.accounting-dashboard .amount.expense {
+  color: var(--accounting-expense);
 }
 
-.transaction-status {
-  font-size: 11px;
-  padding: 2px 10px;
-  border-radius: 12px;
-  font-weight: 500;
+
+/* =========================================================
+   TRANSACTION STATUS
+   ========================================================= */
+
+.accounting-dashboard .transaction-status {
+  display: inline-flex;
+
+  align-items: center;
+  justify-content: center;
+
+  min-height: 21px;
+
+  margin-top: 5px;
+
+  font-size: 10px;
+
+  padding: 4px 10px;
+
+  border-radius: 999px;
+
+  font-weight: 700;
+
+  letter-spacing: 0.15px;
 }
 
-.status-completed {
-  background: #22c55e;
-  color: white;
+
+.accounting-dashboard .status-completed {
+  background:
+    linear-gradient(
+      135deg,
+      #16a34a,
+      #22c55e
+    );
+
+  color: #ffffff;
+
+  box-shadow:
+    0 3px 8px rgba(34, 197, 94, 0.20);
 }
 
-.status-pending {
-  background: #f59e0b;
-  color: white;
+
+.accounting-dashboard .status-pending {
+  background:
+    linear-gradient(
+      135deg,
+      #d97706,
+      #f59e0b
+    );
+
+  color: #ffffff;
+
+  box-shadow:
+    0 3px 8px rgba(245, 158, 11, 0.20);
 }
 
-.status-overdue {
-  background: #ef4444;
-  color: white;
+
+.accounting-dashboard .status-overdue {
+  background:
+    linear-gradient(
+      135deg,
+      #dc2626,
+      #ef4444
+    );
+
+  color: #ffffff;
+
+  box-shadow:
+    0 3px 8px rgba(239, 68, 68, 0.20);
 }
 
-/* Financial Overview */
-.overview-grid {
+
+/* =========================================================
+   FINANCIAL OVERVIEW
+   ========================================================= */
+
+.accounting-dashboard .overview-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
+
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+
+  gap: 14px;
 }
 
-.overview-item {
-  padding: 16px;
-  background: var(--nav-hover, #f8fafc);
-  border-radius: 8px;
+
+.accounting-dashboard .overview-item {
+  position: relative;
+
+  padding: 17px;
+
+  background:
+    linear-gradient(
+      135deg,
+      var(--accounting-card),
+      var(--accounting-surface)
+    );
+
+  border: 1px solid var(--accounting-border);
+
+  border-radius: var(--accounting-radius);
+
+  overflow: hidden;
+
+  box-shadow: var(--accounting-shadow);
+
+  transition:
+    transform 0.25s ease,
+    box-shadow 0.25s ease,
+    border-color 0.25s ease;
 }
 
-.overview-label {
-  font-size: 12px;
-  color: var(--text-secondary, #64748b);
-  margin-bottom: 4px;
+
+/* Decorative glow */
+
+.accounting-dashboard .overview-item::after {
+  content: "";
+
+  position: absolute;
+
+  width: 80px;
+  height: 80px;
+
+  right: -30px;
+  top: -30px;
+
+  border-radius: 50%;
+
+  background:
+    var(--accounting-primary-soft);
+
+  pointer-events: none;
 }
 
-.overview-value {
-  font-size: 20px;
+
+.accounting-dashboard .overview-item:hover {
+  transform: translateY(-3px);
+
+  border-color:
+    rgba(99, 102, 241, 0.22);
+
+  box-shadow:
+    var(--accounting-shadow-hover);
+}
+
+
+/* =========================================================
+   OVERVIEW LABEL
+   ========================================================= */
+
+.accounting-dashboard .overview-label {
+  position: relative;
+  z-index: 1;
+
+  font-size: 11px;
+
+  color: var(--accounting-muted);
+
+  margin-bottom: 6px;
+
   font-weight: 600;
-  color: var(--text-primary, #1e293b);
+
+  text-transform: uppercase;
+
+  letter-spacing: 0.45px;
 }
 
-.overview-value.positive {
-  color: #22c55e;
+
+/* =========================================================
+   OVERVIEW VALUE
+   ========================================================= */
+
+.accounting-dashboard .overview-value {
+  position: relative;
+  z-index: 1;
+
+  font-size: 22px;
+
+  font-weight: 800;
+
+  color: var(--accounting-text);
+
+  line-height: 1.2;
+
+  letter-spacing: -0.4px;
 }
 
-.overview-value.negative {
-  color: #ef4444;
+
+.accounting-dashboard .overview-value.positive {
+  color: var(--accounting-income);
 }
 
-.overview-change {
-  font-size: 12px;
-  margin-top: 4px;
+
+.accounting-dashboard .overview-value.negative {
+  color: var(--accounting-expense);
 }
 
-.overview-change.positive {
-  color: #22c55e;
+
+/* =========================================================
+   OVERVIEW CHANGE
+   ========================================================= */
+
+.accounting-dashboard .overview-change {
+  position: relative;
+  z-index: 1;
+
+  display: inline-flex;
+
+  align-items: center;
+
+  gap: 4px;
+
+  font-size: 11px;
+
+  margin-top: 7px;
+
+  font-weight: 600;
 }
 
-.overview-change.negative {
-  color: #ef4444;
+
+.accounting-dashboard .overview-change.positive {
+  color: var(--accounting-income);
 }
 
-/* Dark Theme */
+
+.accounting-dashboard .overview-change.negative {
+  color: var(--accounting-expense);
+}
+
+
+/* =========================================================
+   OPTIONAL FINANCIAL CARD ACCENTS
+   ========================================================= */
+
+.accounting-dashboard .overview-item:nth-child(1)::before {
+  content: "";
+
+  position: absolute;
+
+  left: 0;
+  top: 0;
+  bottom: 0;
+
+  width: 3px;
+
+  background:
+    linear-gradient(
+      180deg,
+      #6366f1,
+      #8b5cf6
+    );
+}
+
+
+.accounting-dashboard .overview-item:nth-child(2)::before {
+  content: "";
+
+  position: absolute;
+
+  left: 0;
+  top: 0;
+  bottom: 0;
+
+  width: 3px;
+
+  background:
+    linear-gradient(
+      180deg,
+      #16a34a,
+      #22c55e
+    );
+}
+
+
+.accounting-dashboard .overview-item:nth-child(3)::before {
+  content: "";
+
+  position: absolute;
+
+  left: 0;
+  top: 0;
+  bottom: 0;
+
+  width: 3px;
+
+  background:
+    linear-gradient(
+      180deg,
+      #d97706,
+      #f59e0b
+    );
+}
+
+
+.accounting-dashboard .overview-item:nth-child(4)::before {
+  content: "";
+
+  position: absolute;
+
+  left: 0;
+  top: 0;
+  bottom: 0;
+
+  width: 3px;
+
+  background:
+    linear-gradient(
+      180deg,
+      #dc2626,
+      #ef4444
+    );
+}
+
+
+/* =========================================================
+   DARK THEME
+   ========================================================= */
+
+.dark-theme.accounting-dashboard {
+  --accounting-card: #111827;
+  --accounting-surface: #182235;
+
+  --accounting-border:
+    rgba(148, 163, 184, 0.14);
+
+  --accounting-text: #f8fafc;
+  --accounting-muted: #94a3b8;
+
+  --accounting-shadow:
+    0 8px 25px rgba(0, 0, 0, 0.22);
+
+  --accounting-shadow-hover:
+    0 18px 40px rgba(0, 0, 0, 0.32);
+}
+
+
 .dark-theme.accounting-dashboard .transaction-item,
 .dark-theme.accounting-dashboard .overview-item {
-  background: var(--nav-hover, rgba(255, 255, 255, 0.05));
+  background:
+    linear-gradient(
+      135deg,
+      rgba(30, 41, 59, 0.95),
+      rgba(15, 23, 42, 0.97)
+    );
+
+  border-color:
+    rgba(148, 163, 184, 0.14);
 }
 
+
 .dark-theme.accounting-dashboard .transaction-item:hover {
-  background: var(--nav-active, rgba(59, 130, 246, 0.15));
+  background:
+    linear-gradient(
+      135deg,
+      rgba(30, 41, 59, 1),
+      rgba(49, 46, 129, 0.18)
+    );
+
+  border-color:
+    rgba(99, 102, 241, 0.35);
 }
+
+
+.dark-theme.accounting-dashboard .overview-item:hover {
+  border-color:
+    rgba(99, 102, 241, 0.35);
+}
+
 
 .dark-theme.accounting-dashboard .transaction-description,
 .dark-theme.accounting-dashboard .overview-value {
-  color: var(--text-primary, #f8fafc);
+  color: #f8fafc;
 }
+
+
+.dark-theme.accounting-dashboard .transaction-item:hover
+.transaction-description {
+  color: #818cf8;
+}
+
 
 .dark-theme.accounting-dashboard .amount.income {
   color: #4ade80;
 }
 
+
 .dark-theme.accounting-dashboard .amount.expense {
   color: #f87171;
 }
 
-/* Responsive */
-@media (max-width: 768px) {
+
+.dark-theme.accounting-dashboard .overview-value.positive {
+  color: #4ade80;
+}
+
+
+.dark-theme.accounting-dashboard .overview-value.negative {
+  color: #f87171;
+}
+
+
+/* =========================================================
+   SCROLLBAR
+   ========================================================= */
+
+.accounting-dashboard .transaction-list {
+  scrollbar-width: thin;
+
+  scrollbar-color:
+    rgba(148, 163, 184, 0.5)
+    transparent;
+}
+
+
+.accounting-dashboard .transaction-list::-webkit-scrollbar {
+  width: 7px;
+}
+
+
+.accounting-dashboard .transaction-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+
+.accounting-dashboard .transaction-list::-webkit-scrollbar-thumb {
+  background:
+    rgba(148, 163, 184, 0.5);
+
+  border-radius: 999px;
+
+  border: 1px solid transparent;
+
+  background-clip: padding-box;
+}
+
+
+.accounting-dashboard .transaction-list::-webkit-scrollbar-thumb:hover {
+  background:
+    rgba(99, 102, 241, 0.7);
+
+  background-clip: padding-box;
+}
+
+
+/* =========================================================
+   RESPONSIVE - TABLET
+   ========================================================= */
+
+@media (max-width: 1024px) {
+
   .accounting-dashboard .transaction-item {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 8px;
+    padding: 14px;
   }
-  
-  .accounting-dashboard .transaction-amount {
-    text-align: left;
-    width: 100%;
-  }
-  
-  .overview-grid {
-    grid-template-columns: 1fr;
+
+  .accounting-dashboard .overview-value {
+    font-size: 20px;
   }
 }
 
+
+/* =========================================================
+   RESPONSIVE - MOBILE
+   ========================================================= */
+
+@media (max-width: 768px) {
+
+  .accounting-dashboard .transaction-item {
+    flex-direction: column;
+
+    align-items: flex-start;
+
+    gap: 10px;
+
+    padding: 14px;
+  }
+
+
+  .accounting-dashboard .transaction-amount {
+    width: 100%;
+
+    min-width: 0;
+
+    text-align: left;
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: space-between;
+
+    gap: 10px;
+
+    padding-top: 9px;
+
+    border-top:
+      1px solid var(--accounting-border);
+  }
+
+
+  .accounting-dashboard .transaction-status {
+    margin-top: 0;
+  }
+
+
+  .accounting-dashboard .overview-grid {
+    grid-template-columns: 1fr;
+  }
+
+
+  .accounting-dashboard .overview-item {
+    padding: 15px;
+  }
+
+
+  .accounting-dashboard .overview-value {
+    font-size: 21px;
+  }
+}
+
+
+/* =========================================================
+   RESPONSIVE - SMALL MOBILE
+   ========================================================= */
+
 @media (max-width: 480px) {
+
+  .accounting-dashboard .transaction-item {
+    padding: 12px;
+  }
+
+
   .accounting-dashboard .transaction-meta {
     flex-wrap: wrap;
+
+    gap: 6px;
+  }
+
+
+  .accounting-dashboard .transaction-description {
+    font-size: 13px;
+  }
+
+
+  .accounting-dashboard .amount {
+    font-size: 15px;
+  }
+
+
+  .accounting-dashboard .overview-grid {
+    gap: 10px;
+  }
+
+
+  .accounting-dashboard .overview-item {
+    padding: 14px;
+  }
+
+
+  .accounting-dashboard .overview-label {
+    font-size: 10px;
+  }
+
+
+  .accounting-dashboard .overview-value {
+    font-size: 19px;
+  }
+
+
+  .accounting-dashboard .overview-change {
+    font-size: 10px;
+  }
+}
+
+
+/* =========================================================
+   ACCESSIBILITY
+   ========================================================= */
+
+@media (prefers-reduced-motion: reduce) {
+
+  .accounting-dashboard *,
+  .accounting-dashboard *::before,
+  .accounting-dashboard *::after {
+    animation-duration: 0.01ms !important;
+
+    animation-iteration-count: 1 !important;
+
+    transition-duration: 0.01ms !important;
   }
 }

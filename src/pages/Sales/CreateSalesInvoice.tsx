@@ -4140,7 +4140,7 @@ if (isEditMode && id) {
     id: toastId
   });
 
-  setTimeout(() => navigate('/sales-bill'), 1000);
+  setTimeout(() => navigate('/Tax-Invoice'), 1000);
 
   return;
 }
@@ -4152,7 +4152,7 @@ if (isEditMode && id) {
       const salesBillName = responseData?.data?.name || responseData?.name || billNumber;
 
       toast.success(`Draft saved: ${salesBillName}`, { id: toastId });
-      setTimeout(() => navigate('/sales-bill'), 1000);
+      setTimeout(() => navigate('/Tax-Invoice'), 1000);
     } catch (error: any) {
       toast.error(error.message || 'Failed to save', { id: toastId });
     } finally {
@@ -4162,12 +4162,12 @@ if (isEditMode && id) {
 
   const handleViewSalesBill = () => {
     setShowSuccessModal(false);
-    navigate('/sales-bill');
+    navigate('/Tax-Invoice');
   };
 
   const handleCloseModal = () => {
     setShowSuccessModal(false);
-    navigate('/sales-bill');
+    navigate('/Tax-Invoice');
   };
 
   // ===== SHARED SALES INVOICE PRINT =====
@@ -4586,11 +4586,11 @@ if (isEditMode && id) {
 
   const handleCancelPrint = () => {
     setShowPrintConfirmModal(false);
-    navigate('/sales-bill');
+    navigate('/Tax-Invoice');
   };
 
   const handleCancel = () => {
-    navigate('/sales-bill');
+    navigate('/Tax-Invoice');
   };
 
   useEffect(() => {
@@ -5535,7 +5535,7 @@ if (isEditMode && id) {
           </>
         )}
         {isViewMode && id && (
-          <button onClick={() => navigate(`/sales-bill/edit/${id}`)} className="nsb-btn nsb-btn-submit">
+          <button onClick={() => navigate(`/Tax-Invoice/edit/${id}`)} className="nsb-btn nsb-btn-submit">
             <FaSave size={11} /> Edit
           </button>
         )}
