@@ -111,6 +111,7 @@ import DebitForm from "./pages/DebitForm";
 import GAEForm from "./pages/GAEForm";
 import CreditListingPage from "./pages/CreditListingPage";
 import DebitListingPage from "./pages/DebitListingPage";
+import AccountEntryDetails from "./pages/AccountEntryDetails";
 
 const PurchaseInvoiceForm = PurchaseInvoiceFormComponent as unknown as React.ComponentType;
 
@@ -224,6 +225,7 @@ function App() {
 
 
                 <Route path="/accounts" element={<Accounts />} />
+
                 <Route path="/chart-of-accounts" element={<ChartOfAccounts />} />
                 <Route path="/ledger-accounts" element={<LedgerAccounts />} />
                 <Route path="/delivery-challan" element={<DeliveryChallan />} />
@@ -238,6 +240,8 @@ function App() {
                 <Route path="/payables/supplier-bills" element={<SupplierBills />} />
 
                 <Route path="/accounts/entry" element={<GeneralAccountEntry />} />
+                <Route path="/ledger-accounts" element={<LedgerAccounts />} />
+                <Route path="/account-entry/:id" element={<AccountEntryDetails />} />
 
                 <Route path="/Credit-notes-all" element={<CreditListingPage />} />
                 <Route path="/receivables/new-credits" element={<CreditForm />} />

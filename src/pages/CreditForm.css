@@ -1511,3 +1511,333 @@
   color: #047857 !important;
 }
 
+/* ─── 4-column row ─────────────────────────────────────────── */
+.rd-credit-row.four-column {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px 16px;
+  align-items: start;
+}
+
+@media (max-width: 1024px) {
+  .rd-credit-row.four-column {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .rd-credit-row.four-column {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Entry No — read-only emphasis */
+.rd-credit-row.four-column .rd-credit-field input[disabled] {
+  background: var(--layout-bg, #f9fafb);
+  color: var(--text-primary, #1f2937);
+  cursor: not-allowed;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.dark-theme .rd-credit-row.four-column .rd-credit-field input[disabled] {
+  background: var(--layout-bg, #0f172a);
+  color: var(--text-primary, #f8fafc);
+}
+
+/* ─── Transaction History ──────────────────────────────────── */
+.rd-credit-history {
+  margin-top: 24px;
+  border-top: 1px solid var(--border-color, #e5e7eb);
+  padding-top: 18px;
+}
+
+.rd-credit-history-title {
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary, #1f2433);
+  letter-spacing: 0.02em;
+}
+
+.rd-credit-history-empty {
+  padding: 18px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-secondary, #6b7280);
+  background: var(--layout-bg, #f9fafb);
+  border-radius: 8px;
+  border: 1px dashed var(--border-color, #e5e7eb);
+}
+
+.rd-credit-history-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 8px;
+  background: var(--card-bg, #ffffff);
+}
+
+.rd-credit-history-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+  min-width: 780px;
+}
+
+.rd-credit-history-table thead th {
+  text-align: left;
+  padding: 10px 12px;
+  background: var(--layout-bg, #f9fafb);
+  color: var(--text-secondary, #6b7280);
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-bottom: 1px solid var(--border-color, #e5e7eb);
+  white-space: nowrap;
+}
+
+.rd-credit-history-table tbody td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border-color, #f1f5f9);
+  color: var(--text-primary, #374151);
+  vertical-align: middle;
+}
+
+.rd-credit-history-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.rd-credit-history-table tbody tr:hover {
+  background: var(--layout-bg, #f9fafb);
+}
+
+.rd-credit-history-no {
+  font-weight: 700;
+  color: var(--primary-color, #6366f1);
+  white-space: nowrap;
+}
+
+.rd-credit-history-txn {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  color: var(--text-secondary, #6b7280);
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rd-credit-history-amount {
+  font-weight: 700;
+  color: #047857;
+  white-space: nowrap;
+}
+
+.rd-credit-history-narration {
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rd-credit-history-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.rd-credit-history-badge--credit {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.rd-credit-history-badge--debit {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.rd-credit-history-mode {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: #eef2ff;
+  color: #4338ca;
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.rd-credit-history-status {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.rd-credit-history-status--draft {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.rd-credit-history-status--submitted {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.rd-credit-history-status--cancelled {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+/* Action column */
+.rd-credit-history-actions-col {
+  text-align: right;
+}
+
+.rd-credit-history-actions {
+  text-align: right;
+}
+
+.rd-credit-history-btn {
+  padding: 4px 12px;
+  border: none;
+  border-radius: 6px;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.1s;
+}
+
+.rd-credit-history-btn--view {
+  background: var(--primary-color, #6366f1);
+  color: #ffffff;
+}
+
+.rd-credit-history-btn--view:hover {
+  background: var(--primary-hover, #4f46e5);
+  transform: translateY(-1px);
+}
+
+/* Dark theme */
+.dark-theme .rd-credit-history {
+  border-top-color: var(--border-color, #334155);
+}
+
+.dark-theme .rd-credit-history-title {
+  color: var(--text-primary, #f8fafc);
+}
+
+.dark-theme .rd-credit-history-table-wrap {
+  background: var(--card-bg, #1e293b);
+  border-color: var(--border-color, #334155);
+}
+
+.dark-theme .rd-credit-history-table thead th {
+  background: var(--layout-bg, #0f172a);
+  color: var(--text-secondary, #94a3b8);
+  border-bottom-color: var(--border-color, #334155);
+}
+
+.dark-theme .rd-credit-history-table tbody td {
+  color: var(--text-primary, #e2e8f0);
+  border-bottom-color: var(--border-color, #1e293b);
+}
+
+.dark-theme .rd-credit-history-table tbody tr:hover {
+  background: var(--layout-bg, #0f172a);
+}
+
+.dark-theme .rd-credit-history-empty {
+  background: var(--layout-bg, #0f172a);
+  border-color: var(--border-color, #334155);
+  color: var(--text-secondary, #94a3b8);
+}
+/* ─── Fix 3-column & 4-column field alignment ───────────────── */
+.rd-credit-row.three-column .rd-credit-field,
+.rd-credit-row.four-column .rd-credit-field {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  column-gap: 0;
+}
+
+.rd-credit-row.three-column .rd-credit-field > label,
+.rd-credit-row.four-column .rd-credit-field > label {
+  margin-bottom: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary, #4b5563);
+  letter-spacing: 0.02em;
+}
+
+/* Searchable inputs inside multi-column rows get the same height as others */
+.rd-credit-row.three-column .rd-credit-searchable-input input,
+.rd-credit-row.four-column .rd-credit-searchable-input input {
+  height: 36px;
+  padding: 0 36px 0 12px;
+  font-size: 13px;
+}
+
+/* Amount wrapper fills the width */
+.rd-credit-row.three-column .rd-credit-amount,
+.rd-credit-row.four-column .rd-credit-amount {
+  width: 100%;
+}
+
+/* Error text sits under the input, not in a grid column */
+.rd-credit-row.three-column .rd-credit-field .rd-credit-error,
+.rd-credit-row.four-column .rd-credit-field .rd-credit-error {
+  grid-column: auto;
+  align-self: flex-start;
+}
+
+/* Responsive — keep 3-col on tablets, stack on phones */
+@media (max-width: 1024px) {
+  .rd-credit-row.four-column {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  .rd-credit-row.three-column {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .rd-credit-row.three-column,
+  .rd-credit-row.four-column {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Dark theme label */
+.dark-theme .rd-credit-row.three-column .rd-credit-field > label,
+.dark-theme .rd-credit-row.four-column .rd-credit-field > label {
+  color: var(--text-secondary, #94a3b8);
+}
+
+/* Total Amount green emphasis in edit/view */
+.rd-credit-row.three-column .rd-credit-amount input {
+  font-weight: 700;
+  color: #047857;
+}
+
+.dark-theme .rd-credit-row.three-column .rd-credit-amount input {
+  color: #34d399;
+}
+
+/* Ensure Equal heights for inputs in multi-column rows */
+.rd-credit-row.three-column .rd-credit-field input,
+.rd-credit-row.three-column .rd-credit-field select,
+.rd-credit-row.four-column .rd-credit-field input,
+.rd-credit-row.four-column .rd-credit-field select {
+  height: 36px;
+}
