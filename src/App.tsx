@@ -93,7 +93,7 @@ import QualityInspectionList from "./pages/QualityInspectionList";
 import QualityInspectionForm from "./pages/QualityInspectionForm";
 import ContactForm from "./pages/ContactForm";
 import SubModulePermissions from "./pages/UserManagement/SubModulePermissions";
-import CreateTaxInvoice from "./pages/Sales/CreateSalesInvoice";
+import CreateSalesBill from "./pages/Sales/CreateSalesInvoice";
 import BankDetailsForm from "./pages/BankDetailsForm";
 import AddCustomer from "./pages/AddCustomer";
 import Customer from "./pages/Customer";
@@ -111,7 +111,6 @@ import DebitForm from "./pages/DebitForm";
 import GAEForm from "./pages/GAEForm";
 import CreditListingPage from "./pages/CreditListingPage";
 import DebitListingPage from "./pages/DebitListingPage";
-
 
 const PurchaseInvoiceForm = PurchaseInvoiceFormComponent as unknown as React.ComponentType;
 
@@ -205,9 +204,9 @@ function App() {
                 <Route path="/customer/:id" element={<RedirectTo to={(id) => `/customer/view/${id}`} />} />
 
                 <Route path="/Tax-Invoice" element={<SalesInvoice />} />
-                <Route path="/Tax-Invoice/new" element={<CreateTaxInvoice />} />
-                <Route path="/Tax-Invoice/edit/:id" element={<CreateTaxInvoice />} />
-                <Route path="/Tax-Invoice/view/:id" element={<CreateTaxInvoice />} />
+                <Route path="/Tax-Invoice/new" element={<CreateSalesBill />} />
+                <Route path="/Tax-Invoice/edit/:id" element={<CreateSalesBill />} />
+                <Route path="/Tax-Invoice/view/:id" element={<CreateSalesBill />} />
                 {/* Redirect: /Tax-Invoice/:id → /Tax-Invoice/edit/:id */}
                 <Route path="/Tax-Invoice/:id" element={<RedirectTo to={(id) => `/Tax-Invoice/edit/${id}`} />} />
 
