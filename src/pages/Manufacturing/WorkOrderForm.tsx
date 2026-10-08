@@ -1,3 +1,18 @@
+// WorkOrderForm.tsx
+// FIXED: "Finished Goods warehouse not found." when completing an EXTERNAL Work Order.
+//   Root cause: for External WOs the BOM's default_target_warehouse ("Finished Goods")
+//   was never copied into wo.target_warehouse, so the lookup against /warehouse failed.
+//   Fix:
+//     1. handleSelectExternalBom + the "load existing WO" path now copy
+//        bom.default_source_warehouse / bom.default_target_warehouse into the WO
+//        (only when the WO doesn't already have one).
+//     2. New resolveFinishedGoodsWarehouse(): tries wo.target_warehouse first, then
+//        falls back to GET /bom/{bom_no} -> default_target_warehouse, and matches it
+//        (case/space-insensitive) against GET /warehouse to obtain the id.
+//     3. handleWorkOrderCompletion + handleCompleteWorkOrder use that resolver.
+//        The warehouse is now resolved BEFORE the stock entry is posted, and the
+//        stock entry is skipped on retry if it was already posted (no double posting).
+
 import { useState, type FormEvent, useEffect, useRef, useLayoutEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
@@ -406,6 +421,9 @@ interface WOPayload {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const uid = () => Math.random().toString(36).slice(2, 9);
+
+/** Case / whitespace-insensitive comparison key for warehouse names */
+const normName = (s?: string | null) => (s ?? "").trim().toLowerCase();
 
 const normalizeJobCard = (data: JobCardRecord | JobCardRecord[] | undefined): JobCardRecord | undefined =>
   Array.isArray(data) ? data[0] : data;
@@ -1342,6 +1360,43 @@ export default function WorkOrderForm() {
       .catch(() => {});
   }, []);
 
+  // ─── ✅ NEW: Resolve the Finished Goods warehouse (id + name) ──────────
+  // Order of preference:
+  //   1. wo.target_warehouse (name or numeric id)
+  //   2. BOM.default_target_warehouse from GET /bom/{wo.bom_no}  ← fixes External WOs
+  // The chosen name is matched (case/space-insensitive) against GET /warehouse to get the id.
+  const resolveFinishedGoodsWarehouse = async (): Promise<{ id?: number; name?: string }> => {
+    const whRes = await api.get<WarehouseResponse>("/warehouse?limit=100");
+    const warehouses: Warehouse[] = whRes.data?.data?.records || [];
+
+    const findByValue = (val?: string | null): Warehouse | undefined => {
+      const v = (val ?? "").trim();
+      if (!v) return undefined;
+      if (/^\d+$/.test(v)) {
+        const byId = warehouses.find(w => w.id === Number(v));
+        if (byId) return byId;
+      }
+      return warehouses.find(w => normName(w.warehouse_name) === normName(v));
+    };
+
+    // 1) Work order's own target warehouse
+    let match = findByValue(wo.target_warehouse);
+
+    // 2) Fall back to the BOM's default target warehouse
+    if (!match && wo.bom_no) {
+      try {
+        const br = await api.get<BomDetailResponse>(`/bom/${wo.bom_no}`);
+        if (br.data?.success === 1) {
+          match = findByValue(br.data.data.bom.default_target_warehouse);
+        }
+      } catch (e) {
+        console.error("Failed to load BOM for default target warehouse:", e);
+      }
+    }
+
+    return match ? { id: match.id, name: match.warehouse_name } : {};
+  };
+
   const loadGRNs = async (page = 1, limit = 10) => {
     setGrnLoading(true);
     setGrnError(null);
@@ -1560,6 +1615,9 @@ export default function WorkOrderForm() {
                       operations: ops.length ? ops : prev.operations,
                       lead_time_mins: ops.length ? Math.round(totalTime * 100) / 100 : prev.lead_time_mins,
                       planned_operating_cost: ops.length ? Math.round(totalCost * 100) / 100 : prev.planned_operating_cost,
+                      // ✅ FIX: External WOs had no FG warehouse -> take it from the BOM defaults
+                      target_warehouse: prev.target_warehouse || detail.bom.default_target_warehouse || "",
+                      source_warehouse: prev.source_warehouse || detail.bom.default_source_warehouse || "",
                     }));
                   } else {
                     setBomDetail(detail);
@@ -1697,6 +1755,9 @@ export default function WorkOrderForm() {
             operations: ops.length ? ops : [emptyOp()],
             lead_time_mins: Math.round(totalTime * 100) / 100,
             planned_operating_cost: Math.round(totalCost * 100) / 100,
+            // ✅ FIX: copy the BOM's default warehouses so the FG warehouse is known
+            source_warehouse: prev.source_warehouse || detail.bom.default_source_warehouse || "",
+            target_warehouse: prev.target_warehouse || detail.bom.default_target_warehouse || "",
           }));
         }
       })
@@ -2034,15 +2095,14 @@ export default function WorkOrderForm() {
         inventoryError: null,
       });
       
+      // ✅ FIX: use the resolver (WO target warehouse -> BOM default_target_warehouse)
       try {
-        const whRes = await api.get<WarehouseResponse>("/warehouse");
-        const warehouses: Warehouse[] = whRes.data?.data?.records || [];
-        const fgWarehouse = warehouses.find(w => w.warehouse_name === wo.target_warehouse);
+        const fg = await resolveFinishedGoodsWarehouse();
         setCompletionSummary(prev => (prev
-          ? { ...prev, fgWarehouseId: fgWarehouse?.id, fgWarehouseName: fgWarehouse?.warehouse_name }
+          ? { ...prev, fgWarehouseId: fg.id, fgWarehouseName: fg.name }
           : prev));
       } catch (whErr) {
-        console.error("Error loading warehouse list:", whErr);
+        console.error("Error resolving finished goods warehouse:", whErr);
       }
     } catch (err: any) {
       console.error("Error processing work order completion:", err);
@@ -2070,100 +2130,119 @@ const handleCompleteWorkOrder = async () => {
     ? { ...prev, stockEntryPosting: true, stockEntryError: null, inventoryError: null }
     : prev));
 
-  try {
-    await api.post("/stock-entry", {
-      name: "",
-      company: wo.company || "SculptorTech",
-      naming_series: "STE-.YYYY.-",
-      stock_entry_type: "Manufacture",
-      purpose: "Manufacture",
-      set_posting_time: 1,
-      posting_date: new Date().toISOString().split("T")[0],
-      posting_time: new Date().toTimeString().split(" ")[0],
-      add_to_transit: 0,
-      apply_putaway_rule: 1,
-      inspection_required: 0,
-      work_order: String(wo.id),
-      subcontracting_order: "",
-      outgoing_stock_entry: "",
-      source_stock_entry: "",
-      from_bom: 1,
-      use_multi_level_bom: 1,
-      bom_no: wo.bom_no,
-      fg_completed_qty: totalCompletedQty,
-      process_loss_percentage:
-        wo.qty_to_manufacture > 0
-          ? Math.round((processLossQty / wo.qty_to_manufacture) * 10000) / 100
-          : 0,
-      process_loss_qty: processLossQty,
-      from_warehouse: wo.wip_warehouse || "",
-      source_warehouse_address: "",
-      source_address_display: "",
-      to_warehouse: completionSummary.fgWarehouseName || wo.target_warehouse || "Finished Goods",
-      target_warehouse_address: "",
-      target_address_display: "",
-      scan_barcode: "",
-      total_outgoing_value: 0,
-      total_incoming_value: 0,
-      value_difference: 0,
-      total_additional_costs: 0,
-      supplier: "",
-      supplier_name: "",
-      supplier_address: "",
-      address_display: "",
-      project: "",
-      cost_center: "",
-      select_print_heading: "Stock Entry",
-      letter_head: "",
-      delivery_note_no: "",
-      sales_invoice_no: "",
-      job_card: String(completionSummary.jobCardId),
-      pick_list: "",
-      asset_repair: "",
-      purchase_receipt_no: "",
-      purchase_order: "",
-      subcontracting_inward_order: "",
-      is_additional_transfer_entry: 0,
-      is_opening: "No",
-      remarks: `Posted on completion of Work Order #${wo.id}`,
-      per_transferred: 100,
-      total_amount: 0,
-      amended_from: "",
-      credit_note: "",
-      is_return: 0,
-    });
+  // ✅ FIX: resolve the Finished Goods warehouse FIRST (before posting anything),
+  //        so we never end up with a posted stock entry but no inventory.
+  let fgWarehouseId = completionSummary.fgWarehouseId;
+  let fgWarehouseName = completionSummary.fgWarehouseName;
 
-    setCompletionSummary(prev => (prev ? { ...prev, stockEntryPosting: false, stockEntryPosted: true } : prev));
-  } catch (err: any) {
-    console.error("Error posting stock entry:", err);
+  if (!fgWarehouseId) {
+    try {
+      const fg = await resolveFinishedGoodsWarehouse();
+      fgWarehouseId = fg.id;
+      fgWarehouseName = fg.name;
+      if (fg.id) {
+        setCompletionSummary(prev => (prev ? { ...prev, fgWarehouseId: fg.id, fgWarehouseName: fg.name } : prev));
+        // keep the WO in sync so buildPayload() (fg_warehouse) is correct too
+        setWo(prev => (prev.target_warehouse ? prev : { ...prev, target_warehouse: fg.name || "" }));
+      }
+    } catch (whErr) {
+      console.error("Error resolving finished goods warehouse:", whErr);
+    }
+  }
+
+  if (!fgWarehouseId) {
     setCompletionSummary(prev => (prev
-      ? { ...prev, stockEntryPosting: false, stockEntryError: err.response?.data?.message || "Failed to post stock entry." }
+      ? {
+          ...prev,
+          stockEntryPosting: false,
+          inventoryPosting: false,
+          inventoryError: "Finished Goods warehouse not found. Set the BOM's default target warehouse or the Work Order's target warehouse.",
+        }
       : prev));
     return;
   }
 
-  setCompletionSummary(prev => (prev ? { ...prev, inventoryPosting: true, inventoryError: null } : prev));
+  // ─── Stock Entry (skipped on retry if it was already posted) ─────────
+  if (!completionSummary.stockEntryPosted) {
+    try {
+      await api.post("/stock-entry", {
+        name: "",
+        company: wo.company || "SculptorTech",
+        naming_series: "STE-.YYYY.-",
+        stock_entry_type: "Manufacture",
+        purpose: "Manufacture",
+        set_posting_time: 1,
+        posting_date: new Date().toISOString().split("T")[0],
+        posting_time: new Date().toTimeString().split(" ")[0],
+        add_to_transit: 0,
+        apply_putaway_rule: 1,
+        inspection_required: 0,
+        work_order: String(wo.id),
+        subcontracting_order: "",
+        outgoing_stock_entry: "",
+        source_stock_entry: "",
+        from_bom: 1,
+        use_multi_level_bom: 1,
+        bom_no: wo.bom_no,
+        fg_completed_qty: totalCompletedQty,
+        process_loss_percentage:
+          wo.qty_to_manufacture > 0
+            ? Math.round((processLossQty / wo.qty_to_manufacture) * 10000) / 100
+            : 0,
+        process_loss_qty: processLossQty,
+        from_warehouse: wo.wip_warehouse || selectedWipWarehouse.name || "",
+        source_warehouse_address: "",
+        source_address_display: "",
+        to_warehouse: fgWarehouseName || wo.target_warehouse || "Finished Goods",
+        target_warehouse_address: "",
+        target_address_display: "",
+        scan_barcode: "",
+        total_outgoing_value: 0,
+        total_incoming_value: 0,
+        value_difference: 0,
+        total_additional_costs: 0,
+        supplier: "",
+        supplier_name: "",
+        supplier_address: "",
+        address_display: "",
+        project: "",
+        cost_center: "",
+        select_print_heading: "Stock Entry",
+        letter_head: "",
+        delivery_note_no: "",
+        sales_invoice_no: "",
+        job_card: String(completionSummary.jobCardId),
+        pick_list: "",
+        asset_repair: "",
+        purchase_receipt_no: "",
+        purchase_order: "",
+        subcontracting_inward_order: "",
+        is_additional_transfer_entry: 0,
+        is_opening: "No",
+        remarks: `Posted on completion of Work Order #${wo.id}`,
+        per_transferred: 100,
+        total_amount: 0,
+        amended_from: "",
+        credit_note: "",
+        is_return: 0,
+      });
 
-  try {
-    let fgWarehouseId = completionSummary.fgWarehouseId;
-    let fgWarehouseName = completionSummary.fgWarehouseName;
-
-    if (!fgWarehouseId) {
-      const whRes = await api.get<WarehouseResponse>("/warehouse");
-      const warehouses: Warehouse[] = whRes.data?.data?.records || [];
-      const fgWarehouse = warehouses.find(w => w.warehouse_name === wo.target_warehouse);
-      fgWarehouseId = fgWarehouse?.id;
-      fgWarehouseName = fgWarehouse?.warehouse_name;
-      setCompletionSummary(prev => (prev ? { ...prev, fgWarehouseId, fgWarehouseName } : prev));
-    }
-
-    if (!fgWarehouseId) {
+      setCompletionSummary(prev => (prev ? { ...prev, stockEntryPosting: false, stockEntryPosted: true } : prev));
+    } catch (err: any) {
+      console.error("Error posting stock entry:", err);
       setCompletionSummary(prev => (prev
-        ? { ...prev, inventoryPosting: false, inventoryError: "Finished Goods warehouse not found." }
+        ? { ...prev, stockEntryPosting: false, stockEntryError: err.response?.data?.message || "Failed to post stock entry." }
         : prev));
       return;
     }
+  } else {
+    setCompletionSummary(prev => (prev ? { ...prev, stockEntryPosting: false } : prev));
+  }
 
+  // ─── Inventory ───────────────────────────────────────────────────────
+  setCompletionSummary(prev => (prev ? { ...prev, inventoryPosting: true, inventoryError: null } : prev));
+
+  try {
     let productItemId = bomDetail?.bom.item_Id ?? 0;
     if (!productItemId && wo.bom_no) {
       try {
@@ -2211,6 +2290,10 @@ const handleCompleteWorkOrder = async () => {
 
     try {
       const { operations, items, ...updatePayload } = { ...buildPayload("Completed"), id: wo.id };
+      // make sure fg_warehouse is sent even if wo.target_warehouse was empty
+      if (!updatePayload.fg_warehouse && fgWarehouseName) {
+        updatePayload.fg_warehouse = fgWarehouseName;
+      }
       await api.put("/work-order", updatePayload);
       setWo(prev => ({ ...prev, status: "Completed" }));
       setCompletionSummary(prev => (prev ? { ...prev, woStatusUpdated: true } : prev));
@@ -2775,6 +2858,9 @@ const handleCompleteWorkOrder = async () => {
 
                   <div style={{ fontSize: 13, color: "#475569", marginBottom: 12 }}>
                     Job Card #{completionSummary.jobCardId} · {completionSummary.itemName}
+                    {completionSummary.fgWarehouseName && (
+                      <> · FG Warehouse: {completionSummary.fgWarehouseName}</>
+                    )}
                   </div>
 
                   {!completionSummary.readOnly ? (
@@ -3848,6 +3934,12 @@ const handleCompleteWorkOrder = async () => {
                     <span>Selected WIP</span>
                     <span>{selectedWipWarehouse.name}</span>
                   </div>
+                  {wo.target_warehouse && (
+                    <div className="wof-sidebar-stat-row">
+                      <span>Finished Goods</span>
+                      <span>{wo.target_warehouse}</span>
+                    </div>
+                  )}
                 </div>
               </div>
 

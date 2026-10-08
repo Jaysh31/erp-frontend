@@ -18,6 +18,9 @@ import {
   FaEye,
   FaHistory,
   FaBook,
+  FaCalendarAlt,
+  FaArrowUp,
+  FaArrowDown,
 } from 'react-icons/fa';
 import './LedgerAccounts.css';
 import api from '../services/api'; // adjust path if needed
@@ -92,6 +95,25 @@ interface BankDetailResponse {
   };
 }
 
+/* ───────────────── Date helpers ───────────────── */
+
+/** Format a Date object as YYYY-MM-DD (local time, no timezone drift) */
+const toISODate = (d: Date): string => {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+};
+
+/** First day of the current month, as YYYY-MM-DD */
+const firstDayOfCurrentMonth = (): string => {
+  const now = new Date();
+  return toISODate(new Date(now.getFullYear(), now.getMonth(), 1));
+};
+
+/** Today, as YYYY-MM-DD */
+const todayISO = (): string => toISODate(new Date());
+
 /* ───────────────── Component ───────────────── */
 
 const LedgerAccounts: React.FC = () => {
@@ -100,11 +122,14 @@ const LedgerAccounts: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedGroup, setSelectedGroup] = useState<string>('all');
   const [selectedType, setSelectedType] = useState<string>('all');
-  const [selectedStatus, setSelectedStatus] = useState<string>('all');
   const [selectedBank, setSelectedBank] = useState<string>('all');
   const [selectedAccount, setSelectedAccount] = useState<AccountEntry | null>(null);
   const [viewMode, setViewMode] = useState<'list' | 'card'>('list');
   const [showCreateModal, setShowCreateModal] = useState(false);
+
+  // ✅ Date range filter — defaults to the current month (1st → today)
+  const [fromDate, setFromDate] = useState<string>(firstDayOfCurrentMonth());
+  const [toDate, setToDate] = useState<string>(todayISO());
 
   const [entries, setEntries] = useState<AccountEntry[]>([]);
   const [loading, setLoading] = useState(false);
@@ -117,11 +142,22 @@ const LedgerAccounts: React.FC = () => {
 
   /* ───────────────── Fetchers ───────────────── */
 
-  const fetchEntries = async () => {
+  const fetchEntries = async (opts?: { from?: string; to?: string }) => {
     setLoading(true);
     setError(null);
     try {
-      const res = await api.get<AccountEntryResponse>('/account_entry?page=1&limit=1000');
+      const params = new URLSearchParams();
+      params.set('page', '1');
+      params.set('limit', '1000');
+
+      const from = opts?.from ?? fromDate;
+      const to = opts?.to ?? toDate;
+      if (from) params.set('from_date', from);
+      if (to) params.set('to_date', to);
+
+      const res = await api.get<AccountEntryResponse>(
+        `/account_entry?${params.toString()}`
+      );
       if (res.data?.success === 1) {
         setEntries(res.data.data?.records ?? []);
       } else {
@@ -141,7 +177,6 @@ const LedgerAccounts: React.FC = () => {
       if (res.data?.success === 1) {
         const groups = res.data.data?.data ?? [];
         const allBanks: BankDetail[] = groups.flatMap((g) => g.bank_details ?? []);
-        // ✅ Use current_balance if present, else fall back to opening_balance
         const total = allBanks.reduce(
           (sum, b) => sum + Number(b.current_balance ?? b.opening_balance ?? 0),
           0
@@ -153,8 +188,13 @@ const LedgerAccounts: React.FC = () => {
     }
   };
 
+  // Initial load + whenever the date range changes
   useEffect(() => {
     fetchEntries();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fromDate, toDate]);
+
+  useEffect(() => {
     fetchBankSummary();
   }, []);
 
@@ -190,13 +230,12 @@ const LedgerAccounts: React.FC = () => {
 
       const matchesGroup = selectedGroup === 'all' || getGroup(e) === selectedGroup;
       const matchesType = selectedType === 'all' || getType(e) === selectedType;
-      const matchesStatus = selectedStatus === 'all' || e.status === selectedStatus;
       const matchesBank =
         selectedBank === 'all' || String(e.bank_detail_id ?? '') === selectedBank;
 
-      return matchesSearch && matchesGroup && matchesType && matchesStatus && matchesBank;
+      return matchesSearch && matchesGroup && matchesType && matchesBank;
     });
-  }, [entries, searchTerm, selectedGroup, selectedType, selectedStatus, selectedBank]);
+  }, [entries, searchTerm, selectedGroup, selectedType, selectedBank]);
 
   const grouped = useMemo(() => {
     const g: Record<string, AccountEntry[]> = {};
@@ -208,7 +247,6 @@ const LedgerAccounts: React.FC = () => {
     return g;
   }, [filtered]);
 
-  /* ✅ Totals — split by credit/debit */
   const totals = useMemo(() => {
     let credit = 0;
     let debit = 0;
@@ -224,7 +262,6 @@ const LedgerAccounts: React.FC = () => {
     };
   }, [filtered]);
 
-  /* ✅ If a specific bank is selected, show that bank's balance instead of global */
   const bankBalance = useMemo(() => {
     if (selectedBank === 'all') return bankSummary.total;
     const b = bankMap.get(Number(selectedBank));
@@ -254,11 +291,20 @@ const LedgerAccounts: React.FC = () => {
       : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   };
 
-  const getStatusBadge = (status: string) => {
-    const s = (status || 'Draft').toLowerCase();
-    if (s === 'submitted') return <span className="status-badge active">● Submitted</span>;
-    if (s === 'cancelled') return <span className="status-badge inactive">● Cancelled</span>;
-    return <span className="status-badge draft">● Draft</span>;
+  // ✅ Entry type badge — replaces the old status badge in the listing.
+  const getEntryTypeBadge = (type: 'Credit' | 'Debit') => {
+    if (type === 'Credit') {
+      return (
+        <span className="entry-type-badge entry-type-credit">
+          <FaArrowUp size={8} /> Credit
+        </span>
+      );
+    }
+    return (
+      <span className="entry-type-badge entry-type-debit">
+        <FaArrowDown size={8} /> Debit
+      </span>
+    );
   };
 
   const getTypeIcon = (type: string) => {
@@ -302,16 +348,18 @@ const LedgerAccounts: React.FC = () => {
     setSearchTerm('');
     setSelectedGroup('all');
     setSelectedType('all');
-    setSelectedStatus('all');
     setSelectedBank('all');
+    setFromDate(firstDayOfCurrentMonth());
+    setToDate(todayISO());
   };
 
   const hasActiveFilters =
     searchTerm ||
     selectedGroup !== 'all' ||
     selectedType !== 'all' ||
-    selectedStatus !== 'all' ||
-    selectedBank !== 'all';
+    selectedBank !== 'all' ||
+    fromDate !== firstDayOfCurrentMonth() ||
+    toDate !== todayISO();
 
   /* ───────────────── Views ───────────────── */
 
@@ -326,8 +374,8 @@ const LedgerAccounts: React.FC = () => {
             <th>Reference</th>
             <th>Bank</th>
             <th>Mode</th>
+            <th>Type</th>
             <th>Amount</th>
-            <th>Status</th>
             <th>Actions</th>
           </tr>
         </thead>
@@ -359,6 +407,7 @@ const LedgerAccounts: React.FC = () => {
               <td>
                 <span className="type-badge">{entry.payment_type}</span>
               </td>
+              <td>{getEntryTypeBadge(entry.entry_type)}</td>
               <td
                 className={`balance-cell ${
                   entry.entry_type === 'Credit' ? 'amount-credit' : 'amount-debit'
@@ -367,7 +416,6 @@ const LedgerAccounts: React.FC = () => {
                 {entry.entry_type === 'Credit' ? '+' : '−'}
                 {formatCurrency(entry.total_amount)}
               </td>
-              <td>{getStatusBadge(entry.status)}</td>
               <td>
                 <div className="table-actions">
                   <button
@@ -457,8 +505,10 @@ const LedgerAccounts: React.FC = () => {
                     </span>
                   </div>
                   <div className="ledger-card-detail">
-                    <span className="detail-label">Status</span>
-                    <span className="detail-value">{getStatusBadge(entry.status)}</span>
+                    <span className="detail-label">Type</span>
+                    <span className="detail-value">
+                      {getEntryTypeBadge(entry.entry_type)}
+                    </span>
                   </div>
                 </div>
                 <div className="ledger-card-footer">
@@ -521,7 +571,7 @@ const LedgerAccounts: React.FC = () => {
         </div>
       </div>
 
-      {/* Stats Bar — now 5 cards: Current Bank Balance, Credit, Debit, Net, Accounts */}
+      {/* Stats Bar */}
       <div className="ledger-stats-bar ledger-stats-bar--five">
         <div className="ledger-stat-item">
           <span className="ledger-stat-label">
@@ -591,7 +641,7 @@ const LedgerAccounts: React.FC = () => {
               <option value="Expenses">Expenses (Debit)</option>
             </select>
 
-            <select
+            {/* <select
               className="ledger-filter-select"
               value={selectedType}
               onChange={(e) => setSelectedType(e.target.value)}
@@ -599,20 +649,8 @@ const LedgerAccounts: React.FC = () => {
               <option value="all">All Types</option>
               <option value="Income">Income</option>
               <option value="Expense">Expense</option>
-            </select>
+            </select> */}
 
-            <select
-              className="ledger-filter-select"
-              value={selectedStatus}
-              onChange={(e) => setSelectedStatus(e.target.value)}
-            >
-              <option value="all">All Status</option>
-              <option value="Draft">Draft</option>
-              <option value="Submitted">Submitted</option>
-              <option value="Cancelled">Cancelled</option>
-            </select>
-
-            {/* ✅ Bank filter — also drives "Selected Bank Balance" stat */}
             <select
               className="ledger-filter-select"
               value={selectedBank}
@@ -626,6 +664,58 @@ const LedgerAccounts: React.FC = () => {
                 </option>
               ))}
             </select>
+
+            {/* ✅ Date range filter — native picker fixes applied */}
+            <div className="ledger-date-filter">
+              <FaCalendarAlt className="ledger-date-icon" />
+
+              {/* FROM */}
+              <input
+                type="date"
+                className="ledger-date-input"
+                value={fromDate}
+                max={toDate || undefined}
+                onChange={(e) => setFromDate(e.target.value)}
+                onClick={(e) => {
+                  // ✅ Force the native picker to open (Chromium).
+                  const input = e.currentTarget as HTMLInputElement & {
+                    showPicker?: () => void;
+                  };
+                  if (typeof input.showPicker === 'function') {
+                    try { input.showPicker(); } catch { /* ignore */ }
+                  }
+                }}
+                onMouseDown={(e) => e.stopPropagation()}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') e.preventDefault();
+                }}
+                aria-label="From date"
+              />
+
+              <span className="ledger-date-sep">→</span>
+
+              {/* TO */}
+              <input
+                type="date"
+                className="ledger-date-input"
+                value={toDate}
+                min={fromDate || undefined}
+                onChange={(e) => setToDate(e.target.value)}
+                onClick={(e) => {
+                  const input = e.currentTarget as HTMLInputElement & {
+                    showPicker?: () => void;
+                  };
+                  if (typeof input.showPicker === 'function') {
+                    try { input.showPicker(); } catch { /* ignore */ }
+                  }
+                }}
+                onMouseDown={(e) => e.stopPropagation()}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') e.preventDefault();
+                }}
+                aria-label="To date"
+              />
+            </div>
 
             {hasActiveFilters && (
               <button className="btn-secondary" onClick={clearAllFilters}>
@@ -676,16 +766,23 @@ const LedgerAccounts: React.FC = () => {
               <button onClick={() => setSelectedType('all')}>×</button>
             </span>
           )}
-          {selectedStatus !== 'all' && (
-            <span className="ledger-chip">
-              Status: {selectedStatus}
-              <button onClick={() => setSelectedStatus('all')}>×</button>
-            </span>
-          )}
           {selectedBank !== 'all' && (
             <span className="ledger-chip">
               Bank: {getBankLabel(Number(selectedBank))}
               <button onClick={() => setSelectedBank('all')}>×</button>
+            </span>
+          )}
+          {(fromDate !== firstDayOfCurrentMonth() || toDate !== todayISO()) && (
+            <span className="ledger-chip">
+              Date: {fromDate || '…'} → {toDate || '…'}
+              <button
+                onClick={() => {
+                  setFromDate(firstDayOfCurrentMonth());
+                  setToDate(todayISO());
+                }}
+              >
+                ×
+              </button>
             </span>
           )}
         </div>
@@ -723,7 +820,9 @@ const LedgerAccounts: React.FC = () => {
               </div>
               <div className="ledger-detail-field">
                 <label>Entry Type</label>
-                <span className="ledger-detail-value">{selectedAccount.entry_type}</span>
+                <span className="ledger-detail-value">
+                  {getEntryTypeBadge(selectedAccount.entry_type)}
+                </span>
               </div>
               <div className="ledger-detail-field">
                 <label>Party</label>
@@ -759,12 +858,6 @@ const LedgerAccounts: React.FC = () => {
                 >
                   {selectedAccount.entry_type === 'Credit' ? '+' : '−'}
                   {formatCurrency(selectedAccount.total_amount)}
-                </span>
-              </div>
-              <div className="ledger-detail-field">
-                <label>Status</label>
-                <span className="ledger-detail-value">
-                  {getStatusBadge(selectedAccount.status)}
                 </span>
               </div>
               {selectedAccount.narration && (

@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import {
   FaBoxes,
   FaClock,
-  FaChartLine,
+
   FaIndustry,
   FaCheckCircle,
   FaExclamationTriangle,
@@ -18,7 +18,7 @@ import {
   FaCube,
   FaCubes,
   FaSyncAlt,
-  FaLayerGroup,
+
 } from "react-icons/fa";
 
 import {
