@@ -956,7 +956,7 @@ export default function GRNForm() {
         taxId: taxInfo.taxId, 
         taxType: taxInfo.taxType, 
         taxRate: taxInfo.taxRate || 0, 
-        hsn: item.hsn || '', 
+        hsn: item.hsn || (item as any).HSN || (item as any).hsn_code || (item as any).HSNCode || '', 
         isDraft: false, 
       }; 
     }); 
@@ -1277,24 +1277,43 @@ export default function GRNForm() {
     } 
   }, [showPODropdown, poCurrentPage]); 
  
-  // ─── Backfill itemId when Item Master loads ────────────────────────── 
+  // ─── Backfill itemId + HSN when Item Master loads ─────────────────── 
   useEffect(() => { 
     if (itemsMaster.length === 0) return; 
+
     setFormData(prev => { 
       let changed = false; 
+
       const items = prev.items.map(it => { 
         const codeMatch = itemsMaster.find( 
           im => (im.item_code || '').trim().toLowerCase() === (it.itemCode || '').trim().toLowerCase() 
         ); 
-        if (codeMatch) { 
-          if (codeMatch.id !== it.itemId) { 
-            changed = true; 
-            return { ...it, itemId: codeMatch.id }; 
-          } 
-          return it; 
+
+        if (!codeMatch) return it; 
+
+        const masterHSN = 
+          codeMatch.HSN || 
+          (codeMatch as any).hsn || 
+          (codeMatch as any).hsn_code || 
+          (codeMatch as any).HSNCode || 
+          ''; 
+
+        const updatedItem = { 
+          ...it, 
+          itemId: codeMatch.id || it.itemId, 
+          hsn: it.hsn || masterHSN, 
+        }; 
+
+        if ( 
+          updatedItem.itemId !== it.itemId || 
+          updatedItem.hsn !== it.hsn 
+        ) { 
+          changed = true; 
         } 
-        return it; 
+
+        return updatedItem; 
       }); 
+
       return changed ? { ...prev, items } : prev; 
     }); 
   }, [itemsMaster]); 
@@ -1441,7 +1460,7 @@ export default function GRNForm() {
             taxId: taxId, 
             taxType: taxType, 
             taxRate: taxRate, 
-            hsn: item.hsn || '', 
+            hsn: item.hsn || (item as any).HSN || (item as any).hsn_code || (item as any).HSNCode || '', 
             isDraft: false, 
           }; 
         }) || []; 
@@ -1834,7 +1853,7 @@ export default function GRNForm() {
       taxId: taxInfo.taxId || item.tax_id || undefined, 
       taxType: taxInfo.taxType, 
       taxRate: taxInfo.taxRate || 0, 
-      hsn: item.HSN || '', 
+      hsn: item.HSN || (item as any).hsn || (item as any).hsn_code || (item as any).HSNCode || '', 
       isDraft: true, 
     }; 
     setFormData(prev => ({ ...prev, items: updatedItems })); 
@@ -2249,7 +2268,7 @@ export default function GRNForm() {
             tax_id: item.taxId, 
             tax_type: item.taxType, 
             item_tax_template: item.taxType || item.taxRate ? `${item.taxType || 'GST'} ${item.taxRate || 0}%` : '', 
-            hsn: item.hsn || '', 
+            hsn: item.hsn || (item as any).HSN || (item as any).hsn_code || (item as any).HSNCode || '', 
             amount: amount, 
             sgst_amount: sgst, 
             cgst_amount: cgst, 
@@ -3852,14 +3871,14 @@ export default function GRNForm() {
                                   disabled={submitting}
                                 />
                               </td>
-                              <td className="pif-itd pof-itd" data-label="HSN">
+                              <td className="pif-itd pof-itd pif-itd-hsn" data-label="HSN">
                                 <input
                                   className="pif-cell-input pof-cell-input"
                                   type="text"
                                   value={item.hsn || ''}
                                   onChange={(e) => handleItemChange(index, 'hsn', e.target.value)}
                                   placeholder="HSN"
-                                  disabled={submitting}
+                                  disabled={isViewMode || submitting}
                                 />
                               </td>
                               <td className="pif-itd pof-itd pif-itd-num" data-label="Ordered Qty">
