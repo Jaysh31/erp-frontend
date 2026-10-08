@@ -53,8 +53,9 @@ interface ReferenceRecord {
 
 type EntryType = "Credit" | "Debit";
 type PartyType = "Supplier" | "Customer";
-type SupplierRefType = "Purchase Bill" | "Purchase Order" | "Miscellaneous";
-type CustomerRefType = "Sales Invoice" | "Sales Order" | "Miscellaneous";
+/* ✅ "Miscellaneous" renamed to "General" */
+type SupplierRefType = "Purchase Bill" | "Purchase Order" | "General";
+type CustomerRefType = "Sales Invoice" | "Sales Order" | "General";
 type ReferenceType = SupplierRefType | CustomerRefType;
 
 interface GAEFormData {
@@ -74,7 +75,7 @@ interface GAEFormData {
   referenceDate: string;
   grandTotal: number | "";
 
-  // free-text for Miscellaneous reference type
+  // free-text for General reference type
   miscReference: string;
 
   paymentType: string;
@@ -87,6 +88,7 @@ interface GAEFormData {
 
 /* ----------------------------- Constants ------------------------------ */
 
+/* ✅ Default reference type is now "General" */
 const initialFormData: GAEFormData = {
   entryDate: new Date().toISOString().split("T")[0],
   entryType: "Debit",
@@ -98,7 +100,7 @@ const initialFormData: GAEFormData = {
   partyId: "",
   partyName: "",
 
-  referenceType: "Purchase Bill",
+  referenceType: "General",
   referenceId: "",
   referenceNo: "",
   referenceDate: "",
@@ -127,15 +129,18 @@ const TRANSFER_MODES = [
   { value: "Other", label: "Other" },
 ];
 
+/* ✅ Supplier ref types: General first, then Purchase Bill / Purchase Order */
 const SUPPLIER_REF_TYPES: SupplierRefType[] = [
+  "General",
   "Purchase Bill",
   "Purchase Order",
-  "Miscellaneous",
 ];
+
+/* ✅ Customer ref types: General first, then Sales Invoice / Sales Order */
 const CUSTOMER_REF_TYPES: CustomerRefType[] = [
+  "General",
   "Sales Invoice",
   "Sales Order",
-  "Miscellaneous",
 ];
 
 const ENTRY_TYPES: EntryType[] = ["Debit", "Credit"];
@@ -232,7 +237,7 @@ const referenceEndpoint = (refType: ReferenceType): string | null => {
       return "/sales-invoice?page=1&limit=10";
     case "Sales Order":
       return "/sales-order?page=1&limit=10";
-    case "Miscellaneous":
+    case "General":
       return null;
   }
 };
@@ -279,8 +284,8 @@ const GAEForm: React.FC = () => {
       ...prev,
       partyId: "",
       partyName: "",
-      referenceType:
-        prev.partyType === "Supplier" ? "Purchase Bill" : "Sales Invoice",
+      /* ✅ Default reference type is "General" for both Supplier and Customer */
+      referenceType: "General",
       referenceId: "",
       referenceNo: "",
       referenceDate: "",
@@ -309,7 +314,8 @@ const GAEForm: React.FC = () => {
   useEffect(() => {
     if (
       formData.partyId &&
-      formData.referenceType !== "Miscellaneous"
+      /* ✅ Only fetch references for non-General types */
+      formData.referenceType !== "General"
     ) {
       fetchReferences(
         formData.partyId as number,
@@ -456,7 +462,8 @@ const GAEForm: React.FC = () => {
       partyType: type,
       partyId: "",
       partyName: "",
-      referenceType: type === "Supplier" ? "Purchase Bill" : "Sales Invoice",
+      /* ✅ When party type changes, reset to "General" reference */
+      referenceType: "General",
       referenceId: "",
       referenceNo: "",
       referenceDate: "",
@@ -518,7 +525,11 @@ const GAEForm: React.FC = () => {
     setErrors((prev) => ({ ...prev, partyId: "" }));
   };
 
+<<<<<<< HEAD
   /* ✅ NEW — for Customer, allow typing a free-text name (no ID needed) */
+=======
+  /* ✅ For Customer, allow typing a free-text name (no ID needed) */
+>>>>>>> 9c77250470da5ec6fe76bbae088afaa2a8737514
   const handlePartyNameTyped = (value: string) => {
     setPartySearch(value);
     setShowPartyDropdown(true);
@@ -601,11 +612,18 @@ const GAEForm: React.FC = () => {
     return label.includes(safeLower(refSearch));
   });
 
+<<<<<<< HEAD
   const isMisc = formData.referenceType === "Miscellaneous";
   const isCustomer = formData.partyType === "Customer";
   const isSupplier = formData.partyType === "Supplier";
   const isViewMode = false;
   const isEdit = false;
+=======
+  /* ✅ "isMisc" is now "isGeneral" — refers to the free-text reference mode */
+  const isGeneral = formData.referenceType === "General";
+  const isCustomer = formData.partyType === "Customer";
+  const isSupplier = formData.partyType === "Supplier";
+>>>>>>> 9c77250470da5ec6fe76bbae088afaa2a8737514
 
   /* -------------------------- Validation ----------------------------- */
 
@@ -631,8 +649,13 @@ const GAEForm: React.FC = () => {
     if (!formData.referenceType)
       newErrors.referenceType = "Reference type is required";
 
+<<<<<<< HEAD
     /* ✅ Reference is NO LONGER mandatory except for Miscellaneous */
     if (isMisc && !formData.miscReference.trim()) {
+=======
+    /* ✅ Reference is NO LONGER mandatory except for General */
+    if (isGeneral && !formData.miscReference.trim()) {
+>>>>>>> 9c77250470da5ec6fe76bbae088afaa2a8737514
       newErrors.miscReference = "Please enter a reference";
     }
 
@@ -662,10 +685,14 @@ const GAEForm: React.FC = () => {
       formData.referenceType === "Purchase Bill" ||
       formData.referenceType === "Purchase Order";
 
-    const referenceNo = isMisc
+    const referenceNo = isGeneral
       ? formData.miscReference.trim()
       : formData.referenceNo || "";
+<<<<<<< HEAD
     const referenceId = isMisc ? 0 : formData.referenceId || 0;
+=======
+    const referenceId = isGeneral ? 0 : formData.referenceId || 0;
+>>>>>>> 9c77250470da5ec6fe76bbae088afaa2a8737514
 
     /* ✅ For Customer with typed name (no pick), party_id can be null */
     const partyId = formData.partyId ? formData.partyId : null;
@@ -718,7 +745,11 @@ const GAEForm: React.FC = () => {
     try {
       const result = await saveEntry();
       const entryNo = result?.data?.entry_no || "ACC-XXXXX";
+<<<<<<< HEAD
       const refDisplay = isMisc
+=======
+      const refDisplay = isGeneral
+>>>>>>> 9c77250470da5ec6fe76bbae088afaa2a8737514
         ? formData.miscReference
         : formData.referenceNo || "(no reference)";
       setSuccessMessage(
@@ -1039,7 +1070,7 @@ const GAEForm: React.FC = () => {
 
           {/* ROW 3 — Reference | Payment Mode | Bank (conditional) */}
           <div className="rd-credit-row three-column">
-            {isMisc ? (
+            {isGeneral ? (
               <div className="rd-credit-field">
                 <label>
                   Reference <span>*</span>
