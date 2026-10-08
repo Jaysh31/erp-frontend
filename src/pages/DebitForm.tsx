@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import "./DebitForm.css";
 import api from "../services/api";
-import { FaArrowLeft, FaExclamationTriangle, FaEye } from "react-icons/fa";
+import { FaArrowLeft, FaExclamationTriangle } from "react-icons/fa";
 
 /* ----------------------------- Interfaces ----------------------------- */
 
