@@ -531,7 +531,7 @@
   border-radius: 9px;
 
   color: var(--primary);
-  background: #eef0ff;
+  background: #4f5ab3;
 }
 
 /* ============================================================
@@ -1611,73 +1611,51 @@
 }
 
 
-/* ============================================================
-   ACTIVITY ICON — ONLY CHANGED SECTION
-   ============================================================ */
+/* Recent Activity */
+.recent-activity {
+  grid-column: span 1;
+}
+
+.activity-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.activity-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: var(--nav-hover, #f8fafc);
+  border-radius: 8px;
+  transition: all 0.2s;
+}
+
+.activity-item:hover {
+  background: var(--nav-active, #f1f5f9);
+}
 
 .activity-icon {
-  width: 42px;
-  height: 42px;
-
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
-
+  font-size: 14px;
+  color: white;
   flex-shrink: 0;
-
-  position: relative;
-
-  overflow: hidden;
-
-  border-radius: 12px;
-
-  font-size: 16px;
-  font-weight: 700;
-
-  color: #ffffff;
-
-  border: 1px solid rgba(255, 255, 255, 0.75);
-
-  box-shadow:
-    0 7px 18px rgba(15, 23, 42, 0.16);
-
-  transition:
-    transform 0.22s ease,
-    box-shadow 0.22s ease,
-    filter 0.22s ease;
 }
 
-.activity-icon::before {
-  content: "";
-
-  position: absolute;
-  inset: 0;
-
-  background:
-    linear-gradient(
-      135deg,
-      rgba(255, 255, 255, 0.30),
-      transparent 45%
-    );
-
-  pointer-events: none;
-}
-
-.activity-icon svg,
-.activity-icon i {
-  position: relative;
-  z-index: 1;
-}
-
-.activity-row:hover .activity-icon {
-  transform: translateY(-2px) scale(1.06);
-
-  filter: brightness(1.08);
-
-  box-shadow:
-    0 10px 24px
-    rgba(15, 23, 42, 0.22);
-}
+.activity-icon.status-completed { background: #4fc97c; }
+.activity-icon.status-inprocess { background: #3b82f6; }
+.activity-icon.status-open { background: #f59e0b; }
+.activity-icon.status-stopped { background: #ef4444; }
+.activity-icon.status-draft { background: #94a3b8; }
+.activity-icon.status-pending { background: #f59e0b; }
 
 
 /* BLUE */
@@ -1849,7 +1827,6 @@
     0 7px 18px
     rgba(13, 148, 136, 0.38);
 }
-
 
 /* ============================================================
    ACTIVITY CONTENT
