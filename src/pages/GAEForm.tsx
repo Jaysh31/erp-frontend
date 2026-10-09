@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import "./DebitForm.css";
 import api from "../services/api";
-import { FaArrowLeft, FaExclamationTriangle, FaEye } from "react-icons/fa";
 
 /* ----------------------------- Interfaces ----------------------------- */
 
@@ -449,8 +448,6 @@ const GAEForm: React.FC = () => {
 
   /* ---------------------------- Handlers ----------------------------- */
 
-  const handleCancel = () => navigate(-1);
-
   const handleChange = (field: keyof GAEFormData, value: string | number) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
     setErrors((prev) => ({ ...prev, [field]: "" }));
@@ -525,11 +522,7 @@ const GAEForm: React.FC = () => {
     setErrors((prev) => ({ ...prev, partyId: "" }));
   };
 
-<<<<<<< HEAD
-  /* ✅ NEW — for Customer, allow typing a free-text name (no ID needed) */
-=======
   /* ✅ For Customer, allow typing a free-text name (no ID needed) */
->>>>>>> 9c77250470da5ec6fe76bbae088afaa2a8737514
   const handlePartyNameTyped = (value: string) => {
     setPartySearch(value);
     setShowPartyDropdown(true);
@@ -612,18 +605,10 @@ const GAEForm: React.FC = () => {
     return label.includes(safeLower(refSearch));
   });
 
-<<<<<<< HEAD
-  const isMisc = formData.referenceType === "Miscellaneous";
-  const isCustomer = formData.partyType === "Customer";
-  const isSupplier = formData.partyType === "Supplier";
-  const isViewMode = false;
-  const isEdit = false;
-=======
   /* ✅ "isMisc" is now "isGeneral" — refers to the free-text reference mode */
   const isGeneral = formData.referenceType === "General";
   const isCustomer = formData.partyType === "Customer";
   const isSupplier = formData.partyType === "Supplier";
->>>>>>> 9c77250470da5ec6fe76bbae088afaa2a8737514
 
   /* -------------------------- Validation ----------------------------- */
 
@@ -649,13 +634,8 @@ const GAEForm: React.FC = () => {
     if (!formData.referenceType)
       newErrors.referenceType = "Reference type is required";
 
-<<<<<<< HEAD
-    /* ✅ Reference is NO LONGER mandatory except for Miscellaneous */
-    if (isMisc && !formData.miscReference.trim()) {
-=======
     /* ✅ Reference is NO LONGER mandatory except for General */
     if (isGeneral && !formData.miscReference.trim()) {
->>>>>>> 9c77250470da5ec6fe76bbae088afaa2a8737514
       newErrors.miscReference = "Please enter a reference";
     }
 
@@ -688,11 +668,7 @@ const GAEForm: React.FC = () => {
     const referenceNo = isGeneral
       ? formData.miscReference.trim()
       : formData.referenceNo || "";
-<<<<<<< HEAD
-    const referenceId = isMisc ? 0 : formData.referenceId || 0;
-=======
     const referenceId = isGeneral ? 0 : formData.referenceId || 0;
->>>>>>> 9c77250470da5ec6fe76bbae088afaa2a8737514
 
     /* ✅ For Customer with typed name (no pick), party_id can be null */
     const partyId = formData.partyId ? formData.partyId : null;
@@ -745,11 +721,7 @@ const GAEForm: React.FC = () => {
     try {
       const result = await saveEntry();
       const entryNo = result?.data?.entry_no || "ACC-XXXXX";
-<<<<<<< HEAD
-      const refDisplay = isMisc
-=======
       const refDisplay = isGeneral
->>>>>>> 9c77250470da5ec6fe76bbae088afaa2a8737514
         ? formData.miscReference
         : formData.referenceNo || "(no reference)";
       setSuccessMessage(
@@ -803,47 +775,10 @@ const GAEForm: React.FC = () => {
 
   const partyLabel = formData.partyType;
 
-
-
-
   /* ------------------------------ Render ----------------------------- */
 
   return (
     <div className="rd-credit-page">
-      <div className="pof-header">
-                      <button onClick={handleCancel} className="pof-back-btn">
-                        <FaArrowLeft size={9} /> Back
-                      </button>
-                      <div className="pof-header-title">
-                        <h1>
-                          {isViewMode ? 'View GA Entry' : isEdit ? 'Edit GA Entry' : 'GA Entry'}
-                        </h1>
-                        {isViewMode && (
-                          <span className="pof-view-mode-badge" style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '6px',
-                            background: '#6366f1',
-                            color: '#ffffff',
-                            padding: '4px 12px',
-                            borderRadius: '20px',
-                            fontSize: '12px',
-                            fontWeight: 500,
-                            marginLeft: '12px',
-                          }}>/
-                            <FaEye size={12} />
-                            View Mode
-                          </span>
-                        )}
-                        {isEdit && !isViewMode && <span className="pof-status-badge">{formData.referenceType}</span>}
-                      </div>
-                      {!isViewMode && Object.keys(errors).length > 0 && (
-                        <div className="pof-error-badge">
-                          <FaExclamationTriangle size={12} />
-                          {Object.keys(errors).length} missing field{Object.keys(errors).length !== 1 ? 's' : ''}
-                        </div>
-                      )}
-                    </div>
       <div className="rd-credit-card">
         <div className="rd-credit-header">
           <h2>GENERAL ACCOUNT ENTRY</h2>
@@ -957,8 +892,6 @@ const GAEForm: React.FC = () => {
                         ? `Search or type a customer name`
                         : `Search or select ${formData.partyType.toLowerCase()}`
                     }
-                    /* ✅ For Customer: input is always editable (free-text supported)
-                       For Supplier: same, but validation still requires a pick */
                     value={partySearch}
                     onChange={(e) => {
                       if (isCustomer) {
