@@ -1505,6 +1505,10 @@ export default function ItemForm() {
   const [showDuplicateWarning, setShowDuplicateWarning] = useState(false);
   const [duplicateItemData, setDuplicateItemData] = useState<any>(null);
 
+  // ─── ✅ LIVE DUPLICATE DETECTION (while typing item name) ───────────
+  const [duplicateNameError, setDuplicateNameError] = useState<string>("");
+  const lastDuplicateToastRef = useRef<string>("");
+
   const [uomCategories, setUomCategories] = useState<UOMCategory[]>([]);
   const [loadingCategories, setLoadingCategories] = useState(false);
 
@@ -1921,6 +1925,46 @@ export default function ItemForm() {
     
     return { isDuplicate: false, existingItem: null };
   };
+
+  // ─── ✅ LIVE duplicate check helper (used while typing the item name) ───
+  const checkDuplicateNameLive = (name: string): string => {
+    if (!isNew) return "";
+    const trimmed = name.trim().toLowerCase();
+    if (!trimmed) return "";
+
+    const match = existingItems.find(
+      (item) => item.item_name && item.item_name.trim().toLowerCase() === trimmed
+    );
+
+    if (match) {
+      const code = match.item_code ? ` (Code: ${match.item_code})` : "";
+      return `⚠️ Item "${match.item_name}" already exists${code}. Please use a different name.`;
+    }
+    return "";
+  };
+
+  // ─── ✅ Re-evaluate duplicate status whenever the name / list changes ──
+  useEffect(() => {
+    if (!isNew) {
+      setDuplicateNameError("");
+      lastDuplicateToastRef.current = "";
+      return;
+    }
+
+    const err = checkDuplicateNameLive(form.itemName);
+    setDuplicateNameError(err);
+
+    const key = form.itemName.trim().toLowerCase();
+    if (err) {
+      if (key && lastDuplicateToastRef.current !== key) {
+        lastDuplicateToastRef.current = key;
+        toast.error(err, { id: "duplicate-item-name", duration: 4000 });
+      }
+    } else {
+      lastDuplicateToastRef.current = "";
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.itemName, existingItems, isNew]);
 
   useEffect(() => {
     const fetchLookups = async () => {
@@ -2610,7 +2654,7 @@ export default function ItemForm() {
                     <Field 
                       label="Item name" 
                       required 
-                      error={fieldError("itemName")}
+                      error={duplicateNameError || fieldError("itemName")}
                     >
                       <TextInput 
                         value={form.itemName} 

@@ -3197,7 +3197,6 @@ export default function PurchaseOrderForm() {
   const renderSuccessModal = () => {
     if (!successModal.isOpen) return null;
 
-    const primaryColor = '#6366f1';
     const isDark = theme === 'dark';
 
     return createPortal(

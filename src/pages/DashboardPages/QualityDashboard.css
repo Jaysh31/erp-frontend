@@ -1,322 +1,536 @@
-/* QualityDashboard.css */
-.quality-dashboard .metrics-list {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+/* =========================================================
+   QualityDashboard.css
+   Modern / Attractive Quality Dashboard UI
+   ========================================================= */
+
+.quality-dashboard {
+  --quality-radius: 12px;
+  --quality-radius-sm: 8px;
+  --quality-border: var(--border-color, #e2e8f0);
+  --quality-card: var(--card-bg, #ffffff);
+  --quality-hover: var(--nav-hover, #f8fafc);
+  --quality-text: var(--text-primary, #1e293b);
+  --quality-muted: var(--text-secondary, #64748b);
+
+  animation: qualityFadeIn 0.35s ease;
 }
 
-.quality-dashboard .metric-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 10px 12px;
-  background: var(--nav-hover, #f8fafc);
-  border-radius: 8px;
-  transition: all 0.2s;
+/* =========================================================
+   GLOBAL CARD ENHANCEMENT
+   ========================================================= */
+
+.quality-dashboard .card {
+  border-radius: var(--quality-radius);
+  border: 1px solid var(--quality-border);
+  background: var(--quality-card);
+  box-shadow:
+    0 2px 6px rgba(15, 23, 42, 0.04),
+    0 10px 30px rgba(15, 23, 42, 0.04);
+  transition:
+    transform 0.25s ease,
+    box-shadow 0.25s ease,
+    border-color 0.25s ease;
 }
 
-.quality-dashboard .metric-row:hover {
-  background: var(--nav-active, #f1f5f9);
+.quality-dashboard .card:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 6px 14px rgba(15, 23, 42, 0.06),
+    0 18px 40px rgba(15, 23, 42, 0.06);
 }
 
-.metric-info {
-  flex: 1;
+/* =========================================================
+   CARD HEADER
+   ========================================================= */
+
+.quality-dashboard .card-header {
+  padding-bottom: 14px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--quality-border);
 }
 
-.metric-name {
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--text-primary, #1e293b);
+.quality-dashboard .card-header h3 {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
 }
 
-.metric-target {
-  font-size: 12px;
-  color: var(--text-secondary, #64748b);
-  margin-top: 2px;
-}
-
-.metric-value-wrapper {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.metric-value {
-  font-size: 18px;
-  font-weight: 600;
-  color: var(--text-primary, #1e293b);
-}
-
-.metric-status {
+.quality-dashboard .badge {
+  border-radius: 20px;
+  padding: 5px 11px;
   font-size: 11px;
-  padding: 2px 10px;
-  border-radius: 12px;
-  font-weight: 500;
+  font-weight: 600;
+  box-shadow: 0 3px 8px rgba(59, 130, 246, 0.15);
 }
 
-/* --- UPDATED: Light backgrounds with dark text for readability --- */
-.metric-status.good {
-  background: #dcfce7;   /* Light green background */
-  color: #0d7d38;        /* Dark green text */
-}
+/* =========================================================
+   QUALITY METRICS
+   ========================================================= */
 
-.metric-status.warning {
-  background: #fef3c7;   /* Light amber background */
-  color: #92400e;        /* Dark amber text */
-}
-
-.metric-status.critical {
-  background: #fee2e2;   /* Light red background */
-  color: #991b1b;        /* Dark red text */
-}
-
-/* Inspection Items */
-.inspection-list {
+.quality-dashboard .metrics-list {
   display: flex;
   flex-direction: column;
   gap: 10px;
 }
 
-.inspection-item {
+.quality-dashboard .metric-row {
+  position: relative;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 12px;
-  background: var(--nav-hover, #f8fafc);
-  border-radius: 8px;
-  transition: all 0.2s;
+  gap: 16px;
+
+  padding: 13px 15px;
+
+  background: var(--quality-hover);
+  border: 1px solid transparent;
+  border-radius: var(--quality-radius-sm);
+
+  transition:
+    transform 0.2s ease,
+    background 0.2s ease,
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
 }
 
-.inspection-item:hover {
-  background: var(--nav-active, #f1f5f9);
-  transform: translateX(4px);
-}
-
-.inspection-item-name {
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--text-primary, #1e293b);
-}
-
-.inspection-meta {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 2px;
-  flex-wrap: wrap;
-}
-
-.inspection-type {
-  font-size: 11px;
-  padding: 2px 8px;
+.quality-dashboard .metric-row::before {
+  content: "";
+  width: 3px;
+  height: 0;
+  position: absolute;
+  left: 0;
+  top: 50%;
+  border-radius: 3px;
   background: var(--primary-color, #3b82f6);
-  color: white;
-  border-radius: 4px;
+  transition: height 0.25s ease, top 0.25s ease;
 }
 
-.inspection-inspector {
+.quality-dashboard .metric-row:hover {
+  background: var(--quality-card);
+  border-color: var(--quality-border);
+  transform: translateX(3px);
+  box-shadow: 0 5px 15px rgba(15, 23, 42, 0.06);
+}
+
+.quality-dashboard .metric-row:hover::before {
+  height: 65%;
+  top: 17.5%;
+}
+
+.quality-dashboard .metric-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.quality-dashboard .metric-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--quality-text);
+}
+
+.quality-dashboard .metric-target {
   font-size: 11px;
-  color: var(--text-secondary, #64748b);
+  color: var(--quality-muted);
+  margin-top: 4px;
 }
 
-.inspection-date {
-  font-size: 11px;
-  color: var(--text-secondary, #94a3b8);
-}
-
-.inspection-details {
+.quality-dashboard .metric-value-wrapper {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   flex-shrink: 0;
 }
 
-.inspection-defects {
-  font-size: 12px;
-  font-weight: 500;
-  color: #ef4444;
-  padding: 2px 8px;
-  background: #fef2f2;
-  border-radius: 4px;
+.quality-dashboard .metric-value {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--quality-text);
 }
 
-.inspection-severity {
-  font-size: 11px;
-  padding: 2px 10px;
-  border-radius: 12px;
-  color: white;
-  font-weight: 500;
-}
+/* =========================================================
+   STATUS BADGES
+   ========================================================= */
 
-.inspection-result {
-  font-size: 11px;
+.quality-dashboard .metric-status {
+  min-width: 62px;
+  text-align: center;
+
+  font-size: 10px;
   padding: 4px 10px;
-  border-radius: 12px;
-  color: white;
-  font-weight: 500;
-  display: flex;
-  align-items: center;
-  gap: 4px;
+  border-radius: 20px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+
+  border: 1px solid transparent;
 }
 
-/* Defect Categories */
-.defect-list {
+.quality-dashboard .metric-status.good {
+  background: #dcfce7;
+  color: #15803d;
+  border-color: #bbf7d0;
+}
+
+.quality-dashboard .metric-status.warning {
+  background: #fef3c7;
+  color: #a16207;
+  border-color: #fde68a;
+}
+
+.quality-dashboard .metric-status.critical {
+  background: #fee2e2;
+  color: #b91c1c;
+  border-color: #fecaca;
+}
+
+/* =========================================================
+   INSPECTION LIST
+   ========================================================= */
+
+.quality-dashboard .inspection-list {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 9px;
 }
 
-.defect-item {
+.quality-dashboard .inspection-item {
+  position: relative;
+
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 14px;
+
+  padding: 13px 14px;
+
+  background: var(--quality-hover);
+  border: 1px solid transparent;
+  border-radius: var(--quality-radius-sm);
+
+  transition:
+    transform 0.2s ease,
+    background 0.2s ease,
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.quality-dashboard .inspection-item:hover {
+  background: var(--quality-card);
+  border-color: var(--quality-border);
+  transform: translateX(4px);
+  box-shadow: 0 5px 16px rgba(15, 23, 42, 0.06);
+}
+
+.quality-dashboard .inspection-item-name {
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--quality-text);
+}
+
+.quality-dashboard .inspection-meta {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 5px;
+  flex-wrap: wrap;
+}
+
+.quality-dashboard .inspection-type {
+  font-size: 10px;
+  padding: 3px 8px;
+  background: linear-gradient(
+    135deg,
+    var(--primary-color, #3b82f6),
+    var(--primary-hover, #2563eb)
+  );
+  color: #ffffff;
+  border-radius: 20px;
+  font-weight: 600;
+}
+
+.quality-dashboard .inspection-inspector,
+.quality-dashboard .inspection-date {
+  font-size: 10px;
+  color: var(--quality-muted);
+}
+
+.quality-dashboard .inspection-details {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.quality-dashboard .inspection-defects {
+  font-size: 10px;
+  font-weight: 700;
+  color: #dc2626;
+
+  padding: 4px 8px;
+  background: #fef2f2;
+
+  border: 1px solid #fecaca;
+  border-radius: 6px;
+}
+
+.quality-dashboard .inspection-severity {
+  font-size: 10px;
+  padding: 4px 9px;
+  border-radius: 20px;
+  color: white;
+  font-weight: 600;
+}
+
+.quality-dashboard .inspection-result {
+  font-size: 10px;
+  padding: 5px 10px;
+  border-radius: 20px;
+  color: white;
+  font-weight: 700;
+
+  display: flex;
+  align-items: center;
+  gap: 5px;
+
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.12);
+}
+
+/* =========================================================
+   DEFECT CATEGORIES
+   ========================================================= */
+
+.quality-dashboard .defect-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.quality-dashboard .defect-item {
   display: flex;
   align-items: center;
   gap: 12px;
 }
 
-.defect-info {
+.quality-dashboard .defect-info {
   display: flex;
   align-items: center;
   gap: 8px;
   flex: 0 0 160px;
+  min-width: 0;
 }
 
-.defect-dot {
-  width: 8px;
-  height: 8px;
+.quality-dashboard .defect-dot {
+  width: 9px;
+  height: 9px;
   border-radius: 50%;
   display: inline-block;
+  flex-shrink: 0;
+
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.08);
 }
 
-.defect-name {
+.quality-dashboard .defect-name {
   font-size: 13px;
-  color: var(--text-primary, #1e293b);
-  flex: 1;
+  color: var(--quality-text);
+  font-weight: 500;
+
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.defect-count {
+.quality-dashboard .defect-count {
   font-size: 12px;
-  font-weight: 600;
-  color: var(--text-primary, #1e293b);
+  font-weight: 700;
+  color: var(--quality-text);
   min-width: 30px;
 }
 
-.defect-bar {
+.quality-dashboard .defect-bar {
   flex: 1;
   height: 8px;
-  background: var(--nav-hover, #f1f5f9);
-  border-radius: 4px;
+  background: var(--quality-hover);
+  border-radius: 20px;
   overflow: hidden;
+  border: 1px solid var(--quality-border);
 }
 
-.defect-fill {
+.quality-dashboard .defect-fill {
   height: 100%;
-  border-radius: 4px;
-  transition: width 0.8s ease;
+  border-radius: 20px;
+  transition: width 0.8s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-.defect-percentage {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-primary, #4d5665);
-  min-width: 40px;
+.quality-dashboard .defect-percentage {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--quality-text);
+  min-width: 42px;
   text-align: right;
 }
 
-/* Overview Grid */
-.overview-grid {
+/* =========================================================
+   OVERVIEW GRID
+   ========================================================= */
+
+.quality-dashboard .overview-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 12px;
+  gap: 10px;
 }
 
-.overview-item {
+.quality-dashboard .overview-item {
+  position: relative;
+
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 12px;
-  background: var(--nav-hover, #f8fafc);
-  border-radius: 8px;
+
+  padding: 13px;
+
+  background: var(--quality-hover);
+  border: 1px solid transparent;
+  border-radius: var(--quality-radius-sm);
+
+  transition:
+    transform 0.2s ease,
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
 }
 
-.overview-icon {
-  width: 40px;
-  height: 40px;
-  border-radius: 8px;
+.quality-dashboard .overview-item:hover {
+  transform: translateY(-2px);
+  border-color: var(--quality-border);
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.06);
+}
+
+.quality-dashboard .overview-icon {
+  width: 42px;
+  height: 42px;
+
+  border-radius: 10px;
+
   display: flex;
   align-items: center;
   justify-content: center;
+
   color: white;
-  font-size: 18px;
+  font-size: 17px;
   flex-shrink: 0;
+
+  box-shadow:
+    0 5px 12px rgba(15, 23, 42, 0.12);
 }
 
-.overview-content {
+.quality-dashboard .overview-content {
   flex: 1;
+  min-width: 0;
 }
 
-.overview-label {
-  font-size: 12px;
-  color: var(--text-secondary, #64748b);
+.quality-dashboard .overview-label {
+  font-size: 11px;
+  color: var(--quality-muted);
+  display: block;
+  margin-bottom: 2px;
 }
 
-.overview-value {
+.quality-dashboard .overview-value {
   font-size: 18px;
-  font-weight: 600;
-  color: var(--text-primary, #1e293b);
+  font-weight: 700;
+  color: var(--quality-text);
 }
 
-/* Dark Theme */
+/* =========================================================
+   DARK THEME
+   ========================================================= */
+
+.dark-theme.quality-dashboard {
+  --quality-border: #334155;
+  --quality-card: #1e293b;
+  --quality-hover: rgba(255, 255, 255, 0.045);
+  --quality-text: #f8fafc;
+  --quality-muted: #94a3b8;
+}
+
+.dark-theme.quality-dashboard .card {
+  background: var(--quality-card);
+  border-color: var(--quality-border);
+
+  box-shadow:
+    0 3px 10px rgba(0, 0, 0, 0.18),
+    0 15px 35px rgba(0, 0, 0, 0.12);
+}
+
+.dark-theme.quality-dashboard .card-header {
+  border-bottom-color: var(--quality-border);
+}
+
 .dark-theme.quality-dashboard .metric-row,
 .dark-theme.quality-dashboard .inspection-item,
-.dark-theme.quality-dashboard .overview-item,
-.dark-theme.quality-dashboard .defect-bar {
-  background: var(--nav-hover, rgba(255, 255, 255, 0.05));
+.dark-theme.quality-dashboard .overview-item {
+  background: var(--quality-hover);
 }
 
 .dark-theme.quality-dashboard .metric-row:hover,
-.dark-theme.quality-dashboard .inspection-item:hover {
-  background: var(--nav-active, rgba(59, 130, 246, 0.15));
+.dark-theme.quality-dashboard .inspection-item:hover,
+.dark-theme.quality-dashboard .overview-item:hover {
+  background: rgba(59, 130, 246, 0.08);
+  border-color: #475569;
 }
 
-.dark-theme.quality-dashboard .metric-name,
-.dark-theme.quality-dashboard .inspection-item-name,
-.dark-theme.quality-dashboard .defect-name,
-.dark-theme.quality-dashboard .defect-count,
-.dark-theme.quality-dashboard .overview-value,
-.dark-theme.quality-dashboard .defect-percentage {
-  color: var(--text-primary, #f8fafc);
-}
+/* Dark status badges */
 
-.dark-theme.quality-dashboard .metric-target,
-.dark-theme.quality-dashboard .inspection-inspector,
-.dark-theme.quality-dashboard .inspection-date,
-.dark-theme.quality-dashboard .overview-label {
-  color: var(--text-secondary, #94a3b8);
-}
-
-.dark-theme.quality-dashboard .inspection-defects {
-  background: rgba(239, 68, 68, 0.2);
-  color: #f87171;
-}
-
-/* --- UPDATED: Dark theme overrides for metric status badges --- */
 .dark-theme.quality-dashboard .metric-status.good {
-  background: #168d46;   /* Dark green background */
-  color: #bbf7d0;        /* Light green text */
+  background: rgba(34, 197, 94, 0.18);
+  color: #86efac;
+  border-color: rgba(34, 197, 94, 0.28);
 }
 
 .dark-theme.quality-dashboard .metric-status.warning {
-  background: #78350f;   /* Dark amber background */
-  color: #fde68a;        /* Light amber text */
+  background: rgba(245, 158, 11, 0.18);
+  color: #fcd34d;
+  border-color: rgba(245, 158, 11, 0.28);
 }
 
 .dark-theme.quality-dashboard .metric-status.critical {
-  background: #7f1d1d;   /* Dark red background */
-  color: #fecaca;        /* Light red text */
+  background: rgba(239, 68, 68, 0.18);
+  color: #fca5a5;
+  border-color: rgba(239, 68, 68, 0.28);
 }
 
-/* Responsive */
+.dark-theme.quality-dashboard .inspection-defects {
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+  border-color: rgba(239, 68, 68, 0.25);
+}
+
+.dark-theme.quality-dashboard .defect-bar {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: #334155;
+}
+
+/* =========================================================
+   SMALL ANIMATION
+   ========================================================= */
+
+@keyframes qualityFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* =========================================================
+   RESPONSIVE
+   ========================================================= */
+
 @media (max-width: 1024px) {
-  .defect-info {
+  .quality-dashboard .defect-info {
     flex: 0 0 120px;
   }
 }
@@ -324,28 +538,28 @@
 @media (max-width: 768px) {
   .quality-dashboard .inspection-item {
     flex-wrap: wrap;
-    gap: 8px;
+    gap: 10px;
   }
-  
+
   .quality-dashboard .inspection-details {
-    flex-wrap: wrap;
     width: 100%;
+    flex-wrap: wrap;
   }
-  
+
   .quality-dashboard .metric-row {
     flex-wrap: wrap;
   }
-  
+
   .quality-dashboard .metric-value-wrapper {
     width: 100%;
-    justify-content: flex-start;
+    justify-content: space-between;
   }
-  
-  .overview-grid {
+
+  .quality-dashboard .overview-grid {
     grid-template-columns: 1fr;
   }
-  
-  .defect-info {
+
+  .quality-dashboard .defect-info {
     flex: 0 0 100px;
   }
 }
@@ -355,16 +569,24 @@
     flex-direction: column;
     align-items: flex-start;
   }
-  
+
   .quality-dashboard .inspection-details {
+    width: 100%;
+  }
+
+  .quality-dashboard .metric-value-wrapper {
+    align-items: center;
+  }
+
+  .quality-dashboard .defect-item {
     flex-wrap: wrap;
   }
-  
-  .defect-item {
-    flex-wrap: wrap;
-  }
-  
-  .defect-info {
+
+  .quality-dashboard .defect-info {
     flex: 1 1 100%;
+  }
+
+  .quality-dashboard .defect-bar {
+    min-width: 120px;
   }
 }

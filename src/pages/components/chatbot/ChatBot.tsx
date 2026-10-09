@@ -12,13 +12,13 @@ import {
   matchEndpoint,
   extractSearchToken,
   searchAllModulesForRecord,
-  detectSmartNavigation,
+  
   fetchDetailPageData,
   DETAIL_PAGE_APIS,
   ERP_ENDPOINTS,
   ENDPOINT_ROUTES,
   isLatestListQuery,
-  fetchAndBuildLatestListNavigation,
+  
 } from "../../../services/erpApi";
 
 interface Msg {
@@ -243,20 +243,6 @@ function formatShortDate(d: Date | null): string {
   return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
 }
 
-function timeAgo(d: Date | null): string {
-  if (!d) return "";
-  const sec = Math.floor((Date.now() - d.getTime()) / 1000);
-  if (sec < 60) return "just now";
-  const min = Math.floor(sec / 60);
-  if (min < 60) return `${min} min ago`;
-  const hr = Math.floor(min / 60);
-  if (hr < 24) return `${hr} hr ago`;
-  const days = Math.floor(hr / 24);
-  if (days < 30) return `${days} day${days === 1 ? "" : "s"} ago`;
-  const mo = Math.floor(days / 30);
-  if (mo < 12) return `${mo} mo ago`;
-  return `${Math.floor(mo / 12)} yr ago`;
-}
 
 type DateRange = { label: string; from: Date; to: Date } | null;
 
@@ -1760,9 +1746,9 @@ const MODULE_ROUTES: Record<string, string> = {
   proforma: "/proforma-invoice",
   "delivery notes": "/delivery-challan", "delivery challans": "/delivery-challan",
   "delivery challan": "/delivery-challan",
-  "sales invoices": "/sales-bill", "sales bills": "/sales-bill",
-  "sales bill": "/sales-bill", "tax invoices": "/sales-bill",
-  "tax invoice": "/sales-bill",
+  "sales invoices": "/Tax-Invoice", "Tax Invoices": "/Tax-Invoice",
+  "Tax Invoice": "/Tax-Invoice", "tax invoices": "/Tax-Invoice",
+  "tax invoice": "/Tax-Invoice",
   companies: "/company", company: "/company",
   "purchase orders": "/purchase-order", "purchase order": "/purchase-order",
   grn: "/grn", grns: "/grn",
@@ -1786,9 +1772,9 @@ const MODULE_ROUTES: Record<string, string> = {
 const MODULE_DETAIL_ROUTES: Record<string, string> = {
   "proforma invoice": "/proforma-invoice/",
   "delivery challan": "/delivery-challan/view/",
-  "sales invoice": "/sales-bill/edit/",
-  "tax invoice": "/sales-bill/edit/",
-  "sales bill": "/sales-bill/edit/",
+  "sales invoice": "/Tax-Invoice/edit/",
+  "Tax invoice": "/Tax-Invoice/edit/",
+  "Tax Invoice": "/Tax-Invoice/edit/",
   "delivery note": "/delivery-challan/view/",
   "sales order": "/sales-order/",
   quotation: "/quotation/",
@@ -2127,7 +2113,7 @@ const PAGE_LABELS: Record<string, string> = {
   "/sales-order": "Sales Order List",
   "/proforma-invoice": "Proforma Invoice List",
   "/delivery-challan": "Delivery Challan List",
-  "/sales-bill": "Sales Bill List",
+  "/Tax-Invoice": "Tax Invoice List",
   "/company": "Company List",
   "/purchase-order": "Purchase Order List",
   "/grn": "GRN List",
@@ -2144,7 +2130,7 @@ const PAGE_FLOWS: Record<string, { label: string; route: string }[]> = {
     { label: "Sales Orders", route: "/sales-order" },
     { label: "Proforma Invoices", route: "/proforma-invoice" },
     { label: "Delivery Challans", route: "/delivery-challan" },
-    { label: "Sales Bills", route: "/sales-bill" },
+    { label: "Tax Invoices", route: "/Tax-Invoice" },
   ],
   manufacturing: [
     { label: "Manufacturing Dashboard", route: "/dashboard/manufacturing" },
@@ -2491,7 +2477,7 @@ const PAGE_CHIPS: Array<{ prefix: string; chips: string[] }> = [
   { prefix: "/quotation", chips: ["How many quotations?", "Show latest quotations", "Show me sent quotations", "Show me accepted quotations", "Show me draft quotations", "Show me flow of this page", "Summary"] },
   { prefix: "/proforma-invoice", chips: ["How many proforma invoices?", "Show latest proforma invoices", "Show me flow of this page", "Summary"] },
   { prefix: "/delivery-challan", chips: ["How many delivery challans?", "Show latest delivery challans", "Show me submitted delivery challans", "Show me draft delivery challans", "Show me cancelled delivery challans", "Show me flow of this page", "Summary"] },
-  { prefix: "/sales-bill", chips: ["How many sales bills?", "Show latest sales bills", "Show me paid sales bills", "Show me partially paid sales bills", "Show me draft sales bills", "Show me cancelled sales bills", "Show me overdue sales bills", "Show me flow of this page", "Summary"] },
+  { prefix: "/Tax-Invoice", chips: ["How many tax invoices?", "Show latest tax invoices", "Show me paid tax invoices", "Show me partially paid tax invoices", "Show me draft tax invoices", "Show me cancelled tax invoices", "Show me overdue tax invoices", "Show me flow of this page", "Summary"] },
   { prefix: "/lead", chips: ["How many leads?", "Show latest leads", "Show me flow of this page", "Summary"] },
   { prefix: "/work-order", chips: ["How many work orders?", "Work orders in process", "Work orders completed", "Show latest work orders", "Show me flow of this page", "Summary"] },
   { prefix: "/job-card", chips: ["How many job cards?", "Show latest job cards", "Show me flow of this page", "Summary"] },

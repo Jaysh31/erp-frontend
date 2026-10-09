@@ -13,7 +13,6 @@ import toast from 'react-hot-toast';
 import './QualityInspectionList.css';
 import '../pages/Sales/SalesMobileTable.css';
 import api from '../../src/services/api';
-import { PageLoader } from '../components/PageLoader';
 
 /* ─────────────────────────── Types ─────────────────────────── */
 

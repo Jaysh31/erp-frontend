@@ -1,45 +1,3153 @@
-/* PurchasingDashboard.css */
-.purchasing-dashboard .order-item {
+/* ============================================================
+   PURCHASING DASHBOARD
+   PREMIUM ERP UI
+   MANUFACTURING DASHBOARD STYLE
+============================================================ */
+
+.purchasing-dashboard {
+  --purchase-primary: #6366f1;
+  --purchase-primary-dark: #4f46e5;
+  --purchase-primary-light: #818cf8;
+
+  --purchase-blue: #2563eb;
+  --purchase-green: #16a34a;
+  --purchase-orange: #f59e0b;
+  --purchase-red: #ef4444;
+  --purchase-purple: #7c3aed;
+  --purchase-cyan: #0891b2;
+  --purchase-pink: #db2777;
+
+  --purchase-bg: #f5f7fb;
+  --purchase-card: #ffffff;
+  --purchase-border: #e5e7eb;
+
+  --purchase-text: #111827;
+  --purchase-muted: #6b7280;
+  --purchase-soft: #f8fafc;
+
+  width: 100%;
+  min-height: 100%;
+  padding: 24px;
+  box-sizing: border-box;
+  background: var(--purchase-bg);
+  color: var(--purchase-text);
+}
+
+/* ============================================================
+   HEADER
+============================================================ */
+
+.purchasing-dashboard .dashboard-header {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  padding: 12px;
-  background: var(--nav-hover, #f8fafc);
-  border-radius: 8px;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 24px;
+}
+
+.purchasing-dashboard .dashboard-header-left {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  min-width: 0;
+}
+
+.purchasing-dashboard .dashboard-title-icon {
+  width: 52px;
+  height: 52px;
+  min-width: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 15px;
+  color: #ffffff;
+  font-size: 22px;
+
+  background: linear-gradient(
+    135deg,
+    var(--purchase-primary),
+    var(--purchase-primary-dark)
+  );
+
+  box-shadow:
+    0 8px 22px rgba(93, 48, 227, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+
+.purchasing-dashboard .dashboard-header h1 {
+  margin: 0;
+  font-size: 25px;
+  line-height: 1.2;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+  color: var(--purchase-text);
+}
+
+.purchasing-dashboard .dashboard-header p {
+  margin: 6px 0 0;
+  color: var(--purchase-muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.purchasing-dashboard .refresh-button {
+  height: 42px;
+  padding: 0 16px;
+  border: 1px solid #d9def0;
+  border-radius: 11px;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+
+  background: #ffffff;
+  color: #374151;
+
+  font-size: 13px;
+  font-weight: 700;
   cursor: pointer;
-  transition: all 0.2s;
-  margin-bottom: 8px;
+
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    background 0.2s ease;
 }
 
-.purchasing-dashboard .order-item:hover {
-  background: var(--nav-active, #f1f5f9);
-  transform: translateX(4px);
+.purchasing-dashboard .refresh-button:hover {
+  transform: translateY(-1px);
+  background: #f8f9ff;
+  box-shadow: 0 7px 18px rgba(15, 23, 42, 0.1);
 }
 
-.order-supplier {
-  font-size: 14px;
+.purchasing-dashboard .refresh-button svg {
+  font-size: 13px;
+}
+
+.purchasing-dashboard .refresh-button.refreshing svg {
+  animation: purchasing-spin 0.9s linear infinite;
+}
+
+@keyframes purchasing-spin {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ============================================================
+   ERROR
+============================================================ */
+
+.purchasing-dashboard .dashboard-error {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+
+  margin-bottom: 20px;
+  padding: 13px 15px;
+
+  border: 1px solid #fecaca;
+  border-radius: 12px;
+
+  background: #fff7f7;
+  color: #991b1b;
+
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.purchasing-dashboard .dashboard-error > svg {
+  color: var(--purchase-red);
+  font-size: 17px;
+  flex-shrink: 0;
+}
+
+.purchasing-dashboard .dashboard-error span {
+  flex: 1;
+}
+
+.purchasing-dashboard .dashboard-error button {
+  border: none;
+  background: #fee2e2;
+  color: #991b1b;
+
+  padding: 7px 12px;
+  border-radius: 8px;
+
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.purchasing-dashboard .dashboard-error button:hover {
+  background: #fecaca;
+}
+
+
+
+/* KPI colors */
+
+.purchasing-dashboard .stat-primary::before {
+  background: var(--purchase-primary);
+}
+
+.purchasing-dashboard .stat-primary .stat-icon {
+  background: linear-gradient(
+    135deg,
+    #6366f1,
+    #4f46e5
+  );
+}
+
+.purchasing-dashboard .stat-primary:hover {
+  border-color: #c7d2fe;
+}
+
+.purchasing-dashboard .stat-success::before {
+  background: var(--purchase-green);
+}
+
+.purchasing-dashboard .stat-success .stat-icon {
+  background: linear-gradient(
+    135deg,
+    #22c55e,
+    #15803d
+  );
+}
+
+.purchasing-dashboard .stat-success:hover {
+  border-color: #bbf7d0;
+}
+
+.purchasing-dashboard .stat-warning::before {
+  background: var(--purchase-orange);
+}
+
+.purchasing-dashboard .stat-warning .stat-icon {
+  background: linear-gradient(
+    135deg,
+    #fbbf24,
+    #d97706
+  );
+}
+
+.purchasing-dashboard .stat-warning:hover {
+  border-color: #fde68a;
+}
+
+.purchasing-dashboard .stat-info::before {
+  background: var(--purchase-blue);
+}
+
+.purchasing-dashboard .stat-info .stat-icon {
+  background: linear-gradient(
+    135deg,
+    #3b82f6,
+    #1d4ed8
+  );
+}
+
+.purchasing-dashboard .stat-info:hover {
+  border-color: #bfdbfe;
+}
+
+/* ============================================================
+   SUMMARY GRID
+============================================================ */
+
+.purchasing-dashboard .dashboard-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+  margin-bottom: 20px;
+}
+
+/* ============================================================
+   SUMMARY CARDS
+============================================================ */
+
+.purchasing-dashboard .summary-card {
+  position: relative;
+  overflow: hidden;
+
+  min-height: 190px;
+  padding: 20px;
+
+  background: var(--purchase-card);
+  border: 1px solid var(--purchase-border);
+  border-radius: 17px;
+
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.045);
+
+  transition:
+    transform 0.22s ease,
+    box-shadow 0.22s ease;
+}
+
+.purchasing-dashboard .summary-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
+}
+
+.purchasing-dashboard .summary-card::after {
+  content: "";
+  position: absolute;
+  width: 100px;
+  height: 100px;
+  right: -45px;
+  top: -45px;
+
+  border-radius: 50%;
+  background: rgba(99, 102, 241, 0.055);
+
+  pointer-events: none;
+}
+
+.purchasing-dashboard .summary-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+
+  margin-bottom: 20px;
+}
+
+.purchasing-dashboard .summary-card-header h3 {
+  margin: 0;
+
+  color: var(--purchase-text);
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.purchasing-dashboard .summary-card-header p {
+  margin: 5px 0 0;
+
+  color: var(--purchase-muted);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.purchasing-dashboard .summary-card-header > svg {
+  width: 38px;
+  height: 38px;
+
+  padding: 10px;
+  box-sizing: border-box;
+
+  border-radius: 11px;
+
+  color: var(--purchase-primary);
+  background: #eef2ff;
+
+  flex-shrink: 0;
+}
+
+/* ============================================================
+   SUMMARY ITEMS
+============================================================ */
+
+.purchasing-dashboard .summary-items {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.purchasing-dashboard .summary-item {
+  padding: 12px 13px;
+
+  border: 1px solid #edf0f5;
+  border-radius: 11px;
+
+  background: #fafbfc;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.purchasing-dashboard .summary-label {
+  color: var(--purchase-muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.purchasing-dashboard .summary-item strong {
+  color: var(--purchase-text);
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.purchasing-dashboard .danger-text {
+  color: var(--purchase-red) !important;
+}
+
+/* ============================================================
+   SUPPLIER CARD
+============================================================ */
+
+.purchasing-dashboard .supplier-total {
+  min-height: 67px;
+  padding: 12px 15px;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  border-radius: 12px;
+  background: linear-gradient(
+    135deg,
+    #f8faff,
+    #f1f5ff
+  );
+
+  border: 1px solid #e5e7eb;
+}
+
+.purchasing-dashboard .supplier-total span {
+  color: var(--purchase-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.purchasing-dashboard .supplier-total strong {
+  color: var(--purchase-primary);
+  font-size: 28px;
+  font-weight: 800;
+}
+
+.purchasing-dashboard .summary-action {
+  width: 100%;
+  height: 40px;
+
+  margin-top: 12px;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  padding: 0 13px;
+
+  border: 1px solid #e0e7ff;
+  border-radius: 10px;
+
+  background: #f8f9ff;
+  color: var(--purchase-primary);
+
+  font-size: 12px;
+  font-weight: 800;
+
+  cursor: pointer;
+
+  transition:
+    background 0.2s ease,
+    transform 0.2s ease;
+}
+
+.purchasing-dashboard .summary-action:hover {
+  background: #eef2ff;
+  transform: translateY(-1px);
+}
+
+/* ============================================================
+   RECENT SECTION
+============================================================ */
+
+.purchasing-dashboard .recent-section {
+  margin-bottom: 20px;
+  padding: 20px;
+
+  background: var(--purchase-card);
+  border: 1px solid var(--purchase-border);
+  border-radius: 17px;
+
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.045);
+}
+
+.purchasing-dashboard .section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 15px;
+  margin-bottom: 17px;
+}
+
+.purchasing-dashboard .section-header h2 {
+  margin: 0;
+
+  color: var(--purchase-text);
+  font-size: 17px;
+  font-weight: 800;
+}
+
+.purchasing-dashboard .section-header p {
+  margin: 5px 0 0;
+
+  color: var(--purchase-muted);
+  font-size: 11px;
+}
+
+.purchasing-dashboard .view-all-button {
+  height: 36px;
+  padding: 0 13px;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+
+  border: 1px solid #e0e7ff;
+  border-radius: 9px;
+
+  background: #f8f9ff;
+  color: var(--purchase-primary);
+
+  font-size: 11px;
+  font-weight: 800;
+
+  cursor: pointer;
+}
+
+.purchasing-dashboard .view-all-button:hover {
+  background: #eef2ff;
+}
+
+/* ============================================================
+   INVOICE TABLE
+============================================================ */
+
+.purchasing-dashboard .invoice-table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+
+  border: 1px solid #edf0f5;
+  border-radius: 13px;
+}
+
+.purchasing-dashboard .invoice-table {
+  width: 100%;
+  min-width: 720px;
+  border-collapse: collapse;
+}
+
+.purchasing-dashboard .invoice-table thead {
+  background: #f8fafc;
+}
+
+.purchasing-dashboard .invoice-table th {
+  padding: 12px 14px;
+
+  color: #64748b;
+
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.45px;
+
+  text-align: left;
+  white-space: nowrap;
+
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.purchasing-dashboard .invoice-table td {
+  padding: 13px 14px;
+
+  color: #475569;
+  font-size: 12px;
   font-weight: 500;
-  color: var(--text-primary, #a6bfe8);
+
+  border-bottom: 1px solid #f1f5f9;
 }
 
-/* Dark Theme */
-.dark-theme.purchasing-dashboard .order-item {
-  background: var(--nav-hover, rgba(255, 255, 255, 0.05));
+.purchasing-dashboard .invoice-table tbody tr:last-child td {
+  border-bottom: none;
 }
 
-.dark-theme.purchasing-dashboard .order-item:hover {
-  background: var(--nav-active, rgba(59, 130, 246, 0.15));
+.purchasing-dashboard .invoice-table tbody tr {
+  transition: background 0.18s ease;
 }
 
-.dark-theme.purchasing-dashboard .order-supplier {
-  color: var(--text-primary, #f8fafc);
+.purchasing-dashboard .invoice-table tbody tr:hover {
+  background: #fafbff;
 }
 
-/* Responsive */
-@media (max-width: 768px) {
-  .purchasing-dashboard .order-item {
-    flex-direction: column;
+.purchasing-dashboard .invoice-number {
+  display: inline-flex;
+  align-items: center;
+
+  color: var(--purchase-primary);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.purchasing-dashboard .supplier-cell {
+  max-width: 220px;
+
+  color: #334155;
+  font-weight: 700;
+
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.purchasing-dashboard .amount-cell {
+  color: #111827;
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+/* ============================================================
+   STATUS BADGES
+============================================================ */
+
+.purchasing-dashboard .order-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  min-width: 78px;
+  padding: 5px 9px;
+
+  border-radius: 999px;
+
+  font-size: 10px;
+  line-height: 1;
+  font-weight: 800;
+
+  text-transform: capitalize;
+  white-space: nowrap;
+}
+
+.purchasing-dashboard .order-status.draft {
+  color: #92400e;
+  background: #fef3c7;
+}
+
+.purchasing-dashboard .order-status.pending {
+  color: #9a3412;
+  background: #ffedd5;
+}
+
+.purchasing-dashboard .order-status.submitted {
+  color: #1d4ed8;
+  background: #dbeafe;
+}
+
+.purchasing-dashboard .order-status.approved {
+  color: #166534;
+  background: #dcfce7;
+}
+
+.purchasing-dashboard .order-status.processing {
+  color: #6d28d9;
+  background: #ede9fe;
+}
+
+.purchasing-dashboard .order-status.completed {
+  color: #166534;
+  background: #dcfce7;
+}
+
+.purchasing-dashboard .order-status.cancelled {
+  color: #991b1b;
+  background: #fee2e2;
+}
+
+.purchasing-dashboard .order-status.overdue {
+  color: #b91c1c;
+  background: #fecaca;
+}
+
+.purchasing-dashboard .order-status.default {
+  color: #475569;
+  background: #f1f5f9;
+}
+
+/* ============================================================
+   EMPTY STATE
+============================================================ */
+
+.purchasing-dashboard .empty-state {
+  min-height: 220px;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+
+  text-align: center;
+
+  border: 1px dashed #dbe1ea;
+  border-radius: 13px;
+
+  background: #fafbfc;
+}
+
+.purchasing-dashboard .empty-state > svg {
+  width: 50px;
+  height: 50px;
+
+  padding: 14px;
+  box-sizing: border-box;
+
+  border-radius: 15px;
+
+  color: #818cf8;
+  background: #eef2ff;
+
+  margin-bottom: 12px;
+}
+
+.purchasing-dashboard .empty-state h3 {
+  margin: 0;
+
+  color: #334155;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.purchasing-dashboard .empty-state p {
+  margin: 6px 0 0;
+
+  color: #94a3b8;
+  font-size: 11px;
+}
+
+/* ============================================================
+   QUICK ACTIONS
+============================================================ */
+
+.purchasing-dashboard .quick-actions {
+  padding: 20px;
+
+  background: var(--purchase-card);
+  border: 1px solid var(--purchase-border);
+  border-radius: 17px;
+
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.045);
+}
+
+.purchasing-dashboard .quick-actions-header {
+  margin-bottom: 16px;
+}
+
+.purchasing-dashboard .quick-actions-header h2 {
+  margin: 0;
+
+  color: var(--purchase-text);
+  font-size: 17px;
+  font-weight: 800;
+}
+
+.purchasing-dashboard .quick-actions-header p {
+  margin: 5px 0 0;
+
+  color: var(--purchase-muted);
+  font-size: 11px;
+}
+
+.purchasing-dashboard .quick-actions-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.purchasing-dashboard .quick-action-card {
+  min-height: 78px;
+
+  padding: 13px;
+
+  display: flex;
+  align-items: center;
+  gap: 11px;
+
+  text-align: left;
+
+  border: 1px solid #e8ebf2;
+  border-radius: 13px;
+
+  background: #ffffff;
+
+  cursor: pointer;
+
+  transition:
+    transform 0.2s ease,
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.purchasing-dashboard .quick-action-card:hover {
+  transform: translateY(-2px);
+
+  border-color: #c7d2fe;
+
+  box-shadow: 0 9px 20px rgba(15, 23, 42, 0.08);
+}
+
+.purchasing-dashboard .quick-action-icon {
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 11px;
+
+  color: #ffffff;
+  font-size: 15px;
+
+  background: linear-gradient(
+    135deg,
+    #6366f1,
+    #4f46e5
+  );
+
+  box-shadow: 0 6px 14px rgba(79, 70, 229, 0.22);
+}
+
+.purchasing-dashboard .quick-action-card:nth-child(2)
+  .quick-action-icon {
+  background: linear-gradient(
+    135deg,
+    #3b82f6,
+    #1d4ed8
+  );
+}
+
+.purchasing-dashboard .quick-action-card:nth-child(3)
+  .quick-action-icon {
+  background: linear-gradient(
+    135deg,
+    #22c55e,
+    #15803d
+  );
+}
+
+.purchasing-dashboard .quick-action-card:nth-child(4)
+  .quick-action-icon {
+  background: linear-gradient(
+    135deg,
+    #f59e0b,
+    #d97706
+  );
+}
+
+.purchasing-dashboard .quick-action-card > div:nth-child(2) {
+  flex: 1;
+  min-width: 0;
+
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.purchasing-dashboard .quick-action-card strong {
+  color: #1e293b;
+
+  font-size: 12px;
+  font-weight: 800;
+
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.purchasing-dashboard .quick-action-card span {
+  color: #94a3b8;
+
+  font-size: 10px;
+  font-weight: 600;
+
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.purchasing-dashboard .quick-action-card > svg {
+  color: #94a3b8;
+  font-size: 11px;
+  transition: transform 0.2s ease;
+}
+
+.purchasing-dashboard .quick-action-card:hover > svg {
+  color: var(--purchase-primary);
+  transform: translateX(3px);
+}/* ============================================================
+   PURCHASING DASHBOARD
+   PREMIUM ERP UI
+   MANUFACTURING DASHBOARD STYLE
+============================================================ */
+
+.purchasing-dashboard {
+  --purchase-primary: #6366f1;
+  --purchase-primary-dark: #4f46e5;
+  --purchase-primary-light: #818cf8;
+
+  --purchase-blue: #2563eb;
+  --purchase-green: #16a34a;
+  --purchase-orange: #f59e0b;
+  --purchase-red: #ef4444;
+  --purchase-purple: #7c3aed;
+  --purchase-cyan: #0891b2;
+  --purchase-pink: #db2777;
+
+  --purchase-bg: #f5f7fb;
+  --purchase-card: #ffffff;
+  --purchase-border: #e5e7eb;
+
+  --purchase-text: #111827;
+  --purchase-muted: #6b7280;
+  --purchase-soft: #f8fafc;
+
+  width: 100%;
+  min-height: 100%;
+  padding: 24px;
+  box-sizing: border-box;
+
+  background: var(--purchase-bg);
+  color: var(--purchase-text);
+}
+
+/* ============================================================
+   HEADER
+============================================================ */
+
+.purchasing-dashboard .dashboard-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 24px;
+}
+
+.purchasing-dashboard .dashboard-header-left {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  min-width: 0;
+}
+
+.purchasing-dashboard .dashboard-title-icon {
+  width: 52px;
+  height: 52px;
+  min-width: 52px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 15px;
+
+  /* Light premium background */
+  background: linear-gradient(
+    135deg,
+    #eef2ff,
+    #e0e7ff
+  );
+
+  color: #6366f1;
+
+  font-size: 22px;
+
+  border: 1px solid #dbe4ff;
+
+  box-shadow:
+    0 6px 16px rgba(99, 102, 241, 0.10),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    background 0.2s ease;
+}
+
+.purchasing-dashboard .dashboard-title-icon:hover {
+  transform: translateY(-2px);
+
+  background: linear-gradient(
+    135deg,
+    #e0e7ff,
+    #c7d2fe
+  );
+
+  box-shadow:
+    0 9px 20px rgba(99, 102, 241, 0.15);
+}
+
+.purchasing-dashboard .dashboard-title-icon svg {
+  color: #6366f1;
+}
+.purchasing-dashboard .refresh-button svg {
+  font-size: 13px;
+}
+
+.purchasing-dashboard .refresh-button.refreshing svg {
+  animation: purchasing-spin 0.9s linear infinite;
+}
+
+/* ============================================================
+   SPIN
+============================================================ */
+
+@keyframes purchasing-spin {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ============================================================
+   ERROR
+============================================================ */
+
+.purchasing-dashboard .dashboard-error {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+
+  margin-bottom: 20px;
+  padding: 13px 15px;
+
+  border: 1px solid #fecaca;
+  border-radius: 12px;
+
+  background: #fff7f7;
+  color: #991b1b;
+
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.purchasing-dashboard .dashboard-error > svg {
+  color: var(--purchase-red);
+  font-size: 17px;
+  flex-shrink: 0;
+}
+
+.purchasing-dashboard .dashboard-error span {
+  flex: 1;
+}
+
+.purchasing-dashboard .dashboard-error button {
+  padding: 7px 12px;
+
+  border: none;
+  border-radius: 8px;
+
+  background: #fee2e2;
+  color: #991b1b;
+
+  font-size: 12px;
+  font-weight: 700;
+
+  cursor: pointer;
+}
+
+.purchasing-dashboard .dashboard-error button:hover {
+  background: #fecaca;
+}
+
+/* ============================================================
+   KPI / STAT GRID
+============================================================ */
+
+.purchasing-dashboard .stats-grid {
+  display: grid;
+
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+
+  gap: 16px;
+
+  margin-bottom: 20px;
+}
+
+/* ============================================================
+   STAT CARD
+============================================================ */
+
+.purchasing-dashboard .stat-card {
+  position: relative;
+  overflow: hidden;
+
+  min-height: 130px;
+
+  padding: 18px;
+
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+
+  box-sizing: border-box;
+
+  background: var(--purchase-card);
+
+  border: 1px solid var(--purchase-border);
+  border-radius: 17px;
+
+  box-shadow:
+    0 4px 14px rgba(15, 23, 42, 0.045);
+
+  transition:
+    transform 0.22s ease,
+    box-shadow 0.22s ease,
+    border-color 0.22s ease;
+}
+
+.purchasing-dashboard .stat-card::before {
+  content: "";
+
+  position: absolute;
+
+  top: 0;
+  left: 0;
+
+  width: 100%;
+  height: 3px;
+
+  opacity: 0.9;
+}
+
+.purchasing-dashboard .stat-card:hover {
+  transform: translateY(-3px);
+
+  box-shadow:
+    0 12px 28px rgba(15, 23, 42, 0.1);
+}
+
+.purchasing-dashboard .stat-disabled {
+  cursor: default;
+}
+
+/* ============================================================
+   STAT ICON
+============================================================ */
+
+.purchasing-dashboard .stat-icon {
+  width: 46px;
+  height: 46px;
+  min-width: 46px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 13px;
+
+  color: #ffffff;
+
+  font-size: 17px;
+
+  box-shadow:
+    0 7px 18px rgba(15, 23, 42, 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+
+.purchasing-dashboard .stat-content {
+  min-width: 0;
+  flex: 1;
+}
+
+.purchasing-dashboard .stat-title {
+  margin-bottom: 5px;
+
+  color: var(--purchase-muted);
+
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.purchasing-dashboard .stat-value {
+  color: var(--purchase-text);
+
+  font-size: 24px;
+  line-height: 1.15;
+
+  font-weight: 800;
+
+  letter-spacing: -0.5px;
+
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.purchasing-dashboard .stat-trend {
+  margin-top: 6px;
+
+  color: #94a3b8;
+
+  font-size: 10px;
+  font-weight: 600;
+
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.purchasing-dashboard .stat-arrow {
+  position: absolute;
+
+  right: 14px;
+  bottom: 13px;
+
+  width: 25px;
+  height: 25px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 8px;
+
+  background: #f1f5f9;
+  color: #64748b;
+
+  font-size: 10px;
+
+  transition:
+    background 0.2s ease,
+    color 0.2s ease,
+    transform 0.2s ease;
+}
+
+.purchasing-dashboard .stat-card:hover .stat-arrow {
+  transform: translateX(2px);
+
+  background: #eef2ff;
+  color: var(--purchase-primary);
+}
+
+/* ============================================================
+   STAT COLORS
+============================================================ */
+
+.purchasing-dashboard .stat-primary::before {
+  background: var(--purchase-primary);
+}
+
+.purchasing-dashboard .stat-primary .stat-icon {
+  background: linear-gradient(
+    135deg,
+    #6366f1,
+    #4f46e5
+  );
+}
+
+.purchasing-dashboard .stat-primary:hover {
+  border-color: #c7d2fe;
+}
+
+.purchasing-dashboard .stat-success::before {
+  background: var(--purchase-green);
+}
+
+.purchasing-dashboard .stat-success .stat-icon {
+  background: linear-gradient(
+    135deg,
+    #22c55e,
+    #15803d
+  );
+}
+
+.purchasing-dashboard .stat-success:hover {
+  border-color: #bbf7d0;
+}
+
+.purchasing-dashboard .stat-warning::before {
+  background: var(--purchase-orange);
+}
+
+.purchasing-dashboard .stat-warning .stat-icon {
+  background: linear-gradient(
+    135deg,
+    #fbbf24,
+    #d97706
+  );
+}
+
+.purchasing-dashboard .stat-warning:hover {
+  border-color: #fde68a;
+}
+
+.purchasing-dashboard .stat-info::before {
+  background: var(--purchase-blue);
+}
+
+.purchasing-dashboard .stat-info .stat-icon {
+  background: linear-gradient(
+    135deg,
+    #3b82f6,
+    #1d4ed8
+  );
+}
+
+.purchasing-dashboard .stat-info:hover {
+  border-color: #bfdbfe;
+}
+
+/* ============================================================
+   SUMMARY GRID
+============================================================ */
+
+.purchasing-dashboard .dashboard-summary-grid {
+  display: grid;
+
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+
+  gap: 18px;
+
+  margin-bottom: 20px;
+}
+
+/* ============================================================
+   SUMMARY CARD
+============================================================ */
+
+.purchasing-dashboard .summary-card {
+  position: relative;
+  overflow: hidden;
+
+  min-height: 190px;
+
+  padding: 20px;
+
+  box-sizing: border-box;
+
+  background: var(--purchase-card);
+
+  border: 1px solid var(--purchase-border);
+  border-radius: 17px;
+
+  box-shadow:
+    0 4px 14px rgba(15, 23, 42, 0.045);
+
+  transition:
+    transform 0.22s ease,
+    box-shadow 0.22s ease;
+}
+
+.purchasing-dashboard .summary-card:hover {
+  transform: translateY(-2px);
+
+  box-shadow:
+    0 12px 28px rgba(15, 23, 42, 0.08);
+}
+
+.purchasing-dashboard .summary-card::after {
+  content: "";
+
+  position: absolute;
+
+  width: 100px;
+  height: 100px;
+
+  right: -45px;
+  top: -45px;
+
+  border-radius: 50%;
+
+  background: rgba(99, 102, 241, 0.055);
+
+  pointer-events: none;
+}
+
+/* ============================================================
+   SUMMARY HEADER
+============================================================ */
+
+.purchasing-dashboard .summary-card-header {
+  display: flex;
+
+  align-items: flex-start;
+  justify-content: space-between;
+
+  gap: 12px;
+
+  margin-bottom: 20px;
+}
+
+.purchasing-dashboard .summary-card-header h3 {
+  margin: 0;
+
+  color: var(--purchase-text);
+
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.purchasing-dashboard .summary-card-header p {
+  margin: 5px 0 0;
+
+  color: var(--purchase-muted);
+
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.purchasing-dashboard .summary-card-header > svg {
+  width: 38px;
+  height: 38px;
+
+  padding: 10px;
+
+  box-sizing: border-box;
+
+  border-radius: 11px;
+
+  color: var(--purchase-primary);
+
+  background: #eef2ff;
+
+  flex-shrink: 0;
+}
+
+/* ============================================================
+   SUMMARY ITEMS
+============================================================ */
+
+.purchasing-dashboard .summary-items {
+  display: grid;
+
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+
+  gap: 10px;
+}
+
+.purchasing-dashboard .summary-item {
+  padding: 12px 13px;
+
+  display: flex;
+
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 10px;
+
+  border: 1px solid #edf0f5;
+
+  border-radius: 11px;
+
+  background: #fafbfc;
+}
+
+.purchasing-dashboard .summary-label {
+  color: var(--purchase-muted);
+
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.purchasing-dashboard .summary-item strong {
+  color: var(--purchase-text);
+
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.purchasing-dashboard .danger-text {
+  color: var(--purchase-red) !important;
+}
+
+/* ============================================================
+   SUPPLIER
+============================================================ */
+
+.purchasing-dashboard .supplier-total {
+  min-height: 67px;
+
+  padding: 12px 15px;
+
+  display: flex;
+
+  align-items: center;
+  justify-content: space-between;
+
+  border-radius: 12px;
+
+  background: linear-gradient(
+    135deg,
+    #f8faff,
+    #f1f5ff
+  );
+
+  border: 1px solid #e5e7eb;
+}
+
+.purchasing-dashboard .supplier-total span {
+  color: var(--purchase-muted);
+
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.purchasing-dashboard .supplier-total strong {
+  color: var(--purchase-primary);
+
+  font-size: 28px;
+  font-weight: 800;
+}
+
+.purchasing-dashboard .summary-action {
+  width: 100%;
+  height: 40px;
+
+  margin-top: 12px;
+
+  padding: 0 13px;
+
+  display: flex;
+
+  align-items: center;
+  justify-content: space-between;
+
+  border: 1px solid #e0e7ff;
+  border-radius: 10px;
+
+  background: #f8f9ff;
+
+  color: var(--purchase-primary);
+
+  font-size: 12px;
+  font-weight: 800;
+
+  cursor: pointer;
+
+  transition:
+    background 0.2s ease,
+    transform 0.2s ease;
+}
+
+.purchasing-dashboard .summary-action:hover {
+  background: #eef2ff;
+
+  transform: translateY(-1px);
+}
+
+/* ============================================================
+   BOTTOM TWO COLUMN AREA
+   RECENT PURCHASE BILLS + QUICK ACTIONS
+============================================================ */
+
+.purchasing-dashboard .recent-section,
+.purchasing-dashboard .quick-actions {
+  box-sizing: border-box;
+  vertical-align: top;
+}
+
+/*
+   Since both elements are direct children of
+   .purchasing-dashboard, use inline-block here.
+*/
+
+.purchasing-dashboard .recent-section {
+  width: calc(70% - 10px);
+
+  display: inline-block;
+
+  margin-right: 20px;
+  margin-bottom: 20px;
+
+  padding: 20px;
+
+  background: var(--purchase-card);
+
+  border: 1px solid var(--purchase-border);
+  border-radius: 17px;
+
+  box-shadow:
+    0 4px 14px rgba(15, 23, 42, 0.045);
+
+  vertical-align: top;
+}
+
+.purchasing-dashboard .quick-actions {
+  width: calc(30% - 10px);
+
+  display: inline-block;
+
+  margin-bottom: 20px;
+
+  padding: 20px;
+
+  background: var(--purchase-card);
+
+  border: 1px solid var(--purchase-border);
+  border-radius: 17px;
+
+  box-shadow:
+    0 4px 14px rgba(15, 23, 42, 0.045);
+
+  vertical-align: top;
+}
+
+/* ============================================================
+   RECENT HEADER
+============================================================ */
+
+.purchasing-dashboard .section-header {
+  display: flex;
+
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 15px;
+
+  margin-bottom: 17px;
+}
+
+.purchasing-dashboard .section-header h2 {
+  margin: 0;
+
+  color: var(--purchase-text);
+
+  font-size: 17px;
+  font-weight: 800;
+}
+
+.purchasing-dashboard .section-header p {
+  margin: 5px 0 0;
+
+  color: var(--purchase-muted);
+
+  font-size: 11px;
+}
+
+.purchasing-dashboard .view-all-button {
+  height: 36px;
+
+  padding: 0 13px;
+
+  display: inline-flex;
+
+  align-items: center;
+  justify-content: center;
+
+  gap: 8px;
+
+  border: 1px solid #e0e7ff;
+
+  border-radius: 9px;
+
+  background: #f8f9ff;
+
+  color: var(--purchase-primary);
+
+  font-size: 11px;
+  font-weight: 800;
+
+  cursor: pointer;
+
+  white-space: nowrap;
+}
+
+.purchasing-dashboard .view-all-button:hover {
+  background: #eef2ff;
+}
+
+/* ============================================================
+   INVOICE TABLE
+============================================================ */
+
+.purchasing-dashboard .invoice-table-wrapper {
+  width: 100%;
+
+  overflow-x: auto;
+
+  border: 1px solid #edf0f5;
+
+  border-radius: 13px;
+}
+
+.purchasing-dashboard .invoice-table {
+  width: 100%;
+
+  min-width: 650px;
+
+  border-collapse: collapse;
+}
+
+.purchasing-dashboard .invoice-table thead {
+  background: #f8fafc;
+}
+
+.purchasing-dashboard .invoice-table th {
+  padding: 12px 14px;
+
+  color: #64748b;
+
+  font-size: 10px;
+  font-weight: 800;
+
+  text-transform: uppercase;
+  letter-spacing: 0.45px;
+
+  text-align: left;
+
+  white-space: nowrap;
+
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.purchasing-dashboard .invoice-table td {
+  padding: 13px 14px;
+
+  color: #475569;
+
+  font-size: 12px;
+  font-weight: 500;
+
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.purchasing-dashboard .invoice-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.purchasing-dashboard .invoice-table tbody tr {
+  transition: background 0.18s ease;
+}
+
+.purchasing-dashboard .invoice-table tbody tr:hover {
+  background: #fafbff;
+}
+
+.purchasing-dashboard .invoice-number {
+  display: inline-flex;
+
+  align-items: center;
+
+  color: var(--purchase-primary);
+
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.purchasing-dashboard .supplier-cell {
+  max-width: 180px;
+
+  color: #334155;
+
+  font-weight: 700;
+
+  white-space: nowrap;
+
+  overflow: hidden;
+
+  text-overflow: ellipsis;
+}
+
+.purchasing-dashboard .amount-cell {
+  color: #111827;
+
+  font-size: 12px;
+  font-weight: 800;
+
+  white-space: nowrap;
+}
+
+/* ============================================================
+   STATUS
+============================================================ */
+
+.purchasing-dashboard .order-status {
+  display: inline-flex;
+
+  align-items: center;
+  justify-content: center;
+
+  min-width: 78px;
+
+  padding: 5px 9px;
+
+  border-radius: 999px;
+
+  font-size: 10px;
+  line-height: 1;
+
+  font-weight: 800;
+
+  text-transform: capitalize;
+
+  white-space: nowrap;
+}
+
+.purchasing-dashboard .order-status.draft {
+  color: #92400e;
+  background: #fef3c7;
+}
+
+.purchasing-dashboard .order-status.pending {
+  color: #9a3412;
+  background: #ffedd5;
+}
+
+.purchasing-dashboard .order-status.submitted {
+  color: #1d4ed8;
+  background: #dbeafe;
+}
+
+.purchasing-dashboard .order-status.approved {
+  color: #166534;
+  background: #dcfce7;
+}
+
+.purchasing-dashboard .order-status.processing {
+  color: #6d28d9;
+  background: #ede9fe;
+}
+
+.purchasing-dashboard .order-status.completed {
+  color: #166534;
+  background: #dcfce7;
+}
+
+.purchasing-dashboard .order-status.cancelled {
+  color: #991b1b;
+  background: #fee2e2;
+}
+
+.purchasing-dashboard .order-status.overdue {
+  color: #b91c1c;
+  background: #fecaca;
+}
+
+.purchasing-dashboard .order-status.default {
+  color: #475569;
+  background: #f1f5f9;
+}
+
+/* ============================================================
+   EMPTY STATE
+============================================================ */
+
+.purchasing-dashboard .empty-state {
+  min-height: 220px;
+
+  display: flex;
+
+  flex-direction: column;
+
+  align-items: center;
+  justify-content: center;
+
+  text-align: center;
+
+  border: 1px dashed #dbe1ea;
+
+  border-radius: 13px;
+
+  background: #fafbfc;
+}
+
+.purchasing-dashboard .empty-state > svg {
+  width: 50px;
+  height: 50px;
+
+  padding: 14px;
+
+  box-sizing: border-box;
+
+  border-radius: 15px;
+
+  color: #818cf8;
+
+  background: #eef2ff;
+
+  margin-bottom: 12px;
+}
+
+.purchasing-dashboard .empty-state h3 {
+  margin: 0;
+
+  color: #334155;
+
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.purchasing-dashboard .empty-state p {
+  margin: 6px 0 0;
+
+  color: #94a3b8;
+
+  font-size: 11px;
+}
+
+/* ============================================================
+   QUICK ACTION HEADER
+============================================================ */
+
+.purchasing-dashboard .quick-actions-header {
+  margin-bottom: 16px;
+}
+
+.purchasing-dashboard .quick-actions-header h2 {
+  margin: 0;
+
+  color: var(--purchase-text);
+
+  font-size: 17px;
+  font-weight: 800;
+}
+
+.purchasing-dashboard .quick-actions-header p {
+  margin: 5px 0 0;
+
+  color: var(--purchase-muted);
+
+  font-size: 11px;
+}
+
+/* ============================================================
+   QUICK ACTION GRID
+============================================================ */
+
+.purchasing-dashboard .quick-actions-grid {
+  width: 100%;
+
+  display: flex;
+
+  flex-direction: column;
+
+  gap: 10px;
+}
+
+/* ============================================================
+   QUICK ACTION CARD
+============================================================ */
+
+.purchasing-dashboard .quick-action-card {
+  width: 100%;
+  min-height: 65px;
+
+  padding: 11px;
+
+  box-sizing: border-box;
+
+  display: flex;
+
+  align-items: center;
+
+  gap: 11px;
+
+  text-align: left;
+
+  border: 1px solid #e8ebf2;
+
+  border-radius: 13px;
+
+  background: #ffffff;
+
+  cursor: pointer;
+
+  transition:
+    transform 0.2s ease,
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.purchasing-dashboard .quick-action-card:hover {
+  transform: translateY(-2px);
+
+  border-color: #c7d2fe;
+
+  box-shadow:
+    0 9px 20px rgba(15, 23, 42, 0.08);
+}
+
+/* ============================================================
+   QUICK ACTION ICON
+============================================================ */
+
+.purchasing-dashboard .quick-action-icon {
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+
+  display: flex;
+
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 11px;
+
+  color: #ffffff;
+
+  font-size: 15px;
+
+  background: linear-gradient(
+    135deg,
+    #6366f1,
+    #4f46e5
+  );
+
+  box-shadow:
+    0 6px 14px rgba(79, 70, 229, 0.22);
+}
+
+.purchasing-dashboard
+.quick-action-card:nth-child(2)
+.quick-action-icon {
+  background: linear-gradient(
+    135deg,
+    #3b82f6,
+    #1d4ed8
+  );
+}
+
+.purchasing-dashboard
+.quick-action-card:nth-child(3)
+.quick-action-icon {
+  background: linear-gradient(
+    135deg,
+    #22c55e,
+    #15803d
+  );
+}
+
+.purchasing-dashboard
+.quick-action-card:nth-child(4)
+.quick-action-icon {
+  background: linear-gradient(
+    135deg,
+    #f59e0b,
+    #d97706
+  );
+}
+
+/* ============================================================
+   QUICK ACTION TEXT
+============================================================ */
+
+.purchasing-dashboard
+.quick-action-card > div:nth-child(2) {
+  flex: 1;
+
+  min-width: 0;
+
+  display: flex;
+
+  flex-direction: column;
+
+  gap: 3px;
+}
+
+.purchasing-dashboard .quick-action-card strong {
+  color: #1e293b;
+
+  font-size: 12px;
+  font-weight: 800;
+
+  white-space: nowrap;
+
+  overflow: hidden;
+
+  text-overflow: ellipsis;
+}
+
+.purchasing-dashboard .quick-action-card span {
+  color: #94a3b8;
+
+  font-size: 10px;
+  font-weight: 600;
+
+  white-space: nowrap;
+
+  overflow: hidden;
+
+  text-overflow: ellipsis;
+}
+
+.purchasing-dashboard .quick-action-card > svg {
+  color: #94a3b8;
+
+  font-size: 11px;
+
+  flex-shrink: 0;
+
+  transition:
+    transform 0.2s ease,
+    color 0.2s ease;
+}
+
+.purchasing-dashboard .quick-action-card:hover > svg {
+  color: var(--purchase-primary);
+
+  transform: translateX(3px);
+}
+
+/* ============================================================
+   LOADING
+============================================================ */
+
+.purchasing-dashboard .dashboard-loading {
+  min-height: 520px;
+
+  display: flex;
+
+  flex-direction: column;
+
+  align-items: center;
+  justify-content: center;
+
+  color: #64748b;
+}
+
+.purchasing-dashboard .loading-spinner {
+  width: 54px;
+  height: 54px;
+
+  display: flex;
+
+  align-items: center;
+  justify-content: center;
+
+  margin-bottom: 14px;
+
+  border-radius: 15px;
+
+  color: #ffffff;
+
+  background: linear-gradient(
+    135deg,
+    #6366f1,
+    #4f46e5
+  );
+
+  box-shadow:
+    0 10px 25px rgba(79, 70, 229, 0.25);
+
+  animation:
+    purchasing-pulse 1.3s ease-in-out infinite;
+}
+
+.purchasing-dashboard .loading-spinner svg {
+  font-size: 21px;
+
+  animation:
+    purchasing-spin 1s linear infinite;
+}
+
+.purchasing-dashboard .dashboard-loading p {
+  margin: 0;
+
+  font-size: 13px;
+  font-weight: 700;
+}
+
+@keyframes purchasing-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+
+  50% {
+    transform: scale(1.06);
+  }
+}
+
+/* ============================================================
+   SCROLLBAR
+============================================================ */
+
+.purchasing-dashboard ::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+
+.purchasing-dashboard ::-webkit-scrollbar-track {
+  background: #f1f5f9;
+
+  border-radius: 10px;
+}
+
+.purchasing-dashboard ::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+
+  border-radius: 10px;
+}
+
+.purchasing-dashboard ::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* ============================================================
+   DARK MODE
+============================================================ */
+
+.dashboard-page.dark .purchasing-dashboard,
+.purchasing-dashboard.dark {
+  --purchase-bg: #0f172a;
+  --purchase-card: #111827;
+  --purchase-border: #1f2937;
+  --purchase-text: #f8fafc;
+  --purchase-muted: #94a3b8;
+  --purchase-soft: #172033;
+
+  background: #0f172a;
+
+  color: #f8fafc;
+}
+
+/* Header */
+
+.dashboard-page.dark
+.purchasing-dashboard
+.dashboard-header
+h1,
+.purchasing-dashboard.dark
+.dashboard-header
+h1 {
+  color: #f8fafc;
+}
+
+.dashboard-page.dark
+.purchasing-dashboard
+.refresh-button,
+.purchasing-dashboard.dark
+.refresh-button {
+  background: #111827;
+
+  border-color: #263244;
+
+  color: #e2e8f0;
+}
+
+.dashboard-page.dark
+.purchasing-dashboard
+.refresh-button:hover,
+.purchasing-dashboard.dark
+.refresh-button:hover {
+  background: #172033;
+}
+
+/* Cards */
+
+.dashboard-page.dark
+.purchasing-dashboard
+.stat-card,
+.purchasing-dashboard.dark
+.stat-card,
+.dashboard-page.dark
+.purchasing-dashboard
+.summary-card,
+.purchasing-dashboard.dark
+.summary-card,
+.dashboard-page.dark
+.purchasing-dashboard
+.recent-section,
+.purchasing-dashboard.dark
+.recent-section,
+.dashboard-page.dark
+.purchasing-dashboard
+.quick-actions,
+.purchasing-dashboard.dark
+.quick-actions {
+  background: #111827;
+
+  border-color: #1f2937;
+}
+
+/* Text */
+
+.dashboard-page.dark
+.purchasing-dashboard
+.stat-value,
+.purchasing-dashboard.dark
+.stat-value,
+.dashboard-page.dark
+.purchasing-dashboard
+.summary-card-header
+h3,
+.purchasing-dashboard.dark
+.summary-card-header
+h3,
+.dashboard-page.dark
+.purchasing-dashboard
+.section-header
+h2,
+.purchasing-dashboard.dark
+.section-header
+h2,
+.dashboard-page.dark
+.purchasing-dashboard
+.quick-actions-header
+h2,
+.purchasing-dashboard.dark
+.quick-actions-header
+h2 {
+  color: #f8fafc;
+}
+
+/* Arrow */
+
+.dashboard-page.dark
+.purchasing-dashboard
+.stat-arrow,
+.purchasing-dashboard.dark
+.stat-arrow {
+  background: #1e293b;
+
+  color: #94a3b8;
+}
+
+/* Summary */
+
+.dashboard-page.dark
+.purchasing-dashboard
+.summary-item,
+.purchasing-dashboard.dark
+.summary-item {
+  background: #172033;
+
+  border-color: #263244;
+}
+
+.dashboard-page.dark
+.purchasing-dashboard
+.supplier-total,
+.purchasing-dashboard.dark
+.supplier-total {
+  background: #172033;
+
+  border-color: #263244;
+}
+
+/* Buttons */
+
+.dashboard-page.dark
+.purchasing-dashboard
+.summary-action,
+.purchasing-dashboard.dark
+.summary-action,
+.dashboard-page.dark
+.purchasing-dashboard
+.view-all-button,
+.purchasing-dashboard.dark
+.view-all-button {
+  background: #172033;
+
+  border-color: #303d55;
+
+  color: #a5b4fc;
+}
+
+/* Table */
+
+.dashboard-page.dark
+.purchasing-dashboard
+.invoice-table-wrapper,
+.purchasing-dashboard.dark
+.invoice-table-wrapper {
+  border-color: #263244;
+}
+
+.dashboard-page.dark
+.purchasing-dashboard
+.invoice-table
+thead,
+.purchasing-dashboard.dark
+.invoice-table
+thead {
+  background: #172033;
+}
+
+.dashboard-page.dark
+.purchasing-dashboard
+.invoice-table
+th,
+.purchasing-dashboard.dark
+.invoice-table
+th {
+  color: #94a3b8;
+
+  border-color: #263244;
+}
+
+.dashboard-page.dark
+.purchasing-dashboard
+.invoice-table
+td,
+.purchasing-dashboard.dark
+.invoice-table
+td {
+  color: #cbd5e1;
+
+  border-color: #1f2937;
+}
+
+.dashboard-page.dark
+.purchasing-dashboard
+.invoice-table
+tbody
+tr:hover,
+.purchasing-dashboard.dark
+.invoice-table
+tbody
+tr:hover {
+  background: #172033;
+}
+
+.dashboard-page.dark
+.purchasing-dashboard
+.supplier-cell,
+.purchasing-dashboard.dark
+.supplier-cell,
+.dashboard-page.dark
+.purchasing-dashboard
+.amount-cell,
+.purchasing-dashboard.dark
+.amount-cell {
+  color: #e2e8f0;
+}
+
+/* Quick Actions */
+
+.dashboard-page.dark
+.purchasing-dashboard
+.quick-action-card,
+.purchasing-dashboard.dark
+.quick-action-card {
+  background: #111827;
+
+  border-color: #263244;
+}
+
+.dashboard-page.dark
+.purchasing-dashboard
+.quick-action-card
+strong,
+.purchasing-dashboard.dark
+.quick-action-card
+strong {
+  color: #f1f5f9;
+}
+
+/* Empty */
+
+.dashboard-page.dark
+.purchasing-dashboard
+.empty-state,
+.purchasing-dashboard.dark
+.empty-state {
+  background: #172033;
+
+  border-color: #334155;
+}
+
+.dashboard-page.dark
+.purchasing-dashboard
+.empty-state
+h3,
+.purchasing-dashboard.dark
+.empty-state
+h3 {
+  color: #e2e8f0;
+}
+
+/* Error */
+
+.dashboard-page.dark
+.purchasing-dashboard
+.dashboard-error,
+.purchasing-dashboard.dark
+.dashboard-error {
+  background: #2a1518;
+
+  border-color: #5b2026;
+
+  color: #fca5a5;
+}
+
+/* ============================================================
+   LARGE DESKTOP
+============================================================ */
+
+@media (max-width: 1200px) {
+  .purchasing-dashboard .stats-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+/* ============================================================
+   TABLET
+============================================================ */
+
+@media (max-width: 1000px) {
+  .purchasing-dashboard {
+    padding: 20px;
+  }
+
+  .purchasing-dashboard .stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .purchasing-dashboard .dashboard-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .purchasing-dashboard
+  .dashboard-summary-grid
+  .summary-card:last-child {
+    grid-column: 1 / -1;
+  }
+
+  /*
+    Recent + Quick Actions
+    65% / 35%
+  */
+
+  .purchasing-dashboard .recent-section {
+    width: calc(65% - 8px);
+
+    margin-right: 16px;
+  }
+
+  .purchasing-dashboard .quick-actions {
+    width: calc(35% - 8px);
+  }
+
+  .purchasing-dashboard .quick-action-card {
+    padding: 10px;
+  }
+
+  .purchasing-dashboard .quick-action-icon {
+    width: 36px;
+    height: 36px;
+    min-width: 36px;
+  }
+}
+
+/* ============================================================
+   SMALL TABLET
+============================================================ */
+
+@media (max-width: 800px) {
+  .purchasing-dashboard {
+    padding: 16px;
+  }
+
+  .purchasing-dashboard .dashboard-header {
     align-items: flex-start;
-    gap: 8px;
+  }
+
+  .purchasing-dashboard .dashboard-header h1 {
+    font-size: 21px;
+  }
+
+  .purchasing-dashboard .dashboard-header p {
+    font-size: 11px;
+  }
+
+  .purchasing-dashboard .dashboard-title-icon {
+    width: 46px;
+    height: 46px;
+    min-width: 46px;
+  }
+
+  .purchasing-dashboard .dashboard-summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .purchasing-dashboard
+  .dashboard-summary-grid
+  .summary-card:last-child {
+    grid-column: auto;
+  }
+
+  /*
+    At this size stack Recent + Quick Actions
+  */
+
+  .purchasing-dashboard .recent-section,
+  .purchasing-dashboard .quick-actions {
+    width: 100%;
+
+    display: block;
+
+    margin-right: 0;
+    margin-bottom: 18px;
+  }
+
+  .purchasing-dashboard .quick-actions-grid {
+    display: grid;
+
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+
+    gap: 10px;
+  }
+}
+
+/* ============================================================
+   MOBILE
+============================================================ */
+
+@media (max-width: 600px) {
+  .purchasing-dashboard {
+    padding: 12px;
+  }
+
+  .purchasing-dashboard .dashboard-header {
+    flex-direction: column;
+
+    align-items: stretch;
+
+    gap: 13px;
+  }
+
+  .purchasing-dashboard .dashboard-header-left {
+    align-items: flex-start;
+  }
+
+  .purchasing-dashboard .refresh-button {
+    width: 100%;
+  }
+
+  .purchasing-dashboard .stats-grid {
+    grid-template-columns: 1fr 1fr;
+
+    gap: 10px;
+  }
+
+  .purchasing-dashboard .stat-card {
+    min-height: 118px;
+
+    padding: 14px;
+
+    gap: 10px;
+
+    border-radius: 14px;
+  }
+
+  .purchasing-dashboard .stat-icon {
+    width: 38px;
+    height: 38px;
+    min-width: 38px;
+
+    border-radius: 10px;
+
+    font-size: 14px;
+  }
+
+  .purchasing-dashboard .stat-title {
+    font-size: 10px;
+  }
+
+  .purchasing-dashboard .stat-value {
+    font-size: 19px;
+  }
+
+  .purchasing-dashboard .stat-trend {
+    font-size: 9px;
+  }
+
+  .purchasing-dashboard .stat-arrow {
+    width: 21px;
+    height: 21px;
+
+    right: 9px;
+    bottom: 9px;
+  }
+
+  .purchasing-dashboard .summary-card,
+  .purchasing-dashboard .recent-section,
+  .purchasing-dashboard .quick-actions {
+    padding: 15px;
+
+    border-radius: 14px;
+  }
+
+  .purchasing-dashboard .section-header {
+    flex-direction: column;
+
+    align-items: flex-start;
+  }
+
+  .purchasing-dashboard .view-all-button {
+    width: 100%;
+  }
+
+  .purchasing-dashboard .quick-actions-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .purchasing-dashboard .quick-action-card {
+    min-height: 70px;
+  }
+}
+
+/* ============================================================
+   VERY SMALL MOBILE
+============================================================ */
+
+@media (max-width: 450px) {
+  .purchasing-dashboard .stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .purchasing-dashboard .quick-actions-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .purchasing-dashboard .dashboard-header h1 {
+    font-size: 19px;
+  }
+
+  .purchasing-dashboard .dashboard-title-icon {
+    width: 42px;
+    height: 42px;
+    min-width: 42px;
+
+    font-size: 18px;
+  }
+
+  .purchasing-dashboard .summary-items {
+    grid-template-columns: 1fr;
+  }
+
+  .purchasing-dashboard .stat-value {
+    font-size: 22px;
+  }
+}
+
+/* ============================================================
+   LOADING
+============================================================ */
+
+.purchasing-dashboard .dashboard-loading {
+  min-height: 520px;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+
+  color: #64748b;
+}
+
+.purchasing-dashboard .loading-spinner {
+  width: 54px;
+  height: 54px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  margin-bottom: 14px;
+
+  border-radius: 15px;
+
+  color: #ffffff;
+
+  background: linear-gradient(
+    135deg,
+    #6366f1,
+    #4f46e5
+  );
+
+  box-shadow: 0 10px 25px rgba(79, 70, 229, 0.25);
+
+  animation: purchasing-pulse 1.3s ease-in-out infinite;
+}
+
+.purchasing-dashboard .loading-spinner svg {
+  font-size: 21px;
+  animation: purchasing-spin 1s linear infinite;
+}
+
+.purchasing-dashboard .dashboard-loading p {
+  margin: 0;
+
+  font-size: 13px;
+  font-weight: 700;
+}
+
+@keyframes purchasing-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+
+  50% {
+    transform: scale(1.06);
+  }
+}
+
+/* ============================================================
+   SCROLLBAR
+============================================================ */
+
+.purchasing-dashboard ::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+
+.purchasing-dashboard ::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 10px;
+}
+
+.purchasing-dashboard ::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 10px;
+}
+
+.purchasing-dashboard ::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* ============================================================
+   DARK MODE
+============================================================ */
+
+.dashboard-page.dark .purchasing-dashboard,
+.purchasing-dashboard.dark {
+  --purchase-bg: #0f172a;
+  --purchase-card: #111827;
+  --purchase-border: #1f2937;
+  --purchase-text: #f8fafc;
+  --purchase-muted: #94a3b8;
+  --purchase-soft: #172033;
+
+  background: #0f172a;
+  color: #f8fafc;
+}
+
+.dashboard-page.dark .purchasing-dashboard .dashboard-header h1,
+.purchasing-dashboard.dark .dashboard-header h1,
+.dashboard-page.dark .purchasing-dashboard .stat-value,
+.purchasing-dashboard.dark .stat-value,
+.dashboard-page.dark .purchasing-dashboard .summary-card-header h3,
+.purchasing-dashboard.dark .summary-card-header h3,
+.dashboard-page.dark .purchasing-dashboard .section-header h2,
+.purchasing-dashboard.dark .section-header h2,
+.dashboard-page.dark .purchasing-dashboard .quick-actions-header h2,
+.purchasing-dashboard.dark .quick-actions-header h2 {
+  color: #f8fafc;
+}
+
+.dashboard-page.dark .purchasing-dashboard .refresh-button,
+.purchasing-dashboard.dark .refresh-button {
+  background: #111827;
+  border-color: #263244;
+  color: #e2e8f0;
+}
+
+.dashboard-page.dark .purchasing-dashboard .refresh-button:hover,
+.purchasing-dashboard.dark .refresh-button:hover {
+  background: #172033;
+}
+
+.dashboard-page.dark .purchasing-dashboard .stat-card,
+.purchasing-dashboard.dark .stat-card,
+.dashboard-page.dark .purchasing-dashboard .summary-card,
+.purchasing-dashboard.dark .summary-card,
+.dashboard-page.dark .purchasing-dashboard .recent-section,
+.purchasing-dashboard.dark .recent-section,
+.dashboard-page.dark .purchasing-dashboard .quick-actions,
+.purchasing-dashboard.dark .quick-actions {
+  background: #111827;
+  border-color: #1f2937;
+}
+
+.dashboard-page.dark .purchasing-dashboard .stat-arrow,
+.purchasing-dashboard.dark .stat-arrow {
+  background: #1e293b;
+  color: #94a3b8;
+}
+
+.dashboard-page.dark .purchasing-dashboard .summary-item,
+.purchasing-dashboard.dark .summary-item {
+  background: #172033;
+  border-color: #263244;
+}
+
+.dashboard-page.dark .purchasing-dashboard .supplier-total,
+.purchasing-dashboard.dark .supplier-total {
+  background: #172033;
+  border-color: #263244;
+}
+
+.dashboard-page.dark .purchasing-dashboard .summary-action,
+.purchasing-dashboard.dark .summary-action,
+.dashboard-page.dark .purchasing-dashboard .view-all-button,
+.purchasing-dashboard.dark .view-all-button {
+  background: #172033;
+  border-color: #303d55;
+  color: #a5b4fc;
+}
+
+.dashboard-page.dark .purchasing-dashboard .invoice-table-wrapper,
+.purchasing-dashboard.dark .invoice-table-wrapper {
+  border-color: #263244;
+}
+
+.dashboard-page.dark .purchasing-dashboard .invoice-table thead,
+.purchasing-dashboard.dark .invoice-table thead {
+  background: #172033;
+}
+
+.dashboard-page.dark .purchasing-dashboard .invoice-table th,
+.purchasing-dashboard.dark .invoice-table th {
+  color: #94a3b8;
+  border-color: #263244;
+}
+
+.dashboard-page.dark .purchasing-dashboard .invoice-table td,
+.purchasing-dashboard.dark .invoice-table td {
+  color: #cbd5e1;
+  border-color: #1f2937;
+}
+
+.dashboard-page.dark .purchasing-dashboard .invoice-table tbody tr:hover,
+.purchasing-dashboard.dark .invoice-table tbody tr:hover {
+  background: #172033;
+}
+
+.dashboard-page.dark .purchasing-dashboard .supplier-cell,
+.purchasing-dashboard.dark .supplier-cell,
+.dashboard-page.dark .purchasing-dashboard .amount-cell,
+.purchasing-dashboard.dark .amount-cell {
+  color: #e2e8f0;
+}
+
+.dashboard-page.dark .purchasing-dashboard .quick-action-card,
+.purchasing-dashboard.dark .quick-action-card {
+  background: #111827;
+  border-color: #263244;
+}
+
+.dashboard-page.dark .purchasing-dashboard .quick-action-card strong,
+.purchasing-dashboard.dark .quick-action-card strong {
+  color: #f1f5f9;
+}
+
+.dashboard-page.dark .purchasing-dashboard .empty-state,
+.purchasing-dashboard.dark .empty-state {
+  background: #172033;
+  border-color: #334155;
+}
+
+.dashboard-page.dark .purchasing-dashboard .empty-state h3,
+.purchasing-dashboard.dark .empty-state h3 {
+  color: #e2e8f0;
+}
+
+.dashboard-page.dark .purchasing-dashboard .dashboard-error,
+.purchasing-dashboard.dark .dashboard-error {
+  background: #2a1518;
+  border-color: #5b2026;
+  color: #fca5a5;
+}
+
+/* ============================================================
+   LARGE DESKTOP
+============================================================ */
+
+@media (max-width: 1200px) {
+  .purchasing-dashboard .stats-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .purchasing-dashboard .quick-actions-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* ============================================================
+   TABLET
+============================================================ */
+
+@media (max-width: 1000px) {
+  .purchasing-dashboard {
+    padding: 20px;
+  }
+
+  .purchasing-dashboard .stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .purchasing-dashboard .dashboard-summary-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .purchasing-dashboard .dashboard-summary-grid
+    .summary-card:last-child {
+    grid-column: 1 / -1;
+  }
+}
+
+/* ============================================================
+   SMALL TABLET
+============================================================ */
+
+@media (max-width: 760px) {
+  .purchasing-dashboard {
+    padding: 16px;
+  }
+
+  .purchasing-dashboard .dashboard-header {
+    align-items: flex-start;
+  }
+
+  .purchasing-dashboard .dashboard-header h1 {
+    font-size: 21px;
+  }
+
+  .purchasing-dashboard .dashboard-header p {
+    font-size: 11px;
+  }
+
+  .purchasing-dashboard .dashboard-title-icon {
+    width: 46px;
+    height: 46px;
+    min-width: 46px;
+    font-size: 19px;
+  }
+
+  .purchasing-dashboard .dashboard-summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .purchasing-dashboard .dashboard-summary-grid
+    .summary-card:last-child {
+    grid-column: auto;
+  }
+
+  .purchasing-dashboard .quick-actions-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* ============================================================
+   MOBILE
+============================================================ */
+
+@media (max-width: 600px) {
+  .purchasing-dashboard {
+    padding: 12px;
+  }
+
+  .purchasing-dashboard .dashboard-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 13px;
+  }
+
+  .purchasing-dashboard .dashboard-header-left {
+    align-items: flex-start;
+  }
+
+  .purchasing-dashboard .refresh-button {
+    width: 100%;
+  }
+
+  .purchasing-dashboard .stats-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  .purchasing-dashboard .stat-card {
+    min-height: 118px;
+    padding: 14px;
+    gap: 10px;
+    border-radius: 14px;
+  }
+
+  .purchasing-dashboard .stat-icon {
+    width: 38px;
+    height: 38px;
+    min-width: 38px;
+    border-radius: 10px;
+    font-size: 14px;
+  }
+
+  .purchasing-dashboard .stat-title {
+    font-size: 10px;
+  }
+
+  .purchasing-dashboard .stat-value {
+    font-size: 19px;
+  }
+
+  .purchasing-dashboard .stat-trend {
+    font-size: 9px;
+  }
+
+  .purchasing-dashboard .stat-arrow {
+    width: 21px;
+    height: 21px;
+    right: 9px;
+    bottom: 9px;
+  }
+
+  .purchasing-dashboard .summary-card,
+  .purchasing-dashboard .recent-section,
+  .purchasing-dashboard .quick-actions {
+    padding: 15px;
+    border-radius: 14px;
+  }
+
+  .purchasing-dashboard .section-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .purchasing-dashboard .view-all-button {
+    width: 100%;
+  }
+
+  .purchasing-dashboard .quick-actions-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .purchasing-dashboard .quick-action-card {
+    min-height: 70px;
+  }
+}
+
+/* ============================================================
+   VERY SMALL MOBILE
+============================================================ */
+
+@media (max-width: 390px) {
+  .purchasing-dashboard {
+    padding: 10px;
+  }
+
+  .purchasing-dashboard .stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .purchasing-dashboard .dashboard-header h1 {
+    font-size: 19px;
+  }
+
+  .purchasing-dashboard .dashboard-title-icon {
+    width: 42px;
+    height: 42px;
+    min-width: 42px;
+  }
+
+  .purchasing-dashboard .summary-items {
+    grid-template-columns: 1fr;
+  }
+
+  .purchasing-dashboard .stat-value {
+    font-size: 22px;
   }
 }

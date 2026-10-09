@@ -1,4 +1,4 @@
-// Workstation.tsx - Fixed with Client-Side Pagination Fallback
+// Workstation.tsx - Fixed with Client-Side Pagination
 
 import { useState, useEffect, useRef } from "react";
 import {
@@ -16,14 +16,12 @@ import {
   FaClock,
   FaChevronDown,
   FaCalendarAlt,
-
 } from 'react-icons/fa';
 import "./Workstation.css";
 import '../pages/Sales/SalesMobileTable.css';
 import { useAdminTheme } from '../admin-theme/AdminThemeContext';
 import api from '../services/api';
 import NewWorkstation from './NewWorkstation';
-import { PageLoader } from "../components/PageLoader";
 
 interface Workstation {
   id: number;
@@ -63,15 +61,15 @@ interface ApiResponse {
   };
 }
 
-export default function WorkstationList() {
+export default function Workstation() {
   const { theme } = useAdminTheme();
-  
+
   const [showNewWorkstation, setShowNewWorkstation] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [selectedWorkstation, setSelectedWorkstation] = useState<Workstation | null>(null);
   const [editData, setEditData] = useState<Workstation | null>(null);
   const [isViewMode, setIsViewMode] = useState(false);
-  
+
   const [allWorkstations, setAllWorkstations] = useState<Workstation[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -83,7 +81,7 @@ export default function WorkstationList() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Workstation | null>(null);
 
-  // ─── Date Range Filter State (From - To, same UI as Purchase Order) ───
+  // ─── Date Range Filter State ──────────────────────────────────────────
   const [dateFrom, setDateFrom] = useState<Date | null>(null);
   const [dateTo, setDateTo] = useState<Date | null>(null);
   const [tempFrom, setTempFrom] = useState<Date | null>(null);
@@ -92,9 +90,7 @@ export default function WorkstationList() {
   const [calendarMonth, setCalendarMonth] = useState<Date>(new Date());
   const datePickerRef = useRef<HTMLDivElement>(null);
 
-  // ─── Format date ──────────────────────────────────────────────────────────
-
-   // ─── Mobile expanded rows state ──────────────────────────────────
+  // ─── Mobile expanded rows state ───────────────────────────────────────
   const [expandedRows, setExpandedRows] = useState<Set<string | number>>(new Set());
 
   const toggleRowExpand = (id: string | number, e?: React.MouseEvent) => {
@@ -107,7 +103,7 @@ export default function WorkstationList() {
     });
   };
 
-  // ─── Date Range Filter Helpers ─────────────────────────────────────────
+  // ─── Date Range Filter Helpers ────────────────────────────────────────
   const toISODate = (d: Date) => {
     const y = d.getFullYear();
     const m = String(d.getMonth() + 1).padStart(2, '0');
@@ -185,8 +181,10 @@ export default function WorkstationList() {
     setCalendarMonth(from);
   };
 
-  const prevMonth = () => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1, 1));
-  const nextMonth = () => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 1));
+  const prevMonth = () =>
+    setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1, 1));
+  const nextMonth = () =>
+    setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 1));
 
   const applyDateFilter = () => {
     setDateFrom(tempFrom);
@@ -215,23 +213,16 @@ export default function WorkstationList() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showDatePicker]);
 
-  // ─── Fetch ALL workstations (without pagination) and handle pagination client-side ─────
+  // ─── Fetch ALL workstations (pagination done client-side) ─────────────
   const fetchWorkstations = async () => {
     setLoading(true);
     setError(null);
     try {
       const params = new URLSearchParams();
-      
-      // ✅ Don't send page and limit - fetch ALL records
-      // Only send search and filter parameters
-      if (searchTerm.trim()) {
-        params.append('search', searchTerm.trim());
-      }
-      
+
+      if (searchTerm.trim()) params.append('search', searchTerm.trim());
       if (dateFrom) params.append('from', toISODate(dateFrom));
       if (dateTo) params.append('to', toISODate(dateTo));
-
-      // Add status filter
       if (statusFilter !== 'all') {
         params.append('is_deleted', statusFilter === 'active' ? '0' : '1');
       }
@@ -240,36 +231,29 @@ export default function WorkstationList() {
       console.log('API URL (fetching all):', url);
 
       const response = await api.get<ApiResponse>(url);
-      
+
       if (response.data.success === 1) {
         const data = response.data.data;
-        
-        // ✅ Get all records
+
         let allRecords: Workstation[] = [];
-        
         if (Array.isArray(data)) {
           allRecords = data;
         } else if (data && typeof data === 'object') {
           allRecords = (data as any).records || [];
-          // If the API returns paginated data, we need to fetch all pages
-          // For now, we'll use what's returned
         }
-        
-        // Filter by status if needed
+
+        // Client-side status filter
         let filteredRecords = allRecords;
         if (statusFilter === 'active') {
-          filteredRecords = allRecords.filter(ws => ws.is_deleted === 0);
+          filteredRecords = allRecords.filter((ws) => ws.is_deleted === 0);
         } else if (statusFilter === 'disabled') {
-          filteredRecords = allRecords.filter(ws => ws.is_deleted === 1);
+          filteredRecords = allRecords.filter((ws) => ws.is_deleted === 1);
         }
-        
-        // Sort by ID
+
         filteredRecords.sort((a, b) => a.id - b.id);
-        
-        // ✅ Store ALL filtered records
+
         setAllWorkstations(filteredRecords);
         setTotalItems(filteredRecords.length);
-        
         console.log(`Total records fetched: ${filteredRecords.length}`);
       } else {
         setError('Failed to fetch workstations');
@@ -286,45 +270,43 @@ export default function WorkstationList() {
     }
   };
 
-  // ✅ Fetch when dependencies change (excluding pagination)
+  // Fetch when filters change (not pagination)
   useEffect(() => {
     fetchWorkstations();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchTerm, statusFilter, dateFrom, dateTo]);
 
-  // ✅ Reset to page 1 when filters change
+  // Reset to page 1 when filters change
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm, statusFilter, dateFrom, dateTo]);
 
-  // ─── Calculate pagination values (CLIENT-SIDE) ────────────────────────
-  
-  // ✅ Total filtered items = length of all fetched records
+  // ─── Client-side pagination ───────────────────────────────────────────
   const totalFilteredItems = allWorkstations.length;
   const totalPages = Math.ceil(totalFilteredItems / itemsPerPage) || 1;
   const validCurrentPage = Math.min(currentPage, totalPages);
-  
-  // If current page is invalid, update it
-  if (validCurrentPage !== currentPage && currentPage > 1) {
-    setCurrentPage(validCurrentPage);
-  }
-  
-  // ✅ Client-side pagination - slice the data
+
+  // Clamp currentPage when the filtered list shrinks
+  useEffect(() => {
+    if (validCurrentPage !== currentPage && currentPage > 1) {
+      setCurrentPage(validCurrentPage);
+    }
+  }, [currentPage, validCurrentPage]);
+
+  // Records for the current page
   const startIndex = (validCurrentPage - 1) * itemsPerPage;
   const endIndex = Math.min(startIndex + itemsPerPage, totalFilteredItems);
   const paginatedData = allWorkstations.slice(startIndex, endIndex);
 
-  // ─── Pagination ───────────────────────────────────────────────────────────
-
+  // ─── Pagination handlers ──────────────────────────────────────────────
   const goToPage = (page: number) => {
-    if (page >= 1 && page <= totalPages) {
-      setCurrentPage(page);
-    }
+    if (page >= 1 && page <= totalPages) setCurrentPage(page);
   };
 
   const goToFirstPage = () => goToPage(1);
   const goToLastPage = () => goToPage(totalPages);
-  const goToNextPage = () => goToPage(currentPage + 1);
-  const goToPrevPage = () => goToPage(currentPage - 1);
+  const goToNextPage = () => goToPage(validCurrentPage + 1);
+  const goToPrevPage = () => goToPage(validCurrentPage - 1);
 
   const handlePageSizeChange = (newSize: number) => {
     setItemsPerPage(newSize);
@@ -332,11 +314,12 @@ export default function WorkstationList() {
   };
 
   const getPageNumbers = () => {
-    const pages = [];
+    const pages: number[] = [];
     const maxVisible = 5;
-    let startPage = Math.max(1, currentPage - Math.floor(maxVisible / 2));
-    let endPage = Math.min(totalPages, startPage + maxVisible - 1);
-    if (endPage - startPage + 1 < maxVisible) startPage = Math.max(1, endPage - maxVisible + 1);
+    let startPage = Math.max(1, validCurrentPage - Math.floor(maxVisible / 2));
+    const endPage = Math.min(totalPages, startPage + maxVisible - 1);
+    if (endPage - startPage + 1 < maxVisible)
+      startPage = Math.max(1, endPage - maxVisible + 1);
     for (let i = startPage; i <= endPage; i++) pages.push(i);
     return pages;
   };
@@ -345,14 +328,13 @@ export default function WorkstationList() {
     if (totalFilteredItems === 0) return 0;
     return (validCurrentPage - 1) * itemsPerPage + 1;
   };
-  
+
   const getEndIndexDisplay = () => {
     if (totalFilteredItems === 0) return 0;
     return Math.min(validCurrentPage * itemsPerPage, totalFilteredItems);
   };
 
-  // ─── Actions ─────────────────────────────────────────────────────────────
-
+  // ─── Actions ──────────────────────────────────────────────────────────
   const handleView = (ws: Workstation) => {
     setSelectedWorkstation(ws);
     setIsViewMode(true);
@@ -376,7 +358,6 @@ export default function WorkstationList() {
     if (deleteTarget) {
       try {
         const response = await api.delete(`/workstation/${deleteTarget.id}`);
-        
         if (response.data.success === 1) {
           setShowDeleteConfirm(false);
           setDeleteTarget(null);
@@ -406,47 +387,37 @@ export default function WorkstationList() {
     setCurrentPage(1);
   };
 
-  // ─── Check if workstation is active ──────────────────────────────────────
-  const isWorkstationActive = (ws: Workstation) => {
-    return ws.is_deleted === 0;
-  };
+  const isWorkstationActive = (ws: Workstation) => ws.is_deleted === 0;
 
   const weekdayLabels = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
 
-  // ✅ FIX: The early `if (loading) return <PageLoader />` block has been
-  //    REMOVED. Previously, every keystroke-triggered fetch set
-  //    `loading = true`, which unmounted the entire page (including the
-  //    search input) and caused focus/cursor loss while typing.
-  //    The inline loading state (`{loading && <div className="wo-loading">}`)
-  //    further down in the JSX now handles the visual feedback, so the
-  //    filter bar (and the search input) stays mounted and keeps focus.
-
-  // ─── Render ───────────────────────────────────────────────────────────────
-
+  // ─── Render ───────────────────────────────────────────────────────────
   return (
     <>
       {showNewWorkstation && (
-        <NewWorkstation 
+        <NewWorkstation
           onBack={() => {
             setShowNewWorkstation(false);
             setEditData(null);
             setIsViewMode(false);
             fetchWorkstations();
           }}
-          editData={editData ? {
-            ...editData,
-            _comments: editData._comments ?? '',
-            _assign: editData._assign ?? '',
-            _liked_by: editData._liked_by ?? '',
-          } : null}
+          editData={
+            editData
+              ? {
+                  ...editData,
+                  _comments: editData._comments ?? '',
+                  _assign: editData._assign ?? '',
+                  _liked_by: editData._liked_by ?? '',
+                }
+              : null
+          }
           isViewMode={isViewMode}
         />
       )}
 
       {!showNewWorkstation && (
         <div className={`wo-page ${theme}`}>
-          {/* Stats Cards */}
-         
           {/* Search and Filter Bar */}
           <div className="wo-filter-bar">
             <div className="wo-filter-left">
@@ -466,9 +437,10 @@ export default function WorkstationList() {
                 )}
               </div>
             </div>
+
             <div className="wo-filter-right">
-              <select 
-                value={statusFilter} 
+              <select
+                value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
                 className="wo-filter-select"
               >
@@ -476,9 +448,8 @@ export default function WorkstationList() {
                 <option value="active">Active</option>
                 <option value="disabled">Disabled</option>
               </select>
-             
 
-              {/* ─── From - To Date Filter Button + Calendar Popup ─────────── */}
+              {/* From - To Date Filter Button + Calendar Popup */}
               <div ref={datePickerRef} style={{ position: 'relative', display: 'inline-block' }}>
                 <button
                   type="button"
@@ -540,7 +511,7 @@ export default function WorkstationList() {
                       </button>
                     </div>
 
-                    {/* Quick range chips */}
+                    {/* Quick ranges */}
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', padding: '10px 14px' }}>
                       {[
                         { label: 'Today', type: 'today' as const },
@@ -567,7 +538,7 @@ export default function WorkstationList() {
                       ))}
                     </div>
 
-                    {/* Month navigation */}
+                    {/* Month nav */}
                     <div
                       style={{
                         display: 'flex',
@@ -625,8 +596,7 @@ export default function WorkstationList() {
 
                         const isFrom = isSameDay(day, tempFrom);
                         const isTo = isSameDay(day, tempTo);
-                        const inRange =
-                          tempFrom && tempTo && day > tempFrom && day < tempTo;
+                        const inRange = tempFrom && tempTo && day > tempFrom && day < tempTo;
                         const isEndpoint = isFrom || isTo;
 
                         return (
@@ -656,7 +626,7 @@ export default function WorkstationList() {
                       })}
                     </div>
 
-                    {/* Footer actions */}
+                    {/* Footer */}
                     <div
                       style={{
                         display: 'flex',
@@ -704,20 +674,19 @@ export default function WorkstationList() {
                   </div>
                 )}
               </div>
-
-              
             </div>
-            <button 
-                className="wo-btn-primary" 
-                onClick={() => {
-                  setEditData(null);
-                  setIsViewMode(false);
-                  setShowNewWorkstation(true);
-                }}
-              >
-                <FaPlus size={12} />
-                Add Workstation
-              </button>
+
+            <button
+              className="wo-btn-primary"
+              onClick={() => {
+                setEditData(null);
+                setIsViewMode(false);
+                setShowNewWorkstation(true);
+              }}
+            >
+              <FaPlus size={12} />
+              Add Workstation
+            </button>
           </div>
 
           {/* Active filters indicator */}
@@ -726,32 +695,34 @@ export default function WorkstationList() {
               <FaFilter size={12} style={{ color: '#3B82F6' }} />
               <span>Active filters:</span>
               {searchTerm && (
-                <span><strong>Search:</strong> "{searchTerm}"</span>
+                <span>
+                  <strong>Search:</strong> "{searchTerm}"
+                </span>
               )}
               {statusFilter !== 'all' && (
-                <span><strong>Status:</strong> {statusFilter}</span>
+                <span>
+                  <strong>Status:</strong> {statusFilter}
+                </span>
               )}
               {dateFrom && dateTo && (
-                <span><strong>Date:</strong> {formatDateShort(dateFrom)} – {formatDateShort(dateTo)}</span>
+                <span>
+                  <strong>Date:</strong> {formatDateShort(dateFrom)} – {formatDateShort(dateTo)}
+                </span>
               )}
-              <button 
-                onClick={clearFilters}
-                className="wo-clear-filters"
-              >
+              <button onClick={clearFilters} className="wo-clear-filters">
                 <FaTimes size={10} /> Clear All
               </button>
             </div>
           )}
 
-          {/* Loading State — rendered inline (NOT as an early return) so the
-              search input above never unmounts and keeps focus while typing. */}
+          {/* Loading */}
           {loading && (
             <div className="wo-loading">
               <p>Loading workstations...</p>
             </div>
           )}
 
-          {/* Error State */}
+          {/* Error */}
           {error && (
             <div className="wo-error">
               <p>{error}</p>
@@ -761,7 +732,7 @@ export default function WorkstationList() {
             </div>
           )}
 
-          {/* Table Grid View */}
+          {/* Desktop + Mobile */}
           {!loading && !error && (
             <>
               <div className="wo-table-container sales-desktop-table-wrap">
@@ -784,7 +755,9 @@ export default function WorkstationList() {
                         <th>Capacity</th>
                         <th>Hour Rate</th>
                         <th className="wo-th-meta">
-                          <span>{paginatedData.length} of {totalFilteredItems}</span>
+                          <span>
+                            {paginatedData.length} of {totalFilteredItems}
+                          </span>
                         </th>
                       </tr>
                     </thead>
@@ -794,24 +767,17 @@ export default function WorkstationList() {
                           <td className="wo-td-name">{ws.workstation_name}</td>
                           <td className="wo-td-type">{ws.workstation_type}</td>
                           <td>
-                            {/* Use is_deleted to determine active/disabled status */}
                             {isWorkstationActive(ws) ? (
-                              <span 
+                              <span
                                 className="wo-status-badge"
-                                style={{
-                                  background: '#D1FAE5',
-                                  color: '#10B981',
-                                }}
+                                style={{ background: '#D1FAE5', color: '#10B981' }}
                               >
                                 Active
                               </span>
                             ) : (
-                              <span 
+                              <span
                                 className="wo-status-badge"
-                                style={{
-                                  background: '#FEE2E2',
-                                  color: '#EF4444',
-                                }}
+                                style={{ background: '#FEE2E2', color: '#EF4444' }}
                               >
                                 Disabled
                               </span>
@@ -822,22 +788,22 @@ export default function WorkstationList() {
                           <td>₹{ws.hour_rate}</td>
                           <td className="wo-td-meta">
                             <div className="wo-action-buttons">
-                              <button 
-                                className="wo-action-btn wo-action-view" 
+                              <button
+                                className="wo-action-btn wo-action-view"
                                 onClick={() => handleView(ws)}
                                 title="View"
                               >
                                 <FaEye size={12} />
                               </button>
-                              <button 
-                                className="wo-action-btn wo-action-edit" 
+                              <button
+                                className="wo-action-btn wo-action-edit"
                                 onClick={() => handleEdit(ws)}
                                 title="Edit"
                               >
                                 <FaEdit size={12} />
                               </button>
-                              <button 
-                                className="wo-action-btn wo-action-delete" 
+                              <button
+                                className="wo-action-btn wo-action-delete"
                                 onClick={() => handleDelete(ws)}
                                 title="Delete"
                               >
@@ -852,241 +818,237 @@ export default function WorkstationList() {
                 )}
               </div>
 
+              {/* Mobile table */}
+              <div className="sales-mobile-list-wrap">
+                <div className="sales-mobile-list-header">
+                  <div className="sales-mobile-th-primary">
+                    <span className="sales-mobile-th-cell">Name</span>
+                    <span className="sales-mobile-th-sep">•</span>
+                    <span className="sales-mobile-th-cell">Type</span>
+                  </div>
+                  <div className="sales-mobile-th-right">
+                    <span className="sales-count-label">
+                      {totalFilteredItems > 0
+                        ? `${paginatedData.length} of ${totalFilteredItems}`
+                        : '0'}{' '}
+                      of {totalFilteredItems}
+                    </span>
+                  </div>
+                </div>
 
-              {/* Mobile Table Section (Customer, Status + Dropdown Button -> Date, Amount, Actions) */}
-          <div className="sales-mobile-list-wrap">
-            <div className="sales-mobile-list-header">
-              <div className="sales-mobile-th-primary">
-                <span className="sales-mobile-th-cell">Name	</span>
-                <span className="sales-mobile-th-sep">•</span>
-                <span className="sales-mobile-th-cell">Type</span>
+                {paginatedData.length === 0 ? (
+                  <div className="qt-empty-state">
+                    <div className="qt-empty-content">
+                      <p>No workstations found</p>
+                      <span>Try adjusting your search criteria</span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="sales-mobile-cards">
+                    {paginatedData.map((ws) => {
+                      const isExpanded = expandedRows.has(ws.id);
+                      return (
+                        <div
+                          key={ws.id}
+                          className={`sales-mobile-card ${
+                            isExpanded ? 'sales-mobile-card-expanded' : ''
+                          }`}
+                        >
+                          <div
+                            className="sales-mobile-card-header"
+                            onClick={() => toggleRowExpand(ws.id)}
+                          >
+                            <div className="sales-mobile-card-primary">
+                              <div className="sales-mobile-card-primary-row">
+                                <span className="wo-td-type">{ws.workstation_name}</span>
+                                <span className="sales-mobile-header-badge">
+                                  <span className="sales-mobile-item-name">
+                                    {ws.workstation_type}
+                                  </span>
+                                </span>
+                              </div>
+                            </div>
+
+                            <button
+                              type="button"
+                              className={`sales-mobile-dropdown-btn ${
+                                isExpanded ? 'expanded' : ''
+                              }`}
+                              onClick={(e) => toggleRowExpand(ws.id, e)}
+                              aria-label={isExpanded ? 'Collapse' : 'Expand'}
+                              title={isExpanded ? 'Collapse' : 'Expand'}
+                            >
+                              <FaChevronDown size={13} className="sales-mobile-chevron" />
+                            </button>
+                          </div>
+
+                          {isExpanded && (
+                            <div className="sales-mobile-card-details">
+                              <div className="sales-mobile-detail-row">
+                                <span className="sales-mobile-detail-label">Status</span>
+                                <span className="sales-mobile-detail-value">
+                                  {isWorkstationActive(ws) ? (
+                                    <span
+                                      className="wo-status-badge"
+                                      style={{ background: '#D1FAE5', color: '#10B981' }}
+                                    >
+                                      Active
+                                    </span>
+                                  ) : (
+                                    <span
+                                      className="wo-status-badge"
+                                      style={{ background: '#FEE2E2', color: '#EF4444' }}
+                                    >
+                                      Disabled
+                                    </span>
+                                  )}
+                                </span>
+                              </div>
+
+                              <div className="sales-mobile-detail-row">
+                                <span className="sales-mobile-detail-label">Plant Floor</span>
+                                <span className="sales-mobile-detail-value sales-amount-highlight">
+                                  {ws.plant_floor}
+                                </span>
+                              </div>
+
+                              <div className="sales-mobile-detail-row">
+                                <span className="sales-mobile-detail-label">Capacity</span>
+                                <span className="sales-mobile-detail-value">
+                                  {ws.production_capacity}
+                                </span>
+                              </div>
+
+                              <div className="sales-mobile-detail-row">
+                                <span className="sales-mobile-detail-label">Hour Rate</span>
+                                <span className="sales-mobile-detail-value">
+                                  ₹{ws.hour_rate}
+                                </span>
+                              </div>
+
+                              <div className="sales-mobile-detail-footer">
+                                <span className="sales-mobile-card-meta-text"></span>
+                                <div className="sales-mobile-action-buttons">
+                                  <button
+                                    className="wo-action-btn wo-action-view"
+                                    onClick={() => handleView(ws)}
+                                    title="View"
+                                  >
+                                    <FaEye size={12} />
+                                  </button>
+                                  <button
+                                    className="wo-action-btn wo-action-edit"
+                                    onClick={() => handleEdit(ws)}
+                                    title="Edit"
+                                  >
+                                    <FaEdit size={12} />
+                                  </button>
+                                  <button
+                                    className="wo-action-btn wo-action-delete"
+                                    onClick={() => handleDelete(ws)}
+                                    title="Delete"
+                                  >
+                                    <FaTrash size={12} />
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
-              <div className="sales-mobile-th-right">
-                <span className="sales-count-label">
+            </>
+          )}
+
+          {/* Pagination */}
+          {totalFilteredItems > 0 && (
+            <div className="wo-pagination">
+              <div className="wo-pagination-left">
+                <span className="wo-pagination-label">Show:</span>
+                <select
+                  value={itemsPerPage}
+                  onChange={(e) => handlePageSizeChange(Number(e.target.value))}
+                  className="wo-page-size-select"
+                >
+                  <option value={10}>10</option>
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                </select>
+                <span className="wo-pagination-info">
                   {totalFilteredItems > 0
-                    ? `${paginatedData.length} of ${totalFilteredItems}`
-                    : '0'} of {totalFilteredItems}
+                    ? `Showing ${getStartIndexDisplay()} to ${getEndIndexDisplay()} of ${totalFilteredItems} entries`
+                    : 'No entries to show'}
+                </span>
+              </div>
+
+              <div className="wo-pagination-center">
+                <button
+                  onClick={goToFirstPage}
+                  disabled={validCurrentPage === 1 || totalFilteredItems === 0}
+                  className="wo-page-btn"
+                >
+                  <FaAngleDoubleLeft size={12} />
+                </button>
+                <button
+                  onClick={goToPrevPage}
+                  disabled={validCurrentPage === 1 || totalFilteredItems === 0}
+                  className="wo-page-btn"
+                >
+                  <FaChevronLeft size={12} />
+                </button>
+                {totalFilteredItems > 0 &&
+                  getPageNumbers().map((page) => (
+                    <button
+                      key={page}
+                      onClick={() => goToPage(page)}
+                      className={`wo-page-btn ${
+                        validCurrentPage === page ? 'wo-page-btn-active' : ''
+                      }`}
+                    >
+                      {page}
+                    </button>
+                  ))}
+                <button
+                  onClick={goToNextPage}
+                  disabled={validCurrentPage === totalPages || totalFilteredItems === 0}
+                  className="wo-page-btn"
+                >
+                  <FaChevronRight size={12} />
+                </button>
+                <button
+                  onClick={goToLastPage}
+                  disabled={validCurrentPage === totalPages || totalFilteredItems === 0}
+                  className="wo-page-btn"
+                >
+                  <FaAngleDoubleRight size={12} />
+                </button>
+              </div>
+
+              <div className="wo-pagination-right">
+                <span className="wo-pagination-info">
+                  Page {validCurrentPage} of {totalPages}
                 </span>
               </div>
             </div>
-
-            {paginatedData.length === 0 ?  (
-              <div className="qt-empty-state">
-                <div className="qt-empty-content">
-                  <p>No workstations found</p>
-                  <span>Try adjusting your search criteria</span>
-                </div>
-              </div>
-            ) : (
-              <div className="sales-mobile-cards">
-                {paginatedData.map((ws) => {
-                  const isExpanded = expandedRows.has(ws.id);
-                  return (
-                    <div
-                      key={ws.id}
-                      className={`sales-mobile-card ${isExpanded ? "sales-mobile-card-expanded" : ""}`}
-                    >
-                      {/* Card Header: Customer, Status and Dropdown Button */}
-                      <div
-                        className="sales-mobile-card-header"
-                        onClick={() => toggleRowExpand(ws.id)}
-                      >
-                        <div className="sales-mobile-card-primary">
-                          <div className="sales-mobile-card-primary-row">
-                            
-                                <span className="wo-td-type">
-                              {ws.workstation_name}
-                            </span>
-                            <span className="sales-mobile-header-badge">
-                              <span
-                              className="sales-mobile-item-name">
-                                {ws.workstation_type}
-                              </span>
-                            </span>
-                          </div>
-                        </div>
-
-                        {/* Dropdown Button */}
-                        <button
-                          type="button"
-                          className={`sales-mobile-dropdown-btn ${isExpanded ? "expanded" : ""}`}
-                          onClick={(e) => toggleRowExpand(ws.id, e)}
-                          aria-label={isExpanded ? "Collapse quotation details" : "Expand quotation details"}
-                          title={isExpanded ? "Collapse" : "Expand"}
-                        >
-                          <FaChevronDown size={13} className="sales-mobile-chevron" />
-                        </button>
-                      </div>
-
-                      {/* Dropdown Section: Date, Amount, Actions */}
-                      {isExpanded && (
-                        <div className="sales-mobile-card-details">
-                          <div className="sales-mobile-detail-row">
-                            <span className="sales-mobile-detail-label">Status	</span>
-                            <span className="sales-mobile-detail-value">
-                             {isWorkstationActive(ws) ? (
-                              <span 
-                                className="wo-status-badge"
-                                style={{
-                                  background: '#D1FAE5',
-                                  color: '#10B981',
-                                }}
-                              >
-                                Active
-                              </span>
-                            ) : (
-                              <span 
-                                className="wo-status-badge"
-                                style={{
-                                  background: '#FEE2E2',
-                                  color: '#EF4444',
-                                }}
-                              >
-                                Disabled
-                              </span>
-                            )}
-                            </span>
-                          </div>
-
-                          <div className="sales-mobile-detail-row">
-                            <span className="sales-mobile-detail-label">Plant Floor		</span>
-                            <span className="sales-mobile-detail-value sales-amount-highlight">
-                              {ws.plant_floor}
-                            </span>
-                          </div>
-
-                          <div className="sales-mobile-detail-row">
-                            <span className="sales-mobile-detail-label">Capacity	</span>
-                            <span className="sales-mobile-detail-value">
-                              {ws.production_capacity}
-                            </span>
-                          </div>
-
-                          <div className="sales-mobile-detail-row">
-                            <span className="sales-mobile-detail-label">Hour Rate </span>
-                            <span className="sales-mobile-detail-value">
-                              ₹{ws.hour_rate}
-                            </span>
-                          </div>
-
-                          <div className="sales-mobile-detail-footer">
-                            <span className="sales-mobile-card-meta-text">
-                              {/*rowNumber} of {totalRecords*/}
-                            </span>
-                            <div className="sales-mobile-action-buttons">
-                              <button
-                                className="wo-action-btn wo-action-view" 
-                                onClick={() => handleView(ws)}
-                                title="View"
-                              >
-                                <FaEye size={12} />
-                              </button>
-                              <button
-                                className="wo-action-btn wo-action-edit" 
-                                onClick={() => handleEdit(ws)}
-                                title="Edit"
-                              >
-                                <FaEdit size={12} />
-                              </button>
-                              <button
-                                className="wo-action-btn wo-action-delete" 
-                                onClick={() => handleDelete(ws)}
-                                title="Delete"
-                              >
-                                <FaTrash size={12} />
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </>
-      )}
-
-
-
-              {/* Pagination - Show only if total items > 0 */}
-              {totalFilteredItems > 0 && (
-                <div className="wo-pagination">
-                  <div className="wo-pagination-left">
-                    <span className="wo-pagination-label">Show:</span>
-                    <select 
-                      value={itemsPerPage} 
-                      onChange={(e) => handlePageSizeChange(Number(e.target.value))}
-                      className="wo-page-size-select"
-                    >
-                      <option value={10}>10</option>
-                      <option value={25}>25</option>
-                      <option value={50}>50</option>
-                      <option value={100}>100</option>
-                    </select>
-                    <span className="wo-pagination-info">
-                      {totalFilteredItems > 0 ? (
-                        `Showing ${getStartIndexDisplay()} to ${getEndIndexDisplay()} of ${totalFilteredItems} entries`
-                      ) : (
-                        'No entries to show'
-                      )}
-                    </span>
-                  </div>
-                  <div className="wo-pagination-center">
-                    <button 
-                      onClick={goToFirstPage} 
-                      disabled={currentPage === 1 || totalFilteredItems === 0} 
-                      className="wo-page-btn"
-                    >
-                      <FaAngleDoubleLeft size={12} />
-                    </button>
-                    <button 
-                      onClick={goToPrevPage} 
-                      disabled={currentPage === 1 || totalFilteredItems === 0} 
-                      className="wo-page-btn"
-                    >
-                      <FaChevronLeft size={12} />
-                    </button>
-                    {totalFilteredItems > 0 && getPageNumbers().map(page => (
-                      <button
-                        key={page}
-                        onClick={() => goToPage(page)}
-                        className={`wo-page-btn ${currentPage === page ? 'wo-page-btn-active' : ''}`}
-                      >
-                        {page}
-                      </button>
-                    ))}
-                    <button 
-                      onClick={goToNextPage} 
-                      disabled={currentPage === totalPages || totalFilteredItems === 0} 
-                      className="wo-page-btn"
-                    >
-                      <FaChevronRight size={12} />
-                    </button>
-                    <button 
-                      onClick={goToLastPage} 
-                      disabled={currentPage === totalPages || totalFilteredItems === 0} 
-                      className="wo-page-btn"
-                    >
-                      <FaAngleDoubleRight size={12} />
-                    </button>
-                  </div>
-                  <div className="wo-pagination-right">
-                    <span className="wo-pagination-info">
-                      Page {currentPage} of {totalPages}
-                    </span>
-                  </div>
-                </div>
-              )}
+          )}
 
           {/* Delete Confirmation Modal */}
           {showDeleteConfirm && deleteTarget && (
-            <div className="wo-modal-overlay" onClick={() => setShowDeleteConfirm(false)}>
-              <div className="wo-modal wo-modal-delete" onClick={e => e.stopPropagation()}>
+            <div
+              className="wo-modal-overlay"
+              onClick={() => setShowDeleteConfirm(false)}
+            >
+              <div className="wo-modal wo-modal-delete" onClick={(e) => e.stopPropagation()}>
                 <div className="wo-modal-header">
                   <span className="wo-modal-title">Confirm Delete</span>
-                  <button className="wo-modal-close" onClick={() => setShowDeleteConfirm(false)}>
+                  <button
+                    className="wo-modal-close"
+                    onClick={() => setShowDeleteConfirm(false)}
+                  >
                     <FaTimes size={16} />
                   </button>
                 </div>
@@ -1109,10 +1071,10 @@ export default function WorkstationList() {
             </div>
           )}
 
-          {/* ─── View Detail Modal ────────────────────────────────────── */}
+          {/* View Detail Modal (unused but kept) */}
           {showDetailModal && selectedWorkstation && (
             <div className="wo-modal-overlay" onClick={() => setShowDetailModal(false)}>
-              <div className="wo-modal wo-modal-detail" onClick={e => e.stopPropagation()}>
+              <div className="wo-modal wo-modal-detail" onClick={(e) => e.stopPropagation()}>
                 <div className="wo-modal-header">
                   <span className="wo-modal-title">
                     <FaEye size={16} style={{ marginRight: 8 }} />
@@ -1128,36 +1090,36 @@ export default function WorkstationList() {
                       <h4>Basic Information</h4>
                       <div className="wo-detail-row">
                         <span className="wo-detail-label">Workstation Name</span>
-                        <span className="wo-detail-value">{selectedWorkstation.workstation_name}</span>
+                        <span className="wo-detail-value">
+                          {selectedWorkstation.workstation_name}
+                        </span>
                       </div>
                       <div className="wo-detail-row">
                         <span className="wo-detail-label">Type</span>
-                        <span className="wo-detail-value">{selectedWorkstation.workstation_type}</span>
+                        <span className="wo-detail-value">
+                          {selectedWorkstation.workstation_type}
+                        </span>
                       </div>
                       <div className="wo-detail-row">
                         <span className="wo-detail-label">Plant Floor</span>
-                        <span className="wo-detail-value">{selectedWorkstation.plant_floor}</span>
+                        <span className="wo-detail-value">
+                          {selectedWorkstation.plant_floor}
+                        </span>
                       </div>
                       <div className="wo-detail-row">
                         <span className="wo-detail-label">Status</span>
                         <span className="wo-detail-value">
                           {isWorkstationActive(selectedWorkstation) ? (
-                            <span 
+                            <span
                               className="wo-status-badge"
-                              style={{
-                                background: '#D1FAE5',
-                                color: '#10B981',
-                              }}
+                              style={{ background: '#D1FAE5', color: '#10B981' }}
                             >
                               Active
                             </span>
                           ) : (
-                            <span 
+                            <span
                               className="wo-status-badge"
-                              style={{
-                                background: '#FEE2E2',
-                                color: '#EF4444',
-                              }}
+                              style={{ background: '#FEE2E2', color: '#EF4444' }}
                             >
                               Disabled
                             </span>
@@ -1167,18 +1129,24 @@ export default function WorkstationList() {
                     </div>
 
                     <div className="wo-detail-section">
-                      <h4>Capacity & Cost</h4>
+                      <h4>Capacity &amp; Cost</h4>
                       <div className="wo-detail-row">
                         <span className="wo-detail-label">Production Capacity</span>
-                        <span className="wo-detail-value">{selectedWorkstation.production_capacity}</span>
+                        <span className="wo-detail-value">
+                          {selectedWorkstation.production_capacity}
+                        </span>
                       </div>
                       <div className="wo-detail-row">
                         <span className="wo-detail-label">Hour Rate</span>
-                        <span className="wo-detail-value">₹ {selectedWorkstation.hour_rate}</span>
+                        <span className="wo-detail-value">
+                          ₹ {selectedWorkstation.hour_rate}
+                        </span>
                       </div>
                       <div className="wo-detail-row">
                         <span className="wo-detail-label">Total Working Hours</span>
-                        <span className="wo-detail-value">{selectedWorkstation.total_working_hours}h</span>
+                        <span className="wo-detail-value">
+                          {selectedWorkstation.total_working_hours}h
+                        </span>
                       </div>
                     </div>
 
@@ -1186,11 +1154,15 @@ export default function WorkstationList() {
                       <h4>Warehouse</h4>
                       <div className="wo-detail-row">
                         <span className="wo-detail-label">Warehouse</span>
-                        <span className="wo-detail-value">{selectedWorkstation.warehouse}</span>
+                        <span className="wo-detail-value">
+                          {selectedWorkstation.warehouse}
+                        </span>
                       </div>
                       <div className="wo-detail-row">
                         <span className="wo-detail-label">Holiday List</span>
-                        <span className="wo-detail-value">{selectedWorkstation.holiday_list}</span>
+                        <span className="wo-detail-value">
+                          {selectedWorkstation.holiday_list}
+                        </span>
                       </div>
                     </div>
 
@@ -1198,11 +1170,15 @@ export default function WorkstationList() {
                       <h4>Images</h4>
                       <div className="wo-detail-row">
                         <span className="wo-detail-label">On Status Image</span>
-                        <span className="wo-detail-value">{selectedWorkstation.on_status_image}</span>
+                        <span className="wo-detail-value">
+                          {selectedWorkstation.on_status_image}
+                        </span>
                       </div>
                       <div className="wo-detail-row">
                         <span className="wo-detail-label">Off Status Image</span>
-                        <span className="wo-detail-value">{selectedWorkstation.off_status_image}</span>
+                        <span className="wo-detail-value">
+                          {selectedWorkstation.off_status_image}
+                        </span>
                       </div>
                     </div>
 
@@ -1210,7 +1186,9 @@ export default function WorkstationList() {
                       <h4>Tags</h4>
                       <div className="wo-detail-row">
                         <span className="wo-detail-label">User Tags</span>
-                        <span className="wo-detail-value">{selectedWorkstation._user_tags}</span>
+                        <span className="wo-detail-value">
+                          {selectedWorkstation._user_tags}
+                        </span>
                       </div>
                     </div>
 
@@ -1225,11 +1203,14 @@ export default function WorkstationList() {
                   </div>
                 </div>
                 <div className="wo-modal-footer">
-                  <button className="wo-btn-secondary" onClick={() => setShowDetailModal(false)}>
+                  <button
+                    className="wo-btn-secondary"
+                    onClick={() => setShowDetailModal(false)}
+                  >
                     Close
                   </button>
-                  <button 
-                    className="wo-btn-primary" 
+                  <button
+                    className="wo-btn-primary"
                     onClick={() => {
                       setShowDetailModal(false);
                       handleEdit(selectedWorkstation);

@@ -1,18 +1,36 @@
-// SetupDashboard.tsx
-import { useState, useEffect } from "react";
+/* ============================================================
+   SETUP DASHBOARD
+   PREMIUM ERP UI
+   Same visual system as Purchasing Dashboard
+============================================================ */
+
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+
 import {
-  FaBoxes, FaTags, FaBuilding, FaWarehouse,
+  FaBoxes,
+  FaTags,
+  FaWarehouse,
   FaPlus,
-  FaRuler, FaIndustry,
-  FaDownload, FaSpinner, FaExclamationTriangle
+  FaRuler,
+  FaIndustry,
+  FaDownload,
+  FaSpinner,
+  FaExclamationTriangle,
+  FaArrowRight,
 } from "react-icons/fa";
+
 import { BsTools } from "react-icons/bs";
+
 import "./SetupDashboard.css";
-import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
+import "./DashboardPage.css";
+
+import { useAdminTheme } from "../../admin-theme/AdminThemeContext";
 import api from "../../services/api";
 
-// ─── Types ───────────────────────────────────────────────────────────────
+/* ============================================================
+   TYPES
+============================================================ */
 
 interface SetupStats {
   totalItems: number;
@@ -35,7 +53,9 @@ interface RecentActivity {
   status: string;
 }
 
-// ─── API Response Types ────────────────────────────────────────────────
+/* ============================================================
+   API TYPES
+============================================================ */
 
 interface ApiItemsResponse {
   success: number;
@@ -86,6 +106,10 @@ interface ApiQualityInspectionResponse {
     limit: number;
   };
 }
+
+/* ============================================================
+   API MODELS
+============================================================ */
 
 interface ApiItem {
   id: number;
@@ -153,41 +177,55 @@ interface ApiQualityInspection {
   type: string;
 }
 
-// ─── Helper functions ──────────────────────────────────────────────────
+/* ============================================================
+   HELPERS
+============================================================ */
 
 function getItemsData(response: ApiItemsResponse): ApiItem[] {
-  return response.data || [];
+  return response?.data || [];
 }
 
-function getItemGroupsData(response: ApiItemGroupResponse): ApiItemGroup[] {
-  return response.data || [];
+function getItemGroupsData(
+  response: ApiItemGroupResponse
+): ApiItemGroup[] {
+  return response?.data || [];
 }
 
-function getWarehousesData(response: ApiWarehouseResponse): ApiWarehouse[] {
-  return response.data?.records || [];
+function getWarehousesData(
+  response: ApiWarehouseResponse
+): ApiWarehouse[] {
+  return response?.data?.records || [];
 }
 
-function getWorkstationsData(response: ApiWorkstationResponse): ApiWorkstation[] {
-  return response.data || [];
+function getWorkstationsData(
+  response: ApiWorkstationResponse
+): ApiWorkstation[] {
+  return response?.data || [];
 }
 
-function getOperationsData(response: ApiOperationResponse): ApiOperation[] {
-  return response.data || [];
+function getOperationsData(
+  response: ApiOperationResponse
+): ApiOperation[] {
+  return response?.data || [];
 }
 
-function getUOMsData(response: ApiUOMResponse): ApiUOM[] {
-  return response.data?.records || [];
+function getUOMsData(
+  response: ApiUOMResponse
+): ApiUOM[] {
+  return response?.data?.records || [];
 }
 
-
-// ─── Component ──────────────────────────────────────────────────────────
+/* ============================================================
+   COMPONENT
+============================================================ */
 
 export default function SetupDashboard() {
   const { theme } = useAdminTheme();
   const navigate = useNavigate();
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [, setItems] = useState<ApiItem[]>([]);
+
   const [stats, setStats] = useState<SetupStats>({
     totalItems: 0,
     totalItemGroups: 0,
@@ -197,10 +235,15 @@ export default function SetupDashboard() {
     totalWorkstations: 0,
     totalOperations: 0,
     totalActiveItems: 0,
-    totalInactiveItems: 0
+    totalInactiveItems: 0,
   });
-  const [recentActivities, setRecentActivities] = useState<RecentActivity[]>([]);
-  const [, setQuickAccessItems] = useState<any[]>([]);
+
+  const [recentActivities, setRecentActivities] =
+    useState<RecentActivity[]>([]);
+
+  /* ============================================================
+     FETCH DATA
+  ============================================================ */
 
   useEffect(() => {
     fetchAllSetupData();
@@ -209,8 +252,8 @@ export default function SetupDashboard() {
   const fetchAllSetupData = async () => {
     setLoading(true);
     setError(null);
+
     try {
-      // Fetch all data in parallel
       const [
         itemsRes,
         itemGroupsRes,
@@ -218,136 +261,279 @@ export default function SetupDashboard() {
         workstationsRes,
         operationsRes,
         uomsRes,
+        qualityInspectionRes,
       ] = await Promise.all([
-        api.get<ApiItemsResponse>('/item?page=1&limit=100000'),
-        api.get<ApiItemGroupResponse>('/item-group?page=1&limit=100000'),
-        api.get<ApiWarehouseResponse>('/warehouse?page=1&limit=100000'),
-        api.get<ApiWorkstationResponse>('/workstation?page=1&limit=100000&sort_order=asc&sort_by=id'),
-        api.get<ApiOperationResponse>('/operation'),
-        api.get<ApiUOMResponse>('/uom?page=1&limit=100000'),
-        api.get<ApiQualityInspectionResponse>('/quality-inspection?page=1&limit=100000')
+        api.get<ApiItemsResponse>(
+          "/item?page=1&limit=100000"
+        ),
+
+        api.get<ApiItemGroupResponse>(
+          "/item-group?page=1&limit=100000"
+        ),
+
+        api.get<ApiWarehouseResponse>(
+          "/warehouse?page=1&limit=100000"
+        ),
+
+        api.get<ApiWorkstationResponse>(
+          "/workstation?page=1&limit=100000&sort_order=asc&sort_by=id"
+        ),
+
+        api.get<ApiOperationResponse>(
+          "/operation"
+        ),
+
+        api.get<ApiUOMResponse>(
+          "/uom?page=1&limit=100000"
+        ),
+
+        api.get<ApiQualityInspectionResponse>(
+          "/quality-inspection?page=1&limit=100000"
+        ),
       ]);
 
+      /* Prevent unused response warning while preserving API call */
+      void qualityInspectionRes;
+
+      /* --------------------------------------------------------
+         Extract Data
+      -------------------------------------------------------- */
+
       const itemsData = getItemsData(itemsRes.data);
-      setItems(itemsData);
-      
-      const itemGroups = getItemGroupsData(itemGroupsRes.data);
-      const warehouses = getWarehousesData(warehousesRes.data);
-      const workstations = getWorkstationsData(workstationsRes.data);
-      const operations = getOperationsData(operationsRes.data);
-      const uoms = getUOMsData(uomsRes.data);
 
-      // ─── Process Items ──────────────────────────────────────
-      const activeItems = itemsData.filter(item => item.disabled === 0);
-      const inactiveItems = itemsData.filter(item => item.disabled === 1);
-      
-      // Count unique brands from items
-      const brandList = [...new Set(itemsData.map(item => item.brand).filter(Boolean))];
-      
-      // Count active item groups (disabled !== 1)
-      const activeItemGroups = itemGroups.filter(group => group.disabled !== 1);
-
-      // ─── Process Warehouses ──────────────────────────────────
-      const activeWarehouses = warehouses.filter(w => w.disabled === 0);
-
-      // ─── Process Workstations ────────────────────────────────
-      const activeWorkstations = workstations.filter(
-        w => w.status === 'Active' && w.is_deleted !== 1
+      const itemGroups = getItemGroupsData(
+        itemGroupsRes.data
       );
 
-      // ─── Process Operations ──────────────────────────────────
-      const activeOperations = operations.filter(op => op.is_deleted !== 1);
+      const warehouses = getWarehousesData(
+        warehousesRes.data
+      );
 
-      // ─── Process UOMs ────────────────────────────────────────
-      const activeUOMs = uoms.filter(uom => uom.category && uom.category !== 'inactive');
+      const workstations = getWorkstationsData(
+        workstationsRes.data
+      );
 
-      // ─── Set Stats ────────────────────────────────────────────
+      const operations = getOperationsData(
+        operationsRes.data
+      );
+
+      const uoms = getUOMsData(
+        uomsRes.data
+      );
+
+      /* --------------------------------------------------------
+         Items
+      -------------------------------------------------------- */
+
+      const activeItems = itemsData.filter(
+        (item) => item.disabled === 0
+      );
+
+      const inactiveItems = itemsData.filter(
+        (item) => item.disabled === 1
+      );
+
+      /* --------------------------------------------------------
+         Brands
+      -------------------------------------------------------- */
+
+      const brandList = [
+        ...new Set(
+          itemsData
+            .map((item) => item.brand)
+            .filter(Boolean)
+        ),
+      ];
+
+      /* --------------------------------------------------------
+         Item Groups
+      -------------------------------------------------------- */
+
+      const activeItemGroups = itemGroups.filter(
+        (group) => group.disabled !== 1
+      );
+
+      /* --------------------------------------------------------
+         Warehouses
+      -------------------------------------------------------- */
+
+      const activeWarehouses = warehouses.filter(
+        (warehouse) => warehouse.disabled === 0
+      );
+
+      /* --------------------------------------------------------
+         Workstations
+      -------------------------------------------------------- */
+
+      const activeWorkstations = workstations.filter(
+        (workstation) =>
+          workstation.status === "Active" &&
+          workstation.is_deleted !== 1
+      );
+
+      /* --------------------------------------------------------
+         Operations
+      -------------------------------------------------------- */
+
+      const activeOperations = operations.filter(
+        (operation) => operation.is_deleted !== 1
+      );
+
+      /* --------------------------------------------------------
+         UOM
+      -------------------------------------------------------- */
+
+      const activeUOMs = uoms.filter(
+        (uom) =>
+          uom.category &&
+          uom.category !== "inactive"
+      );
+
+      /* --------------------------------------------------------
+         Stats
+      -------------------------------------------------------- */
+
       setStats({
         totalItems: itemsData.length,
         totalItemGroups: activeItemGroups.length,
         totalBrands: brandList.length,
         totalWarehouses: activeWarehouses.length,
-        totalUOMs: activeUOMs.length || uoms.length,
-        totalWorkstations: activeWorkstations.length,
-        totalOperations: activeOperations.length,
-        totalActiveItems: activeItems.length,
-        totalInactiveItems: inactiveItems.length
+        totalUOMs:
+          activeUOMs.length || uoms.length,
+        totalWorkstations:
+          activeWorkstations.length,
+        totalOperations:
+          activeOperations.length,
+        totalActiveItems:
+          activeItems.length,
+        totalInactiveItems:
+          inactiveItems.length,
       });
 
-      // ─── Build Recent Activities ─────────────────────────────
+      /* ========================================================
+         RECENT ACTIVITY
+      ======================================================== */
+
       const recent: RecentActivity[] = [];
-      
-      // Add recent items (last 5)
-      const sortedItems = [...itemsData].sort((a, b) => 
-        new Date(b.creation).getTime() - new Date(a.creation).getTime()
+
+      /* Recent Items */
+
+      const sortedItems = [...itemsData].sort(
+        (a, b) =>
+          new Date(b.creation).getTime() -
+          new Date(a.creation).getTime()
       );
-      sortedItems.slice(0, 5).forEach(item => {
+
+      sortedItems.slice(0, 5).forEach((item) => {
         recent.push({
           id: item.id,
           type: "Item",
-          name: item.item_name || item.item_code,
+          name:
+            item.item_name ||
+            item.item_code,
           action: "Created",
           timestamp: item.creation,
-          status: item.disabled === 0 ? "Active" : "Inactive"
+          status:
+            item.disabled === 0
+              ? "Active"
+              : "Inactive",
         });
       });
 
-      // Add recent item groups
-      const sortedGroups = [...itemGroups].sort((a, b) => (b.id || 0) - (a.id || 0));
-      sortedGroups.slice(0, 2).forEach(group => {
-        if (group.group_name) {
-          recent.push({
-            id: group.id,
-            type: "Item Group",
-            name: group.group_name,
-            action: "Created",
-            timestamp: new Date().toISOString(),
-            status: group.disabled !== 1 ? "Active" : "Inactive"
-          });
-        }
-      });
+      /* Recent Item Groups */
 
-      // Add recent warehouses
-      const sortedWarehouses = [...warehouses].sort((a, b) => (b.id || 0) - (a.id || 0));
-      sortedWarehouses.slice(0, 2).forEach(warehouse => {
-        if (warehouse.warehouse_name) {
-          recent.push({
-            id: warehouse.id,
-            type: "Warehouse",
-            name: warehouse.warehouse_name,
-            action: "Created",
-            timestamp: new Date().toISOString(),
-            status: warehouse.disabled === 0 ? "Active" : "Inactive"
-          });
-        }
-      });
+      const sortedGroups = [
+        ...itemGroups,
+      ].sort(
+        (a, b) =>
+          (b.id || 0) -
+          (a.id || 0)
+      );
 
-      setRecentActivities(recent.slice(0, 5));
+      sortedGroups
+        .slice(0, 2)
+        .forEach((group) => {
+          if (group.group_name) {
+            recent.push({
+              id: group.id,
+              type: "Item Group",
+              name: group.group_name,
+              action: "Created",
+              timestamp:
+                new Date().toISOString(),
+              status:
+                group.disabled !== 1
+                  ? "Active"
+                  : "Inactive",
+            });
+          }
+        });
 
-      // ─── Build Quick Access ──────────────────────────────────
-      const quickItems = sortedItems.slice(0, 4).map(item => ({
-        id: item.id,
-        name: item.item_name || item.item_code,
-        type: "Item",
-        status: item.disabled === 0 ? "Active" : "Inactive"
-      }));
-      setQuickAccessItems(quickItems);
+      /* Recent Warehouses */
 
+      const sortedWarehouses = [
+        ...warehouses,
+      ].sort(
+        (a, b) =>
+          (b.id || 0) -
+          (a.id || 0)
+      );
+
+      sortedWarehouses
+        .slice(0, 2)
+        .forEach((warehouse) => {
+          if (warehouse.warehouse_name) {
+            recent.push({
+              id: warehouse.id,
+              type: "Warehouse",
+              name:
+                warehouse.warehouse_name,
+              action: "Created",
+              timestamp:
+                new Date().toISOString(),
+              status:
+                warehouse.disabled === 0
+                  ? "Active"
+                  : "Inactive",
+            });
+          }
+        });
+
+      setRecentActivities(
+        recent.slice(0, 5)
+      );
     } catch (err: any) {
-      console.error("Error fetching setup data:", err);
-      setError(err.response?.data?.message || err.message || "Failed to load setup data");
+      console.error(
+        "Error fetching setup data:",
+        err
+      );
+
+      setError(
+        err?.response?.data?.message ||
+          err?.message ||
+          "Failed to load setup data"
+      );
     } finally {
       setLoading(false);
     }
   };
 
-  const handleNavigate = (path: string) => {
+  /* ============================================================
+     NAVIGATION
+  ============================================================ */
+
+  const handleNavigate = (
+    path: string
+  ) => {
     if (path) {
       navigate(path);
     }
   };
 
-  // ─── Stat Cards - All working routes ──────────────────────────────
+  /* ============================================================
+     STAT CARDS
+  ============================================================ */
+
   const statCards = [
     {
       id: "items",
@@ -356,35 +542,35 @@ export default function SetupDashboard() {
       icon: <FaBoxes />,
       color: "primary",
       trend: `${stats.totalActiveItems} active`,
-      path: "/item-list"
+      path: "/item-list",
     },
+
     {
       id: "item-groups",
       title: "Item Groups",
       value: stats.totalItemGroups,
       icon: <FaTags />,
-      color: "info",
+      color: "blue",
       trend: "categories",
-      path: stats.totalItemGroups > 0 ? "/item-group" : ""
+      path:
+        stats.totalItemGroups > 0
+          ? "/item-group"
+          : "",
     },
-    {
-      id: "brands",
-      title: "Brands",
-      value: stats.totalBrands,
-      icon: <FaBuilding />,
-      color: "success",
-      trend: "manufacturers",
-      path: stats.totalBrands > 0 ? "" : ""
-    },
+
     {
       id: "warehouses",
       title: "Warehouses",
       value: stats.totalWarehouses,
       icon: <FaWarehouse />,
-      color: "warning",
+      color: "orange",
       trend: "locations",
-      path: stats.totalWarehouses > 0 ? "/warehouse" : ""
+      path:
+        stats.totalWarehouses > 0
+          ? "/warehouse"
+          : "",
     },
+
     {
       id: "uoms",
       title: "UOMs",
@@ -392,77 +578,154 @@ export default function SetupDashboard() {
       icon: <FaRuler />,
       color: "primary",
       trend: "units",
-      path: stats.totalUOMs > 0 ? "/uom" : ""
+      path:
+        stats.totalUOMs > 0
+          ? "/uom"
+          : "",
     },
+
     {
       id: "workstations",
       title: "Workstations",
       value: stats.totalWorkstations,
       icon: <FaIndustry />,
-      color: "success",
+      color: "green",
       trend: "machines",
-      path: stats.totalWorkstations > 0 ? "/workstation" : ""
+      path:
+        stats.totalWorkstations > 0
+          ? "/workstation"
+          : "",
     },
+
     {
       id: "operations",
       title: "Operations",
       value: stats.totalOperations,
       icon: <BsTools />,
-      color: "warning",
+      color: "orange",
       trend: "processes",
-      path: stats.totalOperations > 0 ? "/operations" : ""
-    }
+      path:
+        stats.totalOperations > 0
+          ? "/operations"
+          : "",
+    },
   ];
+
+  /* ============================================================
+     QUICK ACTIONS
+  ============================================================ */
 
   const quickActions = [
-    { id: "new-item", label: "New Item", icon: <FaPlus />, path: "/item-list" },
-    { id: "new-group", label: "New Item Group", icon: <FaTags />, path: "/item-group" },
-    { id: "new-warehouse", label: "New Warehouse", icon: <FaWarehouse />, path: "/warehouse" },
-    { id: "new-uom", label: "New UOM", icon: <FaRuler />, path: "/uom" },
-    { id: "new-workstation", label: "New Workstation", icon: <FaIndustry />, path: "/workstation" },
+    {
+      id: "new-item",
+      label: "New Item",
+      description: "Create a new item",
+      icon: <FaPlus />,
+      color: "purple",
+      path: "/item-list",
+    },
+
+    {
+      id: "new-group",
+      label: "New Item Group",
+      description: "Create item category",
+      icon: <FaTags />,
+      color: "blue",
+      path: "/item-group",
+    },
+
+    {
+      id: "new-warehouse",
+      label: "New Warehouse",
+      description: "Add warehouse location",
+      icon: <FaWarehouse />,
+      color: "orange",
+      path: "/warehouse",
+    },
+
+    {
+      id: "new-uom",
+      label: "New UOM",
+      description: "Create measurement unit",
+      icon: <FaRuler />,
+      color: "indigo",
+      path: "/uom",
+    },
+
+    {
+      id: "new-workstation",
+      label: "New Workstation",
+      description: "Add production machine",
+      icon: <FaIndustry />,
+      color: "green",
+      path: "/workstation",
+    },
   ];
 
-  const getStatusColor = (status: string) => {
-    return status === 'Active' ? '#22c55e' : '#94a3b8';
+  /* ============================================================
+     STATUS
+  ============================================================ */
+
+  const getStatusClass = (
+    status: string
+  ) => {
+    return status === "Active"
+      ? "active"
+      : "inactive";
   };
+
+  /* ============================================================
+     LOADING
+  ============================================================ */
 
   if (loading) {
     return (
-      <div className={`dashboard setup-dashboard ${theme}`}>
-        <div className="dashboard-header">
-          <h1>⚙️ Setup Dashboard</h1>
-          <p className="header-subtitle">Loading master data...</p>
-        </div>
-        <div className="loading-container" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '400px' }}>
-          <FaSpinner className="spinner" style={{ fontSize: '48px', animation: 'spin 1s linear infinite' }} />
-          <p style={{ marginLeft: '16px' }}>Loading setup data...</p>
+      <div
+        className={`setup-dashboard ${theme}`}
+      >
+        <div className="setup-loading">
+          <div className="setup-loading-icon">
+            <FaSpinner />
+          </div>
+
+          <h3>
+            Loading Setup Dashboard
+          </h3>
+
+          <p>
+            Fetching master data...
+          </p>
         </div>
       </div>
     );
   }
 
+  /* ============================================================
+     ERROR
+  ============================================================ */
+
   if (error) {
     return (
-      <div className={`dashboard setup-dashboard ${theme}`}>
-        <div className="dashboard-header">
-          <h1>⚙️ Setup Dashboard</h1>
-          <p className="header-subtitle">Error loading data</p>
-        </div>
-        <div className="error-container" style={{ padding: '40px', textAlign: 'center', color: '#ef4444' }}>
-          <FaExclamationTriangle size={48} style={{ marginBottom: '16px' }} />
+      <div
+        className={`setup-dashboard ${theme}`}
+      >
+        <div className="setup-error">
+          <div className="setup-error-icon">
+            <FaExclamationTriangle />
+          </div>
+
+          <h3>
+            Unable to Load Setup Data
+          </h3>
+
           <p>{error}</p>
-          <button 
-            onClick={fetchAllSetupData}
-            style={{ 
-              marginTop: '16px', 
-              padding: '8px 24px', 
-              cursor: 'pointer',
-              backgroundColor: '#4f46e5',
-              color: '#fff',
-              border: 'none',
-              borderRadius: '6px',
-              fontSize: '14px'
-            }}
+
+          <button
+            type="button"
+            className="setup-retry-button"
+            onClick={
+              fetchAllSetupData
+            }
           >
             Retry
           </button>
@@ -471,114 +734,274 @@ export default function SetupDashboard() {
     );
   }
 
+  /* ============================================================
+     MAIN UI
+  ============================================================ */
+
   return (
-    <div className={`dashboard setup-dashboard ${theme}`}>
-      {/* Header */}
-      <div className="dashboard-header">
-        <div className="header-left">
-          <h1> Setup Dashboard</h1>
-          {/*<p className="header-subtitle">⚙️Master data management and configuration</p>*/}
+    <div
+      className={`setup-dashboard ${theme}`}
+    >
+      {/* ======================================================
+          HEADER
+      ====================================================== */}
+
+      <div className="setup-dashboard-header">
+        <div className="setup-header-left">
+          <div className="setup-header-icon">
+            <FaBoxes />
+          </div>
+
+          <div>
+            <div className="setup-header-eyebrow">
+              MASTER DATA
+            </div>
+
+            <h1>
+              Setup Dashboard
+            </h1>
+
+          </div>
         </div>
-        <div className="header-right">
-          <button className="btn-primary" onClick={() => handleNavigate("/item-list")}>
-            <FaPlus /> New Item
+
+        <div className="setup-header-actions">
+          <button
+            type="button"
+            className="setup-primary-button"
+            onClick={() =>
+              handleNavigate(
+                "/item-list"
+              )
+            }
+          >
+            <FaPlus />
+            <span>New Item</span>
           </button>
-          <button className="btn-secondary" onClick={() => handleNavigate("/setup/export")}>
-            <FaDownload /> Export Data
+
+          <button
+            type="button"
+            className="setup-secondary-button"
+            onClick={() =>
+              handleNavigate(
+                "/setup/export"
+              )
+            }
+          >
+            <FaDownload />
+            <span>Export Data</span>
           </button>
         </div>
       </div>
 
-      {/* Quick Stats */}
-      <div className="stats-grid">
+      {/* ======================================================
+          STAT CARDS
+      ====================================================== */}
+
+      <div className="setup-stats-grid">
         {statCards.map((stat) => (
-          <div 
-            key={stat.id} 
-            className={`stat-card stat-${stat.color} ${!stat.path ? 'stat-disabled' : ''}`}
-            onClick={() => stat.path && handleNavigate(stat.path)}
-            style={{ cursor: stat.path ? 'pointer' : 'default' }}
+          <div
+            key={stat.id}
+            className={`setup-stat-card setup-stat-${stat.color} ${
+              !stat.path
+                ? "setup-stat-disabled"
+                : ""
+            }`}
+            onClick={() =>
+              stat.path &&
+              handleNavigate(
+                stat.path
+              )
+            }
           >
-            <div className="stat-icon">{stat.icon}</div>
-            <div className="stat-content">
-              <div className="stat-title">{stat.title}</div>
-              <div className="stat-value">{stat.value}</div>
-              <div className="stat-trend">{stat.trend}</div>
+            <div className="setup-stat-decoration" />
+
+            <div className="setup-stat-icon">
+              {stat.icon}
             </div>
+
+            <div className="setup-stat-content">
+              <div className="setup-stat-title">
+                {stat.title}
+              </div>
+
+              <div className="setup-stat-value">
+                {stat.value}
+              </div>
+
+              <div className="setup-stat-trend">
+                {stat.trend}
+              </div>
+            </div>
+
+            {stat.path && (
+              <div className="setup-stat-arrow">
+                <FaArrowRight />
+              </div>
+            )}
           </div>
         ))}
       </div>
 
-      {/* Main Content Grid */}
-      <div className="dashboard-grid">
-        {/* Quick Actions - Position 1 (Top Left) */}
-        <div className="card quick-actions">
-          <div className="card-header">
-            <h3>Quick Actions</h3>
-            <span className="badge">Favorites</span>
-          </div>
-          <div className="actions-grid">
-            {quickActions.map((action) => (
-              <button 
-                key={action.id}
-                className="action-btn"
-                onClick={() => handleNavigate(action.path)}
-              >
-                <span className="action-icon">{action.icon}</span>
-                <span className="action-label">{action.label}</span>
-              </button>
-            ))}
-          </div>
-        </div>
+      {/* ======================================================
+          MAIN CONTENT
+      ====================================================== */}
 
-        {/* Recent Activity - Position 2 (Top Right) - Moved here as requested */}
-        <div className="card recent-activity">
-          <div className="card-header">
-            <h3>Recent Activity</h3>
+      <div className="setup-dashboard-grid">
+
+        {/* ====================================================
+            QUICK ACTIONS
+        ==================================================== */}
+
+        <section className="setup-card setup-quick-actions">
+          <div className="setup-card-header">
+            <div>
+              <h2>
+                Quick Actions
+              </h2>
+
+              <p>
+                Frequently used setup modules
+              </p>
+            </div>
+
+            <span className="setup-favorite-badge">
+              Favorites
+            </span>
           </div>
-          <div className="activity-list">
-            {recentActivities.length === 0 ? (
-              <div className="activity-item">No recent activity</div>
-            ) : (
-              recentActivities.map((activity) => (
-                <div key={activity.id} className="activity-item">
-                  <div className="activity-type">
-                    <span className="type-badge">{activity.type}</span>
+
+          <div className="setup-actions-grid">
+            {quickActions.map(
+              (action) => (
+                <button
+                  key={action.id}
+                  type="button"
+                  className="setup-action-card"
+                  onClick={() =>
+                    handleNavigate(
+                      action.path
+                    )
+                  }
+                >
+                  <div
+                    className={`setup-action-icon setup-action-${action.color}`}
+                  >
+                    {action.icon}
                   </div>
-                  <div className="activity-content">
-                    <div className="activity-name">{activity.name}</div>
-                    <div className="activity-action">
-                      <span className="action-label">{activity.action}</span>
-                      <span className="activity-time">
-                        {new Date(activity.timestamp).toLocaleDateString('en-IN', {
-                          day: '2-digit',
-                          month: 'short',
-                          year: 'numeric'
-                        })}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="activity-status">
-                    <span className="status-badge" style={{ backgroundColor: getStatusColor(activity.status) }}>
-                      {activity.status}
+
+                  <div className="setup-action-content">
+                    <strong>
+                      {action.label}
+                    </strong>
+
+                    <span>
+                      {action.description}
                     </span>
                   </div>
-                </div>
-              ))
+
+                  <FaArrowRight className="setup-action-arrow" />
+                </button>
+              )
             )}
           </div>
-        </div>
-      </div>
+        </section>
 
-      <style>{`
-        @keyframes spin {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
-        .spinner {
-          animation: spin 1s linear infinite;
-        }
-        
-      `}</style>
+        {/* ====================================================
+            RECENT ACTIVITY
+        ==================================================== */}
+
+        <section className="setup-card setup-recent-activity">
+          <div className="setup-card-header">
+            <div>
+              <h2>
+                Recent Activity
+              </h2>
+
+              <p>
+                Latest setup changes
+              </p>
+            </div>
+
+            <button
+              type="button"
+              className="setup-view-all"
+              onClick={() =>
+                handleNavigate(
+                  "/item-list"
+                )
+              }
+            >
+              View All
+              <FaArrowRight />
+            </button>
+          </div>
+
+          <div className="setup-activity-list">
+            {recentActivities.length ===
+            0 ? (
+              <div className="setup-empty-state">
+                <FaBoxes />
+
+                <h3>
+                  No Recent Activity
+                </h3>
+
+                <p>
+                  New setup records will
+                  appear here.
+                </p>
+              </div>
+            ) : (
+              recentActivities.map(
+                (activity, index) => (
+                  <div
+                    key={`${activity.id}-${index}`}
+                    className="setup-activity-item"
+                  >
+                    <div className="setup-activity-type">
+                      <span className="setup-type-badge">
+                        {activity.type}
+                      </span>
+                    </div>
+
+                    <div className="setup-activity-content">
+                      <div className="setup-activity-name">
+                        {activity.name}
+                      </div>
+
+                      <div className="setup-activity-meta">
+                        <strong>
+                          {activity.action}
+                        </strong>
+
+                        <span>
+                          {new Date(
+                            activity.timestamp
+                          ).toLocaleDateString(
+                            "en-IN",
+                            {
+                              day: "2-digit",
+                              month: "short",
+                              year: "numeric",
+                            }
+                          )}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div
+                      className={`setup-status-badge ${getStatusClass(
+                        activity.status
+                      )}`}
+                    >
+                      {activity.status}
+                    </div>
+                  </div>
+                )
+              )
+            )}
+          </div>
+        </section>
+      </div>
     </div>
   );
 }

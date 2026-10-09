@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect,   } from 'react';
 import ReactDOM from 'react-dom';
 import {
   FaSave,
@@ -8,7 +8,6 @@ import {
   FaPlus,
   FaTrash,
   FaSpinner,
-  FaChevronDown,
   FaArrowLeft,
   FaInfoCircle,
   FaCalculator,
@@ -21,8 +20,6 @@ import {
   FaCreditCard,
   FaCopy,
   FaClipboardList,
-  FaExclamationCircle,
-  FaQuestionCircle,
   FaFileAlt,
   FaEye
 } from 'react-icons/fa';
@@ -216,7 +213,6 @@ const addDays = (date: string, days: number): string => {
 
 const extractTaxValue = (taxType: string): number => {
   if (!taxType) return 0;
-  // ✅ FIXED: Handles decimals correctly (e.g., "12.5%")
   const match = taxType.match(/(\d+(\.\d+)?)/);
   return match ? parseFloat(match[1]) : 0;
 };
@@ -275,7 +271,7 @@ class ProformaAPI {
   }
 }
 
-// ===== 🆕 FULL-SCREEN LOADER OVERLAY =====
+// ===== FULL-SCREEN LOADER OVERLAY =====
 interface LoaderOverlayProps {
   isOpen: boolean;
   message?: string;
@@ -440,501 +436,6 @@ const SuccessModal: React.FC<SuccessModalProps> = ({
 };
 
 // ===== SHARED: portal-based dropdown menu position hook =====
-function useDropdownPosition(isOpen: boolean, triggerRef: React.RefObject<HTMLDivElement | null>) {
-  const [pos, setPos] = useState({ top: 0, left: 0, width: 0 });
-
-  const recalc = useCallback(() => {
-    if (triggerRef.current) {
-      const rect = triggerRef.current.getBoundingClientRect();
-      setPos({
-        top: rect.bottom + 4,
-        left: rect.left,
-        width: rect.width
-      });
-    }
-  }, [triggerRef]);
-
-  useEffect(() => {
-    if (!isOpen) return;
-    recalc();
-    window.addEventListener('scroll', recalc, true);
-    window.addEventListener('resize', recalc);
-    return () => {
-      window.removeEventListener('scroll', recalc, true);
-      window.removeEventListener('resize', recalc);
-    };
-  }, [isOpen, recalc]);
-
-  return pos;
-}
-
-// ===== SEARCHABLE PRODUCT SELECT COMPONENT =====
-interface SearchableSelectProps {
-  value: string;
-  onChange: (value: string) => void;
-  options: Product[];
-  placeholder?: string;
-  disabled?: boolean;
-  error?: boolean;
-  onSearch?: (searchTerm: string) => Promise<void>;
-  loading?: boolean;
-  stockInfo?: { status: 'checking' | 'available' | 'insufficient' | 'unknown'; availableQty?: number };
-}
-
-const SearchableSelect: React.FC<SearchableSelectProps> = ({
-  value,
-  onChange,
-  options,
-  placeholder = 'Search...',
-  disabled = false,
-  error = false,
-  onSearch,
-  loading = false,
-  stockInfo,
-}) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filteredOptions, setFilteredOptions] = useState<Product[]>(options);
-  const [highlightedIndex, setHighlightedIndex] = useState(-1);
-  const wrapperRef = useRef<HTMLDivElement | null>(null);
-  const menuRef = useRef<HTMLDivElement | null>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const menuPos = useDropdownPosition(isOpen, wrapperRef);
-
-  useEffect(() => {
-    if (!searchTerm) {
-      setFilteredOptions(options);
-      return;
-    }
-
-    const filtered = options.filter(opt =>
-      opt.itemCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      opt.itemName.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-    setFilteredOptions(filtered);
-  }, [searchTerm, options]);
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as Node;
-      const clickedTrigger = wrapperRef.current?.contains(target);
-      const clickedMenu = menuRef.current?.contains(target);
-      if (!clickedTrigger && !clickedMenu) {
-        setIsOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const term = e.target.value;
-    setSearchTerm(term);
-    setHighlightedIndex(-1);
-
-    if (!isOpen) {
-      setIsOpen(true);
-    }
-
-    if (onSearch && term.length > 0) {
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current);
-      }
-
-      debounceTimerRef.current = setTimeout(() => {
-        onSearch(term).catch(err => console.error('Search error:', err));
-      }, 500);
-    }
-  };
-
-  const handleSelect = (option: Product) => {
-    onChange(option.itemCode);
-    setSearchTerm('');
-    setIsOpen(false);
-    if (inputRef.current) {
-      inputRef.current.blur();
-    }
-  };
-
-  const getSelectedLabel = () => {
-    const selected = options.find(opt => opt.itemCode === value);
-    return selected ? `${selected.itemCode}` : '';
-  };
-
-  const getStockDisplay = () => {
-    if (!stockInfo || !value) return null;
-    if (stockInfo.status === 'checking') {
-      return <span className="npi-stock-indicator npi-stock-checking"><FaSpinner className="npi-spinning" size={8} /></span>;
-    }
-    if (stockInfo.status === 'available') {
-      return <span className="npi-stock-indicator npi-stock-available"><FaCheckCircle size={8} /> {stockInfo.availableQty}</span>;
-    }
-    if (stockInfo.status === 'insufficient') {
-      return <span className="npi-stock-indicator npi-stock-insufficient"><FaExclamationCircle size={8} /> {stockInfo.availableQty || 0}</span>;
-    }
-    return <span className="npi-stock-indicator npi-stock-unknown"><FaQuestionCircle size={8} /></span>;
-  };
-
-  const menu = isOpen ? (
-    <div
-      ref={menuRef}
-      className="npi-custom-scroll"
-      style={{
-        position: 'fixed',
-        top: menuPos.top,
-        left: menuPos.left,
-        width: menuPos.width,
-        background: 'var(--card-bg, #ffffff)',
-        border: '0.5px solid var(--border-color, #e2e8f0)',
-        borderRadius: '6px',
-        boxShadow: '0 4px 16px var(--shadow-color, rgba(0,0,0,0.15))',
-        zIndex: 99999,
-        maxHeight: '220px',
-        overflowY: 'auto',
-        overflowX: 'hidden'
-      }}
-    >
-      {filteredOptions.length > 0 ? (
-        filteredOptions.map((option, index) => (
-          <div
-            key={option.id}
-            onMouseDown={(e) => {
-              e.preventDefault();
-              handleSelect(option);
-            }}
-            style={{
-              padding: '8px 12px',
-              cursor: 'pointer',
-              background: highlightedIndex === index ? 'var(--nav-hover, #eff6ff)' : 'transparent',
-              borderLeft: value === option.itemCode ? '2px solid var(--primary-color, #2563eb)' : '2px solid transparent',
-              transition: 'background 0.15s',
-              borderBottom: index < filteredOptions.length - 1 ? '0.5px solid var(--border-color, #f1f5f9)' : 'none'
-            }}
-            onMouseEnter={() => setHighlightedIndex(index)}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontWeight: 500, fontSize: '13px', color: 'var(--text-primary, #0f172a)' }}>{option.itemCode}</span>
-              <span style={{ fontSize: '12px', color: 'var(--text-secondary, #64748b)', marginLeft: '8px', textAlign: 'right' }}>
-                ₹{option.rate}
-              </span>
-            </div>
-            <div style={{ fontSize: '11px', color: 'var(--text-secondary, #94a3b8)', marginTop: '2px' }}>
-              {option.itemName} | HSN: {option.hsn || '-'} | Tax: {option.tax || 0}%
-            </div>
-          </div>
-        ))
-      ) : (
-        <div style={{ padding: '12px', textAlign: 'center', color: 'var(--text-secondary, #94a3b8)', fontSize: '12px' }}>
-          {loading ? 'Loading...' : 'No items found'}
-        </div>
-      )}
-    </div>
-  ) : null;
-
-  return (
-    <div ref={wrapperRef} style={{ position: 'relative', width: '100%' }}>
-      <div style={{ position: 'relative' }}>
-        <input
-          ref={inputRef}
-          type="text"
-          placeholder={placeholder}
-          value={isOpen ? searchTerm : getSelectedLabel()}
-          onChange={handleSearchChange}
-          onFocus={() => !disabled && setIsOpen(true)}
-          disabled={disabled}
-          autoComplete="off"
-          className="npi-table-input"
-          style={{
-            width: '100%',
-            padding: '4px 8px',
-            paddingRight: '30px',
-            border: error ? '0.5px solid var(--danger-color, #ef4444)' : '0.5px solid var(--border-color, #e2e8f0)',
-            borderRadius: '4px',
-            background: disabled ? 'var(--input-bg, #f3f4f6)' : 'var(--input-bg, #f8fafc)',
-            color: 'var(--text-primary, #0f172a)',
-            fontSize: '12px',
-            fontFamily: 'inherit',
-            cursor: disabled ? 'not-allowed' : 'text',
-            minHeight: '30px',
-            textAlign: 'left'
-          }}
-        />
-        {loading ? (
-          <FaSpinner className="npi-spinning" style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', color: 'var(--primary-color, #2563eb)', fontSize: '11px' }} />
-        ) : (
-          <FaChevronDown style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary, #94a3b8)', fontSize: '11px', pointerEvents: 'none' }} />
-        )}
-        {value && stockInfo && (
-          <div style={{ position: 'absolute', right: '28px', top: '50%', transform: 'translateY(-50%)' }}>
-            {getStockDisplay()}
-          </div>
-        )}
-      </div>
-
-      {menu && ReactDOM.createPortal(menu, document.body)}
-    </div>
-  );
-};
-
-// ===== SEARCHABLE CUSTOMER DROPDOWN =====
-interface CustomerDropdownProps {
-  value: string;
-  onChange: (value: string, customerData?: Customer) => void;
-  placeholder?: string;
-  disabled?: boolean;
-  error?: boolean;
-}
-
-const CustomerDropdown: React.FC<CustomerDropdownProps> = ({
-  value,
-  onChange,
-  placeholder = 'Search Customer...',
-  disabled = false,
-  error = false,
-}) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [filteredCustomers, setFilteredCustomers] = useState<Customer[]>([]);
-  const [highlightedIndex, setHighlightedIndex] = useState(-1);
-  const [loading, setLoading] = useState(false);
-  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
-  const wrapperRef = useRef<HTMLDivElement>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const proformaAPI = new ProformaAPI();
-  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const menuPos = useDropdownPosition(isOpen, wrapperRef);
-
-  useEffect(() => {
-    fetchCustomers('');
-  }, []);
-
-  useEffect(() => {
-    if (!searchTerm.trim()) {
-      setFilteredCustomers(customers);
-      return;
-    }
-
-    const filtered = customers.filter(customer =>
-      customer.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      customer.code?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      customer.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      customer.phone?.includes(searchTerm) ||
-      customer.gstin?.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-    setFilteredCustomers(filtered);
-  }, [searchTerm, customers]);
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as Node;
-      const clickedTrigger = wrapperRef.current?.contains(target);
-      const clickedMenu = menuRef.current?.contains(target);
-      if (!clickedTrigger && !clickedMenu) {
-        setIsOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  const fetchCustomers = async (search: string) => {
-    setLoading(true);
-    try {
-      const response = await proformaAPI.getCustomers({
-        page: 1,
-        limit: 50,
-        search: search || undefined
-      });
-
-      if (response.data.success && response.data.data) {
-        let customerList: any[] = [];
-
-        if (response.data.data.data && Array.isArray(response.data.data.data.records)) {
-          customerList = response.data.data.data.records;
-        } else if (Array.isArray(response.data.data)) {
-          customerList = response.data.data;
-        } else if (response.data.data.data && Array.isArray(response.data.data.data)) {
-          customerList = response.data.data.data;
-        }
-
-        if (customerList.length > 0) {
-          const mappedCustomers: Customer[] = customerList.map((cust: any) => ({
-            id: cust.id?.toString() || cust.customer_id?.toString() || '',
-            name: cust.customer_name || cust.name || '',
-            code: cust.customer_code || cust.code || '',
-            email: cust.email_id || cust.email || '',
-            phone: cust.mobile_no || cust.phone || '',
-            address: cust.address || '',
-            shippingAddress: cust.shipping_address || cust.address || '',
-            gstin: cust.gstin || '',
-            contactPerson: cust.contact_person || '',
-            contactMobile: cust.contact_mobile || cust.mobile_no || ''
-          }));
-          setCustomers(mappedCustomers);
-          setFilteredCustomers(mappedCustomers);
-        }
-      }
-    } catch (error) {
-      console.error('Error fetching customers:', error);
-      toast.error('Failed to fetch customers');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const term = e.target.value;
-    setSearchTerm(term);
-    setHighlightedIndex(-1);
-
-    if (!isOpen) {
-      setIsOpen(true);
-    }
-
-    if (debounceTimerRef.current) {
-      clearTimeout(debounceTimerRef.current);
-    }
-
-    debounceTimerRef.current = setTimeout(() => {
-      if (term.length > 0) {
-        fetchCustomers(term);
-      } else {
-        fetchCustomers('');
-      }
-    }, 500);
-  };
-
-  const handleSelect = (customer: Customer) => {
-    setSelectedCustomer(customer);
-    setSearchTerm('');
-    setIsOpen(false);
-    onChange(customer.id, customer);
-    if (inputRef.current) {
-      inputRef.current.blur();
-    }
-  };
-
-  const getDisplayValue = () => {
-    if (selectedCustomer) {
-      return `${selectedCustomer.name}`;
-    }
-    return '';
-  };
-
-  const menu = isOpen ? (
-    <div
-      ref={menuRef}
-      className="npi-custom-scroll"
-      style={{
-        position: 'fixed',
-        top: menuPos.top,
-        left: menuPos.left,
-        width: menuPos.width,
-        background: 'var(--card-bg, #ffffff)',
-        border: '0.5px solid var(--border-color, #e2e8f0)',
-        borderRadius: '6px',
-        boxShadow: '0 4px 16px var(--shadow-color, rgba(0,0,0,0.15))',
-        zIndex: 99999,
-        maxHeight: '280px',
-        overflowY: 'auto',
-        overflowX: 'hidden'
-      }}
-    >
-      {loading ? (
-        <div style={{ padding: '12px', textAlign: 'center', color: 'var(--text-secondary, #94a3b8)', fontSize: '12px' }}>
-          <FaSpinner className="npi-spinning" style={{ display: 'inline-block', marginRight: '8px' }} /> Loading...
-        </div>
-      ) : filteredCustomers.length > 0 ? (
-        filteredCustomers.map((customer, index) => (
-          <div
-            key={customer.id}
-            onMouseDown={(e) => {
-              e.preventDefault();
-              handleSelect(customer);
-            }}
-            style={{
-              padding: '10px 14px',
-              cursor: 'pointer',
-              background: highlightedIndex === index ? 'var(--nav-hover, #eff6ff)' : 'transparent',
-              borderLeft: value === customer.id ? '3px solid var(--primary-color, #2563eb)' : '3px solid transparent',
-              transition: 'background 0.15s',
-              borderBottom: index < filteredCustomers.length - 1 ? '0.5px solid var(--border-color, #f1f5f9)' : 'none'
-            }}
-            onMouseEnter={() => setHighlightedIndex(index)}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div>
-                <span style={{ fontWeight: 600, fontSize: '13px', color: 'var(--text-primary, #0f172a)' }}>{customer.name}</span>
-              </div>
-              {customer.gstin && (
-                <span style={{ fontSize: '10px', color: 'var(--text-secondary, #94a3b8)', background: 'var(--layout-bg, #f1f5f9)', padding: '2px 8px', borderRadius: '4px' }}>
-                  GST: {customer.gstin}
-                </span>
-              )}
-            </div>
-            <div style={{ display: 'flex', gap: '16px', marginTop: '4px', fontSize: '11px', color: 'var(--text-secondary, #64748b)' }}>
-              {customer.contactPerson && (
-                <span><FaUser size={10} style={{ marginRight: '4px' }} />{customer.contactPerson}</span>
-              )}
-              {customer.phone && (
-                <span><FaPhone size={10} style={{ marginRight: '4px' }} />{customer.phone}</span>
-              )}
-              {customer.email && (
-                <span><FaEnvelope size={10} style={{ marginRight: '4px' }} />{customer.email}</span>
-              )}
-            </div>
-          </div>
-        ))
-      ) : (
-        <div style={{ padding: '12px', textAlign: 'center', color: 'var(--text-secondary, #94a3b8)', fontSize: '12px' }}>
-          {searchTerm ? 'No matching customers found' : 'No customers available'}
-        </div>
-      )}
-    </div>
-  ) : null;
-
-  return (
-    <div ref={wrapperRef} style={{ position: 'relative', width: '100%' }}>
-      <div style={{ position: 'relative' }}>
-        <input
-          ref={inputRef}
-          type="text"
-          placeholder={placeholder}
-          value={isOpen ? searchTerm : getDisplayValue()}
-          onChange={handleSearchChange}
-          onFocus={() => setIsOpen(true)}
-          disabled={disabled}
-          autoComplete="off"
-          style={{
-            width: '100%',
-            padding: '6px 10px',
-            paddingRight: '35px',
-            border: error ? '0.5px solid var(--danger-color, #ef4444)' : '0.5px solid var(--border-color, #e2e8f0)',
-            borderRadius: '6px',
-            background: disabled ? 'var(--input-bg, #f3f4f6)' : 'var(--input-bg, #f8fafc)',
-            color: 'var(--text-primary, #0f172a)',
-            fontSize: '13px',
-            fontFamily: 'inherit',
-            cursor: disabled ? 'not-allowed' : 'text',
-            minHeight: '32px'
-          }}
-        />
-        {loading ? (
-          <FaSpinner className="npi-spinning" style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--primary-color, #2563eb)', fontSize: '12px' }} />
-        ) : (
-          <FaChevronDown style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary, #64748b)', fontSize: '12px', pointerEvents: 'none' }} />
-        )}
-      </div>
-
-      {menu && ReactDOM.createPortal(menu, document.body)}
-    </div>
-  );
-};
 
 // ===== MAIN COMPONENT =====
 
@@ -966,14 +467,14 @@ const CreateProformaInvoice: React.FC = () => {
 
   const [isNavigating, setIsNavigating] = useState(false);
 
-  const [isLoading] = useState<boolean>(false);
+  const [] = useState<boolean>(false);
   const [] = useState<Customer[]>([]);
-  const [products, setProducts] = useState<Product[]>([]);
+  const [, setProducts] = useState<Product[]>([]);
   const [allProducts, setAllProducts] = useState<Product[]>([]);
-  const [isLoadingItems, setIsLoadingItems] = useState<boolean>(false);
+  const [, setIsLoadingItems] = useState<boolean>(false);
   const [roundOff, setRoundOff] = useState<number>(0);
   const [taxOptions, setTaxOptions] = useState<TaxOption[]>([]);
-  const [loadingTaxOptions, setLoadingTaxOptions] = useState<boolean>(false);
+  const [, setLoadingTaxOptions] = useState<boolean>(false);
   const [, setTaxOptionsLoaded] = useState<boolean>(false);
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
 
@@ -1249,10 +750,8 @@ const CreateProformaInvoice: React.FC = () => {
       const rate = Number(it.rate ?? 0);
       const amount = Number(it.amount ?? quantity * rate);
       
-      // ✅ FIXED: Robust extraction of tax from various possible API fields
       let tax = 0;
       
-      // 1. Try direct numeric fields
       if (it.tax_rate !== undefined && it.tax_rate !== null) {
         tax = Number(it.tax_rate);
       } else if (it.gst_rate !== undefined && it.gst_rate !== null) {
@@ -1261,7 +760,6 @@ const CreateProformaInvoice: React.FC = () => {
         tax = Number(it.tax);
       }
       
-      // 2. Try item_tax_rate (could be number, string, or object)
       if (tax === 0 && it.item_tax_rate) {
         if (typeof it.item_tax_rate === 'object') {
           const vals = Object.values(it.item_tax_rate);
@@ -1272,13 +770,11 @@ const CreateProformaInvoice: React.FC = () => {
         }
       }
       
-      // 3. Try item_tax_template string (e.g., "GST 18%")
       if (tax === 0 && it.item_tax_template) {
         const match = String(it.item_tax_template).match(/(\d+(\.\d+)?)/);
         if (match) tax = parseFloat(match[1]);
       }
       
-      // 4. Try summing component rates (IGST, CGST, SGST)
       if (tax === 0) {
         const cgst = Number(it.cgst_rate) || 0;
         const sgst = Number(it.sgst_rate) || 0;
@@ -1286,7 +782,6 @@ const CreateProformaInvoice: React.FC = () => {
         tax = cgst + sgst + igst;
       }
       
-      // 5. Fallback to tax_id lookup if taxOptions are available
       const itemTaxId = it.item_tax_id || it.tax_id;
       if (tax === 0 && itemTaxId && taxOptions.length > 0) {
         const matchedTax = taxOptions.find(t => t.tax_id === Number(itemTaxId));
@@ -1295,7 +790,6 @@ const CreateProformaInvoice: React.FC = () => {
         }
       }
       
-      // Ensure tax is a valid number
       if (isNaN(tax)) tax = 0;
       
       const taxAmount = Number(it.tax_amount ?? ((amount * tax) / 100));
@@ -1450,59 +944,6 @@ const CreateProformaInvoice: React.FC = () => {
     }
   };
 
-  const handleItemSearch = useCallback(async (searchTerm: string) => {
-    if (!searchTerm.trim()) {
-      setProducts(allProducts);
-      return;
-    }
-
-    try {
-      const response = await proformaAPI.getItems({ page: 1, limit: 50, search: searchTerm });
-      if (response.data.success && response.data.data) {
-        const itemsData = response.data.data.map((item: any) => ({
-          id: item.id?.toString() || item.name || '',
-          itemCode: item.item_code || item.name || '',
-          itemName: item.item_name || '',
-          hsn: item.HSN || item.hsn || '',
-          description: item.description || item.item_name || '',
-          unit: item.stock_uom || 'pcs',
-          rate: item.selling_price || 0,
-          tax: item.gst_rate || item.tax_rate || 0,
-          type: 'product' as 'product' | 'service',
-          stockUom: item.stock_uom,
-          standardRate: item.standard_rate,
-          creation: item.creation,
-          modified: item.modified,
-          modified_by: item.modified_by,
-          fg_item: item.fg_item,
-          fg_item_qty: item.fg_item_qty,
-          item_id: item.id,
-          warehouse: item.warehouse,
-          transaction_date: item.transaction_date,
-          uom: item.uom,
-          net_rate: item.net_rate,
-          net_amount: item.net_amount,
-          item_group: item.item_group || 'Products',
-          income_account: item.income_account || 'Sales - A',
-          cost_center: item.cost_center || 'Main - A'
-        }));
-        setProducts(itemsData);
-      }
-    } catch (error) {
-      console.error('Search error:', error);
-    }
-  }, [allProducts]);
-
-  const handleCustomerChange = (customerId: string, customerData?: Customer) => {
-    if (isReadOnly) return;
-    setSelectedCustomer(customerId);
-    if (customerId && customerData) {
-      setCustomerData(customerData);
-    } else {
-      setCustomerData(null);
-    }
-  };
-
   const addItem = () => {
     if (isReadOnly) return;
     const newItem: ProformaItem = {
@@ -1570,6 +1011,16 @@ const CreateProformaInvoice: React.FC = () => {
               updated.weightUom = 'kg';
             }
           }
+
+          const taxRate = Number(value) || 0;
+          const tax_id = getTaxIdFromRate(taxRate, taxOptions);
+          const amount = (updated.quantity || 0) * (updated.rate || 0);
+          const taxAmount = (amount * taxRate) / 100;
+
+          updated.tax = taxRate;
+          updated.tax_id = tax_id;
+          updated.taxAmount = taxAmount;
+          updated.totalAmount = amount + taxAmount;
 
           if (field === 'quantity') {
             const amount = (updated.quantity || 0) * (updated.rate || 0);
@@ -1655,7 +1106,6 @@ const CreateProformaInvoice: React.FC = () => {
           discount_percentage: item.discountPercentage || 0,
           weight_per_unit: item.weightPerUnit || 0,
           weight_uom: item.weightUom || 'kg',
-          // ✅ ADDED: Send tax details to backend so they are saved
           tax_rate: item.tax || 0,
           item_tax_rate: item.tax || 0,
           item_tax_template: item.tax ? `GST ${item.tax}%` : '',
@@ -1907,7 +1357,6 @@ const CreateProformaInvoice: React.FC = () => {
         message={loaderMessage}
         subtitle={loaderSubtitle}
       />
-
       <SuccessModal
         isOpen={showSuccessModal}
         onClose={handleCloseModal}
@@ -1960,301 +1409,478 @@ const CreateProformaInvoice: React.FC = () => {
         </div>
       </div>
 
-      <div className={`npi-main-box ${isReadOnly ? 'npi-readonly' : ''}`}>
-        <div className="npi-compact-layout">
-          <div className="npi-left-column">
-            <div className="npi-section-header">
-              <FaBuilding className="npi-section-icon" />
-              <span>Customer Details</span>
-            </div>
+      <div className="npi-compact-layout">
+        <div className="npi-left-column">
+          <div className="npi-section-header">
+            <FaBuilding className="npi-section-icon" />
+            <span>Customer Details</span>
+          </div>
 
-            <div className="npi-field-row">
-              <div className="npi-field-full">
-                <label className="npi-label">
-                  Customer <span className="npi-required">*</span>
-                </label>
-                <CustomerDropdown
-                  value={selectedCustomer}
-                  onChange={handleCustomerChange}
-                  placeholder="Search Customer..."
-                  disabled={isLoading || isReadOnly}
-                  error={!!errors.customer}
-                />
-                {errors.customer && <span className="npi-error-text">{errors.customer}</span>}
-              </div>
-            </div>
+          <div className="npi-field-row">
+            <div className="npi-field-full">
+              <label className="npi-label">
+                Customer <span className="npi-required">*</span>
+              </label>
 
-            <div className="npi-section-header" style={{ marginTop: '1rem' }}>
-              <FaFileAlt className="npi-section-icon" />
-              <span>Proforma Details</span>
-            </div>
+              {errors.customer && (
+                <span className="npi-error-text">
+                  {errors.customer}
+                </span>
+              )}
 
-            <div className="npi-grid-3">
-              <div className="npi-field">
-                <label className="npi-label">Proforma Number</label>
-                <div className="npi-proforma-number-display">{proformaNumber}</div>
-              </div>
-
-              <div className="npi-field">
-                <label className="npi-label">
-                  Proforma Date <span className="npi-required">*</span>
-                </label>
-                <div className="npi-date-field">
-                  <input
-                    type="date"
-                    value={proformaDate}
-                    onChange={(e) => {
-                      if (isReadOnly) return;
-                      setProformaDate(e.target.value);
-                    }}
-                    className={`npi-input ${errors.proformaDate ? 'npi-input-error' : ''}`}
-                    disabled={isReadOnly}
-                  />
+              {customerData?.name && (
+                <div
+                  className="npi-customer-name-display"
+                  style={{
+                    marginTop: '6px',
+                    padding: '8px 10px',
+                    border: '1px solid var(--border-color, #e2e8f0)',
+                    borderRadius: '6px',
+                    background: 'var(--input-bg, #f8fafc)',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    color: 'var(--text-primary, #0f172a)',
+                  }}
+                >
+                  {customerData.name}
                 </div>
-              </div>
+              )}
+            </div>
+          </div>
 
-              <div className="npi-field">
-                <label className="npi-label">
-                  Valid Until <span className="npi-required">*</span>
-                </label>
-                <div className="npi-date-field">
-                  <input
-                    type="date"
-                    value={validUntil}
-                    onChange={(e) => {
-                      if (isReadOnly) return;
-                      setValidUntil(e.target.value);
-                    }}
-                    className={`npi-input ${errors.validUntil ? 'npi-input-error' : ''}`}
-                    disabled={isReadOnly}
-                  />
-                </div>
-              </div>
+          <div className="npi-section-header" style={{ marginTop: '1rem' }}>
+            <FaFileAlt className="npi-section-icon" />
+            <span>Proforma Details</span>
+          </div>
+
+          <div className="npi-grid-3">
+            <div className="npi-field">
+              <label className="npi-label">Proforma Number</label>
+              <div className="npi-proforma-number-display">{proformaNumber}</div>
             </div>
 
-            <div className="npi-grid-3">
-              <div className="npi-field">
-                <label className="npi-label">Proforma Status</label>
-                <select
-                  value={proformaStatus}
+            <div className="npi-field">
+              <label className="npi-label">
+                Proforma Date <span className="npi-required">*</span>
+              </label>
+              <div className="npi-date-field">
+                <input
+                  type="date"
+                  value={proformaDate}
                   onChange={(e) => {
                     if (isReadOnly) return;
-                    setProformaStatus(e.target.value);
+                    setProformaDate(e.target.value);
                   }}
-                  className="npi-select"
+                  className={`npi-input ${errors.proformaDate ? 'npi-input-error' : ''}`}
                   disabled={isReadOnly}
-                >
-                  <option value="Draft">Draft</option>
-                  <option value="Confirmed">Confirmed</option>
-                  <option value="On Hold">On Hold</option>
-                  <option value="Completed">Completed</option>
-                  <option value="Cancelled">Cancelled</option>
-                </select>
+                />
               </div>
+            </div>
 
-              <div className="npi-field">
-                <label className="npi-label">Currency</label>
-                <select className="npi-select" defaultValue="INR" disabled={isReadOnly}>
-                  <option value="INR">INR</option>
-                  <option value="USD">USD</option>
-                  <option value="EUR">EUR</option>
-                </select>
+            <div className="npi-field">
+              <label className="npi-label">
+                Valid Until <span className="npi-required">*</span>
+              </label>
+              <div className="npi-date-field">
+                <input
+                  type="date"
+                  value={validUntil}
+                  onChange={(e) => {
+                    if (isReadOnly) return;
+                    setValidUntil(e.target.value);
+                  }}
+                  className={`npi-input ${errors.validUntil ? 'npi-input-error' : ''}`}
+                  disabled={isReadOnly}
+                />
               </div>
             </div>
           </div>
 
-          <div className="npi-right-column">
-            {customerData ? (
-              <div className="npi-detail-card">
-                <div className="npi-card-header">
-                  <FaBuilding size={14} />
-                  <span>Customer Details</span>
-                </div>
-                <div className="npi-card-content">
-                  <h3>{customerData.name}</h3>
-                  <div className="npi-card-info">
-                    {customerData.code && (
-                      <div className="npi-info-item">
-                        <span className="npi-info-label">Code</span>
-                        <span className="npi-info-value">{customerData.code}</span>
-                      </div>
-                    )}
-                    {customerData.contactPerson && (
-                      <div className="npi-info-item">
-                        <span className="npi-info-label">Contact</span>
-                        <span className="npi-info-value"><FaUser size={10} /> {customerData.contactPerson}</span>
-                      </div>
-                    )}
-                    {customerData.phone && (
-                      <div className="npi-info-item">
-                        <span className="npi-info-label">Phone</span>
-                        <span className="npi-info-value"><FaPhone size={10} /> {customerData.phone}</span>
-                      </div>
-                    )}
-                    {customerData.email && (
-                      <div className="npi-info-item">
-                        <span className="npi-info-label">Email</span>
-                        <span className="npi-info-value"><FaEnvelope size={10} /> {customerData.email}</span>
-                      </div>
-                    )}
-                    {customerData.gstin && (
-                      <div className="npi-info-item">
-                        <span className="npi-info-label">GST</span>
-                        <span className="npi-info-value">{customerData.gstin}</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="npi-detail-card npi-empty-card">
-                <div className="npi-card-header">
-                  <FaBuilding size={14} />
-                  <span>Customer Details</span>
-                </div>
-                <div className="npi-card-content">
-                  <div className="npi-empty-state">
-                    <FaInfoCircle size={24} />
-                    <p>Select a customer to view details</p>
-                  </div>
-                </div>
-              </div>
-            )}
+          <div className="npi-grid-3">
+            <div className="npi-field">
+              <label className="npi-label">Proforma Status</label>
+              <select
+                value={proformaStatus}
+                onChange={(e) => {
+                  if (isReadOnly) return;
+                  setProformaStatus(e.target.value);
+                }}
+                className="npi-select"
+                disabled={isReadOnly}
+              >
+                <option value="Draft">Draft</option>
+                <option value="Confirmed">Confirmed</option>
+                <option value="On Hold">On Hold</option>
+                <option value="Completed">Completed</option>
+                <option value="Cancelled">Cancelled</option>
+              </select>
+            </div>
+
+            <div className="npi-field">
+              <label className="npi-label">Currency</label>
+              <select className="npi-select" defaultValue="INR" disabled={isReadOnly}>
+                <option value="INR">INR</option>
+                <option value="USD">USD</option>
+                <option value="EUR">EUR</option>
+              </select>
+            </div>
           </div>
         </div>
 
-        <div className="npi-items-full">
-          <div className="npi-items-header">
-            <span className="npi-items-title">
-              <FaClipboardList className="npi-items-icon" /> {isService ? 'Services' : 'Products'}
-            </span>
-            {!isReadOnly && (
-              <button onClick={addItem} className="npi-add-btn">
-                <FaPlus size={9} /> Add
-              </button>
-            )}
+        <div className="npi-right-column">
+          {customerData ? (
+            <div className="npi-detail-card">
+              <div className="npi-card-header">
+                <FaBuilding size={14} />
+                <span>Customer Details</span>
+              </div>
+              <div className="npi-card-content">
+                <h3>{customerData.name}</h3>
+                <div className="npi-card-info">
+                  {customerData.code && (
+                    <div className="npi-info-item">
+                      <span className="npi-info-label">Code</span>
+                      <span className="npi-info-value">{customerData.code}</span>
+                    </div>
+                  )}
+                  {customerData.contactPerson && (
+                    <div className="npi-info-item">
+                      <span className="npi-info-label">Contact</span>
+                      <span className="npi-info-value"><FaUser size={10} /> {customerData.contactPerson}</span>
+                    </div>
+                  )}
+                  {customerData.phone && (
+                    <div className="npi-info-item">
+                      <span className="npi-info-label">Phone</span>
+                      <span className="npi-info-value"><FaPhone size={10} /> {customerData.phone}</span>
+                    </div>
+                  )}
+                  {customerData.email && (
+                    <div className="npi-info-item">
+                      <span className="npi-info-label">Email</span>
+                      <span className="npi-info-value"><FaEnvelope size={10} /> {customerData.email}</span>
+                    </div>
+                  )}
+                  {customerData.gstin && (
+                    <div className="npi-info-item">
+                      <span className="npi-info-label">GST</span>
+                      <span className="npi-info-value">{customerData.gstin}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="npi-detail-card npi-empty-card">
+              <div className="npi-card-header">
+                <FaBuilding size={14} />
+                <span>Customer Details</span>
+              </div>
+              <div className="npi-card-content">
+                <div className="npi-empty-state">
+                  <FaInfoCircle size={24} />
+                  <p>Select a customer to view details</p>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="npi-items-full">
+        <div className="npi-items-header">
+          <span className="npi-items-title">
+            <FaClipboardList className="npi-items-icon" /> {isService ? 'Services' : 'Products'}
+          </span>
+          {!isReadOnly && (
+            <button onClick={addItem} className="npi-add-btn">
+              <FaPlus size={9} /> Add
+            </button>
+          )}
+        </div>
+
+        {errors.items && <div className="npi-items-error"><FaExclamationTriangle /> {errors.items}</div>}
+
+        <div className="npi-table-wrap">
+          <table className="npi-items-table">
+            <thead>
+              <tr>
+                <th className="npi-col-sno">#</th>
+                <th className="npi-col-code">Item Code <span className="npi-required">*</span></th>
+                <th className="npi-col-name">Item Name <span className="npi-required">*</span></th>
+                <th className="npi-col-hsn">HSN</th>
+                <th className="npi-col-qty">Qty <span className="npi-required">*</span></th>
+                <th className="npi-col-unit">UOM</th>
+                <th className="npi-col-rate">Rate</th>
+                <th className="npi-col-tax">Tax</th>
+                <th className="npi-col-tax-amount" style={{ textAlign: 'right' }}>Tax Amt</th>
+                <th className="npi-col-amount" style={{ textAlign: 'right' }}>Amount</th>
+                <th className="npi-col-action"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((item, index) => (
+                <tr key={item.id}>
+                  <td className="npi-col-sno">{index + 1}</td>
+                  <td className="npi-col-code">
+                    <input
+                      type="text"
+                      className="npi-table-input"
+                      value={item.itemCode}
+                      onChange={(e) =>
+                        updateItem(item.id, "itemCode", e.target.value)
+                      }
+                      placeholder="Item Code"
+                      disabled={isReadOnly}
+                    />
+                  </td>
+                  <td className="npi-col-name">
+                    <input
+                      type="text"
+                      value={item.itemName}
+                      onChange={(e) => updateItem(item.id, 'itemName', e.target.value)}
+                      placeholder="Item Name"
+                      className="npi-table-input npi-table-input-text"
+                      disabled={isReadOnly}
+                      readOnly={isReadOnly}
+                    />
+                  </td>
+                  <td className="npi-col-hsn">
+                    <input
+                      type="text"
+                      value={item.hsn}
+                      onChange={(e) => updateItem(item.id, 'hsn', e.target.value)}
+                      placeholder="HSN"
+                      className="npi-table-input npi-table-input-text"
+                      disabled={isReadOnly}
+                      readOnly={isReadOnly}
+                    />
+                  </td>
+                  <td className="npi-col-qty">
+                    <input
+                      type="number"
+                      value={item.quantity}
+                      onChange={(e) => updateItem(item.id, 'quantity', parseFloat(e.target.value) || 0)}
+                      min="1"
+                      className="npi-table-input"
+                      disabled={isReadOnly}
+                      readOnly={isReadOnly}
+                    />
+                  </td>
+                  <td className="npi-col-unit">
+                    <select
+                      value={item.unit}
+                      onChange={(e) => updateItem(item.id, 'unit', e.target.value)}
+                      className="npi-table-input"
+                      disabled={isReadOnly}
+                    >
+                      <option value="pcs">Pcs</option>
+                      <option value="kg">Kg</option>
+                      <option value="ltr">Ltr</option>
+                      <option value="mtr">Mtr</option>
+                      <option value="Nos">Nos</option>
+                      <option value="Box">Box</option>
+                    </select>
+                  </td>
+                  <td className="npi-col-rate">
+                    <input
+                      type="number"
+                      value={item.rate}
+                      onChange={(e) => updateItem(item.id, 'rate', parseFloat(e.target.value) || 0)}
+                      min="0"
+                      step="0.01"
+                      className="npi-table-input"
+                      disabled={isReadOnly}
+                      readOnly={isReadOnly}
+                    />
+                  </td>
+                  <td>
+                    <select
+                      value={item.tax || 0}
+                      onChange={(e) =>
+                        updateItem(
+                          item.id,
+                          'tax',
+                          Number(e.target.value) || 0
+                        )
+                      }
+                      className="npi-table-input"
+                      disabled={isReadOnly}
+                    >
+                      <option value={0}>0%</option>
+
+                      {taxOptions.map((taxOption) => {
+                        const taxRate = extractTaxValue(taxOption.tax_type);
+
+                        return (
+                          <option
+                            key={taxOption.tax_id}
+                            value={taxRate}
+                          >
+                            {taxOption.tax_type}
+                          </option>
+                        );
+                      })}
+                    </select>
+                  </td>
+
+                  <td className="npi-col-tax-amount"
+                    style={{
+                      textAlign: 'right',
+                      fontWeight: 600,
+                      whiteSpace: 'nowrap'
+                    }}
+                  >
+                    ₹{Number(item.taxAmount || 0).toFixed(2)}
+                  </td>
+
+                  <td className="npi-col-amount"
+                    style={{
+                      textAlign: 'right',
+                      fontWeight: 600,
+                      whiteSpace: 'nowrap'
+                    }}
+                  >
+                    <strong>
+                      ₹{Number(item.totalAmount || 0).toFixed(2)}
+                    </strong>
+                  </td>
+
+                  <td className="npi-col-action">
+                    {!isReadOnly && (
+                      <button onClick={() => removeItem(item.id)} className="npi-remove-btn">
+                        <FaTrash size={12} />
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* BOTTOM SECTION - Payment Schedule */}
+      <div className="npi-bottom-section">
+        {/* LEFT COLUMN */}
+        <div className="npi-bottom-left">
+          {/* Payment Schedule Header */}
+          <div className="npi-section-header">
+            <FaCreditCard className="npi-section-icon" />
+            <span>Payment Schedule</span>
           </div>
 
-          {errors.items && <div className="npi-items-error"><FaExclamationTriangle /> {errors.items}</div>}
+          <div className="npi-field" style={{ marginBottom: '0.5rem' }}>
+            <div className="npi-field-row" style={{ gridTemplateColumns: '1fr auto' }}>
+              <select
+                value={selectedPaymentTemplate}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setSelectedPaymentTemplate(value);
+                  if (value) {
+                    applyPaymentTemplate(value);
+                  }
+                }}
+                className="npi-select"
+                style={{ minWidth: '200px' }}
+                disabled={isReadOnly}
+              >
+                <option value="">Select Payment Terms...</option>
+                {paymentTermTemplates.map((template) => (
+                  <option key={template.id} value={template.id}>
+                    {template.name} - {template.description}
+                  </option>
+                ))}
+              </select>
+              {!isReadOnly && (
+                <button
+                  type="button"
+                  className="npi-add-btn"
+                  onClick={() => {
+                    if (selectedPaymentTemplate) {
+                      applyPaymentTemplate(selectedPaymentTemplate);
+                    }
+                  }}
+                  style={{ whiteSpace: 'nowrap', padding: '5px 14px' }}
+                >
+                  <FaCopy size={9} /> Apply
+                </button>
+              )}
+            </div>
+          </div>
 
-          <div className="npi-table-wrap">
-            <table className="npi-items-table">
+          <div className="npi-payment-table-wrap">
+            <table className="npi-payment-table">
               <thead>
                 <tr>
-                  <th className="npi-col-sno">#</th>
-                  <th className="npi-col-code">Item Code <span className="npi-required">*</span></th>
-                  <th className="npi-col-name">Item Name <span className="npi-required">*</span></th>
-                  <th className="npi-col-hsn">HSN</th>
-                  <th className="npi-col-qty">Qty <span className="npi-required">*</span></th>
-                  <th className="npi-col-unit">UOM</th>
-                  <th className="npi-col-rate">Rate</th>
-                  <th className="npi-col-tax">Tax</th>
-                  <th className="npi-col-tax-amount" style={{ textAlign: 'right' }}>Tax Amt</th>
-                  <th className="npi-col-amount" style={{ textAlign: 'right' }}>Amount</th>
-                  <th className="npi-col-action"></th>
+                  <th className="npi-payment-col-no">#</th>
+                  <th className="npi-payment-col-term">Payment Term</th>
+                  <th className="npi-payment-col-date">Due Date</th>
+                  <th className="npi-payment-col-duration">Days</th>
+                  <th className="npi-payment-col-portion">%</th>
+                  <th className="npi-payment-col-amount">Amount</th>
+                  <th className="npi-payment-col-action"></th>
                 </tr>
               </thead>
               <tbody>
-                {items.map((item, index) => (
-                  <tr key={item.id}>
-                    <td className="npi-col-sno">{index + 1}</td>
-                    <td className="npi-col-code">
-                      <SearchableSelect
-                        value={item.itemCode}
-                        onChange={(value) => updateItem(item.id, 'itemCode', value)}
-                        options={products}
-                        placeholder="Search..."
-                        onSearch={handleItemSearch}
-                        loading={isLoadingItems}
-                        error={!!errors[`item_${index}_code`]}
-                        disabled={isReadOnly}
-                      />
-                    </td>
-                    <td className="npi-col-name">
+                {paymentSchedule.map((schedule, index) => (
+                  <tr key={schedule.id}>
+                    <td className="npi-payment-col-no">{index + 1}</td>
+                    <td className="npi-payment-col-term">
                       <input
                         type="text"
-                        value={item.itemName}
-                        onChange={(e) => updateItem(item.id, 'itemName', e.target.value)}
-                        placeholder="Item Name"
+                        value={schedule.paymentTerm}
+                        onChange={(e) => updatePaymentRow(index, { paymentTerm: e.target.value })}
+                        placeholder="Term"
                         className="npi-table-input npi-table-input-text"
                         disabled={isReadOnly}
                         readOnly={isReadOnly}
                       />
                     </td>
-                    <td className="npi-col-hsn">
+                    <td className="npi-payment-col-date">
                       <input
-                        type="text"
-                        value={item.hsn}
-                        onChange={(e) => updateItem(item.id, 'hsn', e.target.value)}
-                        placeholder="HSN"
-                        className="npi-table-input npi-table-input-text"
-                        disabled={isReadOnly}
-                        readOnly={isReadOnly}
-                      />
-                    </td>
-                    <td className="npi-col-qty">
-                      <input
-                        type="number"
-                        value={item.quantity}
-                        onChange={(e) => updateItem(item.id, 'quantity', parseFloat(e.target.value) || 0)}
-                        min="1"
+                        type="date"
+                        value={schedule.dueDate}
+                        onChange={(e) => handlePaymentDueDateChange(index, e.target.value)}
                         className="npi-table-input"
                         disabled={isReadOnly}
                         readOnly={isReadOnly}
                       />
                     </td>
-                    <td className="npi-col-unit">
-                      <select
-                        value={item.unit}
-                        onChange={(e) => updateItem(item.id, 'unit', e.target.value)}
-                        className="npi-table-input"
-                        disabled={isReadOnly}
-                      >
-                        <option value="pcs">Pcs</option>
-                        <option value="kg">Kg</option>
-                        <option value="ltr">Ltr</option>
-                        <option value="mtr">Mtr</option>
-                        <option value="Nos">Nos</option>
-                        <option value="Box">Box</option>
-                      </select>
-                    </td>
-                    <td className="npi-col-rate">
+                    <td className="npi-payment-col-duration">
                       <input
                         type="number"
-                        value={item.rate}
-                        onChange={(e) => updateItem(item.id, 'rate', parseFloat(e.target.value) || 0)}
+                        value={schedule.durationDays}
+                        onChange={(e) => handlePaymentDurationChange(index, Number(e.target.value) || 0)}
                         min="0"
-                        step="0.01"
                         className="npi-table-input"
                         disabled={isReadOnly}
                         readOnly={isReadOnly}
                       />
                     </td>
-                    <td className="npi-col-tax">
-                      <select
-                        value={item.tax}
-                        onChange={(e) => updateItem(item.id, 'tax', parseFloat(e.target.value) || 0)}
+                    <td className="npi-payment-col-portion">
+                      <input
+                        type="number"
+                        value={schedule.invoicePortion}
+                        onChange={(e) => updatePaymentRow(index, { invoicePortion: Number(e.target.value) || 0 })}
+                        min="0"
+                        max="100"
                         className="npi-table-input"
-                        disabled={loadingTaxOptions || isReadOnly}
-                      >
-                        <option value={0}>0%</option>
-                        {taxOptions.map((tax) => (
-                          <option key={tax.tax_id} value={extractTaxValue(tax.tax_type)}>
-                            {tax.tax_type}
-                          </option>
-                        ))}
-                      </select>
+                        disabled={isReadOnly}
+                        readOnly={isReadOnly}
+                      />
                     </td>
-                    <td className="npi-col-tax-amount" style={{ textAlign: 'right' }}>
-                      <span className="npi-table-value">₹{item.taxAmount.toFixed(2)}</span>
+                    <td className="npi-payment-col-amount">
+                      <span className="npi-table-value">₹{schedule.paymentAmount.toFixed(2)}</span>
                     </td>
-                    <td className="npi-col-amount" style={{ textAlign: 'right' }}>
-                      <span className="npi-table-value">₹{item.totalAmount.toFixed(2)}</span>
-                    </td>
-                    <td className="npi-col-action">
-                      {!isReadOnly && (
-                        <button onClick={() => removeItem(item.id)} className="npi-remove-btn">
-                          <FaTrash size={12} />
+                    <td className="npi-payment-col-action">
+                      {!isReadOnly && paymentSchedule.length > 1 && (
+                        <button
+                          type="button"
+                          className="npi-remove-btn"
+                          onClick={() => removePaymentSchedule(index)}
+                        >
+                          <FaTrash size={10} />
                         </button>
                       )}
                     </td>
@@ -2263,208 +1889,79 @@ const CreateProformaInvoice: React.FC = () => {
               </tbody>
             </table>
           </div>
+
+          {!isReadOnly && (
+            <button type="button" className="npi-add-payment-btn" onClick={addPaymentSchedule}>
+              <FaPlus size={9} /> Add Schedule
+            </button>
+          )}
+
+          <div className="npi-field" style={{ marginTop: '1rem' }}>
+            <label className="npi-label">Remarks / Notes</label>
+            <input
+              type="text"
+              placeholder="Add notes..."
+              value={remarks}
+              onChange={(e) => {
+                if (isReadOnly) return;
+                setRemarks(e.target.value);
+              }}
+              className="npi-input"
+              disabled={isReadOnly}
+              readOnly={isReadOnly}
+            />
+          </div>
         </div>
 
-        <div className="npi-bottom-section">
-          <div className="npi-bottom-left">
-            <div className="npi-section-header">
-              <FaCreditCard className="npi-section-icon" />
-              <span>Payment Schedule</span>
+        <div className="npi-bottom-right">
+          <div className="npi-detail-card npi-summary-card">
+            <div className="npi-card-header">
+              <FaCalculator size={14} />
+              <span>Financial Summary</span>
             </div>
-
-            <div className="npi-field" style={{ marginBottom: '0.5rem' }}>
-              <div className="npi-field-row" style={{ gridTemplateColumns: '1fr auto' }}>
-                <select
-                  value={selectedPaymentTemplate}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    setSelectedPaymentTemplate(value);
-                    if (value) {
-                      applyPaymentTemplate(value);
-                    }
-                  }}
-                  className="npi-select"
-                  style={{ minWidth: '200px' }}
-                  disabled={isReadOnly}
-                >
-                  <option value="">Select Payment Terms...</option>
-                  {paymentTermTemplates.map((template) => (
-                    <option key={template.id} value={template.id}>
-                      {template.name} - {template.description}
-                    </option>
-                  ))}
-                </select>
-                {!isReadOnly && (
-                  <button
-                    type="button"
-                    className="npi-add-btn"
-                    onClick={() => {
-                      if (selectedPaymentTemplate) {
-                        applyPaymentTemplate(selectedPaymentTemplate);
-                      }
-                    }}
-                    style={{ whiteSpace: 'nowrap', padding: '5px 14px' }}
-                  >
-                    <FaCopy size={9} /> Apply
-                  </button>
-                )}
-              </div>
-            </div>
-
-            <div className="npi-payment-table-wrap">
-              <table className="npi-payment-table">
-                <thead>
-                  <tr>
-                    <th className="npi-payment-col-no">#</th>
-                    <th className="npi-payment-col-term">Payment Term</th>
-                    <th className="npi-payment-col-date">Due Date</th>
-                    <th className="npi-payment-col-duration">Days</th>
-                    <th className="npi-payment-col-portion">%</th>
-                    <th className="npi-payment-col-amount">Amount</th>
-                    <th className="npi-payment-col-action"></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {paymentSchedule.map((schedule, index) => (
-                    <tr key={schedule.id}>
-                      <td className="npi-payment-col-no">{index + 1}</td>
-                      <td className="npi-payment-col-term">
-                        <input
-                          type="text"
-                          value={schedule.paymentTerm}
-                          onChange={(e) => updatePaymentRow(index, { paymentTerm: e.target.value })}
-                          placeholder="Term"
-                          className="npi-table-input npi-table-input-text"
-                          disabled={isReadOnly}
-                          readOnly={isReadOnly}
-                        />
-                      </td>
-                      <td className="npi-payment-col-date">
-                        <input
-                          type="date"
-                          value={schedule.dueDate}
-                          onChange={(e) => handlePaymentDueDateChange(index, e.target.value)}
-                          className="npi-table-input"
-                          disabled={isReadOnly}
-                          readOnly={isReadOnly}
-                        />
-                      </td>
-                      <td className="npi-payment-col-duration">
-                        <input
-                          type="number"
-                          value={schedule.durationDays}
-                          onChange={(e) => handlePaymentDurationChange(index, Number(e.target.value) || 0)}
-                          min="0"
-                          className="npi-table-input"
-                          disabled={isReadOnly}
-                          readOnly={isReadOnly}
-                        />
-                      </td>
-                      <td className="npi-payment-col-portion">
-                        <input
-                          type="number"
-                          value={schedule.invoicePortion}
-                          onChange={(e) => updatePaymentRow(index, { invoicePortion: Number(e.target.value) || 0 })}
-                          min="0"
-                          max="100"
-                          className="npi-table-input"
-                          disabled={isReadOnly}
-                          readOnly={isReadOnly}
-                        />
-                      </td>
-                      <td className="npi-payment-col-amount">
-                        <span className="npi-table-value">₹{schedule.paymentAmount.toFixed(2)}</span>
-                      </td>
-                      <td className="npi-payment-col-action">
-                        {!isReadOnly && paymentSchedule.length > 1 && (
-                          <button
-                            type="button"
-                            className="npi-remove-btn"
-                            onClick={() => removePaymentSchedule(index)}
-                          >
-                            <FaTrash size={10} />
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            {!isReadOnly && (
-              <button type="button" className="npi-add-payment-btn" onClick={addPaymentSchedule}>
-                <FaPlus size={9} /> Add Schedule
-              </button>
-            )}
-
-            <div className="npi-field" style={{ marginTop: '1rem' }}>
-              <label className="npi-label">Remarks / Notes</label>
-              <input
-                type="text"
-                placeholder="Add notes..."
-                value={remarks}
-                onChange={(e) => {
-                  if (isReadOnly) return;
-                  setRemarks(e.target.value);
-                }}
-                className="npi-input"
-                disabled={isReadOnly}
-                readOnly={isReadOnly}
-              />
-            </div>
-          </div>
-
-          <div className="npi-bottom-right">
-            <div className="npi-detail-card npi-summary-card">
-              <div className="npi-card-header">
-                <FaCalculator size={14} />
-                <span>Financial Summary</span>
-              </div>
-              <div className="npi-card-content">
-                <div className="npi-summary-grid">
-                  <div className="npi-summary-item">
-                    <span className="npi-summary-label">Total Items</span>
-                    <span className="npi-summary-value">{totalItems}</span>
+            <div className="npi-card-content">
+              <div className="npi-summary-grid">
+                <div className="npi-summary-item">
+                  <span className="npi-summary-label">Total Items</span>
+                  <span className="npi-summary-value">{totalItems}</span>
+                </div>
+                <div className="npi-summary-item">
+                  <span className="npi-summary-label">Total Quantity</span>
+                  <span className="npi-summary-value">{totalQuantity}</span>
+                </div>
+                <div className="npi-summary-item">
+                  <span className="npi-summary-label">Sub Total</span>
+                  <span className="npi-summary-value">₹{subTotal.toFixed(2)}</span>
+                </div>
+                <div className="npi-summary-item">
+                  <span className="npi-summary-label">Total Tax</span>
+                  <span className="npi-summary-value">₹{totalTax.toFixed(2)}</span>
+                </div>
+                <div className="npi-summary-item">
+                  <span className="npi-summary-label">Round Off</span>
+                  <div className="npi-roundoff-wrap">
+                    <input
+                      type="number"
+                      value={roundOff.toFixed(2)}
+                      onChange={(e) => {
+                        if (isReadOnly) return;
+                        setRoundOff(parseFloat(e.target.value) || 0);
+                      }}
+                      className="npi-roundoff-input"
+                      disabled={isReadOnly}
+                      readOnly={isReadOnly}
+                    />
                   </div>
-                  <div className="npi-summary-item">
-                    <span className="npi-summary-label">Total Quantity</span>
-                    <span className="npi-summary-value">{totalQuantity}</span>
-                  </div>
-                  <div className="npi-summary-item">
-                    <span className="npi-summary-label">Sub Total</span>
-                    <span className="npi-summary-value">₹{subTotal.toFixed(2)}</span>
-                  </div>
-                  <div className="npi-summary-item">
-                    <span className="npi-summary-label">Total Tax</span>
-                    <span className="npi-summary-value">₹{totalTax.toFixed(2)}</span>
-                  </div>
-                  <div className="npi-summary-item">
-                    <span className="npi-summary-label">Round Off</span>
-                    <div className="npi-roundoff-wrap">
-                      <input
-                        type="number"
-                        value={roundOff.toFixed(2)}
-                        onChange={(e) => {
-                          if (isReadOnly) return;
-                          setRoundOff(parseFloat(e.target.value) || 0);
-                        }}
-                        className="npi-roundoff-input"
-                        disabled={isReadOnly}
-                        readOnly={isReadOnly}
-                      />
-                    </div>
-                  </div>
-                  <div className="npi-summary-grand">
-                    <span className="npi-summary-grand-label">Grand Total</span>
-                    <span className="npi-summary-grand-value">₹{grandTotalWithRound.toFixed(2)}</span>
-                  </div>
-                  <div className="npi-summary-item" style={{ borderTop: '1px solid var(--border-color, #e2e8f0)', marginTop: '4px', paddingTop: '6px' }}>
-                    <span className="npi-summary-label" style={{ fontWeight: 600, color: 'var(--text-primary, #0f172a)' }}>Payment Schedule Total</span>
-                    <span className="npi-summary-value" style={{ fontWeight: 600, color: 'var(--primary-color, #2563eb)' }}>
-                      ₹{paymentSchedule.reduce((sum, p) => sum + p.paymentAmount, 0).toFixed(2)}
-                    </span>
-                  </div>
+                </div>
+                <div className="npi-summary-grand">
+                  <span className="npi-summary-grand-label">Grand Total</span>
+                  <span className="npi-summary-grand-value">₹{grandTotalWithRound.toFixed(2)}</span>
+                </div>
+                <div className="npi-summary-item" style={{ borderTop: '1px solid var(--border-color, #e2e8f0)', marginTop: '4px', paddingTop: '6px' }}>
+                  <span className="npi-summary-label" style={{ fontWeight: 600, color: 'var(--text-primary, #0f172a)' }}>Payment Schedule Total</span>
+                  <span className="npi-summary-value" style={{ fontWeight: 600, color: 'var(--primary-color, #2563eb)' }}>
+                    ₹{paymentSchedule.reduce((sum, p) => sum + p.paymentAmount, 0).toFixed(2)}
+                  </span>
                 </div>
               </div>
             </div>

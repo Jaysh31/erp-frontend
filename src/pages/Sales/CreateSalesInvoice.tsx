@@ -890,7 +890,7 @@ const SuccessModal: React.FC<SuccessModalProps> = ({
 
         <div className="nsb-modal-actions">
           <button onClick={onViewDetails} className="nsb-modal-btn nsb-modal-btn-primary">
-            View Sales Bill
+            View Tax Invoice
           </button>
           <button onClick={onClose} className="nsb-modal-btn nsb-modal-btn-secondary">
             Close
@@ -3036,7 +3036,7 @@ const [loadingQCMap, setLoadingQCMap] = useState<boolean>(false);
         sessionStorage.removeItem(draftKey);
       }
     } catch (e) {
-      console.error('Failed to restore sales bill draft:', e);
+      console.error('Failed to restore tax invoice draft:', e);
     }
 
     const newCustomer = (location.state as any)?.newCustomer as Customer | undefined;
@@ -3680,7 +3680,7 @@ const fetchDeliveryNoteQCStatus = async (customerId: string) => {
       };
       sessionStorage.setItem(getDraftStorageKey(), JSON.stringify(draftPayload));
     } catch (e) {
-      console.error('Failed to save sales bill draft before navigating to Add Customer:', e);
+      console.error('Failed to save tax invoice draft before navigating to Add Customer:', e);
     }
 
     navigate('/customer/add', {
@@ -4004,11 +4004,11 @@ const fetchDeliveryNoteQCStatus = async (customerId: string) => {
   const handleSubmit = async () => {
     if (!validateForm()) return;
     setIsSubmitting(true);
-    const toastId = toast.loading(isEditMode ? 'Updating sales bill...' : 'Creating sales bill...');
+    const toastId = toast.loading(isEditMode ? 'Updating tax invoice...' : 'Creating tax invoice...');
     try {
       const payload = buildPayload('Submitted');
 
-// EDIT EXISTING SALES INVOICE
+// EDIT EXISTING TAX INVOICE
 if (isEditMode && id) {
   const updatePayload = buildUpdatePayload('Submitted', id);
 
@@ -4016,7 +4016,7 @@ if (isEditMode && id) {
 
   if (!updateResponse.success) {
     throw new Error(
-      updateResponse.message || 'Failed to update sales invoice'
+      updateResponse.message || 'Failed to update tax invoice'
     );
   }
 
@@ -4028,7 +4028,7 @@ if (isEditMode && id) {
 
   setPrintInvoiceId(updatedPrintId);
 
-  toast.success('Sales Bill updated successfully!', {
+  toast.success('Tax Invoice updated successfully!', {
     id: toastId
   });
 
@@ -4037,7 +4037,7 @@ if (isEditMode && id) {
     totalItems: items.filter(
       i => i.itemCode && i.quantity > 0
     ).length,
-    message: 'Sales Invoice updated successfully.',
+    message: 'Tax Invoice updated successfully.',
     customerName: customerData?.name,
     totalAmount: getGrandTotalWithRound()
   });
@@ -4083,7 +4083,7 @@ if (isEditMode && id) {
         }
       } else {
         // Skip inventory update when from Delivery Challan
-        toast.success('Sales Bill created from Delivery Challan - Inventory not updated (already deducted at DC level)', { id: toastId });
+        toast.success('Tax Invoice created from Delivery Challan - Inventory not updated (already deducted at DC level)', { id: toastId });
       }
 
       toast.success('Created!', { id: toastId });
@@ -4140,7 +4140,7 @@ if (isEditMode && id) {
     id: toastId
   });
 
-  setTimeout(() => navigate('/sales-bill'), 1000);
+  setTimeout(() => navigate('/Tax-Invoice'), 1000);
 
   return;
 }
@@ -4152,7 +4152,7 @@ if (isEditMode && id) {
       const salesBillName = responseData?.data?.name || responseData?.name || billNumber;
 
       toast.success(`Draft saved: ${salesBillName}`, { id: toastId });
-      setTimeout(() => navigate('/sales-bill'), 1000);
+      setTimeout(() => navigate('/Tax-Invoice'), 1000);
     } catch (error: any) {
       toast.error(error.message || 'Failed to save', { id: toastId });
     } finally {
@@ -4162,12 +4162,12 @@ if (isEditMode && id) {
 
   const handleViewSalesBill = () => {
     setShowSuccessModal(false);
-    navigate('/sales-bill');
+    navigate('/Tax-Invoice');
   };
 
   const handleCloseModal = () => {
     setShowSuccessModal(false);
-    navigate('/sales-bill');
+    navigate('/Tax-Invoice');
   };
 
   // ===== SHARED SALES INVOICE PRINT =====
@@ -4586,11 +4586,11 @@ if (isEditMode && id) {
 
   const handleCancelPrint = () => {
     setShowPrintConfirmModal(false);
-    navigate('/sales-bill');
+    navigate('/Tax-Invoice');
   };
 
   const handleCancel = () => {
-    navigate('/sales-bill');
+    navigate('/Tax-Invoice');
   };
 
   useEffect(() => {
@@ -4707,11 +4707,11 @@ if (isEditMode && id) {
             </div>
 
             <h2 className="nsb-print-confirm-title">
-              Sales Bill Created Successfully
+              Tax Invoice Created Successfully
             </h2>
 
             <p className="nsb-print-confirm-message">
-              Sales Bill <strong>{successData.salesBill}</strong> has been created.
+              Tax Invoice <strong>{successData.salesBill}</strong> has been created.
             </p>
 
             <p className="nsb-print-confirm-question">
@@ -5535,7 +5535,7 @@ if (isEditMode && id) {
           </>
         )}
         {isViewMode && id && (
-          <button onClick={() => navigate(`/sales-bill/edit/${id}`)} className="nsb-btn nsb-btn-submit">
+          <button onClick={() => navigate(`/Tax-Invoice/edit/${id}`)} className="nsb-btn nsb-btn-submit">
             <FaSave size={11} /> Edit
           </button>
         )}

@@ -982,6 +982,17 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
     return group ? `${base} (${group})` : base || String(code);
   }, []);
 
+  // 🆕 Resolves the item used for the "Change" selling-price link. On edit,
+  //    `selectedItemDetails.id` may be missing even though we have the code,
+  //    so we fall back to looking the item up in the loaded items list.
+  const priceLinkItem = useMemo<Item | null>(() => {
+    if (selectedItemDetails?.id && selectedItemDetails.id > 0) {
+      return selectedItemDetails;
+    }
+    const found = items.find((i) => i.item_code === itemToManufacture);
+    return found || selectedItemDetails || null;
+  }, [selectedItemDetails, items, itemToManufacture]);
+
   // ─── Drag and Drop ─────────────────────────────────────────────
   const handleDragStart = (e: React.DragEvent, index: number) => {
     setDragIndex(index);
@@ -1448,6 +1459,29 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
       };
     });
   }, [items, itemToManufacture]);
+
+  // 🆕 BACKFILL for edit/view mode: if we have an item selected but no
+  //    `selectedItemDetails` (or its standard_rate is missing), look the item
+  //    up in the loaded items list so the selling price card always shows.
+  useEffect(() => {
+    if (bomType !== "Internal") return;
+    if (!itemToManufacture) return;
+
+    const found = items.find((i) => i.item_code === itemToManufacture);
+    if (!found) return;
+
+    // Fill in `selectedItemDetails` if it was never set.
+    if (!selectedItemDetails) {
+      setSelectedItemDetails(found);
+    }
+
+    // Populate the selling price if it's still 0/undefined (e.g. the BOM
+    // record itself didn't carry `standard_rate`).
+    if (!sellingPrice && found.standard_rate) {
+      setSellingPrice(found.standard_rate);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items, itemToManufacture, bomType]);
 
   // 🆕 Robust fetch:
   //   1. Tries several candidate group names ("Service", "Services", "service"…)
@@ -2326,7 +2360,10 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
                 />
               </div>
 
-              {bomType === "Internal" && selectedItemDetails && (
+              {/* 🆕 Selling price card now shows in edit/view mode too — it
+                  renders whenever an item is selected in Internal mode, and
+                  uses `sellingPrice` state as the source of truth. */}
+              {bomType === "Internal" && itemToManufacture && (
                 <div className="nbom-selling-price-wrapper">
                   <div className="nbom-selling-price-mini">
                     <div className="nbom-selling-price-mini-header">
@@ -2334,17 +2371,21 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
                         <DollarSign size={13} />
                         <span>Selling Price</span>
                       </div>
-                      <button
-                        className="nbom-edit-item-link-mini"
-                        onClick={() => window.open(`/item/${selectedItemDetails.id}`, "_blank")}
-                        title="Go to Item Page to change selling price"
-                      >
-                        <span>Change</span>
-                        <ExternalLink size={10} />
-                      </button>
+                      {priceLinkItem?.id && priceLinkItem.id > 0 && (
+                        <button
+                          className="nbom-edit-item-link-mini"
+                          onClick={() =>
+                            window.open(`/item/${priceLinkItem.id}`, "_blank")
+                          }
+                          title="Go to Item Page to change selling price"
+                        >
+                          <span>Change</span>
+                          <ExternalLink size={10} />
+                        </button>
+                      )}
                     </div>
                     <div className="nbom-selling-price-mini-value">
-                      ₹ {selectedItemDetails.standard_rate?.toFixed(2) || "0.00"}
+                      ₹ {(sellingPrice || 0).toFixed(2)}
                     </div>
                     {showProfitWarning && (
                       <div className="nbom-profit-warning-mini">
@@ -2381,7 +2422,7 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
                         Item Code <span style={{ color: "#dc2626" }}>*</span>
                       </th>
                       <th>Item Name</th>
-                      <th>Item Group</th>
+                      {/*<th>Item Group</th>*/}
                       <th>
                         Qty <span style={{ color: "#dc2626" }}>*</span>
                       </th>
@@ -2442,7 +2483,7 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
                             tabIndex={-1}
                           />
                         </td>
-                        <td>
+                        {/*<td>
                           <input
                             className="nbom-table-input nbom-table-input--readonly"
                             value={row.itemGroup || ""}
@@ -2450,7 +2491,7 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
                             tabIndex={-1}
                             style={{ minWidth: 120 }}
                           />
-                        </td>
+                        </td>*/}
                         <td>
                           <DigitInput
                             value={row.qty}

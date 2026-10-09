@@ -1031,4 +1031,202 @@
   .rd-debit-submit {
     width: 100%;
   }
+}/* ─── Bank Details Section ─────────────────────────────────── */
+.rd-debit-bank-details {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 16px 20px;
+  margin-top: 8px;
+}
+
+.rd-debit-bank-details h4 {
+  margin: 0 0 14px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #1e293b;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-bottom: 1px solid #e2e8f0;
+  padding-bottom: 8px;
+}
+
+.rd-debit-bank-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px 20px;
+}
+
+.rd-debit-bank-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.rd-debit-bank-label {
+  font-size: 11px;
+  color: #64748b;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.rd-debit-bank-value {
+  font-size: 14px;
+  color: #0f172a;
+  font-weight: 500;
+  word-break: break-all;
+}
+
+.rd-debit-bank-loading {
+  text-align: center;
+  padding: 20px;
+  color: #64748b;
+  font-size: 14px;
+}
+
+/* ─── Amount Deduction Highlight ───────────────────────────── */
+.rd-debit-deduction {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px dashed #cbd5e1;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.rd-debit-deduction-label {
+  font-size: 13px;
+  color: #475569;
+  font-weight: 500;
+}
+
+.rd-debit-deduction-value {
+  font-size: 22px;
+  font-weight: 700;
+  color: #dc2626;
+}
+
+/* ─── UPI Section ──────────────────────────────────────────── */
+.rd-debit-upi-section {
+  background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%);
+  border: 1px solid #a7f3d0;
+  border-radius: 12px;
+  padding: 20px;
+  margin-top: 8px;
+}
+
+.rd-debit-upi-section h4 {
+  margin: 0 0 16px 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: #065f46;
+  text-align: center;
+}
+
+.rd-debit-upi-content {
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.rd-debit-qr-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  background: #ffffff;
+  padding: 14px;
+  border-radius: 10px;
+  border: 1px solid #d1fae5;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+}
+
+.rd-debit-qr-image {
+  width: 180px;
+  height: 180px;
+  display: block;
+  border-radius: 6px;
+}
+
+.rd-debit-qr-hint {
+  margin: 0;
+  font-size: 11px;
+  color: #6b7280;
+  text-align: center;
+}
+
+.rd-debit-upi-info {
+  flex: 1;
+  min-width: 220px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.rd-debit-upi-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  position: relative;
+}
+
+.rd-debit-upi-label {
+  font-size: 11px;
+  color: #6b7280;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.rd-debit-upi-value {
+  font-size: 15px;
+  color: #065f46;
+  font-weight: 600;
+  word-break: break-all;
+}
+
+.rd-debit-upi-amount {
+  font-size: 22px;
+  color: #047857;
+}
+
+.rd-debit-copy-btn {
+  position: absolute;
+  right: 0;
+  top: 0;
+  padding: 3px 10px;
+  font-size: 11px;
+  background: #d1fae5;
+  color: #065f46;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: background 0.2s;
+}
+
+.rd-debit-copy-btn:hover {
+  background: #a7f3d0;
+}
+
+.rd-debit-upi-warning {
+  margin: 0;
+  font-size: 12px;
+  color: #d97706;
+  background: #fffbeb;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid #fde68a;
+}
+
+.rd-debit-upi-error {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #b91c1c;
+  padding: 12px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
 }

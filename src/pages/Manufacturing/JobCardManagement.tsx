@@ -21,7 +21,6 @@ import {
 import "./JobCardManagement.css";
 import { useAdminTheme } from "../../admin-theme/AdminThemeContext";
 import api from "../../services/api";
-import { PageLoader } from "../components/PageLoader";
 
 // ═══════════════════════════════════════════════════════════════════════
 // 🆕 Filter preservation helpers

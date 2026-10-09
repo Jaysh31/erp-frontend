@@ -1227,8 +1227,8 @@ export default function QualityInspectionForm() {
   const getSourcePath = () => {
     const paths: Record<string, string> = {
       'delivery_challan': '/delivery-challan',
-      'sales_invoice': '/sales-bill',
-      'sales-bill': '/sales-bill',
+      'sales_invoice': '/Tax-Invoice',
+      'Tax-Invoice': '/Tax-Invoice',
       'purchase_order': '/purchase-order',
       'purchase_invoice': '/purchase-invoice',
       'purchase-invoice': '/purchase-invoice',

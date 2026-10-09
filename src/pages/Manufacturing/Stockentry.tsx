@@ -31,7 +31,6 @@ import "./Stockentry.css";
 import { useAdminTheme } from "../../admin-theme/AdminThemeContext";
 import api from "../../services/api";
 import { FaSpinner } from "react-icons/fa6";
-import { PageLoader } from "../components/PageLoader.tsx";
 
 type EntryType =
   | "Disassemble"

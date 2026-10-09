@@ -303,7 +303,7 @@ export default function PurchaseInvoice() {
   const [totalRecords, setTotalRecords] = useState(0);
 
   const [invoices, setInvoices] = useState<PurchaseInvoice[]>([]);
-  const [suppliersList, setSuppliersList] = useState<string[]>([]);
+  const [, setSuppliersList] = useState<string[]>([]);
 
   // 🆕 Status dropdown state — seeded with full default list
   const [statusOptions, setStatusOptions] = useState<StatusOption[]>(DEFAULT_STATUS_OPTIONS);
@@ -762,7 +762,6 @@ export default function PurchaseInvoice() {
     setSearchParams({});
   };
 
-  const currencies = ['INR', 'USD', 'EUR', 'GBP', 'AED', 'SGD'];
 
   {/*if (fetching) {
     return (

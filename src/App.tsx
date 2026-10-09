@@ -1,6 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate, useParams } from "react-router-dom";
 import { AdminThemeProvider } from './admin-theme/AdminThemeContext';
-import ChatbotWidget from './pages/components/ChatbotWidget';
 import { ModuleProvider } from './context/ModuleContext';
 import { FormStateProvider } from "./context/FormStateContext";
 import LoginPage from "./pages/LoginPage";
@@ -11,6 +10,7 @@ import ChatBot from "./pages/components/chatbot/ChatBot";
 
 
 import DashboardPage from "./pages/DashboardPages/DashboardPage";
+import ManufacturingDashboard from "./pages/DashboardPages/ManufacturingDashboard";
 import ItemGroupForm from "./pages/Setup/Itemgroupform";
 import ItemGroupList from "./pages/Setup/Itemgrouplist";
 import Itemlist from "./pages/Setup/Itemlist";
@@ -78,7 +78,7 @@ import StockDashboard from "./pages/DashboardPages/StockDashboard";
 import QualityDashboard from "./pages/DashboardPages/QualityDashboard";
 import GRNForm from "./Purchasing/GRNForm";
 import GRNList from "./Purchasing/GRNList";
-import PurchaseInvoiceForm from "./Purchasing/PurchaseBillForm";
+import PurchaseInvoiceFormComponent from "./Purchasing/PurchaseBillForm";
 import UserManagement from "./pages/UserManagement/UserManagement";
 import Employee from "./pages/Setup/Employee";
 import EmployeeForm from "./pages/Setup/EmployeeForm";
@@ -93,7 +93,7 @@ import QualityInspectionList from "./pages/QualityInspectionList";
 import QualityInspectionForm from "./pages/QualityInspectionForm";
 import ContactForm from "./pages/ContactForm";
 import SubModulePermissions from "./pages/UserManagement/SubModulePermissions";
-import CreateSalesBill from "./pages/Sales/CreateSalesInvoice";
+import CreateTaxInvoice from "./pages/Sales/CreateSalesInvoice";
 import BankDetailsForm from "./pages/BankDetailsForm";
 import AddCustomer from "./pages/AddCustomer";
 import Customer from "./pages/Customer";
@@ -109,6 +109,13 @@ import GeneralAccountEntry from "./pages/Generalaccountentry";
 import CreditForm from "./pages/CreditForm";
 import DebitForm from "./pages/DebitForm";
 import GAEForm from "./pages/GAEForm";
+import CreditListingPage from "./pages/CreditListingPage";
+import DebitListingPage from "./pages/DebitListingPage";
+import AccountEntryDetails from "./pages/AccountEntryDetails";
+
+
+const PurchaseInvoiceForm = PurchaseInvoiceFormComponent as unknown as React.ComponentType;
+
 
 // ────────────────────────────────────────────────────────────
 // FIXED REDIRECT HELPER
@@ -198,15 +205,15 @@ function App() {
                 {/* ✅ ADDED: /customer/:id → /customer/view/:id */}
                 <Route path="/customer/:id" element={<RedirectTo to={(id) => `/customer/view/${id}`} />} />
 
-                <Route path="/sales-bill" element={<SalesInvoice />} />
-                <Route path="/sales-bill/new" element={<CreateSalesBill />} />
-                <Route path="/sales-bill/edit/:id" element={<CreateSalesBill />} />
-                <Route path="/sales-bill/view/:id" element={<CreateSalesBill />} />
-                {/* Redirect: /sales-bill/:id → /sales-bill/edit/:id */}
-                <Route path="/sales-bill/:id" element={<RedirectTo to={(id) => `/sales-bill/edit/${id}`} />} />
+                <Route path="/Tax-Invoice" element={<SalesInvoice />} />
+                <Route path="/Tax-Invoice/new" element={<CreateTaxInvoice />} />
+                <Route path="/Tax-Invoice/edit/:id" element={<CreateTaxInvoice />} />
+                <Route path="/Tax-Invoice/view/:id" element={<CreateTaxInvoice />} />
+                {/* Redirect: /Tax-Invoice/:id → /Tax-Invoice/edit/:id */}
+                <Route path="/Tax-Invoice/:id" element={<RedirectTo to={(id) => `/Tax-Invoice/edit/${id}`} />} />
 
                 {/* Module Dashboards */}
-                <Route path="/dashboard/manufacturing" element={<DashboardPage />} />
+                <Route path="/dashboard/manufacturing" element={<ManufacturingDashboard />} />
                 <Route path="/dashboard/sales" element={<SalesDashboard />} />
                 <Route path="/dashboard/setup" element={<SetupDashboard />} />
                 <Route path="/dashboard/purchasing" element={<PurchasingDashboard />} />
@@ -217,7 +224,9 @@ function App() {
                 <Route path="/dashboard/stock" element={<StockDashboard />} />
                 <Route path="/dashboard/quality" element={<QualityDashboard />} />
 
+
                 <Route path="/accounts" element={<Accounts />} />
+
                 <Route path="/chart-of-accounts" element={<ChartOfAccounts />} />
                 <Route path="/ledger-accounts" element={<LedgerAccounts />} />
                 <Route path="/delivery-challan" element={<DeliveryChallan />} />
@@ -232,8 +241,14 @@ function App() {
                 <Route path="/payables/supplier-bills" element={<SupplierBills />} />
 
                 <Route path="/accounts/entry" element={<GeneralAccountEntry />} />
-                <Route path="/receivables/credit-notes" element={<CreditForm />} />
-                <Route path="/Debit-notes" element={<DebitForm />} />
+                <Route path="/ledger-accounts" element={<LedgerAccounts />} />
+                <Route path="/account-entry/:id" element={<AccountEntryDetails />} />
+
+                <Route path="/Credit-notes-all" element={<CreditListingPage />} />
+                <Route path="/receivables/new-credits" element={<CreditForm />} />
+                <Route path="/receivables/new-debits" element={<DebitForm />} />
+                <Route path="/Debit-notes" element={<DebitListingPage />} />
+                
                 <Route path="/GeneralAccountEntry" element={<GAEForm />} />
                 
 
@@ -246,6 +261,14 @@ function App() {
 
                 <Route path="/item-group" element={<ItemGroupList />} />
                 <Route path="/item-group/:id" element={<ItemGroupForm />} />
+
+                <Route path="/sales/item-list" element={<Itemlist />} />
+                <Route path="/item/:id" element={<ItemForm />} />
+                <Route path="/sales/item-group" element={<ItemGroupList />} />
+                <Route path="/item-group/:id" element={<ItemGroupForm />} />
+
+
+
                 <Route path="/stock-entry" element={<Stockentry />} />
                 <Route path="/stock-entry/new" element={<StockentryForm2 />} />
                 <Route path="/stock-entry/:id" element={<StockentryForm2 />} />
@@ -339,7 +362,6 @@ function App() {
             {/* ============ CHATBOT WIDGET ============ */}
             {/* Placed inside BrowserRouter + ModuleProvider so it can use
                 useLocation() and useModule(). It floats above every page. */}
-            <ChatbotWidget />
              <ChatBot />
           </BrowserRouter>
         </FormStateProvider>

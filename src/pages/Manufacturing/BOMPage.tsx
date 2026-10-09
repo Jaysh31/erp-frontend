@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, useMemo, useCallback } from "react";
 import { createPortal } from "react-dom";
-import { useSearchParams, useNavigate } from "react-router-dom";
+import { useSearchParams,  } from "react-router-dom";
 
 import {
   ChevronDown,
@@ -28,7 +28,6 @@ import "./BOMPage.css";
 import NewBOMPage from "./Newbompage";
 import { useAdminTheme } from "../../admin-theme/AdminThemeContext";
 import api from '../../services/api';
-import { PageLoader } from "../components/PageLoader.tsx";
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 
@@ -217,7 +216,6 @@ const LoaderOverlay: React.FC<{
 
 const BOMPage: React.FC = () => {
   const { theme } = useAdminTheme();
-  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
   // 🆕 URL-driven status filter

@@ -57,7 +57,7 @@ interface BankAccountEntry {
   contact_is_billing: boolean;
   contact_is_purchase: boolean;
 
-  cash_in_hand: string;
+  opening_balance: string;
   cash_in_account: string;
 
   // transient, UI-only upload state
@@ -82,7 +82,7 @@ interface EmbedContext {
   companyId?: number | null;
   supplierName?: string;
   editIndex?: number;
-  prefill?: any; 
+  prefill?: any;
   isPendingSupplier?: boolean;
 }
 
@@ -135,7 +135,7 @@ const defaultAccount = (): BankAccountEntry => ({
   contact_is_billing: false,
   contact_is_purchase: false,
 
-  cash_in_hand: "",
+  opening_balance: "",
   cash_in_account: "",
 
   _cancelledChequeUploading: false,
@@ -187,7 +187,7 @@ const accountFromPrefill = (p: any): BankAccountEntry => ({
   contact_is_billing: !!p.contact_is_billing,
   contact_is_purchase: !!p.contact_is_purchase,
 
-  cash_in_hand: p.cash_in_hand !== undefined && p.cash_in_hand !== null ? String(p.cash_in_hand) : "",
+  opening_balance: p.opening_balance !== undefined && p.opening_balance !== null ? String(p.opening_balance) : "",
   cash_in_account: p.cash_in_account !== undefined && p.cash_in_account !== null ? String(p.cash_in_account) : "",
 
   _cancelledChequeUploading: false,
@@ -284,7 +284,7 @@ const sanitizeAccountField = (name: string, value: string): string => {
       return value.replace(/[^A-Za-z0-9]/g, "").toUpperCase().slice(0, 34);
     case "contact_person_phone":
       return value.replace(/[^0-9+\-\s]/g, "").slice(0, 15);
-    case "cash_in_hand":
+    case "opening_balance":
     case "cash_in_account":
       // digits + a single decimal point, max 2 decimal places
       return value
@@ -295,7 +295,6 @@ const sanitizeAccountField = (name: string, value: string): string => {
       return value;
   }
 };
-
 
 const sanitizeContactField = (
   field: "firstName" | "lastName" | "phone" | "email" | "department" | "remarks",
@@ -425,7 +424,6 @@ const PdfUploadField: React.FC<{
   const [popupBlocked, setPopupBlocked] = useState(false);
   const [downloading, setDownloading] = useState(false);
 
-  
   useEffect(() => {
     setPreviewError(null);
     setPopupBlocked(false);
@@ -624,7 +622,6 @@ const BankDetailsForm: React.FC = () => {
 
   const isEditMode = !!id && id !== "new";
 
-
   const embedContext = (location.state as any)?.embedContext as EmbedContext | undefined;
 
   const isPendingParty = !!embedContext && (embedContext.isPendingSupplier || !embedContext.partyId);
@@ -634,18 +631,18 @@ const BankDetailsForm: React.FC = () => {
   const [partyType, setPartyType] = useState("");
   const [partyId, setPartyId] = useState("");
 
-// one entry per bank account for this company / party
-const [accounts, setAccounts] = useState<BankAccountEntry[]>(() => {
-  if (embedContext?.prefill) {
-    const prefillArray = Array.isArray(embedContext.prefill)
-      ? embedContext.prefill
-      : [embedContext.prefill];
-    if (prefillArray.length > 0) {
-      return prefillArray.map(accountFromPrefill);
+  // one entry per bank account for this company / party
+  const [accounts, setAccounts] = useState<BankAccountEntry[]>(() => {
+    if (embedContext?.prefill) {
+      const prefillArray = Array.isArray(embedContext.prefill)
+        ? embedContext.prefill
+        : [embedContext.prefill];
+      if (prefillArray.length > 0) {
+        return prefillArray.map(accountFromPrefill);
+      }
     }
-  }
-  return [defaultAccount()];
-});
+    return [defaultAccount()];
+  });
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const [touched, setTouched] = useState<{ [key: string]: boolean }>({});
   const [saving, setSaving] = useState(false);
@@ -654,7 +651,6 @@ const [accounts, setAccounts] = useState<BankAccountEntry[]>(() => {
 
   const [showValidationSummary, setShowValidationSummary] = useState(false);
   const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
-
 
   const [contactModal, setContactModal] = useState<{
     idx: number;
@@ -678,7 +674,6 @@ const [accounts, setAccounts] = useState<BankAccountEntry[]>(() => {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
 
   useEffect(() => {
     const forceRepaintOnFocus = () => {
@@ -725,7 +720,6 @@ const [accounts, setAccounts] = useState<BankAccountEntry[]>(() => {
       setApiError(err.response?.data?.message || "Failed to load bank details");
     }
   };
-
 
   const loadBankDetailsIntoForm = (bd: any) => {
     const derivedPartyType = bd.employee_id
@@ -784,7 +778,7 @@ const [accounts, setAccounts] = useState<BankAccountEntry[]>(() => {
       contact_is_billing: !!row.contact_is_billing,
       contact_is_purchase: !!row.contact_is_purchase,
 
-      cash_in_hand: row.cash_in_hand !== undefined && row.cash_in_hand !== null ? String(row.cash_in_hand) : "",
+      opening_balance: row.opening_balance !== undefined && row.opening_balance !== null ? String(row.opening_balance) : "",
       cash_in_account: row.cash_in_account !== undefined && row.cash_in_account !== null ? String(row.cash_in_account) : "",
 
       _cancelledChequeUploading: false,
@@ -808,7 +802,6 @@ const [accounts, setAccounts] = useState<BankAccountEntry[]>(() => {
   const getAllValidationErrors = (): ValidationError[] => {
     const allErrors: ValidationError[] = [];
 
-    
     if (!embedContext) {
       TOP_LEVEL_VALIDATABLE_FIELDS.forEach((field) => {
         const value = field === "company_id" ? companyId : "";
@@ -818,7 +811,6 @@ const [accounts, setAccounts] = useState<BankAccountEntry[]>(() => {
         }
       });
     }
-
 
     accounts.forEach((account, idx) => {
       ACCOUNT_VALIDATABLE_FIELDS.forEach((field) => {
@@ -1091,6 +1083,9 @@ const [accounts, setAccounts] = useState<BankAccountEntry[]>(() => {
     updateAccount(idx, { [field]: "", [errorKey]: null } as any);
   };
 
+  // ── API payload builders ─────────────────────────────────────────────
+
+  // Used for PUT (updating an existing account)
   const buildAccountApiPayload = (account: BankAccountEntry) => {
     const trimmedPartyId = partyId.trim() ? Number(partyId.trim()) : (embedContext?.partyId ? Number(embedContext.partyId) : null);
     const resolvedCompanyId = embedContext ? (embedContext.companyId ?? getDefaultCompanyId()) : (companyId ? Number(companyId) : null);
@@ -1115,8 +1110,11 @@ const [accounts, setAccounts] = useState<BankAccountEntry[]>(() => {
       swift_code: account.swift_code.trim().toUpperCase() || null,
       iban: account.iban.trim() ? account.iban.trim().toUpperCase() : null,
 
-      upi_id: account.upi_id || null,
+      upi_id: account.upi_id.trim() || null,
       currency: account.currency || "INR",
+
+      opening_balance: account.opening_balance.trim() ? Number(account.opening_balance.trim()) : 0,
+      cash_in_account: account.cash_in_account.trim() ? Number(account.cash_in_account.trim()) : 0,
 
       // documents are uploaded up-front via /uploadmedia; only their URLs travel here
       cancelled_cheque: account.cancelled_cheque || null,
@@ -1130,8 +1128,6 @@ const [accounts, setAccounts] = useState<BankAccountEntry[]>(() => {
       is_deleted: 0,
 
       remarks: account.remarks || null,
-
-     
     };
 
     if (account.docName) {
@@ -1144,7 +1140,7 @@ const [accounts, setAccounts] = useState<BankAccountEntry[]>(() => {
     return payload;
   };
 
-
+  // Used for POST (batch create of new accounts)
   const buildBankDetailEntry = (account: BankAccountEntry) => ({
     account_holder_name: account.account_holder_name.trim(),
     account_type: account.account_type,
@@ -1157,7 +1153,7 @@ const [accounts, setAccounts] = useState<BankAccountEntry[]>(() => {
     swift_code: account.swift_code.trim() ? account.swift_code.trim().toUpperCase() : null,
     iban: account.iban.trim() ? account.iban.trim().toUpperCase() : null,
 
-    upi_id: account.upi_id || null,
+    upi_id: account.upi_id.trim() || null,
     currency: account.currency || "INR",
 
     cancelled_cheque: account.cancelled_cheque || null,
@@ -1180,11 +1176,10 @@ const [accounts, setAccounts] = useState<BankAccountEntry[]>(() => {
     contact_is_billing: account.contact_is_billing ? 1 : 0,
     contact_is_purchase: account.contact_is_purchase ? 1 : 0,
 
-    cash_in_hand: account.cash_in_hand.trim() ? Number(account.cash_in_hand.trim()) : 0,
+    opening_balance: account.opening_balance.trim() ? Number(account.opening_balance.trim()) : 0,
     cash_in_account: account.cash_in_account.trim() ? Number(account.cash_in_account.trim()) : 0,
-
   });
-  
+
   const buildBatchCreatePayload = (accountsToSave: BankAccountEntry[]) => {
     const type = embedContext?.partyType || partyType || "Supplier";
     const trimmedPartyId = embedContext?.partyId
@@ -1209,7 +1204,6 @@ const [accounts, setAccounts] = useState<BankAccountEntry[]>(() => {
     return payload;
   };
 
- 
   const saveAccounts = async (accountsToSave: BankAccountEntry[]): Promise<BankAccountEntry[]> => {
     const results: BankAccountEntry[] = [];
 
@@ -1571,7 +1565,7 @@ const [accounts, setAccounts] = useState<BankAccountEntry[]>(() => {
           </div>
         </div>
 
-        <div className="bdf-grid-3">
+        <div className="bdf-grid-2">
           <div>
             <label className="bdf-label">
               IBAN <span className="bdf-label-optional">(optional)</span>
@@ -1585,20 +1579,6 @@ const [accounts, setAccounts] = useState<BankAccountEntry[]>(() => {
               autoComplete="off"
               maxLength={34}
               className="bdf-input bdf-uppercase-input"
-            />
-          </div>
-          <div>
-            <label className="bdf-label">
-              UPI ID <span className="bdf-label-optional">(optional)</span>
-            </label>
-            <input
-              type="text"
-              name="upi_id"
-              value={account.upi_id}
-              onChange={(e) => handleAccountInputChange(idx, e)}
-              placeholder="e.g. name@bank"
-              autoComplete="off"
-              className="bdf-input"
             />
           </div>
           <div>
@@ -1619,40 +1599,40 @@ const [accounts, setAccounts] = useState<BankAccountEntry[]>(() => {
         </div>
 
         <div className="bdf-section-title">
-          <FaMoneyBillWave size={12} /> Opening Balances
+          <FaMoneyBillWave size={12} /> UPI &amp; Opening Balances
         </div>
 
-        <div className="bdf-grid-2 bdf-mb-20">
+        <div className="bdf-grid-3 bdf-mb-20">
           <div>
             <label className="bdf-label">
-              Cash in Hand <span className="bdf-label-optional">(optional)</span>
+              UPI ID <span className="bdf-label-optional">(optional)</span>
             </label>
             <input
               type="text"
-              inputMode="decimal"
-              name="cash_in_hand"
-              value={account.cash_in_hand}
+              name="upi_id"
+              value={account.upi_id}
               onChange={(e) => handleAccountInputChange(idx, e)}
-              placeholder="0.00"
+              placeholder="e.g. name@bank"
               autoComplete="off"
               className="bdf-input"
             />
           </div>
           <div>
             <label className="bdf-label">
-              Cash in Account <span className="bdf-label-optional">(optional)</span>
+              Opening Balance <span className="bdf-label-optional">(optional)</span>
             </label>
             <input
               type="text"
               inputMode="decimal"
-              name="cash_in_account"
-              value={account.cash_in_account}
+              name="opening_balance"
+              value={account.opening_balance}
               onChange={(e) => handleAccountInputChange(idx, e)}
               placeholder="0.00"
               autoComplete="off"
               className="bdf-input"
             />
           </div>
+         
         </div>
 
         <div className="bdf-section-title">

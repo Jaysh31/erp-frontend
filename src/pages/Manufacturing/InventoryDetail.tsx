@@ -442,29 +442,15 @@ export default function InventoryDetail() {
                 </div>
               </div>
             </div>
-            <div className="inv-detail-header-right">
-              <div className="inv-detail-stat">
-                <label>Total Stock Value</label>
-                <span className="inv-detail-stat-value">
-                  {formatCurrency(totalStockValue)}
-                </span>
-              </div>
-              <div className="inv-detail-stat">
-                <label>Current Stock</label>
-                <span className="inv-detail-stat-value">
-                  {filteredCurrentStock} {item_details.stock_uom}
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Quick Stats Cards */}
-        <div className="inv-detail-stats-grid">
-          <div className="inv-detail-stat-card">
-            <div className="inv-detail-stat-icon" style={{ background: '#eef2ff', color: '#4f46e5' }}>
-              <FaBoxes size={20} />
-            </div>
+            
+            
+          
+          <div className="inv-detail-header-right">
+              <div className="inv-detail-stats-grid">
+                <div className="inv-detail-stat-card">
+                  <div className="inv-detail-stat-icon" style={{ background: '#eef2ff', color: '#4f46e5' }}>
+                    <FaBoxes size={20} />
+                  </div>
             <div className="inv-detail-stat-info">
               <label>Current Stock</label>
               <span>{filteredCurrentStock} {item_details.stock_uom}</span>
@@ -501,6 +487,14 @@ export default function InventoryDetail() {
             </div>
           </div>
         </div>
+</div>
+</div>
+            
+            
+        </div>
+
+        {/* Quick Stats Cards */}
+        
 
         {/* Item Details Section */}
         <div className="inv-detail-section">

@@ -31,7 +31,6 @@ import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
 import * as XLSX from 'xlsx';
-import { PageLoader } from '../components/PageLoader';
 import './SalesMobileTable.css';
 
 // ===== INTERFACES =====
@@ -253,7 +252,7 @@ const DeliveryChallans: React.FC = () => {
   const activeButtonRef = useRef<HTMLElement | null>(null);
   const [menuPosition, setMenuPosition] = useState<{ top: number; right: number } | null>(null);
   
-  const { theme, formatDate, } = useAdminTheme();
+  const { formatDate, } = useAdminTheme();
   
   // ===== STATE =====
   const [searchTerm, setSearchTerm] = useState('');
@@ -529,6 +528,7 @@ const DeliveryChallans: React.FC = () => {
       
       if (debouncedSearchTerm.trim()) {
         params.append('search', debouncedSearchTerm.trim());
+        params.append('search_by', 'all');
       }
       
       if (selectedStatus !== 'All') {
