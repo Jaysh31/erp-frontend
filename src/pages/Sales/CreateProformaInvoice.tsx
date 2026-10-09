@@ -1034,7 +1034,7 @@ updated.totalAmount = amount + taxAmount;
 
   const getTotalQty = () => items.reduce((sum, item) => sum + (item.quantity || 0), 0);
   const getTotalAmount = () => items.reduce((sum, item) => sum + (item.amount || 0), 0);
-  const getTotalTax = () => items.reduce((sum, item) => sum + (item.taxAmount || 0), 0);
+  const getTotalTax = () => items.reduce((sum, item) => sum + (Number(item.taxAmount) || ((Number(item.amount || 0) * Number(item.tax || 0)) / 100)), 0);
   const getGrandTotal = () => items.reduce((sum, item) => sum + (item.totalAmount || 0), 0);
   const getGrandTotalWithRound = () => getGrandTotal() + roundOff;
 
@@ -1591,6 +1591,66 @@ updated.totalAmount = amount + taxAmount;
 
         {/* FULL WIDTH - ITEMS SECTION */}
         <div className="npi-items-full">
+          {/* Responsive two-column Products layout for small screens. Desktop keeps the original table. */}
+          <style>{`
+            .npi-items-full .npi-mobile-products { display: none; }
+            .npi-items-full .npi-mobile-product-card {
+              border: 1px solid var(--border-color, #e2e8f0);
+              border-radius: 10px;
+              background: var(--card-bg, #fff);
+              overflow: hidden;
+              margin-bottom: 10px;
+            }
+            .npi-items-full .npi-mobile-product-grid {
+              display: grid;
+              grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+            }
+            .npi-items-full .npi-mobile-product-field {
+              min-width: 0;
+              padding: 10px 11px;
+              border-bottom: 1px solid var(--border-color, #e2e8f0);
+            }
+            .npi-items-full .npi-mobile-product-field:nth-child(odd) {
+              border-right: 1px solid var(--border-color, #e2e8f0);
+            }
+            .npi-items-full .npi-mobile-product-label {
+              display: block;
+              margin-bottom: 5px;
+              color: var(--text-secondary, #64748b);
+              font-size: 10px;
+              font-weight: 700;
+              letter-spacing: .45px;
+              line-height: 1.3;
+              text-transform: uppercase;
+            }
+            .npi-items-full .npi-mobile-product-label-normalcase { text-transform: none; }
+            .npi-items-full .npi-mobile-product-field .npi-table-input,
+            .npi-items-full .npi-mobile-product-field input,
+            .npi-items-full .npi-mobile-product-field select {
+              box-sizing: border-box;
+              width: 100%;
+              min-width: 0;
+            }
+            .npi-items-full .npi-mobile-product-value {
+              display: flex;
+              align-items: center;
+              min-height: 30px;
+              color: var(--text-primary, #0f172a);
+              font-size: 12px;
+              font-weight: 600;
+              overflow-wrap: anywhere;
+            }
+            .npi-items-full .npi-mobile-product-card-footer {
+              display: flex;
+              justify-content: flex-end;
+              padding: 8px 10px;
+              background: var(--layout-bg, #f8fafc);
+            }
+            @media (max-width: 768px) {
+              .npi-items-full .npi-table-wrap { display: none !important; }
+              .npi-items-full .npi-mobile-products { display: block; }
+            }
+          `}</style>
           <div className="npi-items-header">
             <span className="npi-items-title">
               <FaClipboardList className="npi-items-icon" /> {isService ? 'Services' : 'Products'}
@@ -1697,46 +1757,53 @@ updated.totalAmount = amount + taxAmount;
                         readOnly={isReadOnly}
                       />
                     </td>
-                    <td>
-         <select
-    value={item.tax || 0}
-    onChange={(e) =>
-      updateItem(
-        item.id,
-        'tax',
-        Number(e.target.value) || 0
-      )
-    }
-    className="npi-table-input"
-    disabled={isReadOnly}
-  >
-    <option value={0}>0%</option>
+                    <td className="npi-col-tax">
+                      {isReadOnly ? (
+                        <span
+                          className="npi-readonly-tax-value"
+                          style={{
+                            display: 'inline-block',
+                            minWidth: '48px',
+                            padding: '6px 8px',
+                            color: 'inherit',
+                            whiteSpace: 'nowrap',
+                            textAlign: 'center',
+                          }}
+                        >
+                          {Number(item.tax || 0)}%
+                        </span>
+                      ) : (
+                        <select
+                          value={item.tax || 0}
+                          onChange={(e) =>
+                            updateItem(item.id, 'tax', Number(e.target.value) || 0)
+                          }
+                          className="npi-table-input"
+                        >
+                          <option value={0}>0%</option>
+                          {taxOptions.map((taxOption) => {
+                            const taxRate = extractTaxValue(taxOption.tax_type);
+                            return (
+                              <option key={taxOption.tax_id} value={taxRate}>
+                                {taxOption.tax_type}
+                              </option>
+                            );
+                          })}
+                        </select>
+                      )}
+                    </td>
 
-    {taxOptions.map((taxOption) => {
-      const taxRate = extractTaxValue(taxOption.tax_type);
-
-      return (
-        <option
-          key={taxOption.tax_id}
-          value={taxRate}
-        >
-          {taxOption.tax_type}
-        </option>
-      );
-    })}
-  </select>
-      </td>
-
-      {/* TAX AMOUNT */}
-      <td className="npi-col-tax-amount"
-  style={{
-    textAlign: 'right',
-    fontWeight: 600,
-    whiteSpace: 'nowrap'
-  }}
->
-  ₹{Number(item.taxAmount || 0).toFixed(2)}
-      </td>
+                    {/* TAX AMOUNT */}
+                    <td
+                      className="npi-col-tax-amount"
+                      style={{
+                        textAlign: 'right',
+                        fontWeight: 600,
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      ₹{Number(item.taxAmount || ((Number(item.amount || 0) * Number(item.tax || 0)) / 100)).toFixed(2)}
+                    </td>
 
       <td className="npi-col-amount"
   style={{
@@ -1761,6 +1828,147 @@ updated.totalAmount = amount + taxAmount;
                 ))}
               </tbody>
             </table>
+          </div>
+
+          {/* Two-column Products editor for small screens; TAX and Tax Amount are also rendered in view mode. */}
+          <div className="npi-mobile-products" aria-label={isService ? 'Services' : 'Products'}>
+            {items.map((item, index) => (
+              <div className="npi-mobile-product-card" key={`mobile-${item.id}`}>
+                <div className="npi-mobile-product-grid">
+                  <div className="npi-mobile-product-field">
+                    <label className="npi-mobile-product-label">NO.</label>
+                    <div className="npi-mobile-product-value">{index + 1}</div>
+                  </div>
+                  <div className="npi-mobile-product-field">
+                    <label className="npi-mobile-product-label">Item Code <span className="npi-required">*</span></label>
+                    <input
+                      type="text"
+                      value={item.itemCode}
+                      onChange={(e) => updateItem(item.id, 'itemCode', e.target.value)}
+                      placeholder="Search..."
+                      className="npi-table-input"
+                      disabled={isReadOnly}
+                    />
+                  </div>
+                  <div className="npi-mobile-product-field">
+                    <label className="npi-mobile-product-label">Item Name <span className="npi-required">*</span></label>
+                    <input
+                      type="text"
+                      value={item.itemName}
+                      onChange={(e) => updateItem(item.id, 'itemName', e.target.value)}
+                      placeholder="Item name"
+                      className="npi-table-input npi-table-input-text"
+                      disabled={isReadOnly}
+                      readOnly={isReadOnly}
+                    />
+                  </div>
+                  <div className="npi-mobile-product-field">
+                    <label className="npi-mobile-product-label">HSN</label>
+                    <input
+                      type="text"
+                      value={item.hsn}
+                      onChange={(e) => updateItem(item.id, 'hsn', e.target.value)}
+                      placeholder="0"
+                      className="npi-table-input npi-table-input-text"
+                      disabled={isReadOnly}
+                      readOnly={isReadOnly}
+                    />
+                  </div>
+                  <div className="npi-mobile-product-field">
+                    <label className="npi-mobile-product-label">Qty <span className="npi-required">*</span></label>
+                    <input
+                      type="number"
+                      value={item.quantity}
+                      onChange={(e) => updateItem(item.id, 'quantity', parseFloat(e.target.value) || 0)}
+                      min="1"
+                      className="npi-table-input"
+                      disabled={isReadOnly}
+                      readOnly={isReadOnly}
+                    />
+                  </div>
+                  <div className="npi-mobile-product-field">
+                    <label className="npi-mobile-product-label">UOM</label>
+                    <select
+                      value={item.unit}
+                      onChange={(e) => updateItem(item.id, 'unit', e.target.value)}
+                      className="npi-table-input"
+                      disabled={isReadOnly}
+                    >
+                      <option value="pcs">Pcs</option>
+                      <option value="kg">Kg</option>
+                      <option value="ltr">Ltr</option>
+                      <option value="mtr">Mtr</option>
+                      <option value="Nos">Nos</option>
+                      <option value="Box">Box</option>
+                    </select>
+                  </div>
+                  <div className="npi-mobile-product-field">
+                    <label className="npi-mobile-product-label">Rate</label>
+                    <input
+                      type="number"
+                      value={item.rate}
+                      onChange={(e) => updateItem(item.id, 'rate', parseFloat(e.target.value) || 0)}
+                      min="0"
+                      step="0.01"
+                      className="npi-table-input"
+                      disabled={isReadOnly}
+                      readOnly={isReadOnly}
+                    />
+                  </div>
+                  <div className="npi-mobile-product-field">
+                    <label className="npi-mobile-product-label">TAX</label>
+                    {isReadOnly ? (
+                      <div className="npi-mobile-product-value" aria-label={`Tax rate ${Number(item.tax || 0)} percent`}>
+                        {Number(item.tax || 0)}%
+                      </div>
+                    ) : (
+                      <select
+                        value={item.tax || 0}
+                        onChange={(e) => updateItem(item.id, 'tax', Number(e.target.value) || 0)}
+                        className="npi-table-input"
+                      >
+                        <option value={0}>GST 0%</option>
+                        {taxOptions.map((taxOption) => {
+                          const taxRate = extractTaxValue(taxOption.tax_type);
+                          return (
+                            <option key={taxOption.tax_id} value={taxRate}>
+                              {taxOption.tax_type}
+                            </option>
+                          );
+                        })}
+                        {item.tax !== undefined && item.tax !== null && item.tax !== 0 &&
+                          !taxOptions.some((taxOption) => extractTaxValue(taxOption.tax_type) === Number(item.tax)) && (
+                            <option value={item.tax}>GST {item.tax}%</option>
+                          )}
+                      </select>
+                    )}
+                  </div>
+                  <div className="npi-mobile-product-field">
+                    <label className="npi-mobile-product-label npi-mobile-product-label-normalcase">Tax Amount</label>
+                    <div className="npi-mobile-product-value">
+                      ₹{Number(item.taxAmount || ((Number(item.amount || 0) * Number(item.tax || 0)) / 100)).toFixed(2)}
+                    </div>
+                  </div>
+                  <div className="npi-mobile-product-field">
+                    <label className="npi-mobile-product-label">Amount</label>
+                    <div className="npi-mobile-product-value">₹{Number(item.amount || 0).toFixed(2)}</div>
+                  </div>
+                </div>
+                {!isReadOnly && items.length > 1 && (
+                  <div className="npi-mobile-product-card-footer">
+                    <button
+                      type="button"
+                      onClick={() => removeItem(item.id)}
+                      className="npi-remove-btn"
+                      title="Remove item"
+                      aria-label={`Remove item ${index + 1}`}
+                    >
+                      <FaTrash size={12} />
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
         </div>
 

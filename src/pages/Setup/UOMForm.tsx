@@ -17,16 +17,14 @@ import {
 } from 'react-icons/fa';
 import "./UOMForm.css";
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
+import api from '../../services/api';
+import toast from 'react-hot-toast';
 
 interface ValidationError {
   field: string;
   label: string;
   message: string;
 }
-
-const AUTH_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjMsImVtYWlsIjoiamF5ZXNod2FrbGUxMEBnbWFpbC5jb20iLCJpYXQiOjE3ODkwMzY0NDcsImV4cCI6MTc4OTEyMjg0N30.SzSd1wlUZ5VomUTL4GlQ_N24zdGPgHpuNdatB2GQZuo";
-
-const API_BASE_URL = "https://erp.sculptortechpvtltd.com/api";
 
 export default function UOMForm() {
   const { id } = useParams<{ id: string }>();
@@ -35,7 +33,7 @@ export default function UOMForm() {
   const { theme } = useAdminTheme();
   const isNew = id === "new";
   const uomName = isNew ? "New UOM" : decodeURIComponent(id || "");
-  const isEditMode = !isNew;
+  const isEditMode = Boolean(id && !isNew);
 
   // Get data passed from list page (if available)
   const passedData = (location.state as any)?.uomData;
@@ -56,7 +54,7 @@ export default function UOMForm() {
   const [comment, setComment] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [errors, ] = useState<{ [key: string]: string }>({});
+  const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const [showValidationSummary, setShowValidationSummary] = useState(false);
   const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
 
@@ -70,39 +68,41 @@ export default function UOMForm() {
   const fetchUOMData = async (uomId: string) => {
     setLoading(true);
     try {
-      const response = await fetch(
-        `${API_BASE_URL}/uom/${encodeURIComponent(uomId)}`,
-        {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${AUTH_TOKEN}`,
-          },
-        }
-      );
+      // Use the shared Axios client so the app's configured base URL and
+      // authentication/interceptors are applied consistently.
+      const response = await api.get(`/uom/${encodeURIComponent(uomId)}`);
+      const responseBody = response?.data;
 
-      if (!response.ok) {
-        throw new Error(`Failed to fetch UOM: ${response.status}`);
+      if (responseBody?.success === false || responseBody?.success === 0) {
+        throw new Error(responseBody?.message || 'Failed to fetch UOM data');
       }
 
-      const json = await response.json();
-      const data = json.data || json;
+      const rawData = responseBody?.data ?? responseBody;
+      const data = Array.isArray(rawData)
+        ? rawData[0]
+        : (rawData?.record ?? rawData?.uom ?? rawData);
 
-      if (data) {
-        setForm({
-          name: data.uom_name || data.name || "",
-          category: data.category || "Electric Current",
-          symbol: data.symbol || "",
-          commonCode: data.common_code || data.commonCode || "",
-          description: data.description || "",
-          enabled: data.enabled !== undefined ? Boolean(data.enabled) : true,
-          mustBeWholeNumber: data.must_be_whole_number !== undefined
-            ? Boolean(data.must_be_whole_number)
-            : false,
-        });
+      if (!data || typeof data !== 'object') {
+        throw new Error('UOM record was not found');
       }
-    } catch (err) {
-      console.error("Error fetching UOM data:", err);
+
+      const enabledValue = data.enabled;
+      const wholeNumberValue = data.must_be_whole_number ?? data.mustBeWholeNumber;
+
+      setForm({
+        name: data.uom_name || data.name || uomId,
+        category: data.category || 'Electric Current',
+        symbol: data.symbol || '',
+        commonCode: data.common_code || data.commonCode || '',
+        description: data.description || '',
+        enabled: enabledValue === undefined ? true : (enabledValue === true || Number(enabledValue) === 1),
+        mustBeWholeNumber: wholeNumberValue === undefined
+          ? false
+          : (wholeNumberValue === true || Number(wholeNumberValue) === 1),
+      });
+    } catch (err: any) {
+      console.error('Error fetching UOM data:', err);
+      toast.error(err?.response?.data?.message || err?.message || 'Failed to load UOM data');
     } finally {
       setLoading(false);
     }
@@ -112,8 +112,12 @@ export default function UOMForm() {
   const getAllValidationErrors = (): ValidationError[] => {
     const allErrors: ValidationError[] = [];
 
-    if (isNew && !form.name.trim()) {
-      allErrors.push({ field: 'name', label: 'UOM Name', message: 'UOM name is required' });
+    if (!form.name.trim()) {
+      allErrors.push({
+        field: 'name',
+        label: 'UOM Name',
+        message: 'UOM name is required',
+      });
     }
 
     return allErrors;
@@ -122,51 +126,51 @@ export default function UOMForm() {
   const handleSave = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
-    if (isViewMode) {
-      return;
-    }
+    if (isViewMode || submitting) return;
 
     const validationErrorsList = getAllValidationErrors();
     if (validationErrorsList.length > 0) {
+      const nextErrors = validationErrorsList.reduce<{ [key: string]: string }>((acc, error) => {
+        acc[error.field] = error.message;
+        return acc;
+      }, {});
+      setErrors(nextErrors);
       setValidationErrors(validationErrorsList);
       setShowValidationSummary(true);
       return;
     }
 
+    setErrors({});
     setSubmitting(true);
+
     try {
       const payload = {
-        uom_name: form.name,
+        uom_name: form.name.trim(),
         category: form.category,
-        symbol: form.symbol,
-        common_code: form.commonCode,
-        description: form.description,
+        symbol: form.symbol.trim(),
+        common_code: form.commonCode.trim(),
+        description: form.description.trim(),
         enabled: form.enabled ? 1 : 0,
         must_be_whole_number: form.mustBeWholeNumber ? 1 : 0,
       };
 
-      const url = isEditMode
-        ? `${API_BASE_URL}/uom/${encodeURIComponent(id || "")}`
-        : `${API_BASE_URL}/uom`;
+      // Existing records must use PUT on their current endpoint. New records
+      // are created with POST on the collection endpoint.
+      const response = isEditMode
+        ? await api.put(`/uom/${encodeURIComponent(id || '')}`, payload)
+        : await api.post('/uom', payload);
 
-      const method = isEditMode ? "PUT" : "POST";
-
-      const response = await fetch(url, {
-        method,
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${AUTH_TOKEN}`,
-        },
-        body: JSON.stringify(payload),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to save UOM: ${response.status}`);
+      const responseBody = response?.data;
+      if (responseBody?.success === false || responseBody?.success === 0) {
+        throw new Error(responseBody?.message || `Failed to ${isEditMode ? 'update' : 'create'} UOM`);
       }
 
-      navigate('/uom');
-    } catch (err) {
-      console.error("Error saving UOM:", err);
+      toast.success(isEditMode ? 'UOM updated successfully' : 'UOM created successfully');
+      navigate('/uom', { replace: true, state: { refresh: true } });
+    } catch (err: any) {
+      console.error('Error saving UOM:', err);
+      const message = err?.response?.data?.message || err?.message || `Failed to ${isEditMode ? 'update' : 'save'} UOM`;
+      toast.error(message);
     } finally {
       setSubmitting(false);
     }
@@ -262,7 +266,7 @@ export default function UOMForm() {
                 <input
                   type="text"
                   value={form.name}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
+                  onChange={(e) => { setForm({ ...form, name: e.target.value }); setErrors((prev) => ({ ...prev, name: '' })); }}
                   className={`form-field${errors.name ? ' field-error' : ''}`}
                   placeholder="Enter UOM name"
                   readOnly={isViewMode}
@@ -426,7 +430,7 @@ export default function UOMForm() {
               >
                 {submitting && <FaSpinner className="spinning" />}
                 <FaSave size={12} />
-                {isEditMode ? 'Update' : 'Save'}
+                {submitting ? (isEditMode ? 'Updating...' : 'Saving...') : (isEditMode ? 'Update' : 'Save')}
               </button>
             )}
           </div>
