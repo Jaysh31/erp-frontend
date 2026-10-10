@@ -9,6 +9,15 @@
 // FIXED: "Search Item Code" field now clears its filter on focus so the user
 //        can easily switch to another item after making a selection.
 // UPDATED: Added Success Modal and Global Loader for create/update API calls.
+// FIXED (tax): Loaded PO rows now resolve taxRate from the matched tax option
+//        (by saved item_tax_id, then rate, then template string) so the summary
+//        "Tax" and "Grand Total" are correct in edit/view mode.
+// FIXED (tax): Added effect that re-syncs row taxRate whenever taxOptions load.
+// FIXED (markup): Removed <td> nested inside <td> in the Amount cell.
+// FIXED (dates): Dates are now formatted/parsed in LOCAL time. Previously
+//        toISOString() shifted midnight-local dates back one day in timezones
+//        ahead of UTC (e.g. IST), which made Delivery Date appear before Order Date.
+// ADDED (validation): Delivery date can't be earlier than the order date.
 
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
@@ -29,6 +38,23 @@ import "react-datepicker/dist/react-datepicker.css";
 import './PurchaseOrderForm.css';
 import './PurchaseMobileTable.css';
 import { PageLoader } from '../components/PageLoader';
+
+
+// ─── Local date helpers (avoid UTC shift from toISOString) ─────────────
+
+/** Date -> "YYYY-MM-DD" using LOCAL year/month/day */
+const formatLocalDate = (date: Date): string => {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+};
+
+/** "YYYY-MM-DD" -> Date at LOCAL midnight */
+const parseLocalDate = (str: string): Date => {
+  const [y, m, d] = str.split('-').map(Number);
+  return new Date(y, (m || 1) - 1, d || 1);
+};
 
 
 // ─── DigitInput Component ──────────────────────────────────
@@ -401,7 +427,7 @@ export default function PurchaseOrderForm() {
     supplier: '',
     supplierCode: '',
     status: 'Draft',
-    orderDate: new Date().toISOString().split('T')[0],
+    orderDate: formatLocalDate(new Date()),
     deliveryDate: '',
     currency: 'INR',
     paymentTerms: 'Net 30',
@@ -944,24 +970,33 @@ export default function PurchaseOrderForm() {
         const items = data.items?.map((item: any, index: number) => {
           const itemTaxRate = item.item_tax_rate ? parseFloat(item.item_tax_rate) : 0;
           
-          let matchedTax = null;
-          if (taxOptions.length > 0 && itemTaxRate > 0) {
-            matchedTax = taxOptions.find(t => {
-              const { rate } = extractTaxInfo(t.tax_type);
-              return rate === itemTaxRate;
-            });
+          // ✅ FIX (tax): resolve the tax option in order of reliability
+          let matchedTax: TaxOption | undefined;
+
+          // 1. Best: match by saved tax id
+          if (item.item_tax_id && taxOptions.length > 0) {
+            matchedTax = taxOptions.find(t => String(t.tax_id) === String(item.item_tax_id));
           }
-          
+
+          // 2. Match by numeric rate
+          if (!matchedTax && taxOptions.length > 0 && itemTaxRate > 0) {
+            matchedTax = taxOptions.find(t => extractTaxInfo(t.tax_type).rate === itemTaxRate);
+          }
+
+          // 3. Match by template string like "GST 12%"
           if (!matchedTax && item.item_tax_template && taxOptions.length > 0) {
-            const templateMatch = item.item_tax_template.match(/(\d+)/);
+            const templateMatch = String(item.item_tax_template).match(/(\d+)/);
             if (templateMatch) {
               const templateRate = parseInt(templateMatch[1]);
-              matchedTax = taxOptions.find(t => {
-                const { rate } = extractTaxInfo(t.tax_type);
-                return rate === templateRate;
-              });
+              matchedTax = taxOptions.find(t => extractTaxInfo(t.tax_type).rate === templateRate);
             }
           }
+
+          // ✅ FIX (tax): rate always comes from the matched option when found,
+          //    so the dropdown and the totals can never disagree.
+          const resolvedRate = matchedTax
+            ? extractTaxInfo(matchedTax.tax_type).rate
+            : itemTaxRate;
           
           return {
             id: String(index + 1),
@@ -979,7 +1014,7 @@ export default function PurchaseOrderForm() {
             brand: item.brand || '',
             description: item.description || '',
             taxId: matchedTax ? String(matchedTax.tax_id) : '',
-            taxRate: matchedTax ? itemTaxRate : 0,
+            taxRate: resolvedRate,
             hsn: item.hsn || '',
           };
         }) || [{ 
@@ -997,6 +1032,13 @@ export default function PurchaseOrderForm() {
           taxId: '', 
           taxRate: 0 
         }];
+
+        // Optional debug helper – uncomment if tax is still 0 after the fix
+        // console.log('PO item tax fields:', data.items?.map((i: any) => ({
+        //   item_tax_id: i.item_tax_id,
+        //   item_tax_rate: i.item_tax_rate,
+        //   item_tax_template: i.item_tax_template,
+        // })));
 
         let taxRate = 18;
         let taxCategory = 'GST';
@@ -1065,7 +1107,8 @@ export default function PurchaseOrderForm() {
         }, 0);
         const grandTotal = totalAmount + taxAmount;
 
-        const orderDateStr = data.transaction_date ? data.transaction_date.split('T')[0] : new Date().toISOString().split('T')[0];
+        // ✅ FIX (dates): keep as plain YYYY-MM-DD and parse in LOCAL time
+        const orderDateStr = data.transaction_date ? data.transaction_date.split('T')[0] : formatLocalDate(new Date());
         const deliveryDateStr = data.schedule_date ? data.schedule_date.split('T')[0] : '';
 
         setFormData({
@@ -1089,8 +1132,8 @@ export default function PurchaseOrderForm() {
           customerId: data.customer_id,
         });
 
-        setStartDate(new Date(orderDateStr));
-        setDeliveryDate(deliveryDateStr ? new Date(deliveryDateStr) : null);
+        setStartDate(parseLocalDate(orderDateStr));
+        setDeliveryDate(deliveryDateStr ? parseLocalDate(deliveryDateStr) : null);
 
         setEditableGrandTotal(grandTotal);
         setGrandTotalAdjustmentSign('positive');
@@ -1479,6 +1522,27 @@ export default function PurchaseOrderForm() {
     }
   }, [masterDataLoaded, isEdit, id]);
 
+  // ✅ FIX (tax): Keep each row's taxRate in sync with its selected tax option.
+  //    Runs when tax options arrive and after a PO finishes loading, so the
+  //    dropdown value and the Tax / Grand Total summary can never disagree.
+  useEffect(() => {
+    if (taxOptions.length === 0 || loadingData) return;
+
+    setFormData(prev => {
+      let changed = false;
+      const nextItems = prev.items.map(row => {
+        if (!row.taxId) return row;
+        const tax = taxOptions.find(t => String(t.tax_id) === String(row.taxId));
+        if (!tax) return row;
+        const { rate } = extractTaxInfo(tax.tax_type);
+        if (row.taxRate === rate) return row;
+        changed = true;
+        return { ...row, taxRate: rate };
+      });
+      return changed ? { ...prev, items: nextItems } : prev;
+    });
+  }, [taxOptions, loadingData]);
+
   // ─── Re-filter items when group filter changes ────────────────────
   useEffect(() => {
     if (isViewMode) return;
@@ -1691,6 +1755,12 @@ export default function PurchaseOrderForm() {
     setShowSupplierDropdown(false);
   };
 
+  // ✅ NEW: true when both dates exist and delivery is before order date
+  const isDeliveryBeforeOrder =
+    Boolean(formData.orderDate) &&
+    Boolean(formData.deliveryDate) &&
+    formData.deliveryDate < formData.orderDate; // YYYY-MM-DD strings compare correctly
+
   const getAllValidationErrors = (): ValidationError[] => {
     const errors: ValidationError[] = [];
 
@@ -1701,9 +1771,15 @@ export default function PurchaseOrderForm() {
     if (!formData.orderDate) {
       errors.push({ field: 'orderDate', label: 'Order Date', message: 'Order date is required' });
     }
-    // ✅ FIXED: Delivery Date validation - ONLY check for field error, don't show in popup
-    // We check it but don't add to errors array - only visual red border will show
-    // Don't push to errors array - only use for visual validation
+    // Delivery Date "required" is shown only as a red border / inline message
+    // (not in the popup). The *ordering* check below does go in the popup.
+    if (isDeliveryBeforeOrder) {
+      errors.push({
+        field: 'deliveryDate',
+        label: 'Delivery Date',
+        message: 'Delivery date cannot be earlier than the order date',
+      });
+    }
     
     // ✅ FIXED: Updated validation to work with decimal quantities
     if (formData.items.some(item => !item.itemCode.trim() || !item.itemName.trim() || item.quantity <= 0 || (item.orderRate || item.rate) <= 0)) {
@@ -1751,8 +1827,11 @@ export default function PurchaseOrderForm() {
         setTimeout(() => {
           supplierInputRef.current?.focus();
         }, 300);
-      } else if (hasDeliveryDateError && deliveryDateRef.current) {
-        // ✅ FIXED: Just scroll to delivery date field for visual red border
+      } else if (
+        (firstError?.field === 'deliveryDate' || hasDeliveryDateError) &&
+        deliveryDateRef.current
+      ) {
+        // Scroll to delivery date field (visual red border / inline message)
         deliveryDateRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
         setTimeout(() => {
           const datePickerInput = deliveryDateRef.current?.querySelector('input');
@@ -2153,6 +2232,7 @@ export default function PurchaseOrderForm() {
                   fontSize: '13px', 
                   fontWeight: 500,
                   marginBottom: '4px',
+                  color: theme === 'dark' ? '#e5e7eb' : '#374151'
                 }}>
                   Country
                 </label>
@@ -3636,7 +3716,8 @@ export default function PurchaseOrderForm() {
                             if (isViewMode) return;
                             if (date) {
                               setStartDate(date);
-                              const formattedDate = date.toISOString().split('T')[0];
+                              // ✅ FIX (dates): local format, not toISOString()
+                              const formattedDate = formatLocalDate(date);
                               setFormData(prev => ({ ...prev, orderDate: formattedDate }));
                             }
                           }}
@@ -3666,7 +3747,8 @@ export default function PurchaseOrderForm() {
                             if (isViewMode) return;
                             if (date) {
                               setDeliveryDate(date);
-                              const formattedDate = date.toISOString().split('T')[0];
+                              // ✅ FIX (dates): local format, not toISOString()
+                              const formattedDate = formatLocalDate(date);
                               setFormData(prev => ({ ...prev, deliveryDate: formattedDate }));
                             } else {
                               setDeliveryDate(null);
@@ -3674,7 +3756,7 @@ export default function PurchaseOrderForm() {
                             }
                           }}
                           dateFormat="dd/MM/yyyy"
-                          className={`pof-form-field ${!formData.deliveryDate && !isViewMode ? 'pof-field-error' : ''} ${isViewMode ? 'pof-field-disabled' : ''}`}
+                          className={`pof-form-field ${(!formData.deliveryDate || isDeliveryBeforeOrder) && !isViewMode ? 'pof-field-error' : ''} ${isViewMode ? 'pof-field-disabled' : ''}`}
                           placeholderText="Select delivery date"
                           minDate={startDate || new Date()}
                           showMonthDropdown
@@ -3688,6 +3770,11 @@ export default function PurchaseOrderForm() {
                       {!formData.deliveryDate && !isViewMode && (
                         <span className="pof-error-msg">
                           <FaExclamationCircle size={10} />Delivery date is required
+                        </span>
+                      )}
+                      {isDeliveryBeforeOrder && !isViewMode && (
+                        <span className="pof-error-msg">
+                          <FaExclamationCircle size={10} />Delivery date cannot be earlier than the order date
                         </span>
                       )}
                     </div>
@@ -4008,13 +4095,9 @@ export default function PurchaseOrderForm() {
                             })}
                           </select>
                         </td>
+                        {/* ✅ FIX (markup): single <td> – the nested <td> was invalid HTML */}
                         <td className="pof-itd pof-itd-amount" data-label="Amount">
- 
-                              <td className="pif-amount pof-itd-amount pif-itd-amount" >
-                               
-
                           {formData.currency} {((item.orderRate || item.rate || 0) * item.quantity).toFixed(2)}
-                          </td>
                         </td>
                         <td className="pof-itd pof-itd-action">
                           {formData.items.length > 1 && (

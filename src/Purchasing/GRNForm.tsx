@@ -92,14 +92,22 @@ const DigitInput: React.FC<DigitInputProps> = ({
       if (decimalRegex.test(inputValue) || inputValue === '') { 
         if (inputValue.replace('.', '').length <= maxLength) { 
           setDisplayValue(inputValue); 
-          onChange(inputValue); 
+          // ✅ FIX: emit a number (or empty string) so downstream code
+          //    never receives a numeric-looking string and calls .toFixed() on it.
+          if (inputValue === '' || inputValue === '.') {
+            onChange('');
+          } else {
+            const num = parseFloat(inputValue);
+            onChange(Number.isNaN(num) ? '' : num);
+          }
         } 
       } 
     } else { 
       const digitsOnly = inputValue.replace(/\D/g, ''); 
       if (digitsOnly.length <= maxLength) { 
         setDisplayValue(digitsOnly); 
-        onChange(digitsOnly); 
+        // ✅ FIX: emit number, not string
+        onChange(digitsOnly === '' ? '' : Number(digitsOnly));
       } 
     } 
   }; 
@@ -125,7 +133,14 @@ const DigitInput: React.FC<DigitInputProps> = ({
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => { 
     if (e.key === 'ArrowUp' || e.key === 'ArrowDown') { 
       e.preventDefault(); 
+      return;
     } 
+    // ✅ FIX: Never let Enter bubble up and submit the surrounding form.
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      e.stopPropagation();
+      (e.currentTarget as HTMLInputElement).blur();
+    }
   }; 
  
   return ( 
@@ -542,6 +557,13 @@ const pickField = (obj: Record<string, unknown>, keys: string[]): unknown => {
   return undefined;
 };
  
+// ✅ FIX: tiny helper that guarantees a finite number, never a string
+const toNumber = (v: unknown): number => {
+  if (typeof v === 'number' && Number.isFinite(v)) return v;
+  const n = parseFloat(String(v ?? ''));
+  return Number.isFinite(n) ? n : 0;
+};
+ 
 // ─── MAIN COMPONENT ────────────────────────────────────────────────────── 
  
 export default function GRNForm() { 
@@ -608,10 +630,6 @@ export default function GRNForm() {
   const [poItemsPerPage] = useState(10); 
   const [, setTotalPOs] = useState(0); 
   const [, setPODetailLoading] = useState(false); 
-  // 🆕 Track whether the PO input is focused so we can show the live search
-  //    term (with all options) while focused, and the selected PO label
-  //    otherwise. This lets the user easily switch to a different PO after
-  //    having already selected one.
   const [isPOFocused, setIsPOFocused] = useState(false);
   const poInputRef = useRef<HTMLInputElement>(null); 
   const poDropdownRef = useRef<HTMLDivElement>(null); 
@@ -722,11 +740,6 @@ export default function GRNForm() {
     ); 
   }; 
  
-  // 🆕 Computed display value for the "Purchase Order" input:
-  //    - While focused → show the live search term (starts empty so all POs
-  //      appear)
-  //    - While not focused → show the selected PO's name, or fall back to
-  //      the raw search term if nothing is selected
   const poDisplayValue = isPOFocused
     ? poSearchTerm
     : (formData.purchaseOrder || poSearchTerm);
@@ -867,9 +880,7 @@ export default function GRNForm() {
     } 
   }; 
  
-  // ─── Fetch Purchase Orders ──────────────────────────────────────────
-  // 🆕 Always fetch ALL POs (no supplier filter) so the user can freely
-  //    switch to any PO from any supplier after having selected one.
+  // ─── Fetch Purchase Orders ────────────────────────────────────────── 
   const fetchPurchaseOrders = async () => { 
     if (isViewMode) return;
     setLoadingPOs(true); 
@@ -1017,14 +1028,6 @@ export default function GRNForm() {
       }; 
     }); 
  
-    // FIX: Robust warehouse resolution.
-    // PO's `set_warehouse` is a NAME string, but we must resolve it to an ID.
-    // Previously, if there was no exact name match, warehouseId stayed
-    // undefined → validation failed with "Warehouse is required" even
-    // though the UI displayed the name. Now we try:
-    //   1. Exact case-insensitive match
-    //   2. Partial (includes) match — handles "Raw Material Store" vs "Raw Material"
-    //   3. Fall back to the default "Raw Material" warehouse
     let warehouseId: number | undefined;
     let resolvedWarehouseName = poDetail.set_warehouse || '';
     if (poDetail.set_warehouse) {
@@ -1046,7 +1049,6 @@ export default function GRNForm() {
         }
       }
     }
-    // If still unresolved, fall back to the default "Raw Material" warehouse
     if (!warehouseId) {
       const defaultWh = warehouses.find(w =>
         (w.warehouse_name || '').trim().toLowerCase().includes('raw material')
@@ -1073,21 +1075,18 @@ export default function GRNForm() {
       supplierId: supplierId, 
       purchaseOrder: poName, 
       purchaseOrderId: poDetail.id, 
-      warehouse: resolvedWarehouseName,   // FIX: use resolved name (matches warehouse record)
-      warehouseId: warehouseId,           // FIX: now correctly set when possible
+      warehouse: resolvedWarehouseName,
+      warehouseId: warehouseId,
       items: items, 
     })); 
  
-    // 🆕 Keep the search term empty so the next focus shows the full PO list
-    //    again. The input will display `formData.purchaseOrder` while
-    //    unfocused thanks to the `poDisplayValue` computed above.
-    setPOSearchTerm(''); 
-    setIsPOFocused(false); 
+    setPOSearchTerm('');
+    setIsPOFocused(false);
     if (poDetail.supplier_name) { 
       setSupplierSearchTerm(poDetail.supplier_name); 
     } 
     if (resolvedWarehouseName) { 
-      setWarehouseSearchTerm(resolvedWarehouseName);   // FIX: use resolved name
+      setWarehouseSearchTerm(resolvedWarehouseName);
     } 
     if (poDetail.company) { 
       setCompany(poDetail.company); 
@@ -1161,9 +1160,6 @@ export default function GRNForm() {
     return `PO-${String(po.id).padStart(5, '0')}`; 
   }; 
  
-  // 🆕 Filter POs only by the typed search term — supplier filter has been
-  //    removed so all POs (from any supplier) are always visible and
-  //    selectable in the dropdown.
   const filteredPOs = purchaseOrders.filter(po => { 
     const searchLower = (poSearchTerm || '').toLowerCase(); 
     const poDisplayName = getPODisplayName(po).toLowerCase(); 
@@ -1303,14 +1299,10 @@ export default function GRNForm() {
   }, [id, isEditMode, location.state]); 
  
   // ─── Default warehouse on new GRN ─────────────────────────────────── 
-  // FIX: Also skip if a warehouse NAME is already set (e.g. from a PO
-  // or a user pick that hasn't yet resolved to an ID). Previously this
-  // effect would overwrite a PO-set warehouse with "Raw Material Store"
-  // because it only checked warehouseId.
   useEffect(() => { 
     if (isEditMode) return; 
     if (formData.warehouseId) return; 
-    if (formData.warehouse && formData.warehouse.trim() !== '') return;  // FIX
+    if (formData.warehouse && formData.warehouse.trim() !== '') return;
     if (warehouses.length === 0) return; 
 
     const rawMaterialWarehouse = warehouses.find(w => 
@@ -1355,11 +1347,7 @@ export default function GRNForm() {
     }); 
   }, [itemsMaster]); 
  
-  // ─── FIX: Backfill warehouseId when warehouses list loads ───────────
-  // Same pattern as the itemId backfill above. Handles the race where a
-  // PO (or edit-mode GRN) sets `warehouse` (name string) BEFORE the
-  // warehouses array has finished loading. Once warehouses arrive, we
-  // resolve the name → id so validation passes.
+  // ─── Backfill warehouseId when warehouses list loads ─────────────── 
   useEffect(() => {
     if (warehouses.length === 0) return;
     if (formData.warehouseId) return;
@@ -1373,7 +1361,6 @@ export default function GRNForm() {
       setFormData(prev => ({ ...prev, warehouseId: match.id }));
       return;
     }
-    // Fallback: partial match
     const partial = warehouses.find(w =>
       (w.warehouse_name || '').trim().toLowerCase().includes(normalized) ||
       normalized.includes((w.warehouse_name || '').trim().toLowerCase())
@@ -1601,8 +1588,9 @@ export default function GRNForm() {
           vehicleNo: data.vehicle_number || '', 
           deliveryChallanNo: data.delivery_challan_no || '', 
           invoiceNo: data.invoice_number || '', 
-          freeDelivery: parsedFreeDelivery,      // FIX: robust flag parsing
-          deliveryCharge: parsedDeliveryCharge,  // FIX: robust amount parsing
+          freeDelivery: data.is_free_delivery === undefined ? true : data.is_free_delivery === 1, 
+          // ✅ FIX: coerce to number — API might return a string
+          deliveryCharge: toNumber(data.delivery_charge), 
           items: items, 
         }); 
  
@@ -1654,9 +1642,6 @@ export default function GRNForm() {
       } 
     } 
  
-    // FIX: Accept warehouse if EITHER the ID is set OR a non-empty name is set.
-    // The backfill effect will resolve the ID, but validation shouldn't fail
-    // during the brief window between setting the name and resolving the ID.
     if (!formData.warehouseId && !(formData.warehouse || '').trim()) { 
       allErrors.push({ field: 'warehouse', label: 'Warehouse', message: 'Warehouse is required' }); 
     } 
@@ -1665,7 +1650,7 @@ export default function GRNForm() {
       allErrors.push({ field: 'receivedBy', label: 'Received By', message: 'Received By is required' }); 
     } 
  
-    if (!formData.freeDelivery && (!formData.deliveryCharge || formData.deliveryCharge <= 0)) { 
+    if (!formData.freeDelivery && (!formData.deliveryCharge || toNumber(formData.deliveryCharge) <= 0)) { 
       allErrors.push({ field: 'deliveryCharge', label: 'Delivery Charge', message: 'Enter the amount paid for delivery, or mark delivery as free' }); 
     } 
  
@@ -1823,8 +1808,6 @@ export default function GRNForm() {
     setPOCurrentPage(1); 
     setIsDirty(true); 
     if (formData.entryMode === 'supplier') { 
-      // 🆕 We still refetch POs, but fetchPurchaseOrders no longer filters
-      //    by supplier, so all POs remain available for selection.
       fetchPurchaseOrders(); 
     } 
   }; 
@@ -1832,9 +1815,6 @@ export default function GRNForm() {
   const handlePOSelect = (po: PurchaseOrder) => { 
     if (isViewMode) return;
     const poName = getPODisplayName(po); 
-    // 🆕 Don't store the full label in the search term — the input renders
-    //    `formData.purchaseOrder` while unfocused, so leaving the search
-    //    term empty lets the next focus show the full PO list again.
     setPOSearchTerm(''); 
     setIsPOFocused(false);
     setFormData(prev => ({ 
@@ -1857,7 +1837,6 @@ export default function GRNForm() {
     setIsDirty(true); 
   }; 
  
-  // ─── Filter items based on search term and group filter ────────── 
   const filterItems = (index: number, searchTerm: string) => { 
     if (isViewMode) return;
     let filtered = allItems.length > 0 ? allItems : itemsMaster; 
@@ -1884,7 +1863,6 @@ export default function GRNForm() {
     } 
   }; 
  
-  // ─── Open the item dropdown ──────────────────────────────────────── 
   const openItemDropdown = (index: number) => { 
     if (isViewMode) return;
     updateDropdownPosition(index); 
@@ -1898,7 +1876,6 @@ export default function GRNForm() {
     } 
   }; 
  
-  // ─── Handle item search ───────────────────────────────────────────── 
   const handleItemSearch = (index: number, value: string) => { 
     if (isViewMode) return;
     setSearchTerms(prev => ({ ...prev, [index]: value })); 
@@ -1947,7 +1924,6 @@ export default function GRNForm() {
     filterItems(index, value); 
   }; 
  
-  // ─── Handle item selection from suggestions ────────────────────── 
   const handleSelectItem = (index: number, item: ItemMaster) => { 
     if (isViewMode) return;
     const updatedItems = [...formData.items]; 
@@ -2155,11 +2131,12 @@ export default function GRNForm() {
     }, 
     { subtotal: 0, sgst: 0, cgst: 0, itemsTotal: 0 } 
   ); 
-  
-  // FIX: Ensure deliveryChargeAmount is always a Number to prevent string 
-  // concatenation and the "toFixed is not a function" crash.
-  const deliveryChargeAmount = formData.freeDelivery ? 0 : (Number(formData.deliveryCharge) || 0); 
-  const grandTotal = Number(billTotals.itemsTotal) + deliveryChargeAmount; 
+  // ✅ FIX: use toNumber() so deliveryChargeAmount is ALWAYS a number —
+  //    previously it could be a string (from DigitInput) and .toFixed() crashed.
+  const deliveryChargeAmount = formData.freeDelivery 
+    ? 0 
+    : toNumber(formData.deliveryCharge); 
+  const grandTotal = toNumber(billTotals.itemsTotal) + deliveryChargeAmount; 
  
   // ─── Get draft items ────────────────────────────────────────────────── 
   const draftItems = formData.items.filter(item => item.isDraft === true); 
@@ -2331,6 +2308,10 @@ export default function GRNForm() {
     }
     
     e.preventDefault(); 
+
+    // ✅ FIX: Guard against re-entrant submits.
+    if (submitting) return;
+
     setApiError(null); 
  
     const validationErrorsList = getAllValidationErrors(); 
@@ -2366,6 +2347,7 @@ export default function GRNForm() {
         delivery_challan_no: formData.deliveryChallanNo || '', 
         invoice_number: formData.invoiceNo || null, 
         is_free_delivery: formData.freeDelivery ? 1 : 0, 
+        // ✅ FIX: always send a number
         delivery_charge: deliveryChargeAmount, 
         items: formData.items.map(item => { 
           const { amount, sgst, cgst, total } = computeItemAmounts(item); 
@@ -2528,6 +2510,7 @@ export default function GRNForm() {
               Add New Item 
             </h3> 
             <button  
+              type="button"
               className="pof-modal-close-btn" 
               onClick={() => { 
                 setShowAddItemPopup(false); 
@@ -2560,7 +2543,6 @@ export default function GRNForm() {
               gridTemplateColumns: '1fr 1fr', 
               gap: '16px 20px', 
             }}> 
-              {/* Item Name - Required */} 
               <div className="pof-popup-field" style={{ marginBottom: '0', gridColumn: '1 / -1' }}> 
                 <label style={{   
                   display: 'block',   
@@ -2591,7 +2573,6 @@ export default function GRNForm() {
                 <span style={{ fontSize: '11px', color: '#6b7280' }}>Alphabets, digits, and spaces are allowed</span> 
               </div> 
  
-              {/* Item Code - Optional */} 
               <div className="pof-popup-field" style={{ marginBottom: '0' }}> 
                 <label style={{   
                   display: 'block',   
@@ -2621,7 +2602,6 @@ export default function GRNForm() {
                 <span style={{ fontSize: '11px', color: '#6b7280' }}>Alphabets, digits, and hyphens are allowed. Auto-generated from name if empty.</span> 
               </div> 
  
-              {/* Item Group - Required */} 
               <div className="pof-popup-field" style={{ marginBottom: '0' }}> 
                 <label style={{   
                   display: 'block', 
@@ -2651,7 +2631,6 @@ export default function GRNForm() {
                 <span style={{ fontSize: '11px', color: '#6b7280' }}>Only alphabets and spaces are allowed</span> 
               </div> 
  
-              {/* Default UOM - Required */} 
               <div className="pof-popup-field" style={{ marginBottom: '0' }}> 
                 <label style={{   
                   display: 'block', 
@@ -2681,7 +2660,6 @@ export default function GRNForm() {
                 <span style={{ fontSize: '11px', color: '#6b7280' }}>Alphabets, digits, and spaces are allowed</span> 
               </div> 
  
-              {/* Tax - Optional */} 
               <div className="pof-popup-field" style={{ marginBottom: '0' }}> 
                 <label style={{   
                   display: 'block', 
@@ -2718,7 +2696,6 @@ export default function GRNForm() {
                 </select> 
               </div> 
  
-              {/* Quantity */} 
               <div className="pof-popup-field" style={{ marginBottom: '0' }}> 
                 <label style={{   
                   display: 'block', 
@@ -2753,7 +2730,6 @@ export default function GRNForm() {
                 <span style={{ fontSize: '11px', color: '#6b7280' }}>Quantity for this GRN line item</span> 
               </div> 
  
-              {/* Pricing - Two columns */} 
               <div className="pof-popup-field" style={{ marginBottom: '0' }}> 
                 <label style={{   
                   display: 'block', 
@@ -2822,7 +2798,6 @@ export default function GRNForm() {
                 <span style={{ fontSize: '11px', color: '#6b7280' }}>The rate at which this item is valued. Used as Price Before Tax.</span> 
               </div> 
  
-              {/* Description - Optional */} 
               <div className="pof-popup-field" style={{ marginBottom: '0', gridColumn: '1 / -1' }}> 
                 <label style={{   
                   display: 'block', 
@@ -2944,12 +2919,14 @@ export default function GRNForm() {
               </div> 
               <div className="grnf-success-actions"> 
                 <button  
+                  type="button"
                   className="grnf-success-btn grnf-success-btn-primary"  
                   onClick={handleSuccessModalOk} 
                 > 
                   View All GRNs 
                 </button> 
                 <button  
+                  type="button"
                   className="grnf-success-btn grnf-success-btn-secondary"  
                   onClick={() => setShowSuccessModal(false)} 
                 > 
@@ -2974,12 +2951,14 @@ export default function GRNForm() {
               <p className="grnf-confirm-warning">Are you sure you want to continue?</p> 
               <div className="grnf-confirm-actions"> 
                 <button  
+                  type="button"
                   className="grnf-confirm-btn grnf-confirm-btn-cancel"  
                   onClick={() => setShowServiceToggleConfirm(false)} 
                 > 
                   No, Keep Current 
                 </button> 
                 <button  
+                  type="button"
                   className="grnf-confirm-btn grnf-confirm-btn-proceed"  
                   onClick={() => applyServiceToggle(pendingServiceToggle)} 
                 > 
@@ -2997,7 +2976,7 @@ export default function GRNForm() {
                 <h2> 
                   <FaExclamationTriangle /> Missing Required Fields 
                 </h2> 
-                <button className="grnf-modal-close" onClick={() => setShowValidationSummary(false)}>×</button> 
+                <button type="button" className="grnf-modal-close" onClick={() => setShowValidationSummary(false)}>×</button> 
               </div> 
               <div className="grnf-modal-body"> 
                 <p className="grnf-modal-description"> 
@@ -3020,7 +2999,7 @@ export default function GRNForm() {
                 </div> 
               </div> 
               <div className="grnf-modal-footer"> 
-                <button className="grnf-btn-cancel" onClick={() => setShowValidationSummary(false)}> 
+                <button type="button" className="grnf-btn-cancel" onClick={() => setShowValidationSummary(false)}> 
                   Close 
                 </button> 
               </div> 
@@ -3032,12 +3011,12 @@ export default function GRNForm() {
           <div className="grnf-api-error"> 
             <FaExclamationCircle className="grnf-error-icon" /> 
             <span>{apiError}</span> 
-            <button className="grnf-error-close" onClick={() => setApiError(null)}>×</button> 
+            <button type="button" className="grnf-error-close" onClick={() => setApiError(null)}>×</button> 
           </div> 
         )} 
  
         <div className="grnf-header"> 
-          <button onClick={() => navigate('/grn')} className="grnf-back-btn"> 
+          <button type="button" onClick={() => navigate('/grn')} className="grnf-back-btn"> 
             <FaArrowLeft size={9} /> Back 
           </button> 
           <div className="grnf-header-title"> 
@@ -3301,17 +3280,12 @@ export default function GRNForm() {
                                   setIsDirty(true);
                                 }}
                                 onFocus={() => {
-                                  // 🆕 Clear the search term on focus so ALL POs are
-                                  //    shown again — lets the user easily switch to a
-                                  //    different PO after already having selected one.
                                   setIsPOFocused(true);
                                   setPOSearchTerm('');
                                   setShowPODropdown(true);
                                   fetchPurchaseOrders();
                                 }}
                                 onBlur={() => {
-                                  // 🆕 Revert to showing the selected PO's name
-                                  //    once the user leaves the field.
                                   setIsPOFocused(false);
                                 }}
                                 className={`grnf-form-field${errors.purchaseOrder ? ' grnf-field-error' : ''}`}
@@ -3412,6 +3386,9 @@ export default function GRNForm() {
                         type="date"
                         value={formData.grnDate}
                         onChange={(e) => handleFieldChange('grnDate', e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') e.preventDefault();
+                        }}
                         className={`grnf-form-field${errors.grnDate ? ' grnf-field-error' : ''}`}
                         disabled={submitting}
                       />
@@ -3430,6 +3407,9 @@ export default function GRNForm() {
                             setIsDirty(true);
                           }}
                           onFocus={() => setShowEmployeeDropdown(true)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') e.preventDefault();
+                          }}
                           className={`grnf-form-field${errors.receivedBy ? ' grnf-field-error' : ''}`}
                           placeholder="Search employee..."
                           disabled={submitting}
@@ -3471,6 +3451,9 @@ export default function GRNForm() {
                         type="text"
                         value={formData.vehicleNo}
                         onChange={(e) => handleFieldChange('vehicleNo', e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') e.preventDefault();
+                        }}
                         className="grnf-form-field"
                         placeholder="Enter vehicle number"
                         disabled={submitting}
@@ -3482,6 +3465,9 @@ export default function GRNForm() {
                         type="text"
                         value={formData.deliveryChallanNo}
                         onChange={(e) => handleFieldChange('deliveryChallanNo', e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') e.preventDefault();
+                        }}
                         className="grnf-form-field"
                         placeholder="Enter challan number"
                         disabled={submitting}
@@ -3495,6 +3481,9 @@ export default function GRNForm() {
                         type="text"
                         value={formData.invoiceNo}
                         onChange={(e) => handleFieldChange('invoiceNo', e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') e.preventDefault();
+                        }}
                         className="grnf-form-field"
                         placeholder="Enter invoice number"
                         disabled={submitting}
@@ -3649,18 +3638,20 @@ export default function GRNForm() {
                         <label>Amount <span className="grnf-required">*</span></label>
                         <DigitInput
                           value={formData.deliveryCharge}
-                          onChange={(val) => handleFieldChange('deliveryCharge', val)}
+                          // ✅ FIX: coerce to number before storing in state
+                          onChange={(val) => {
+                            const num = typeof val === 'number' ? val : parseFloat(String(val));
+                            handleFieldChange('deliveryCharge', Number.isFinite(num) ? num : 0);
+                          }}
                           placeholder="0"
                           maxLength={10}
+                          allowDecimal
                           disabled={submitting}
                         />
                       </div>
                     )}
                   </div>
                 </div>
-
-                {/* ─── STATUS SECTION REMOVED ─────────────────────────── */}
-                {/* The status dropdown has been removed from the UI */}
 
               </div>
             </div>
@@ -3758,7 +3749,6 @@ export default function GRNForm() {
                           <th className="grnf-ith">Tax% <span className="grnf-required">*</span></th>
                           <th className="grnf-ith ">Amount</th>
                           <th className="grnf-ith">Note</th>
-                          {/*<th className="pif-ith pif-ith-action">Action</th>*/}
                         </tr>
                       </thead>
                       <tbody>
@@ -3823,154 +3813,155 @@ export default function GRNForm() {
                                       if (e.key === 'Backspace' && !e.currentTarget.value) {
                                         handleClearItem(index);
                                       }
+                                      if (e.key === 'Enter') {
+                                        e.preventDefault();
+                                      }
                                     }}
                                     disabled={submitting}
                                     autoComplete="off"
                                   />
                                   {isDropdownOpen && (
                                     <div
-        ref={(el) => { suggestionRefs.current[index] = el; }}
-        className="pof-suggestions-dropdown-portal"
-        style={{
-          position: 'fixed',
-          top: position.top,
-          left: position.left,
-          width: position.width,
-          maxHeight: '280px',
-          display: 'flex',
-          flexDirection: 'column',
-          overflow: 'hidden',
-          zIndex: 9999,
-          background: theme === 'dark-theme' ? '#1e1e2f' : '#ffffff',
-          borderRadius: '8px',
-          boxShadow: '0 10px 40px rgba(0,0,0,0.2)',
-          border: `1px solid ${theme === 'dark-theme' ? '#3a3a4a' : '#e5e7eb'}`,
-        }}
-      >
-        <div
-          style={{
-            overflowY: 'auto',
-            flex: '1 1 auto',
-            maxHeight: '220px',
-          }}
-        >
-          {loadingItemsMaster ? (
-            <div
-              className="pof-suggestions-loading"
-              style={{
-                padding: '12px',
-                textAlign: 'center',
-                color: '#6b7280',
-              }}
-            >
-              <FaSpinner className="pof-spinning" size={14} /> Loading items...
-            </div>
-          ) : filtered.length > 0 ? (
-            <ul
-              className="pof-dropdown-list"
-              style={{ margin: 0, padding: 0, listStyle: 'none' }}
-            >
-              {filtered.map(item => (
-                <li
-                  key={item.id}
-                  className="pof-suggestion-item"
-                  onMouseDown={(e) => {
-                    // Same important behavior as PurchaseBillForm:
-                    // selection happens before the input blur.
-                    e.preventDefault();
-                    selectItem(item);
-                  }}
-                  style={{
-                    padding: '8px 12px',
-                    cursor: 'pointer',
-                    borderBottom: `1px solid ${theme === 'dark-theme' ? '#2a2a3a' : '#f3f4f6'}`,
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    transition: 'background 0.15s',
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background =
-                      theme === 'dark-theme' ? '#2a2a3a' : '#f3f4f6';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = 'transparent';
-                  }}
-                >
-                  <div>
-                    <div
-                      className="pof-suggestion-code"
-                      style={{
-                        fontWeight: 500,
-                        fontSize: '13px',
-                        color: theme === 'dark-theme' ? '#e5e7eb' : '#111827',
-                      }}
-                    >
-                      {item.item_code || ''}
-                    </div>
+                                      ref={(el) => { suggestionRefs.current[index] = el; }}
+                                      className="pof-suggestions-dropdown-portal"
+                                      style={{
+                                        position: 'fixed',
+                                        top: position.top,
+                                        left: position.left,
+                                        width: position.width,
+                                        maxHeight: '280px',
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        overflow: 'hidden',
+                                        zIndex: 9999,
+                                        background: theme === 'dark-theme' ? '#1e1e2f' : '#ffffff',
+                                        borderRadius: '8px',
+                                        boxShadow: '0 10px 40px rgba(0,0,0,0.2)',
+                                        border: `1px solid ${theme === 'dark-theme' ? '#3a3a4a' : '#e5e7eb'}`,
+                                      }}
+                                    >
+                                      <div
+                                        style={{
+                                          overflowY: 'auto',
+                                          flex: '1 1 auto',
+                                          maxHeight: '220px',
+                                        }}
+                                      >
+                                        {loadingItemsMaster ? (
+                                          <div
+                                            className="pof-suggestions-loading"
+                                            style={{
+                                              padding: '12px',
+                                              textAlign: 'center',
+                                              color: '#6b7280',
+                                            }}
+                                          >
+                                            <FaSpinner className="pof-spinning" size={14} /> Loading items...
+                                          </div>
+                                        ) : filtered.length > 0 ? (
+                                          <ul
+                                            className="pof-dropdown-list"
+                                            style={{ margin: 0, padding: 0, listStyle: 'none' }}
+                                          >
+                                            {filtered.map(item => (
+                                              <li
+                                                key={item.id}
+                                                className="pof-suggestion-item"
+                                                onMouseDown={(e) => {
+                                                  e.preventDefault();
+                                                  selectItem(item);
+                                                }}
+                                                style={{
+                                                  padding: '8px 12px',
+                                                  cursor: 'pointer',
+                                                  borderBottom: `1px solid ${theme === 'dark-theme' ? '#2a2a3a' : '#f3f4f6'}`,
+                                                  display: 'flex',
+                                                  justifyContent: 'space-between',
+                                                  alignItems: 'center',
+                                                  transition: 'background 0.15s',
+                                                }}
+                                                onMouseEnter={(e) => {
+                                                  e.currentTarget.style.background =
+                                                    theme === 'dark-theme' ? '#2a2a3a' : '#f3f4f6';
+                                                }}
+                                                onMouseLeave={(e) => {
+                                                  e.currentTarget.style.background = 'transparent';
+                                                }}
+                                              >
+                                                <div>
+                                                  <div
+                                                    className="pof-suggestion-code"
+                                                    style={{
+                                                      fontWeight: 500,
+                                                      fontSize: '13px',
+                                                      color: theme === 'dark-theme' ? '#e5e7eb' : '#111827',
+                                                    }}
+                                                  >
+                                                    {item.item_code || ''}
+                                                  </div>
 
-                    <div
-                      className="pof-suggestion-name"
-                      style={{
-                        fontSize: '12px',
-                        color: '#6b7280',
-                      }}
-                    >
-                      {item.item_name || ''}
-                    </div>
+                                                  <div
+                                                    className="pof-suggestion-name"
+                                                    style={{
+                                                      fontSize: '12px',
+                                                      color: '#6b7280',
+                                                    }}
+                                                  >
+                                                    {item.item_name || ''}
+                                                  </div>
 
-                    {item.HSN && (
-                      <div
-                        className="pof-suggestion-hsn"
-                        style={{
-                          fontSize: '10px',
-                          color: '#9ca3af',
-                        }}
-                      >
-                        HSN: {item.HSN}
-                      </div>
-                    )}
-                  </div>
+                                                  {item.HSN && (
+                                                    <div
+                                                      className="pof-suggestion-hsn"
+                                                      style={{
+                                                        fontSize: '10px',
+                                                        color: '#9ca3af',
+                                                      }}
+                                                    >
+                                                      HSN: {item.HSN}
+                                                    </div>
+                                                  )}
+                                                </div>
 
-                  <div style={{ textAlign: 'right' }}>
-                    <div
-                      className="pof-suggestion-rate"
-                      style={{
-                        fontSize: '13px',
-                        fontWeight: 500,
-                        color: '#6366f1',
-                      }}
-                    >
-                      INR {(item.standard_rate || item.valuation_rate || 0).toFixed(2)}
-                    </div>
+                                                <div style={{ textAlign: 'right' }}>
+                                                  <div
+                                                    className="pof-suggestion-rate"
+                                                    style={{
+                                                      fontSize: '13px',
+                                                      fontWeight: 500,
+                                                      color: '#6366f1',
+                                                    }}
+                                                  >
+                                                    INR {(item.standard_rate || item.valuation_rate || 0).toFixed(2)}
+                                                  </div>
 
-                    <div
-                      className="pof-suggestion-uom"
-                      style={{
-                        fontSize: '10px',
-                        color: '#9ca3af',
-                      }}
-                    >
-                      UOM: {item.stock_uom || 'NOS'}
-                    </div>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <div
-              className="pof-dropdown-empty"
-              style={{
-                padding: '12px',
-                textAlign: 'center',
-                color: '#6b7280',
-                fontSize: '13px',
-              }}
-            >
-              {currentSearch ? 'No items found' : 'Type to search items...'}
-            </div>
-          )}
-        </div>
+                                                  <div
+                                                    className="pof-suggestion-uom"
+                                                    style={{
+                                                      fontSize: '10px',
+                                                      color: '#9ca3af',
+                                                    }}
+                                                  >
+                                                    UOM: {item.stock_uom || 'NOS'}
+                                                  </div>
+                                                </div>
+                                              </li>
+                                            ))}
+                                          </ul>
+                                        ) : (
+                                          <div
+                                            className="pof-dropdown-empty"
+                                            style={{
+                                              padding: '12px',
+                                              textAlign: 'center',
+                                              color: '#6b7280',
+                                              fontSize: '13px',
+                                            }}
+                                          >
+                                            {currentSearch ? 'No items found' : 'Type to search items...'}
+                                          </div>
+                                        )}
+                                      </div>
                                     </div>
                                   )}
                                 </div>
@@ -3981,6 +3972,7 @@ export default function GRNForm() {
                                   type="text"
                                   value={item.itemName || ''}
                                   onChange={(e) => handleItemChange(index, 'itemName', e.target.value)}
+                                  onKeyDown={(e) => { if (e.key === 'Enter') e.preventDefault(); }}
                                   placeholder="Item name"
                                   disabled={submitting}
                                 />
@@ -3991,6 +3983,7 @@ export default function GRNForm() {
                                   type="text"
                                   value={item.hsn || ''}
                                   onChange={(e) => handleItemChange(index, 'hsn', e.target.value)}
+                                  onKeyDown={(e) => { if (e.key === 'Enter') e.preventDefault(); }}
                                   placeholder="HSN"
                                   disabled={submitting}
                                 />
@@ -4004,6 +3997,7 @@ export default function GRNForm() {
                                   className="pif-cell-input pof-cell-input pif-cell-number"
                                   value={digitValues[index]?.receivedQty !== undefined ? digitValues[index].receivedQty : item.receivedQty}
                                   onChange={(e) => handleDigitReceivedQtyChange(index, e.target.value)}
+                                  onKeyDown={(e) => { if (e.key === 'Enter') e.preventDefault(); }}
                                   placeholder="0"
                                   min="0"
                                   step="any"
@@ -4017,6 +4011,7 @@ export default function GRNForm() {
                                   className="pif-cell-input pof-cell-input pif-cell-number"
                                   value={digitValues[index]?.rejectedQty !== undefined ? digitValues[index].rejectedQty : item.rejectedQty}
                                   onChange={(e) => handleDigitRejectedQtyChange(index, e.target.value)}
+                                  onKeyDown={(e) => { if (e.key === 'Enter') e.preventDefault(); }}
                                   placeholder="0"
                                   min="0"
                                   step="any"
@@ -4028,6 +4023,7 @@ export default function GRNForm() {
                                   className="pif-cell-input pof-cell-input"
                                   value={item.uom || ''}
                                   onChange={(e) => handleItemChange(index, 'uom', e.target.value)}
+                                  onKeyDown={(e) => { if (e.key === 'Enter') e.preventDefault(); }}
                                   placeholder="UOM"
                                   disabled={submitting}
                                 />
@@ -4038,6 +4034,7 @@ export default function GRNForm() {
                                   className="pif-cell-input pof-cell-input pif-cell-number"
                                   value={digitValues[index]?.rate !== undefined ? digitValues[index].rate : item.rate}
                                   onChange={(e) => handleDigitRateChange(index, e.target.value)}
+                                  onKeyDown={(e) => { if (e.key === 'Enter') e.preventDefault(); }}
                                   placeholder="0"
                                   min="0"
                                   step="0.01"
@@ -4065,10 +4062,8 @@ export default function GRNForm() {
                                   })}
                                 </select>
                               </td>
-<td className="pif-itd pof-itd pif-itd-num " data-label="Amount">
-                              <td className="pif-amount pof-itd-amount pif-itd-amount" >
-                                ₹ {total.toFixed(2)}
-                              </td>
+                              <td className="pif-itd pof-itd pif-itd-num pif-amount pof-itd-amount pif-itd-amount" data-label="Amount">
+                                ₹ {toNumber(total).toFixed(2)}
                               </td>
 
                               <td className="pif-itd pof-itd pif-itd-note pof-itd-note" data-label="Note" style={{ position: 'relative' }}>
@@ -4094,20 +4089,6 @@ export default function GRNForm() {
                                   </div>
                                 )}
                               </td>
-                              {/*<td className="pif-itd pof-itd pif-itd-action pof-itd-action">
-                                {formData.items.length > 1 && (
-                                  <button
-                                    type="button"
-                                    onClick={() => removeItem(index)}
-                                    className="pif-remove-item-btn pof-remove-row"
-                                    title="Remove item"
-                                    disabled={submitting}
-                                  >
-                                    <FaTrash size={12} />
-                                    <span className="pof-remove-row-text">Remove</span>
-                                  </button>
-                                )}
-                              </td>*/}
                             </tr>
                           );
                         })}
@@ -4140,9 +4121,9 @@ export default function GRNForm() {
                             <div className="grnf-draft-item-right">
                               <span className="grnf-draft-item-status">Draft</span>
                               <button
+                                type="button"
                                 className="grnf-draft-item-remove"
                                 onClick={() => removeItem(formData.items.indexOf(item))}
-                                type="button"
                                 disabled={submitting}
                               >
                                 <FaTrash size={12} />
@@ -4161,18 +4142,19 @@ export default function GRNForm() {
                     </div>
                     <div className="grnf-bill-summary-row">
                       <span>Subtotal</span>
-                      <span>{billTotals.subtotal.toFixed(2)}</span>
+                      <span>{toNumber(billTotals.subtotal).toFixed(2)}</span>
                     </div>
                     <div className="grnf-bill-summary-row">
                       <span><FaPercentage size={10} /> Total SGST</span>
-                      <span>{billTotals.sgst.toFixed(2)}</span>
+                      <span>{toNumber(billTotals.sgst).toFixed(2)}</span>
                     </div>
                     <div className="grnf-bill-summary-row">
                       <span><FaPercentage size={10} /> Total CGST</span>
-                      <span>{billTotals.cgst.toFixed(2)}</span>
+                      <span>{toNumber(billTotals.cgst).toFixed(2)}</span>
                     </div>
                     <div className="grnf-bill-summary-row">
                       <span><FaMoneyBillWave size={10} /> Delivery Charges{formData.freeDelivery ? ' (Free)' : ''}</span>
+                      {/* ✅ FIX: deliveryChargeAmount is now guaranteed to be a number */}
                       <span>{deliveryChargeAmount.toFixed(2)}</span>
                     </div>
                     <div className="grnf-bill-summary-row grnf-bill-summary-total">

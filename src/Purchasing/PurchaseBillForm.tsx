@@ -2475,6 +2475,7 @@ export default function PurchaseInvoiceForm() {
                   </>
                 )}
 
+                {/* ── Invoice Date + Delivery Date ──────────────────────────── */}
                 <div className="pif-grid-2">
                   <div className="pif-field">
                     <label className="pif-label">
@@ -2488,8 +2489,28 @@ export default function PurchaseInvoiceForm() {
                         if (isViewMode) return;
                         setFormData(p => ({ ...p, date: e.target.value }));
                       }}
+                      onClick={(e) => {
+                        // ✅ FIX: Force native date picker to open reliably.
+                        //    Also close any open dropdowns that may be overlaying it.
+                        setShowSupplierDropdown(false);
+                        setShowPoDropdown(false);
+                        setShowGrnDropdown(false);
+                        setShowItemDropdown(false);
+                        const input = e.currentTarget;
+                        if (!isViewMode && typeof input.showPicker === 'function') {
+                          try { input.showPicker(); } catch { /* ignore */ }
+                        }
+                      }}
+                      onMouseDown={() => {
+                        // ✅ FIX: close overlays before the calendar popup appears
+                        setShowSupplierDropdown(false);
+                        setShowPoDropdown(false);
+                        setShowGrnDropdown(false);
+                        setShowItemDropdown(false);
+                      }}
                       className={`form-field ${validationErrors.some(e => e.field === 'date') ? 'field-error' : ''} ${isViewMode ? 'field-disabled' : ''}`}
                       disabled={isViewMode}
+                      style={{ pointerEvents: isViewMode ? 'none' : 'auto', cursor: 'pointer' }}
                     />
                   </div>
 
@@ -2505,33 +2526,27 @@ export default function PurchaseInvoiceForm() {
                         if (isViewMode) return;
                         setFormData(p => ({ ...p, deliveryDate: e.target.value }));
                       }}
-                      onClick={e => {
-                        if (isViewMode) return;
-                        // ✅ Open the native calendar picker on click
-                        const el = e.currentTarget as HTMLInputElement & {
-                          showPicker?: () => void;
-                        };
-                        try {
-                          el.showPicker?.();
-                        } catch {
-                          /* Picker already open or not supported — ignore */
+                      onClick={(e) => {
+                        // ✅ FIX: same treatment as Invoice Date
+                        setShowSupplierDropdown(false);
+                        setShowPoDropdown(false);
+                        setShowGrnDropdown(false);
+                        setShowItemDropdown(false);
+                        const input = e.currentTarget;
+                        if (!isViewMode && typeof input.showPicker === 'function') {
+                          try { input.showPicker(); } catch { /* ignore */ }
                         }
                       }}
-                      onFocus={e => {
-                        if (isViewMode) return;
-                        // ✅ Also open the picker when the field is focused (e.g. via keyboard/tab)
-                        const el = e.currentTarget as HTMLInputElement & {
-                          showPicker?: () => void;
-                        };
-                        try {
-                          el.showPicker?.();
-                        } catch {
-                          /* Ignore */
-                        }
+                      onMouseDown={() => {
+                        setShowSupplierDropdown(false);
+                        setShowPoDropdown(false);
+                        setShowGrnDropdown(false);
+                        setShowItemDropdown(false);
                       }}
                       className={`form-field ${isViewMode ? 'field-disabled' : ''}`}
                       style={{ cursor: isViewMode ? 'default' : 'pointer' }}
                       disabled={isViewMode}
+                      style={{ pointerEvents: isViewMode ? 'none' : 'auto', cursor: 'pointer' }}
                     />
                   </div>
                   </div>
@@ -2968,28 +2983,6 @@ export default function PurchaseInvoiceForm() {
                     </select>
                   </div>
                 </div>
-
-                {/* GST Summary */}
-                <div className="pif-party-detail-card">
-                  <div className="pif-party-card-header">
-                    <FaMoneyBillWave size={14} />
-                    <span>GST Summary</span>
-                  </div>
-                  <div className="pif-party-card-content">
-                    <div className="pif-party-info-item">
-                      <span className="pif-party-info-label">CGST</span>
-                      <span className="pif-party-info-value">₹ {cgstAmount.toFixed(2)}</span>
-                    </div>
-                    <div className="pif-party-info-item">
-                      <span className="pif-party-info-label">SGST</span>
-                      <span className="pif-party-info-value">₹ {sgstAmount.toFixed(2)}</span>
-                    </div>
-                    <div className="pif-party-info-item">
-                      <span className="pif-party-info-label">Total GST</span>
-                      <span className="pif-party-info-value">₹ {totalTax.toFixed(2)}</span>
-                    </div>
-                  </div>
-                </div>
               </div>
             </div>
 
@@ -3201,12 +3194,9 @@ export default function PurchaseInvoiceForm() {
                                 step="0.01"
                               />
                             </td>
-                            {/* ✅ FIX: removed the <td> that was nested inside another <td> (invalid HTML) */}
                             <td className="pif-itd pof-itd pif-itd-num pif-amount pof-itd-amount pif-itd-amount pif-itd-amount-wide" data-label="Amount">
                               ₹ {(row.amount || 0).toFixed(2)}
                             </td>
-                            {/* ✅ FIX: dropdown is now bound to tax_id (not the rate), so GST18 / IGST18
-                                 are distinct options and the selected id is what gets saved */}
                             <td className="pif-itd pof-itd pif-itd-num" data-label="Tax %">
                               <select
                                 value={row.tax_id ?? ''}
@@ -3254,7 +3244,6 @@ export default function PurchaseInvoiceForm() {
                                   title="Remove item"
                                 >
                                   <FaTrash size={12} />
-                                  
                                 </button>
                               </td>
                             )}
@@ -3359,6 +3348,3 @@ export default function PurchaseInvoiceForm() {
     </div>
   );
 }
-
-
-
