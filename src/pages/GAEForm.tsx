@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
+import { FaArrowLeft, FaExclamationTriangle } from "react-icons/fa";
 import "./DebitForm.css";
 import api from "../services/api";
 
@@ -779,6 +780,23 @@ const GAEForm: React.FC = () => {
 
   return (
     <div className="rd-credit-page">
+      <div className="pof-header">
+                      <button onClick={() => navigate("/GeneralAccountEntry")} className="pof-back-btn">
+                        <FaArrowLeft size={9} /> Back
+                      </button>
+                      <div className="pof-header-title">
+                        <h1>
+                          General Account Entry Details
+                        </h1>
+                        
+                      </div>
+                      {Object.keys(errors).length > 0 && (
+                        <div className="pof-error-badge">
+                          <FaExclamationTriangle size={12} />
+                          {Object.keys(errors).length} missing field{Object.keys(errors).length !== 1 ? 's' : ''}
+                        </div>
+                      )}
+                    </div>
       <div className="rd-credit-card">
         <div className="rd-credit-header">
           <h2>GENERAL ACCOUNT ENTRY</h2>

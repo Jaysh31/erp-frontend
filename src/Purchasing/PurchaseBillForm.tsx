@@ -508,6 +508,30 @@ export default function PurchaseInvoiceForm() {
     }
   }, [pendingWarehouseId, warehouses]);
 
+  // ─── Resolve missing HSN values from the Item API master ───────────────────
+  // Existing purchase-invoice rows may not return HSN. Match the row to the
+  // /item?limit=200 response by item_id first, then item_code, and fill only
+  // empty HSN values so API-loaded invoice data and user edits are preserved.
+  useEffect(() => {
+    if (!itemsList.length || !items.length) return;
+    let changed = false;
+    const nextItems = items.map(row => {
+      const currentHsn = row.HSN || (row as any).hsn_code || (row as any).hsn || (row as any).item_hsn || '';
+      if (String(currentHsn).trim()) return row;
+
+      const catalogItem = itemsList.find((catalog: any) =>
+        (row.item_id != null && Number(catalog.id) === Number(row.item_id)) ||
+        (row.item_code && String(catalog.item_code || '').trim().toLowerCase() === String(row.item_code).trim().toLowerCase())
+      ) as any;
+      const hsn = catalogItem?.HSN || catalogItem?.hsn_code || catalogItem?.hsn ||
+        catalogItem?.item_hsn || catalogItem?.gst_hsn_code || catalogItem?.hsnCode || '';
+      if (!String(hsn).trim()) return row;
+      changed = true;
+      return { ...row, HSN: String(hsn) };
+    });
+    if (changed) setItems(nextItems);
+  }, [itemsList, items]);
+
   // ─── ✅ NEW: Sync tax_rate from tax_id once BOTH taxes and items are loaded.
   //     - If a row has a tax_id  → rate is derived from the tax master.
   //     - If a row has no tax_id → try to resolve it from the rate.
@@ -628,13 +652,18 @@ export default function PurchaseInvoiceForm() {
 
   // ─── Fetch Items ────────────────────────────────────────────────────────────
   const fetchItems = async () => {
-    if (isViewMode) return;
+    // Load the item master in view mode too, so HSN can be resolved from the API
+    // when an existing purchase invoice item does not contain its own HSN field.
     setLoadingItems(true);
     try {
       const res = await api.get('/item?limit=200');
       if (res.data?.success === 1) {
         const records = res.data.data?.records || res.data.data || [];
-        setItemsList(records);
+        const normalizedRecords = (Array.isArray(records) ? records : []).map((item: any) => ({
+          ...item,
+          HSN: item.HSN || item.hsn_code || item.hsn || item.item_hsn || item.gst_hsn_code || item.hsnCode || '',
+        }));
+        setItemsList(normalizedRecords);
       }
     } catch (err) {
       console.error('Error fetching items:', err);
@@ -1261,7 +1290,7 @@ export default function PurchaseInvoiceForm() {
               grn_refs: it.grn_refs || [],
               tax_rate: resolvedTaxRate || 0,
               tax_id: taxId,
-              HSN: it.hsn_code || it.HSN || '',
+              HSN: it.hsn_code || it.HSN || it.hsn || it.item_hsn || '',
               note: it.note || '',
             };
           });
@@ -2546,7 +2575,7 @@ export default function PurchaseInvoiceForm() {
                       className={`form-field ${isViewMode ? 'field-disabled' : ''}`}
                       style={{ cursor: isViewMode ? 'default' : 'pointer' }}
                       disabled={isViewMode}
-                      style={{ pointerEvents: isViewMode ? 'none' : 'auto', cursor: 'pointer' }}
+                      
                     />
                   </div>
                   </div>
@@ -3126,13 +3155,19 @@ export default function PurchaseInvoiceForm() {
                               />
                             </td>
                             <td className="pif-itd pof-itd" data-label="HSN">
-                              <input
-                                type="text"
-                                value={row.HSN || ''}
-                                onChange={e => handleItemFieldChange(row.id, 'HSN', e.target.value)}
-                                className="pif-cell-input pof-cell-input"
-                                placeholder="HSN"
-                              />
+                              {isViewMode ? (
+                                <span className="pif-cell-readonly pof-uom-display">
+                                  {row.HSN ||  '-'}
+                                </span>
+                              ) : (
+                                <input
+                                  type="text"
+                                  value={row.HSN || ''}
+                                  onChange={e => handleItemFieldChange(row.id, 'HSN', e.target.value)}
+                                  className="pif-cell-input pof-cell-input"
+                                  placeholder="HSN"
+                                />
+                              )}
                             </td>
                             <td className="pif-itd pof-itd pif-itd-num" data-label="Ordered Qty">
                               <span className="pif-cell-readonly pof-uom-display">{row.ordered_qty || 0}</span>

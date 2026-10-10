@@ -814,12 +814,19 @@ export default function GRNForm() {
  
   // ─── Fetch Item Master ────────────────────────────────────────────── 
   const fetchItemsMaster = async (): Promise<ItemMaster[]> => { 
-    if (isViewMode) return [];
+    // Fetch item master in View mode too, so saved GRN rows can resolve HSN from the API.
     setLoadingItemsMaster(true); 
     try { 
       const response = await api.get('/item?limit=200'); 
       if (response.data && response.data.success === 1) { 
-        const items = response.data.data || []; 
+        const rawItems = response.data.data;
+        const items = Array.isArray(rawItems)
+          ? rawItems
+          : Array.isArray(rawItems?.records)
+            ? rawItems.records
+            : Array.isArray(rawItems?.items)
+              ? rawItems.items
+              : [];
         const mappedItems: ItemMaster[] = items.map((item: any) => ({ 
           id: item.id, 
           item_code: item.item_code, 
@@ -831,7 +838,7 @@ export default function GRNForm() {
           brand: item.brand, 
           item_group: item.item_group || 'Uncategorized', 
           tax_id: item.tax_id, 
-          HSN: item.HSN || item.hsn || '', 
+          HSN: item.HSN || item.hsn || item.hsn_code || item.hsn_number || item.item_hsn || item.gst_hsn_code || '', 
           disabled: item.disabled, 
         })); 
  
@@ -1485,7 +1492,8 @@ export default function GRNForm() {
           } 
  
           const masterMatch = itemMasterList.find( 
-            im => (im.item_code || '').toLowerCase() === (item.item_code || '').toLowerCase() 
+            im => (item.item_id != null && Number(im.id) === Number(item.item_id)) ||
+              (im.item_code || '').trim().toLowerCase() === (item.item_code || '').trim().toLowerCase() 
           ); 
  
           return { 
@@ -1503,7 +1511,7 @@ export default function GRNForm() {
             taxId: taxId, 
             taxType: taxType, 
             taxRate: taxRate, 
-            hsn: item.hsn || '', 
+            hsn: item.hsn|| '', 
             isDraft: false, 
           }; 
         }) || []; 
@@ -1941,7 +1949,7 @@ export default function GRNForm() {
       taxId: taxInfo.taxId || item.tax_id || undefined, 
       taxType: taxInfo.taxType, 
       taxRate: taxInfo.taxRate || 0, 
-      hsn: item.HSN || '', 
+      hsn: item.HSN || (item as any).hsn || (item as any).hsn_code || (item as any).hsn_number || (item as any).item_hsn || (item as any).gst_hsn_code || '', 
       isDraft: true, 
     }; 
     setFormData(prev => ({ ...prev, items: updatedItems })); 
@@ -3978,15 +3986,21 @@ export default function GRNForm() {
                                 />
                               </td>
                               <td className="pif-itd pof-itd" data-label="HSN">
-                                <input
-                                  className="pif-cell-input pof-cell-input"
-                                  type="text"
-                                  value={item.hsn || ''}
-                                  onChange={(e) => handleItemChange(index, 'hsn', e.target.value)}
-                                  onKeyDown={(e) => { if (e.key === 'Enter') e.preventDefault(); }}
-                                  placeholder="HSN"
-                                  disabled={submitting}
-                                />
+                                {isViewMode ? (
+                                  <span className="pif-cell-readonly pof-uom-display">
+                                    {item.hsn || '-'}
+                                  </span>
+                                ) : (
+                                  <input
+                                    className="pif-cell-input pof-cell-input"
+                                    type="text"
+                                    value={item.hsn || ''}
+                                    onChange={(e) => handleItemChange(index, 'hsn', e.target.value)}
+                                    onKeyDown={(e) => { if (e.key === 'Enter') e.preventDefault(); }}
+                                    placeholder="HSN"
+                                    disabled={submitting}
+                                  />
+                                )}
                               </td>
                               <td className="pif-itd pof-itd pif-itd-num" data-label="Ordered Qty">
                                 <span className="pif-cell-readonly pof-uom-display">{item.orderedQty || 0}</span>
