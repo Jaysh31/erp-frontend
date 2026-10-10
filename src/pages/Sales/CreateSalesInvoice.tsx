@@ -2891,7 +2891,11 @@ const [loadingQCMap, setLoadingQCMap] = useState<boolean>(false);
             : (it.tax_id !== undefined && it.tax_id !== null && it.tax_id !== ''
                 ? Number(it.tax_id)
                 : undefined);
-        const itemTaxRate = Number(it.item_tax_rate ?? it.tax_rate ?? it.gst_rate ?? 0) || 0;
+        const rawItemTaxRate = it.item_tax_rate ?? it.tax_rate ?? it.gst_rate ?? it.tax ?? 0;
+        const numericItemTaxRate = Number(rawItemTaxRate);
+        const itemTaxRate = Number.isFinite(numericItemTaxRate)
+          ? numericItemTaxRate
+          : extractTaxValue(String(rawItemTaxRate));
         const taxAmount = Number(
           it.tax_amount ??
           (it.net_amount !== undefined && it.amount !== undefined
@@ -3875,9 +3879,29 @@ const fetchDeliveryNoteQCStatus = async (customerId: string) => {
     }));
   };
 
+  // Always resolve a displayable tax amount from the saved value first, then
+  // fall back to the row's amount and tax rate. This also handles existing
+  // invoices whose API response omits tax_amount or returns it as zero.
+  const getItemTaxAmount = (item: SalesBillItem): number => {
+    const savedTaxAmount = Number(item.taxAmount);
+    if (Number.isFinite(savedTaxAmount) && savedTaxAmount !== 0) {
+      return savedTaxAmount;
+    }
+
+    const storedAmount = Number(item.amount);
+    const amountFromQuantityAndRate = Number(item.quantity || 0) * Number(item.rate || 0);
+    const taxableAmount = Number.isFinite(storedAmount) && storedAmount !== 0
+      ? storedAmount
+      : amountFromQuantityAndRate;
+    const taxRate = Number(item.tax || 0);
+    const calculatedTaxAmount = (taxableAmount * taxRate) / 100;
+
+    return Number.isFinite(calculatedTaxAmount) ? calculatedTaxAmount : 0;
+  };
+
   const getTotalQty = () => items.reduce((sum, item) => sum + (item.quantity || 0), 0);
   const getTotalAmount = () => items.reduce((sum, item) => sum + (item.amount || 0), 0);
-  const getTotalTax = () => items.reduce((sum, item) => sum + (item.taxAmount || 0), 0);
+  const getTotalTax = () => items.reduce((sum, item) => sum + getItemTaxAmount(item), 0);
   const getGrandTotal = () => items.reduce((sum, item) => sum + (item.totalAmount || 0), 0);
   const getGrandTotalWithRound = () => getGrandTotal() + roundOff;
 
@@ -5176,7 +5200,12 @@ if (isEditMode && id) {
                     <th className="nsb-col-unit">UOM</th>
                     <th className="nsb-col-rate">Rate</th>
                     <th className="nsb-col-tax">Tax</th>
-                    <th className="nsb-col-tax-amount" style={{ textAlign: 'right' }}>Tax Amt</th>
+                    <th
+                      className="nsb-col-tax-amount"
+                      style={{ textAlign: 'right', display: 'table-cell', visibility: 'visible', whiteSpace: 'nowrap' }}
+                    >
+                      Tax Amt
+                    </th>
                     <th className="nsb-col-amount" style={{ textAlign: 'right' }}>Amount</th>
                     <th className="nsb-col-action"></th>
                   </tr>
@@ -5266,8 +5295,22 @@ if (isEditMode && id) {
                           ))}
                         </select>
                       </td>
-                      <td className="nsb-col-tax-amount" style={{ textAlign: 'right' }}>
-                        <span className="nsb-table-value">₹{item.taxAmount.toFixed(2)}</span>
+                      <td
+                        className="nsb-col-tax-amount"
+                        style={{
+                          textAlign: 'right',
+                          display: 'table-cell',
+                          visibility: 'visible',
+                          opacity: 1,
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        <span
+                          className="nsb-table-value"
+                          style={{ display: 'inline-block', visibility: 'visible', opacity: 1, color: 'var(--text-primary, #0f172a)' }}
+                        >
+                          ₹{getItemTaxAmount(item).toFixed(2)}
+                        </span>
                       </td>
                       <td className="nsb-col-amount" style={{ textAlign: 'right' }}>
                         <span className="nsb-table-value">₹{item.totalAmount.toFixed(2)}</span>
@@ -5480,9 +5523,17 @@ if (isEditMode && id) {
                       <span className="nsb-summary-label">Sub Total</span>
                       <span className="nsb-summary-value">₹{subTotal.toFixed(2)}</span>
                     </div>
-                    <div className="nsb-summary-item">
-                      <span className="nsb-summary-label">Total Tax</span>
-                      <span className="nsb-summary-value">₹{totalTax.toFixed(2)}</span>
+                    <div
+                      className="nsb-summary-item"
+                      style={{ display: 'flex', visibility: 'visible', opacity: 1 }}
+                    >
+                      <span className="nsb-summary-label" style={{ visibility: 'visible' }}>Total Tax</span>
+                      <span
+                        className="nsb-summary-value"
+                        style={{ display: 'inline-block', visibility: 'visible', opacity: 1, color: 'var(--text-primary, #0f172a)' }}
+                      >
+                        ₹{totalTax.toFixed(2)}
+                      </span>
                     </div>
                     {/*<div className="nsb-summary-item">
                       <span className="nsb-summary-label">Round Off</span>

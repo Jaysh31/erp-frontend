@@ -3658,6 +3658,54 @@ export default function CreateSalesOrder() {
         </div>
 
         <div className="so-items-full">
+          {/* Responsive mobile layout for Products; desktop retains the original table. */}
+          <style>{`
+            .so-items-full .so-mobile-products { display: none; }
+            .so-items-full .so-mobile-product-card {
+              border: 1px solid var(--border-color, #e2e8f0);
+              border-radius: 10px;
+              background: var(--card-bg, #fff);
+              overflow: hidden;
+              margin-bottom: 10px;
+            }
+            .so-items-full .so-mobile-product-grid {
+              display: grid;
+              grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+            }
+            .so-items-full .so-mobile-product-field {
+              min-width: 0;
+              padding: 10px 11px;
+              border-bottom: 1px solid var(--border-color, #e2e8f0);
+            }
+            .so-items-full .so-mobile-product-field:nth-child(odd) {
+              border-right: 1px solid var(--border-color, #e2e8f0);
+            }
+            .so-items-full .so-mobile-product-label {
+              display: block; margin-bottom: 5px;
+              color: var(--text-secondary, #64748b); font-size: 10px;
+              font-weight: 700; letter-spacing: .45px; line-height: 1.3;
+              text-transform: uppercase;
+            }
+            .so-items-full .so-mobile-product-label-normalcase { text-transform: none; }
+            .so-items-full .so-mobile-product-field .so-table-input,
+            .so-items-full .so-mobile-product-field input,
+            .so-items-full .so-mobile-product-field select {
+              box-sizing: border-box; width: 100%; min-width: 0;
+            }
+            .so-items-full .so-mobile-product-value {
+              display: flex; align-items: center; min-height: 30px;
+              color: var(--text-primary, #0f172a); font-size: 12px; font-weight: 600;
+              overflow-wrap: anywhere;
+            }
+            .so-items-full .so-mobile-product-card-footer {
+              display: flex; justify-content: flex-end; padding: 8px 10px;
+              background: var(--layout-bg, #f8fafc);
+            }
+            @media (max-width: 768px) {
+              .so-items-full .ndc-table-wrap { display: none !important; }
+              .so-items-full .so-mobile-products { display: block; }
+            }
+          `}</style>
           <div className="so-items-header">
             <span className="so-items-title">
               <FaClipboardList className="so-items-icon" /> Products
@@ -3816,7 +3864,118 @@ export default function CreateSalesOrder() {
               </tbody>
             </table>
           </div>
+          {/* Two-column Products editor for small screens */}
+          <div className="so-mobile-products" aria-label="Products">
+            {formData.items.map((item, index) => (
+              <div className="so-mobile-product-card" key={`mobile-${item.id}`}>
+                <div className="so-mobile-product-grid">
+                  <div className="so-mobile-product-field">
+                    <label className="so-mobile-product-label">NO.</label>
+                    <div className="so-mobile-product-value">{index + 1}</div>
+                  </div>
+                  <div className="so-mobile-product-field">
+                    <label className="so-mobile-product-label">Item Code <span className="so-required">*</span></label>
+                    <SearchableSelect
+                      value={item.itemCode}
+                      onChange={(value, selectedProduct) => handleItemChange(index, 'itemCode', value, selectedProduct)}
+                      options={products}
+                      placeholder="Search..."
+                      onSearch={handleItemSearch}
+                      loading={isLoadingItems}
+                      error={!!errors[`item_${index}_code`]}
+                      stockInfo={{ status: item.stockStatus, availableQty: item.availableQty }}
+                      disabled={isViewMode}
+                    />
+                  </div>
+                  <div className="so-mobile-product-field">
+                    <label className="so-mobile-product-label">Item Name <span className="so-required">*</span></label>
+                    <input type="text" value={item.itemName}
+                      onChange={(e) => handleItemChange(index, 'itemName', e.target.value)}
+                      placeholder="Item name" className="so-table-input so-table-input-text"
+                      ref={setItemRef(`item_${index}_itemName`)} readOnly={isViewMode} />
+                  </div>
+                  <div className="so-mobile-product-field">
+                    <label className="so-mobile-product-label">HSN</label>
+                    <input type="text" value={item.hsn}
+                      onChange={(e) => handleItemChange(index, 'hsn', e.target.value)}
+                      placeholder="0" className="so-table-input so-table-input-text"
+                      ref={setItemRef(`item_${index}_hsn`)} readOnly={isViewMode} />
+                  </div>
+                  <div className="so-mobile-product-field">
+                    <label className="so-mobile-product-label">Qty <span className="so-required">*</span></label>
+                    <input type="number" value={item.quantity}
+                      onChange={(e) => handleItemChange(index, 'quantity', Number(e.target.value) || 0)}
+                      onWheel={preventWheelChange} min="1"
+                      className={`so-table-input ${errors[`item_${index}_quantity`] ? 'so-input-error' : ''}`}
+                      ref={setItemRef(`item_${index}_quantity`)} readOnly={isViewMode} />
+                  </div>
+                  <div className="so-mobile-product-field">
+                    <label className="so-mobile-product-label">UOM <span className="so-required">*</span></label>
+                    <select value={item.stockUom}
+                      onChange={(e) => handleItemChange(index, 'stockUom', e.target.value)}
+                      className="so-table-input" ref={setItemRef(`item_${index}_stockUom`)} disabled={isViewMode}>
+                      <option value="Nos">Nos</option><option value="Kg">Kg</option>
+                      <option value="Ltr">Ltr</option><option value="Mtr">Mtr</option>
+                      <option value="Pcs">Pcs</option><option value="Box">Box</option>
+                    </select>
+                  </div>
+                  <div className="so-mobile-product-field">
+                    <label className="so-mobile-product-label">Rate</label>
+                    <input type="number" value={item.rate}
+                      onChange={(e) => handleItemChange(index, 'rate', Number(e.target.value) || 0)}
+                      onWheel={preventWheelChange} min="0" step="0.01"
+                      className={`so-table-input ${errors[`item_${index}_rate`] ? 'so-input-error' : ''}`}
+                      ref={setItemRef(`item_${index}_rate`)} readOnly={isViewMode} />
+                  </div>
+                  <div className="so-mobile-product-field">
+                    <label className="so-mobile-product-label">Tax</label>
+                    <select value={item.tax}
+                      onChange={(e) => handleItemChange(index, 'tax', Number(e.target.value))}
+                      className="so-table-input" ref={setItemRef(`item_${index}_tax`)}
+                      disabled={loadingTaxOptions || isViewMode}>
+                      {(taxOptions.length > 0 ? taxOptions : DEFAULT_TAX_OPTIONS).map((tax) => {
+                        const taxValue = extractTaxValue(tax.tax_type);
+                        return <option key={tax.tax_id} value={taxValue}>{tax.tax_type}</option>;
+                      })}
+                      {item.tax !== undefined && item.tax !== null &&
+                        !(taxOptions.length > 0 ? taxOptions : DEFAULT_TAX_OPTIONS).some(
+                          (t) => extractTaxValue(t.tax_type) === item.tax
+                        ) && <option value={item.tax}>GST {item.tax}%</option>}
+                    </select>
+                  </div>
+                  <div className="so-mobile-product-field">
+                    <label className="so-mobile-product-label so-mobile-product-label-normalcase">Tax Amount</label>
+                    <div className="so-mobile-product-value">₹{(Number(item.taxAmount) || 0).toFixed(2)}</div>
+                  </div>
+                  <div className="so-mobile-product-field">
+                    <label className="so-mobile-product-label">Amount</label>
+                    <div className="so-mobile-product-value">₹{(Number(item.amount) || 0).toFixed(2)}</div>
+                  </div>
+                </div>
+                {!isViewMode && formData.items.length > 1 && (
+                  <div className="so-mobile-product-card-footer">
+                    <button type="button" className="so-remove-btn"
+                      onClick={() => removeItemRow(index)} title="Remove item"
+                      aria-label={`Remove item ${index + 1}`}>
+                      <FaTrash size={11} />
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+
         </div>
+
+
+
+
+
+
+        
+
+
+
 
         <div className="so-bottom-section">
           <div className="so-bottom-left">

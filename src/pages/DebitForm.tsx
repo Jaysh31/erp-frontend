@@ -836,7 +836,7 @@ const DebitForm: React.FC = () => {
                   <h1>
                     {isViewMode ? 'View Debit Entry' : isEdit ? 'Edit Debit Entry' : 'Debit Details'}
                   </h1>
-                  {/*{isViewMode && (
+                  {isViewMode && (
                     <span className="pof-view-mode-badge" style={{
                       display: 'inline-flex',
                       alignItems: 'center',
@@ -852,7 +852,7 @@ const DebitForm: React.FC = () => {
                       <FaEye size={12} />
                       View Mode
                     </span>
-                  )*/}
+                  )}
                   {isEdit && !isViewMode && <span className="pof-status-badge">{formData.referenceType}</span>}
                 </div>
                 {!isViewMode && Object.keys(errors).length > 0 && (
