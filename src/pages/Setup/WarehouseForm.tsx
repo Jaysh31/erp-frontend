@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import ReactDOM from "react-dom";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
   FaArrowLeft,
@@ -67,15 +68,106 @@ interface Contact {
   updatedAt: string;
 }
 
+// ===== 🆕 FULL-SCREEN LOADER OVERLAY =====
+interface LoaderOverlayProps {
+  isOpen: boolean;
+  message?: string;
+  subtitle?: string;
+}
+
+const LoaderOverlay: React.FC<LoaderOverlayProps> = ({
+  isOpen,
+  message = 'Please wait...',
+  subtitle,
+}) => {
+  if (!isOpen) return null;
+
+  return ReactDOM.createPortal(
+    <div
+      className="wf-loader-overlay"
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(15, 23, 42, 0.45)',
+        backdropFilter: 'blur(2px)',
+        WebkitBackdropFilter: 'blur(2px)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 20000,
+        padding: '20px',
+      }}
+    >
+      <div
+        className="wf-loader-card"
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: '#ffffff',
+          borderRadius: '16px',
+          padding: '32px 40px',
+          minWidth: '280px',
+          maxWidth: '380px',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '16px',
+          boxShadow: '0 20px 60px rgba(0, 0, 0, 0.25)',
+          textAlign: 'center',
+        }}
+      >
+        <div
+          className="wf-loader-spinner"
+          style={{
+            width: '52px',
+            height: '52px',
+            borderRadius: '50%',
+            border: '4px solid #e5e7eb',
+            borderTopColor: '#6366f1',
+            animation: 'wfSpin 0.9s linear infinite',
+          }}
+        />
+        <div
+          className="wf-loader-message"
+          style={{
+            fontSize: '16px',
+            fontWeight: 600,
+            color: '#111827',
+          }}
+        >
+          {message}
+        </div>
+        {subtitle && (
+          <div
+            className="wf-loader-subtitle"
+            style={{
+              fontSize: '13px',
+              color: '#6b7280',
+              marginTop: '-8px',
+            }}
+          >
+            {subtitle}
+          </div>
+        )}
+      </div>
+      <style>{`
+        @keyframes wfSpin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
+    </div>,
+    document.body
+  );
+};
+
 export default function WarehouseForm() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { theme } = useAdminTheme();
   const [searchParams] = useSearchParams();
   
-  // ✅ Check if we're in view mode from URL query parameter
   const isViewMode = searchParams.get('mode') === 'view';
-  
   const isNew = id === "new" || !id;
   const isEditMode = !isNew && !isViewMode;
 
@@ -108,6 +200,9 @@ export default function WarehouseForm() {
   const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
   const [warehouseId, setWarehouseId] = useState<number | null>(null);
 
+  // 🆕 Global loader state
+  const [loaderAction, setLoaderAction] = useState<'warehouse' | 'contact' | 'delete' | null>(null);
+
   // ─── Contact related states ──────────────────────────────────────────
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [selectedContacts, setSelectedContacts] = useState<Contact[]>([]);
@@ -128,7 +223,7 @@ export default function WarehouseForm() {
   const [showContactSearch, setShowContactSearch] = useState(false);
   const [contactSearchTerm, setContactSearchTerm] = useState("");
 
-  // ─── Toast helper function (replaces toast.info) ────────────────────
+  // ─── Toast helper function ──────────────────────────────────────────
   const showToastInfo = (message: string) => {
     toast.custom(() => (
       <div
@@ -151,156 +246,25 @@ export default function WarehouseForm() {
     ), { duration: 3000 });
   };
 
-  // ─── Fetch contacts from API ─────────────────────────────────────────
+  // ─── 🆕 Fetch contacts (silently handle 404) ────────────────────────
   const fetchContacts = async () => {
     try {
       const response = await api.get('/contact');
       if (response.data && response.data.success === 1) {
         setContacts(response.data.data || []);
       } else {
-        // Fallback to mock data if API fails
-        const mockContacts: Contact[] = [
-          {
-            id: '1',
-            contactCode: 'CONT-001',
-            fullName: 'Nirjala Bagal',
-            firstName: 'Nirjala',
-            lastName: 'Bagal',
-            email: 'nirjala@gmail.com',
-            phone: '9876543210',
-            mobile: '9876543210',
-            status: 'Passive',
-            address: '123, Residency Road',
-            city: 'Mumbai',
-            state: 'Maharashtra',
-            country: 'India',
-            pincode: '400001',
-            designation: 'Purchase Manager',
-            department: 'Procurement',
-            supplierId: 'SUP-001',
-            supplierName: 'ABC Manufacturing Co.',
-            createdAt: '2026-06-20T10:00:00Z',
-            updatedAt: '2026-06-20T10:00:00Z'
-          },
-          {
-            id: '2',
-            contactCode: 'CONT-002',
-            fullName: 'P S Kamthe',
-            firstName: 'P S',
-            lastName: 'Kamthe',
-            email: 'pskamthe@rediffmail.com',
-            phone: '8765432109',
-            mobile: '8765432109',
-            status: 'Passive',
-            address: '456, Industrial Area',
-            city: 'Pune',
-            state: 'Maharashtra',
-            country: 'India',
-            pincode: '411001',
-            designation: 'Supplier Manager',
-            department: 'Supply Chain',
-            supplierId: 'SUP-002',
-            supplierName: 'XYZ Electronics Ltd.',
-            createdAt: '2026-06-19T10:00:00Z',
-            updatedAt: '2026-06-19T10:00:00Z'
-          },
-          {
-            id: '3',
-            contactCode: 'CONT-003',
-            fullName: 'Tejas Tarte',
-            firstName: 'Tejas',
-            lastName: 'Tarte',
-            email: 'tejasvithaltarte@gmail.com',
-            phone: '7654321098',
-            mobile: '7654321098',
-            status: 'Active',
-            address: '789, Tech Park',
-            city: 'Bangalore',
-            state: 'Karnataka',
-            country: 'India',
-            pincode: '560100',
-            designation: 'Procurement Officer',
-            department: 'Procurement',
-            supplierId: 'SUP-003',
-            supplierName: 'PQR Packaging Solutions',
-            createdAt: '2026-06-18T10:00:00Z',
-            updatedAt: '2026-06-18T10:00:00Z'
-          }
-        ];
-        setContacts(mockContacts);
+        setContacts([]);
       }
-    } catch (err) {
-      console.error('Error fetching contacts:', err);
-      // Set mock contacts on error
-      const mockContacts: Contact[] = [
-        {
-          id: '1',
-          contactCode: 'CONT-001',
-          fullName: 'Nirjala Bagal',
-          firstName: 'Nirjala',
-          lastName: 'Bagal',
-          email: 'nirjala@gmail.com',
-          phone: '9876543210',
-          mobile: '9876543210',
-          status: 'Passive',
-          address: '123, Residency Road',
-          city: 'Mumbai',
-          state: 'Maharashtra',
-          country: 'India',
-          pincode: '400001',
-          designation: 'Purchase Manager',
-          department: 'Procurement',
-          supplierId: 'SUP-001',
-          supplierName: 'ABC Manufacturing Co.',
-          createdAt: '2026-06-20T10:00:00Z',
-          updatedAt: '2026-06-20T10:00:00Z'
-        },
-        {
-          id: '2',
-          contactCode: 'CONT-002',
-          fullName: 'P S Kamthe',
-          firstName: 'P S',
-          lastName: 'Kamthe',
-          email: 'pskamthe@rediffmail.com',
-          phone: '8765432109',
-          mobile: '8765432109',
-          status: 'Passive',
-          address: '456, Industrial Area',
-          city: 'Pune',
-          state: 'Maharashtra',
-          country: 'India',
-          pincode: '411001',
-          designation: 'Supplier Manager',
-          department: 'Supply Chain',
-          supplierId: 'SUP-002',
-          supplierName: 'XYZ Electronics Ltd.',
-          createdAt: '2026-06-19T10:00:00Z',
-          updatedAt: '2026-06-19T10:00:00Z'
-        },
-        {
-          id: '3',
-          contactCode: 'CONT-003',
-          fullName: 'Tejas Tarte',
-          firstName: 'Tejas',
-          lastName: 'Tarte',
-          email: 'tejasvithaltarte@gmail.com',
-          phone: '7654321098',
-          mobile: '7654321098',
-          status: 'Active',
-          address: '789, Tech Park',
-          city: 'Bangalore',
-          state: 'Karnataka',
-          country: 'India',
-          pincode: '560100',
-          designation: 'Procurement Officer',
-          department: 'Procurement',
-          supplierId: 'SUP-003',
-          supplierName: 'PQR Packaging Solutions',
-          createdAt: '2026-06-18T10:00:00Z',
-          updatedAt: '2026-06-18T10:00:00Z'
-        }
-      ];
-      setContacts(mockContacts);
+    } catch (err: any) {
+      // 🆕 If 404, the endpoint doesn't exist – just use empty list,
+      // don't spam the console with an error.
+      if (err?.response?.status === 404) {
+        console.warn('Contacts endpoint not found (404). Using empty list.');
+        setContacts([]);
+      } else {
+        console.error('Error fetching contacts:', err);
+        setContacts([]);
+      }
     }
   };
 
@@ -346,7 +310,6 @@ export default function WarehouseForm() {
               transit: data.default_in_transit_warehouse === "1",
               emailId: data.email_id || "",
             });
-            // Fetch contacts if warehouse has ID
             if (data.id) {
               await fetchWarehouseContacts();
             }
@@ -374,15 +337,9 @@ export default function WarehouseForm() {
       return;
     }
     
-    console.log('Opening contact modal with index:', index);
-    console.log('Selected contacts:', selectedContacts);
-    
     if (index !== undefined && selectedContacts[index]) {
       const contact = selectedContacts[index];
-      console.log('Editing contact:', contact);
-      
       setEditingContactIndex(index);
-      // Explicitly set each field with fallback values
       setContactFormData({
         fullName: contact.fullName || "",
         email: contact.email || "",
@@ -394,7 +351,6 @@ export default function WarehouseForm() {
         status: contact.status || "Active",
       });
     } else {
-      console.log('Adding new contact');
       setEditingContactIndex(null);
       setContactFormData({
         fullName: "",
@@ -481,13 +437,11 @@ export default function WarehouseForm() {
     };
 
     if (editingContactIndex !== null) {
-      // Update existing contact in local state
       const updatedContacts = [...selectedContacts];
       updatedContacts[editingContactIndex] = { ...updatedContacts[editingContactIndex], ...newContact };
       setSelectedContacts(updatedContacts);
       toast.success('Contact updated successfully!');
     } else {
-      // Add new contact to local state
       setSelectedContacts([...selectedContacts, newContact]);
       toast.success('Contact added successfully!');
     }
@@ -511,6 +465,7 @@ export default function WarehouseForm() {
     }
 
     setIsContactSubmitting(true);
+    setLoaderAction('contact');
     try {
       const contactData = {
         fullName: contactFormData.fullName || "",
@@ -526,11 +481,9 @@ export default function WarehouseForm() {
 
       let response;
       if (editingContactIndex !== null && selectedContacts[editingContactIndex]?.id && !selectedContacts[editingContactIndex].id.startsWith('temp-')) {
-        // Update existing contact
         const contactId = selectedContacts[editingContactIndex].id;
         response = await api.put(`/warehouse/${warehouseId}/contacts/${contactId}`, contactData);
       } else {
-        // Create new contact
         response = await api.post(`/warehouse/${warehouseId}/contacts`, contactData);
       }
 
@@ -546,6 +499,7 @@ export default function WarehouseForm() {
       toast.error(err.response?.data?.message || 'Failed to save contact');
     } finally {
       setIsContactSubmitting(false);
+      setLoaderAction(null);
     }
   };
 
@@ -564,14 +518,11 @@ export default function WarehouseForm() {
     }
     
     if (isNew) {
-      // Remove from local state
       const updatedContacts = selectedContacts.filter((_, i) => i !== index);
       setSelectedContacts(updatedContacts);
       toast.success('Contact removed successfully!');
     } else {
-      // Delete from API
       if (!selectedContacts[index]?.id || selectedContacts[index].id.startsWith('temp-')) {
-        // Remove temp contact from local state
         const updatedContacts = selectedContacts.filter((_, i) => i !== index);
         setSelectedContacts(updatedContacts);
         toast.success('Contact removed successfully!');
@@ -579,6 +530,7 @@ export default function WarehouseForm() {
       }
       
       if (window.confirm('Are you sure you want to delete this contact?')) {
+        setLoaderAction('delete');
         try {
           api.delete(`/warehouse/${warehouseId}/contacts/${selectedContacts[index].id}`).then(response => {
             if (response.data && response.data.success === 1) {
@@ -590,10 +542,13 @@ export default function WarehouseForm() {
           }).catch(err => {
             console.error('Error deleting contact:', err);
             toast.error('Failed to delete contact');
+          }).finally(() => {
+            setLoaderAction(null);
           });
         } catch (err) {
           console.error('Error deleting contact:', err);
           toast.error('Failed to delete contact');
+          setLoaderAction(null);
         }
       }
     }
@@ -619,30 +574,23 @@ export default function WarehouseForm() {
 
   // ─── Validation Functions ──────────────────────────────────────────────
 
-  // Only alphabets and spaces (for name, city, state, warehouse type)
   const isValidAlphabetOnly = (value: string): boolean => {
     return /^[A-Za-z\s]*$/.test(value);
   };
 
-  // Only alphabets and spaces with dot (for state/province)
   const isValidState = (value: string): boolean => {
     return /^[A-Za-z\s.]*$/.test(value);
   };
 
-  // Valid phone - allows 10 digits, with or without country code, spaces, hyphens
   const isValidPhone = (value: string): boolean => {
-    // Remove all non-digit characters
     const digitsOnly = value.replace(/\D/g, '');
-    // Check if it's exactly 10 digits OR 10-13 digits with leading country code
     return digitsOnly.length === 10 || (digitsOnly.length >= 10 && digitsOnly.length <= 13);
   };
 
-  // Valid email format
   const isValidEmail = (value: string): boolean => {
     return /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(value);
   };
 
-  // Exactly 6 digits (for PIN)
   const isValidPin = (value: string): boolean => {
     return /^\d{6}$/.test(value);
   };
@@ -651,7 +599,6 @@ export default function WarehouseForm() {
   const getAllValidationErrors = (): ValidationError[] => {
     const allErrors: ValidationError[] = [];
 
-    // Warehouse Name - Required (only for new)
     if (isNew && !form.warehouseName.trim()) {
       allErrors.push({ field: 'warehouseName', label: 'Warehouse Name', message: 'Warehouse name is required' });
     }
@@ -659,7 +606,6 @@ export default function WarehouseForm() {
       allErrors.push({ field: 'warehouseName', label: 'Warehouse Name', message: 'Warehouse name should contain only alphabets and spaces' });
     }
 
-    // Company - Required
     if (!form.company.trim()) {
       allErrors.push({ field: 'company', label: 'Company', message: 'Company is required' });
     }
@@ -667,42 +613,34 @@ export default function WarehouseForm() {
       allErrors.push({ field: 'company', label: 'Company', message: 'Company should contain only alphabets and spaces' });
     }
 
-    // Parent Warehouse - Alphabets only
     if (form.parentWarehouse.trim() && !isValidAlphabetOnly(form.parentWarehouse.trim())) {
       allErrors.push({ field: 'parentWarehouse', label: 'Parent Warehouse', message: 'Parent warehouse should contain only alphabets and spaces' });
     }
 
-    // Phone No - Allow 10 digits (with or without formatting)
     if (form.phoneNo.trim() && !isValidPhone(form.phoneNo.trim())) {
       allErrors.push({ field: 'phoneNo', label: 'Phone No', message: 'Phone number must be 10 digits (with or without country code)' });
     }
 
-    // Mobile No - Allow 10 digits (with or without formatting)
     if (form.mobileNo.trim() && !isValidPhone(form.mobileNo.trim())) {
       allErrors.push({ field: 'mobileNo', label: 'Mobile No', message: 'Mobile number must be 10 digits (with or without country code)' });
     }
 
-    // Email - Valid email format
     if (form.emailId.trim() && !isValidEmail(form.emailId.trim())) {
       allErrors.push({ field: 'emailId', label: 'Email ID', message: 'Please enter a valid email address' });
     }
 
-    // PIN - Exactly 6 digits
     if (form.pin.trim() && !isValidPin(form.pin.trim())) {
       allErrors.push({ field: 'pin', label: 'PIN', message: 'PIN code must be exactly 6 digits' });
     }
 
-    // City - Alphabets only
     if (form.city.trim() && !isValidAlphabetOnly(form.city.trim())) {
       allErrors.push({ field: 'city', label: 'City', message: 'City should contain only alphabets and spaces' });
     }
 
-    // State/Province - Alphabets, spaces and dot allowed
     if (form.stateProvince.trim() && !isValidState(form.stateProvince.trim())) {
       allErrors.push({ field: 'stateProvince', label: 'State/Province', message: 'State should contain only alphabets, spaces and dots' });
     }
 
-    // Warehouse Type - Alphabets only
     if (form.warehouseType.trim() && !isValidAlphabetOnly(form.warehouseType.trim())) {
       allErrors.push({ field: 'warehouseType', label: 'Warehouse Type', message: 'Warehouse type should contain only alphabets and spaces' });
     }
@@ -710,10 +648,10 @@ export default function WarehouseForm() {
     return allErrors;
   };
 
+  // ─── 🆕 handleSave with cleaned payload ──────────────────────────────
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // If in view mode, just go back to list
     if (isViewMode) {
       navigate('/warehouse');
       return;
@@ -727,37 +665,47 @@ export default function WarehouseForm() {
     }
 
     setSubmitting(true);
+    setLoaderAction('warehouse');
     setErrors({});
 
     try {
-      const payload: any = {};
+      // 🆕 Build payload, then strip out empty fields so the backend
+      //    doesn't receive null / empty strings that could break SQL.
+      const rawPayload: any = {
+        warehouse_name: form.warehouseName.trim(),
+        company: form.company.trim() || null,
+        parent_warehouse: form.parentWarehouse.trim() || null,
+        warehouse_type: form.warehouseType.trim() || null,
+        city: form.city.trim() || null,
+        state: form.stateProvince.trim() || null,
+        phone_no: form.phoneNo.trim() || null,
+        mobile_no: form.mobileNo.trim() || null,
+        email_id: form.emailId.trim() || null,
+        address_line_1: form.addressLine1.trim() || null,
+        address_line_2: form.addressLine2.trim() || null,
+        pin: form.pin.trim() || null,
+        account: form.account.trim() || null,
+        customer: form.customer.trim() || null,
+        is_rejected_warehouse: form.isRejectedWarehouse ? 1 : 0,
+        is_group: form.isGroupWarehouse ? 1 : 0,
+        default_in_transit_warehouse: form.transit ? 1 : 0,
+      };
 
       if (!isNew && warehouseId) {
-        payload.id = warehouseId;
+        rawPayload.id = warehouseId;
       }
 
-      payload.warehouse_name = form.warehouseName.trim();
-      payload.company = form.company.trim() || null;
-      payload.parent_warehouse = form.parentWarehouse.trim() || null;
-      payload.warehouse_type = form.warehouseType.trim() || null;
-      payload.city = form.city.trim() || null;
-      payload.state = form.stateProvince.trim() || null;
-      payload.phone_no = form.phoneNo.trim() || null;
-      payload.mobile_no = form.mobileNo.trim() || null;
-      payload.email_id = form.emailId.trim() || null;
-      payload.address_line_1 = form.addressLine1.trim() || null;
-      payload.address_line_2 = form.addressLine2.trim() || null;
-      payload.pin = form.pin.trim() || null;
-      payload.account = form.account.trim() || null;
-      payload.customer = form.customer.trim() || null;
-      
-      payload.is_rejected_warehouse = form.isRejectedWarehouse ? 1 : 0;
-      payload.is_group = form.isGroupWarehouse ? 1 : 0;
-      payload.default_in_transit_warehouse = form.transit ? 1 : 0;
+      // 🆕 Remove keys whose value is null, undefined, or empty string
+      const payload: any = {};
+      Object.keys(rawPayload).forEach((key) => {
+        const val = rawPayload[key];
+        if (val !== null && val !== undefined && val !== '') {
+          payload[key] = val;
+        }
+      });
 
-      // Add selected contacts to payload
+      // Contacts (as before)
       if (isNew) {
-        // For new warehouse, send contacts data
         payload.contacts = selectedContacts.map(c => ({
           fullName: c.fullName,
           email: c.email,
@@ -769,7 +717,6 @@ export default function WarehouseForm() {
           status: c.status || 'Active',
         }));
       } else {
-        // For existing warehouse, send just the contact IDs
         payload.contact_ids = selectedContacts.map(c => c.id);
       }
 
@@ -784,59 +731,78 @@ export default function WarehouseForm() {
         toast.success(isNew ? 'Warehouse created successfully!' : 'Warehouse updated successfully!');
         navigate('/warehouse');
       } else {
-        toast.error(response.data?.message || 'Failed to save warehouse');
-        setErrors({ submit: response.data?.message || 'Failed to save warehouse' });
+        const errMsg = response.data?.message || 'Failed to save warehouse';
+        toast.error(errMsg);
+        setErrors({ submit: errMsg });
       }
     } catch (err: any) {
       console.error('Error saving warehouse:', err);
-      
+
+      let msg = 'Failed to save warehouse';
       if (err.response) {
+        msg = err.response.data?.message || msg;
         if (err.response.status === 409) {
-          toast.error('A warehouse with this name already exists');
-          setErrors({ warehouseName: 'A warehouse with this name already exists' });
-        } else if (err.response.status === 400) {
-          toast.error(err.response.data?.message || 'Invalid data provided');
-          setErrors({ submit: err.response.data?.message || 'Invalid data provided' });
+          msg = 'A warehouse with this name already exists';
+          setErrors({ warehouseName: msg });
         } else {
-          toast.error(err.response.data?.message || 'Failed to save warehouse');
-          setErrors({ submit: err.response.data?.message || 'Failed to save warehouse' });
+          setErrors({ submit: msg });
         }
       } else if (err.request) {
-        toast.error('Network error. Please check your connection.');
-        setErrors({ submit: 'Network error. Please check your connection.' });
+        msg = 'Network error. Please check your connection.';
+        setErrors({ submit: msg });
       } else {
-        toast.error('An unexpected error occurred. Please try again.');
-        setErrors({ submit: 'An unexpected error occurred. Please try again.' });
+        msg = 'An unexpected error occurred. Please try again.';
+        setErrors({ submit: msg });
       }
+      toast.error(msg);
     } finally {
       setSubmitting(false);
+      setLoaderAction(null);
     }
   };
 
   const hasErrors = getAllValidationErrors().length > 0;
 
-  // Helper to check if a field has error
   const hasFieldError = (fieldName: string): boolean => {
     return validationErrors.some(err => err.field === fieldName);
   };
 
-  // Get error message for a field
   const getFieldError = (fieldName: string): string => {
     const error = validationErrors.find(err => err.field === fieldName);
     return error ? error.message : '';
   };
 
-  // Filter contacts for search
   const filteredContacts = contacts.filter(contact =>
     contact.fullName.toLowerCase().includes(contactSearchTerm.toLowerCase()) ||
     contact.email.toLowerCase().includes(contactSearchTerm.toLowerCase()) ||
     contact.contactCode.toLowerCase().includes(contactSearchTerm.toLowerCase())
   );
 
-  // ─── Navigation for Edit ──────────────────────────────────────────────
   const navigateToEdit = () => {
     navigate(`/warehouse/${id}`);
   };
+
+  const loaderMessage =
+    loaderAction === 'warehouse'
+      ? isNew
+        ? 'Creating Warehouse...'
+        : 'Updating Warehouse...'
+      : loaderAction === 'contact'
+      ? 'Saving Contact...'
+      : loaderAction === 'delete'
+      ? 'Deleting Contact...'
+      : 'Please wait...';
+
+  const loaderSubtitle =
+    loaderAction === 'warehouse'
+      ? isNew
+        ? 'Please wait while we create the warehouse.'
+        : 'Please wait while we save your changes.'
+      : loaderAction === 'contact'
+      ? 'Please wait while we save the contact.'
+      : loaderAction === 'delete'
+      ? 'Please wait while we remove the contact.'
+      : undefined;
 
   if (loading) {
     return (
@@ -855,7 +821,13 @@ export default function WarehouseForm() {
     <div className={`wf-page ${theme}`}>
       <div className="wf-inner">
 
-        {/* ─── Validation Summary Modal ────────────────────────────── */}
+        <LoaderOverlay
+          isOpen={loaderAction !== null}
+          message={loaderMessage}
+          subtitle={loaderSubtitle}
+        />
+
+        {/* Validation Summary Modal */}
         {showValidationSummary && validationErrors.length > 0 && (
           <div className="modal-overlay" onClick={() => setShowValidationSummary(false)}>
             <div className="validation-summary-modal" onClick={(e) => e.stopPropagation()}>
@@ -894,7 +866,7 @@ export default function WarehouseForm() {
           </div>
         )}
 
-        {/* ─── Contact Modal ────────────────────────────────────────── */}
+        {/* Contact Modal */}
         {showContactModal && (
           <div className="modal-overlay" onClick={() => !isContactSubmitting && closeContactModal()}>
             <div className="contact-modal" onClick={(e) => e.stopPropagation()}>
@@ -1057,7 +1029,7 @@ export default function WarehouseForm() {
           </div>
         )}
 
-        {/* ─── Contact Search Modal ────────────────────────────────── */}
+        {/* Contact Search Modal */}
         {showContactSearch && (
           <div className="modal-overlay" onClick={() => setShowContactSearch(false)}>
             <div className="contact-modal contact-search-modal" onClick={(e) => e.stopPropagation()}>
@@ -1133,7 +1105,7 @@ export default function WarehouseForm() {
           </div>
         )}
 
-        {/* ─── Header ────────────────────────────────────────────────── */}
+        {/* Header */}
         <div className="wf-header">
           <button onClick={() => navigate('/warehouse')} className="back-btn">
             <FaArrowLeft size={9} /> Back
@@ -1171,10 +1143,8 @@ export default function WarehouseForm() {
 
         <form onSubmit={handleSave}>
 
-          {/* ─── Main Form Card ────────────────────────────────────────── */}
           <div className="wf-card">
 
-            {/* Warehouse Detail */}
             <span className="wf-section-title">Warehouse Detail</span>
 
             {isNew && (
@@ -1186,7 +1156,6 @@ export default function WarehouseForm() {
                   type="text"
                   value={form.warehouseName}
                   onChange={(e) => {
-                    // Only allow alphabets and spaces
                     const value = e.target.value.replace(/[^A-Za-z\s]/g, '');
                     setForm({ ...form, warehouseName: value });
                     if (errors.warehouseName) setErrors({ ...errors, warehouseName: '' });
@@ -1225,7 +1194,6 @@ export default function WarehouseForm() {
                   type="text"
                   value={form.company}
                   onChange={(e) => {
-                    // Only allow alphabets and spaces
                     const value = e.target.value.replace(/[^A-Za-z\s]/g, '');
                     setForm({ ...form, company: value });
                     if (errors.company) setErrors({ ...errors, company: '' });
@@ -1246,7 +1214,6 @@ export default function WarehouseForm() {
                   type="text"
                   value={form.parentWarehouse}
                   onChange={(e) => {
-                    // Only allow alphabets and spaces
                     const value = e.target.value.replace(/[^A-Za-z\s]/g, '');
                     setForm({ ...form, parentWarehouse: value });
                     if (errors.parentWarehouse) setErrors({ ...errors, parentWarehouse: '' });
@@ -1296,10 +1263,8 @@ export default function WarehouseForm() {
 
             <div className="wf-divider" />
 
-            {/* Address and Contact Section */}
             <span className="wf-section-title">Address and Contact</span>
 
-            {/* Address Line 1 & 2 */}
             <div className="wf-grid-2">
               <div className="wf-field">
                 <label className="wf-label">
@@ -1330,7 +1295,6 @@ export default function WarehouseForm() {
               </div>
             </div>
 
-            {/* Warehouse Contact Info Collapsible */}
             <div className="wf-collapsible" style={{ marginTop: '8px' }}>
               <button 
                 type="button"
@@ -1353,7 +1317,6 @@ export default function WarehouseForm() {
                         type="text"
                         value={form.phoneNo}
                         onChange={(e) => {
-                          // Allow digits, spaces, hyphens, plus sign for country code
                           const value = e.target.value.replace(/[^0-9+\s-]/g, '');
                           setForm({ ...form, phoneNo: value });
                           if (errors.phoneNo) setErrors({ ...errors, phoneNo: '' });
@@ -1373,7 +1336,6 @@ export default function WarehouseForm() {
                         type="text"
                         value={form.mobileNo}
                         onChange={(e) => {
-                          // Allow digits, spaces, hyphens, plus sign for country code
                           const value = e.target.value.replace(/[^0-9+\s-]/g, '');
                           setForm({ ...form, mobileNo: value });
                           if (errors.mobileNo) setErrors({ ...errors, mobileNo: '' });
@@ -1413,7 +1375,6 @@ export default function WarehouseForm() {
                         type="text"
                         value={form.pin}
                         onChange={(e) => {
-                          // Only allow digits, max 6
                           const value = e.target.value.replace(/\D/g, '').slice(0, 6);
                           setForm({ ...form, pin: value });
                           if (errors.pin) setErrors({ ...errors, pin: '' });
@@ -1436,7 +1397,6 @@ export default function WarehouseForm() {
                         type="text"
                         value={form.city}
                         onChange={(e) => {
-                          // Only allow alphabets and spaces
                           const value = e.target.value.replace(/[^A-Za-z\s]/g, '');
                           setForm({ ...form, city: value });
                           if (errors.city) setErrors({ ...errors, city: '' });
@@ -1457,7 +1417,6 @@ export default function WarehouseForm() {
                         type="text"
                         value={form.stateProvince}
                         onChange={(e) => {
-                          // Only allow alphabets, spaces and dots
                           const value = e.target.value.replace(/[^A-Za-z\s.]/g, '');
                           setForm({ ...form, stateProvince: value });
                           if (errors.stateProvince) setErrors({ ...errors, stateProvince: '' });
@@ -1479,7 +1438,6 @@ export default function WarehouseForm() {
                       type="text"
                       value={form.warehouseType}
                       onChange={(e) => {
-                        // Only allow alphabets and spaces
                         const value = e.target.value.replace(/[^A-Za-z\s]/g, '');
                         setForm({ ...form, warehouseType: value });
                         if (errors.warehouseType) setErrors({ ...errors, warehouseType: '' });
@@ -1509,7 +1467,6 @@ export default function WarehouseForm() {
                     </div>
                   </div>
 
-                  {/* ─── Contacts Section ────────────────────────────────── */}
                   <div className="wf-contacts-section">
                     <div className="wf-contacts-header">
                       <span className="wf-contacts-title">Contacts ({selectedContacts.length})</span>
@@ -1612,7 +1569,6 @@ export default function WarehouseForm() {
 
             <div className="wf-divider" />
 
-            {/* Transit Collapsible */}
             <div className="wf-collapsible">
               <button 
                 type="button"
@@ -1654,7 +1610,6 @@ export default function WarehouseForm() {
 
             <div className="wf-divider" />
 
-            {/* Account */}
             <span className="wf-section-title">Account</span>
             <div className="wf-field">
               <label className="wf-label">
@@ -1675,7 +1630,6 @@ export default function WarehouseForm() {
 
             <div className="wf-divider" />
 
-            {/* Customer */}
             <span className="wf-section-title">Customer</span>
             <div className="wf-field">
               <label className="wf-label">
@@ -1694,7 +1648,6 @@ export default function WarehouseForm() {
 
           </div>
 
-          {/* ─── Footer ────────────────────────────────────────────────── */}
           <div className="wf-footer">
             <button
               type="button"
