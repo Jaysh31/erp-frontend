@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
+import ReactDOM from "react-dom";
 import { useNavigate, useLocation, useParams } from "react-router-dom";
-import { FaArrowLeft, FaSave, FaSpinner, FaTrash, FaEdit } from 'react-icons/fa';
+import { FaArrowLeft, FaSave, FaSpinner, FaTrash, FaEdit, FaCheck, FaEye } from 'react-icons/fa';
 import "./OperationQuickAdd.css";
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
 import api from '../../services/api';
@@ -45,6 +46,257 @@ interface ApiResponse {
   data: any;
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// 🆕 FULL-SCREEN LOADER OVERLAY
+// ═══════════════════════════════════════════════════════════════════════════
+
+interface LoaderOverlayProps {
+  isOpen: boolean;
+  message?: string;
+  subtitle?: string;
+}
+
+const LoaderOverlay: React.FC<LoaderOverlayProps> = ({
+  isOpen,
+  message = 'Please wait...',
+  subtitle,
+}) => {
+  if (!isOpen) return null;
+
+  return ReactDOM.createPortal(
+    <div
+      className="opf-loader-overlay"
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(15, 23, 42, 0.45)',
+        backdropFilter: 'blur(2px)',
+        WebkitBackdropFilter: 'blur(2px)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 20000,
+        padding: '20px',
+      }}
+    >
+      <div
+        className="opf-loader-card"
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: '#ffffff',
+          borderRadius: '16px',
+          padding: '32px 40px',
+          minWidth: '280px',
+          maxWidth: '380px',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '16px',
+          boxShadow: '0 20px 60px rgba(0, 0, 0, 0.25)',
+          textAlign: 'center',
+        }}
+      >
+        <div
+          className="opf-loader-spinner"
+          style={{
+            width: '52px',
+            height: '52px',
+            borderRadius: '50%',
+            border: '4px solid #e5e7eb',
+            borderTopColor: '#6366f1',
+            animation: 'opfSpin 0.9s linear infinite',
+          }}
+        />
+        <div
+          className="opf-loader-message"
+          style={{
+            fontSize: '16px',
+            fontWeight: 600,
+            color: '#111827',
+          }}
+        >
+          {message}
+        </div>
+        {subtitle && (
+          <div
+            className="opf-loader-subtitle"
+            style={{
+              fontSize: '13px',
+              color: '#6b7280',
+              marginTop: '-8px',
+            }}
+          >
+            {subtitle}
+          </div>
+        )}
+      </div>
+      <style>{`
+        @keyframes opfSpin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
+    </div>,
+    document.body
+  );
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 🆕 SUCCESS MODAL
+// ═══════════════════════════════════════════════════════════════════════════
+
+interface SuccessModalProps {
+  isOpen: boolean;
+  title: string;
+  message: string;
+  details: { label: string; value: string | number }[];
+  onClose: () => void;
+  onView: () => void;
+}
+
+const SuccessModal: React.FC<SuccessModalProps> = ({
+  isOpen,
+  title,
+  message,
+  details,
+  onClose,
+  onView,
+}) => {
+  if (!isOpen) return null;
+
+  return ReactDOM.createPortal(
+    <div
+      className="opf-success-overlay"
+      onClick={onClose}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(0,0,0,0.5)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 30000,
+        padding: '20px',
+      }}
+    >
+      <div
+        className="opf-success-modal"
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: '#ffffff',
+          borderRadius: '12px',
+          maxWidth: '480px',
+          width: '100%',
+          overflow: 'hidden',
+          boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+          textAlign: 'center',
+          padding: '32px 24px',
+        }}
+      >
+        <div
+          style={{
+            width: '64px',
+            height: '64px',
+            borderRadius: '50%',
+            background: '#d1fae5',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            margin: '0 auto 16px',
+          }}
+        >
+          <FaCheck size={28} style={{ color: '#10b981' }} />
+        </div>
+
+        <h2 style={{ margin: '0 0 8px', fontSize: '20px', fontWeight: 700, color: '#111827' }}>
+          {title}
+        </h2>
+
+        <p style={{ margin: '0 0 24px', fontSize: '14px', color: '#6b7280' }}>
+          {message}
+        </p>
+
+        {details.length > 0 && (
+          <div
+            style={{
+              background: '#f9fafb',
+              borderRadius: '8px',
+              border: '1px solid #e5e7eb',
+              padding: '16px',
+              marginBottom: '24px',
+              textAlign: 'left',
+            }}
+          >
+            {details.map((detail, idx) => (
+              <div
+                key={idx}
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  marginBottom: idx < details.length - 1 ? '12px' : '0',
+                }}
+              >
+                <span style={{ fontSize: '13px', color: '#6b7280' }}>{detail.label}</span>
+                <span style={{ fontSize: '13px', fontWeight: 600, color: '#111827' }}>
+                  {detail.value}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
+          <button
+            onClick={onClose}
+            style={{
+              flex: 1,
+              padding: '10px 16px',
+              borderRadius: '6px',
+              border: '1px solid #d1d5db',
+              background: 'transparent',
+              color: '#6b7280',
+              cursor: 'pointer',
+              fontSize: '14px',
+              fontWeight: 500,
+              transition: 'background 0.15s',
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = '#f3f4f6'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+          >
+            Close
+          </button>
+          <button
+            onClick={onView}
+            style={{
+              flex: 1,
+              padding: '10px 16px',
+              borderRadius: '6px',
+              border: 'none',
+              background: '#2563eb',
+              color: '#ffffff',
+              cursor: 'pointer',
+              fontSize: '14px',
+              fontWeight: 500,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px',
+              transition: 'background 0.15s',
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = '#1d4ed8'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = '#2563eb'; }}
+          >
+            <FaEye size={14} />
+            View
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+};
+
 export default function OperationForm() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -72,6 +324,22 @@ export default function OperationForm() {
   const [success, setSuccess] = useState<string | null>(null);
   const [originalData, setOriginalData] = useState<Partial<Operation> | null>(null);
   const [hasChanges, setHasChanges] = useState(false);
+
+  // 🆕 Global loader state — 'save' | 'delete' | null
+  const [loaderAction, setLoaderAction] = useState<'save' | 'delete' | null>(null);
+
+  // 🆕 Success modal state
+  const [successModal, setSuccessModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    details: { label: string; value: string | number }[];
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    details: [],
+  });
 
   const operationData = location.state?.operationData;
 
@@ -126,10 +394,6 @@ export default function OperationForm() {
     }
   }, [formData, originalData, mode]);
 
-  // ★ FIX: Your ERP has no /api/operation/:id endpoint.
-  //   The ONLY operation endpoint is GET /api/operation (returns the full list,
-  //   including every field your form needs). So we fetch the list and find
-  //   the matching operation by name OR id — both work.
   const fetchOperation = async (operationId: string) => {
     setLoading(true);
     try {
@@ -204,8 +468,6 @@ export default function OperationForm() {
 
         const activeWorkstations = workstationList.filter(w => w.is_deleted === 0);
         setWorkstations(activeWorkstations);
-
-        console.log('Fetched workstations:', activeWorkstations);
       }
     } catch (err) {
       console.error('Error fetching workstations:', err);
@@ -213,25 +475,15 @@ export default function OperationForm() {
     }
   };
 
-  // ─── Handle Text Input with Alphabet-Only Validation ────────────────
   const handleTextInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
 
-    // For Operation Name and Quality Inspection Template - only allow alphabets and spaces
     if (name === 'name' || name === 'quality_inspection_template') {
-      // Allow only alphabets and spaces
       if (value === '' || /^[a-zA-Z\s]*$/.test(value)) {
-        setFormData(prev => ({
-          ...prev,
-          [name]: value
-        }));
+        setFormData(prev => ({ ...prev, [name]: value }));
       }
     } else {
-      // For other text fields, allow all characters
-      setFormData(prev => ({
-        ...prev,
-        [name]: value
-      }));
+      setFormData(prev => ({ ...prev, [name]: value }));
     }
   };
 
@@ -253,28 +505,20 @@ export default function OperationForm() {
         [name]: parseFloat(value) || 0
       }));
     } else if (type === 'text' || type === 'textarea') {
-      // Use the new handler for text inputs
       handleTextInputChange(e as React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>);
     } else {
-      setFormData(prev => ({
-        ...prev,
-        [name]: value
-      }));
+      setFormData(prev => ({ ...prev, [name]: value }));
     }
   };
 
   const handleCheckboxChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, checked } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: checked ? 1 : 0
-    }));
+    setFormData(prev => ({ ...prev, [name]: checked ? 1 : 0 }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // ─── Validate Operation Name (Only Alphabets) ──────────────────
     if (!formData.name?.trim()) {
       setError('Operation name is required');
       return;
@@ -284,7 +528,6 @@ export default function OperationForm() {
       return;
     }
 
-    // ─── Validate Quality Inspection Template (Only Alphabets) ────
     if (formData.quality_inspection_template && formData.quality_inspection_template.trim()) {
       if (!/^[a-zA-Z\s]+$/.test(formData.quality_inspection_template.trim())) {
         setError('Quality Inspection Template must contain only alphabets and spaces');
@@ -312,6 +555,7 @@ export default function OperationForm() {
     }
 
     setSaving(true);
+    setLoaderAction('save'); // 🆕 Show global loader
     setError(null);
     setSuccess(null);
 
@@ -347,15 +591,27 @@ export default function OperationForm() {
         setOriginalData({ ...formData });
         setHasChanges(false);
 
+        // 🆕 Show success modal
+        setSuccessModal({
+          isOpen: true,
+          title: 'Success!',
+          message:
+            mode === 'new'
+              ? 'Operation created successfully!'
+              : 'Operation updated successfully!',
+          details: [
+            { label: 'Operation Name', value: formData.name || '—' },
+            { label: 'Workstation', value: formData.workstation_name || '—' },
+            { label: 'Batch Size', value: formData.batch_size ?? '—' },
+            { label: 'Status', value: getStatusLabel(formData.docstatus ?? 0) },
+          ],
+        });
+
+        // After a create, remember we're now effectively editing this record
         if (mode === 'new') {
-          setTimeout(() => {
-            navigate('/operations');
-          }, 1500);
-        } else {
-          if (id) fetchOperation(id);
-          setTimeout(() => {
-            setSuccess(null);
-          }, 3000);
+          setMode('edit');
+        } else if (id) {
+          fetchOperation(id);
         }
       } else {
         setError(response.data.message || 'Failed to save operation');
@@ -365,6 +621,7 @@ export default function OperationForm() {
       setError(err.response?.data?.message || 'An error occurred while saving');
     } finally {
       setSaving(false);
+      setLoaderAction(null);
     }
   };
 
@@ -374,15 +631,24 @@ export default function OperationForm() {
     }
 
     try {
+      setLoaderAction('delete'); // 🆕 Show global loader
       setLoading(true);
       await api.delete('/operation', { data: { id: parseInt(id || '0') } });
-      alert('Operation deleted successfully');
-      navigate('/operations');
+      // 🆕 Show success modal instead of alert
+      setSuccessModal({
+        isOpen: true,
+        title: 'Success!',
+        message: 'Operation deleted successfully!',
+        details: [
+          { label: 'Operation Name', value: formData.name || '—' },
+        ],
+      });
     } catch (err) {
       console.error('Error deleting operation:', err);
-      alert('Failed to delete operation');
+      setError('Failed to delete operation');
     } finally {
       setLoading(false);
+      setLoaderAction(null);
     }
   };
 
@@ -413,17 +679,41 @@ export default function OperationForm() {
     }
   };
 
+  // 🆕 Close button on the success modal → go to listing.
+  const handleSuccessClose = () => {
+    setSuccessModal(prev => ({ ...prev, isOpen: false }));
+    navigate('/operations');
+  };
+
+  // 🆕 View button on the success modal → simply dismiss the modal.
+  const handleSuccessView = () => {
+    setSuccessModal(prev => ({ ...prev, isOpen: false }));
+  };
+
   const isViewMode = mode === 'view';
   const isEditMode = mode === 'edit' || mode === 'view';
   const isNewMode = mode === 'new';
 
-  // ─── Loading Screen ─────────────────────────────────────────────────────
-  if (loading) {
+  // 🆕 Loader messages based on the current action.
+  const loaderMessage =
+    loaderAction === 'delete'
+      ? 'Deleting Operation...'
+      : isNewMode
+      ? 'Creating Operation...'
+      : 'Saving Operation...';
+
+  const loaderSubtitle =
+    loaderAction === 'delete'
+      ? 'Please wait while we remove the operation.'
+      : isNewMode
+      ? 'Please wait while we create the operation.'
+      : 'Please wait while we save your changes.';
+
+  if (loading && loaderAction !== 'delete') {
     return (
       <div className={`p-6 max-w-7xl mx-auto ${theme}`}>
         <PageLoader
           message="Loading Setup & Operation Quick Add..."
-          //subtitle="Calculating bill of materials, operations rates, and component structures"
         />
       </div>
     );
@@ -431,6 +721,23 @@ export default function OperationForm() {
 
   return (
     <div className={`opf-page ${theme}`}>
+      {/* 🆕 Full-screen loader */}
+      <LoaderOverlay
+        isOpen={loaderAction !== null}
+        message={loaderMessage}
+        subtitle={loaderSubtitle}
+      />
+
+      {/* 🆕 Success modal */}
+      <SuccessModal
+        isOpen={successModal.isOpen}
+        title={successModal.title}
+        message={successModal.message}
+        details={successModal.details}
+        onClose={handleSuccessClose}
+        onView={handleSuccessView}
+      />
+
       <div className="opf-container">
         {/* Header */}
         <div className="opf-header">
@@ -438,7 +745,6 @@ export default function OperationForm() {
             <FaArrowLeft size={18} />
             <span>Back</span>
           </button>
-          {/*<h1>{title}</h1>*/}
           <div className="opf-header-actions">
             {isViewMode && (
               <button

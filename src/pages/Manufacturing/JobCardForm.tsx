@@ -1340,6 +1340,30 @@ const getSubcontractReasonLabel = (key: string): string => {
   return found ? found.label : key;
 };
 
+// 🆕 Parse the subcontract reason back from the saved remarks text.
+//    The reason is written to remarks as:
+//      "[dd/mm/yyyy, hh:mm am/pm] Subcontracted - Reason: <Label>"
+//    This helper finds that line and maps the label back to its key.
+const parseSubcontractReasonFromRemarks = (remarks: string | null | undefined): string => {
+  if (!remarks) return "";
+  const regex = /Subcontracted\s*-\s*Reason:\s*([^\n\r]+)/i;
+  const match = remarks.match(regex);
+  if (!match || !match[1]) return "";
+  const rawLabel = match[1].trim();
+  // Strip any trailing parenthetical like "(machine_failure)" or trailing brackets/punctuation
+  const cleanLabel = rawLabel.replace(/\s*\(.*?\)\s*$/, "").replace(/[\[\]]+$/, "").trim();
+  // Match against known labels (case-insensitive)
+  const found = SUBCONTRACT_REASON_OPTIONS.find(
+    (r) => r.label.toLowerCase() === cleanLabel.toLowerCase()
+  );
+  if (found) return found.key;
+  // Fallback: match against the key itself
+  const foundByKey = SUBCONTRACT_REASON_OPTIONS.find(
+    (r) => r.key.toLowerCase() === cleanLabel.toLowerCase()
+  );
+  return foundByKey ? foundByKey.key : "";
+};
+
 const defaultFormData = (): JobCardFormData => ({
   work_order: "", qty_to_manufacture: 0, posting_date: new Date(),
   pending_qty: 0, total_completed_qty: 0, process_loss_qty: 0,
@@ -1708,6 +1732,13 @@ const JobCardForm: React.FC = () => {
 
     const materialItemsFromJobCard = mapJobCardItemsToSubcontractingItems(jc.items);
 
+    // 🆕 Parse the subcontract reason back from the saved remarks (or use
+    //    the direct field if the backend returns it).
+    const parsedReason =
+      (typeof jc.subcontract_reason === "string" && jc.subcontract_reason) ||
+      parseSubcontractReasonFromRemarks(jc.remarks || jc.remark || "") ||
+      "";
+
     setFormData((prev) => ({
       ...prev,
       work_order: jc.work_order || "", qty_to_manufacture: jc.requested_qty ?? jc.for_quantity ?? 0,
@@ -1733,6 +1764,16 @@ const JobCardForm: React.FC = () => {
       operation_id: jc.operation_id || "", sequence_id: jc.sequence_id || 1,
       serial_no: jc.serial_no || "", assigned_employees: [],
       job_type: subcontractedFlag ? 'subcontracting' : 'internal',
+      // 🆕 Restore the subcontract reason so the dropdown shows the previous selection
+      subcontract_reason: parsedReason || prev.subcontract_reason,
+      // 🆕 Also restore vendor contact/name/address if present on the JC
+      subcontractor_name: jc.subcontractor_name || jc.supplier_name || prev.subcontractor_name,
+      subcontractor_contact: jc.subcontractor_contact || prev.subcontractor_contact,
+      subcontractor_address: jc.subcontractor_address || prev.subcontractor_address,
+      supplier_id:
+        jc.supplier_id !== undefined && jc.supplier_id !== null
+          ? String(jc.supplier_id)
+          : prev.supplier_id,
       delivery_challan_no: prev.delivery_challan_no || jc.delivery_challan_no || (jc.id ? `${jc.id}-01` : ""),
       material_sent_items: prev.material_sent_items.length > 0
         ? prev.material_sent_items
@@ -1813,7 +1854,7 @@ const JobCardForm: React.FC = () => {
     if (value === "__create_new__") { navigate("/work-order/new"); return; }
     const wo = workOrders.find((w) => w.name === value);
     setFormData((prev) => ({ ...prev, work_order: value, company: wo?.company ?? prev.company, qty_to_manufacture: wo?.qty ?? prev.qty_to_manufacture, item_name: wo?.item_name || prev.item_name }));
-    if (errors.work_order) setErrors((prev) => ({ ...prev, work_order: "" }));
+    if (errors.work_order) setErrors((prev) => ({ ...prev, [errors.work_order]: "" }));
   };
 
   const openEmployeeModal = async () => {
@@ -2101,6 +2142,14 @@ const JobCardForm: React.FC = () => {
       barcode: "",
       batch_no: "",
       modified_by: "Administrator",
+      // 🆕 Persist the subcontract reason so it can be restored on edit.
+      //    If the backend ignores it, we still fall back to parsing remarks.
+      subcontract_reason: formData.subcontract_reason || "",
+      // 🆕 Persist vendor fields so they survive reload too.
+      subcontractor_name: formData.subcontractor_name || "",
+      subcontractor_contact: formData.subcontractor_contact || "",
+      subcontractor_address: formData.subcontractor_address || "",
+      supplier_id: formData.supplier_id ? Number(formData.supplier_id) : null,
     };
 
     if (isEditMode && currentJobCardId) {
@@ -2396,6 +2445,14 @@ const JobCardForm: React.FC = () => {
         jcPayload.id = currentJobCardId;
         jcPayload.is_subcontracted = 1;
         jcPayload.remarks = updatedRemarks;
+        // 🆕 Persist the reason and vendor fields explicitly so they can be
+        //    restored on next edit even if remarks parsing fails.
+        jcPayload.subcontract_reason = formData.subcontract_reason;
+        jcPayload.subcontractor_name = formData.subcontractor_name;
+        jcPayload.subcontractor_contact = formData.subcontractor_contact;
+        jcPayload.subcontractor_address = formData.subcontractor_address;
+        jcPayload.supplier_id = formData.supplier_id ? Number(formData.supplier_id) : null;
+
         const jcResponse = await api.put("/job-card", jcPayload);
         if (jcResponse.data.success !== 1) {
           throw new Error(jcResponse.data?.message || "Failed to update job card");

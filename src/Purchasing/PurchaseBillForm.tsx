@@ -2544,11 +2544,12 @@ export default function PurchaseInvoiceForm() {
                         setShowItemDropdown(false);
                       }}
                       className={`form-field ${isViewMode ? 'field-disabled' : ''}`}
+                      style={{ cursor: isViewMode ? 'default' : 'pointer' }}
                       disabled={isViewMode}
                       style={{ pointerEvents: isViewMode ? 'none' : 'auto', cursor: 'pointer' }}
                     />
                   </div>
-                </div>
+                  </div>
 
                 <div className="pif-grid-2">
                   <div className="pif-field">
@@ -2671,15 +2672,89 @@ export default function PurchaseInvoiceForm() {
                             <FaClipboardList className="pif-label-icon" />
                             Select GRN(s) <span className="pif-required">*</span>
                           </label>
-                          <div className="warehouse-search-input-wrap">
-                            <FaSearch className="warehouse-search-icon" />
+                          <div 
+                            className="warehouse-search-input-wrap" 
+                            style={{ 
+                              display: 'flex', 
+                              flexWrap: 'wrap', 
+                              alignItems: 'center', 
+                              gap: '6px', 
+                              padding: '6px 10px', 
+                              minHeight: '42px', 
+                              cursor: 'text',
+                              position: 'relative',
+                              background: 'var(--card-bg, #ffffff)',
+                              border: '1px solid var(--border-color, #d1d5db)',
+                              borderRadius: '8px',
+                              boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.02)'
+                            }} 
+                            onClick={() => setShowGrnDropdown(true)}
+                          >
+                            <FaSearch className="warehouse-search-icon" style={{ position: 'static', marginRight: '4px', flexShrink: 0, color: '#9ca3af' }} />
+                            
+                            {/* Display selected GRNs as chips inside the input box */}
+                            {selectedGRNSummaries.map(g => (
+                              <span 
+                                key={g.id} 
+                                className={`pif-grn-chip pif-grn-chip--${(g.status || 'draft').toLowerCase()}`} 
+                                style={{ 
+                                  margin: '0', 
+                                  fontSize: '12px', 
+                                  padding: '3px 8px', 
+                                  display: 'inline-flex', 
+                                  alignItems: 'center', 
+                                  gap: '4px',
+                                  flexShrink: 0,
+                                  background: '#e0e7ff', // Solid background to prevent blurriness
+                                  color: '#3730a3',      // Solid text color
+                                  border: '1px solid #c7d2fe',
+                                  borderRadius: '6px',
+                                  fontWeight: 500,
+                                  boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+                                }}
+                              >
+                                {g.grn_number || ''}
+                                <span className="pif-grn-badge-qty" style={{ fontSize: '11px', opacity: 0.8 }}> · {getGRNReceivedQty(g)} rcvd</span>
+                                {!isViewMode && (
+                                  <button 
+                                    type="button" 
+                                    onClick={(e) => { e.stopPropagation(); toggleGRNSelection(g.id); }} 
+                                    title="Remove" 
+                                    style={{ 
+                                      background: 'transparent', 
+                                      border: 'none', 
+                                      cursor: 'pointer', 
+                                      padding: 0, 
+                                      display: 'flex', 
+                                      alignItems: 'center',
+                                      color: '#3730a3',
+                                      marginLeft: '2px'
+                                    }}
+                                  >
+                                    <FaTimesCircle size={12} />
+                                  </button>
+                                )}
+                              </span>
+                            ))}
+
                             <input
                               type="text"
-                              className={`form-field warehouse-search-input ${validationErrors.some(e => e.field === 'grn') ? 'field-error' : ''}`}
+                              className={`form-field ${validationErrors.some(e => e.field === 'grn') ? 'field-error' : ''} ${isViewMode ? 'field-disabled' : ''}`}
+                              style={{ 
+                                border: 'none', 
+                                outline: 'none', 
+                                flex: '1 1 100px', 
+                                minWidth: '100px', 
+                                padding: '2px 0', 
+                                background: 'transparent', 
+                                boxShadow: 'none',
+                                height: 'auto',
+                                fontSize: '13px'
+                              }}
                               value={grnSearch}
                               onChange={e => { setGrnSearch(e.target.value); setShowGrnDropdown(true); }}
                               onFocus={() => setShowGrnDropdown(true)}
-                              placeholder={loadingGRNList ? 'Loading…' : `Search GRN by number or PO… (${selectedGRNIds.size} selected)`}
+                              placeholder={loadingGRNList ? 'Loading…' : selectedGRNSummaries.length > 0 ? '' : 'Search GRN...'}
                               disabled={loadingGRNList || isViewMode}
                             />
                           </div>
@@ -2712,23 +2787,6 @@ export default function PurchaseInvoiceForm() {
                           )}
                         </div>
                       </div>
-
-                      {/* Selected GRN chips */}
-                      {selectedGRNSummaries.length > 0 && (
-                        <div className="pif-grn-chip-row">
-                          {selectedGRNSummaries.map(g => (
-                            <span key={g.id} className={`pif-grn-chip pif-grn-chip--${(g.status || 'draft').toLowerCase()}`}>
-                              {g.grn_number || ''}
-                              <span className="pif-grn-badge-qty"> · {getGRNReceivedQty(g)} rcvd</span>
-                              {!isViewMode && (
-                                <button type="button" onClick={() => toggleGRNSelection(g.id)} title="Remove">
-                                  <FaTimesCircle size={11} />
-                                </button>
-                              )}
-                            </span>
-                          ))}
-                        </div>
-                      )}
 
                       {/* Badge strip of GRNs linked to the selected PO */}
                       {linkedGRNsForPO.length > 0 && (
