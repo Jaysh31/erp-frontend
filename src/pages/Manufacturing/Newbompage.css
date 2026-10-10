@@ -2533,9 +2533,6 @@ select.nbom-input {
     border-bottom: 1px solid var(--c-border) !important;
   }
 
-  .nbom-table tbody td:nth-child(4)::before {
-    content: "Item Group" !important;
-  }
 
 
   /* =========================================================
@@ -2551,7 +2548,7 @@ select.nbom-input {
     border-bottom: 1px solid var(--c-border) !important;
   }
 
-  .nbom-table tbody td:nth-child(5)::before {
+  .nbom-table tbody td:nth-child(4)::before {
     content: "Qty *" !important;
   }
 
@@ -2563,7 +2560,7 @@ select.nbom-input {
     border-bottom: 1px solid var(--c-border) !important;
   }
 
-  .nbom-table tbody td:nth-child(6)::before {
+  .nbom-table tbody td:nth-child(5)::before {
     content: "UOM *" !important;
   }
 
@@ -2581,7 +2578,7 @@ select.nbom-input {
     border-bottom: 1px solid var(--c-border) !important;
   }
 
-  .nbom-table tbody td:nth-child(7)::before {
+  .nbom-table tbody td:nth-child(6)::before {
     content: "Rate" !important;
   }
 
@@ -2593,7 +2590,7 @@ select.nbom-input {
     border-bottom: 1px solid var(--c-border) !important;
   }
 
-  .nbom-table tbody td:nth-child(8)::before {
+  .nbom-table tbody td:nth-child(7)::before {
     content: "Amount" !important;
   }
 

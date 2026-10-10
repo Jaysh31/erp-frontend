@@ -224,6 +224,7 @@ interface SubcontractingOrderApiItem {
   service_cost_per_qty?: number;
   additional_cost_per_qty?: number;
   warehouse?: string | null;
+  warehouse_name?: string | null;
   expense_account?: string | null;
   manufacturer?: string | null;
   manufacturer_part_no?: string | null;
@@ -386,6 +387,7 @@ interface JobCardRawItem {
   consumed_qty?: number;
   transferred_qty?: number;
   source_warehouse?: string | null;
+  source_warehouse_name?: string | null;
   allow_alternative_item?: number;
   [key: string]: any;
 }
@@ -400,6 +402,7 @@ interface SubcontractingItem {
   rate: number;
   amount: number;
   warehouse?: string;
+  warehouse_name?: string;
   bom?: string | null;
   description?: string;
   conversion_factor?: number;
@@ -446,8 +449,11 @@ interface JobCardFormData {
   status: string;
   assigned_employees: string[];
   source_warehouse: string;
+  source_warehouse_name: string;
   wip_warehouse: string;
+  wip_warehouse_name: string;
   target_warehouse: string;
+  target_warehouse_name: string;
   production_item: string;
   bom_no: string;
   finished_good: string;
@@ -1334,6 +1340,30 @@ const getSubcontractReasonLabel = (key: string): string => {
   return found ? found.label : key;
 };
 
+// 🆕 Parse the subcontract reason back from the saved remarks text.
+//    The reason is written to remarks as:
+//      "[dd/mm/yyyy, hh:mm am/pm] Subcontracted - Reason: <Label>"
+//    This helper finds that line and maps the label back to its key.
+const parseSubcontractReasonFromRemarks = (remarks: string | null | undefined): string => {
+  if (!remarks) return "";
+  const regex = /Subcontracted\s*-\s*Reason:\s*([^\n\r]+)/i;
+  const match = remarks.match(regex);
+  if (!match || !match[1]) return "";
+  const rawLabel = match[1].trim();
+  // Strip any trailing parenthetical like "(machine_failure)" or trailing brackets/punctuation
+  const cleanLabel = rawLabel.replace(/\s*\(.*?\)\s*$/, "").replace(/[\[\]]+$/, "").trim();
+  // Match against known labels (case-insensitive)
+  const found = SUBCONTRACT_REASON_OPTIONS.find(
+    (r) => r.label.toLowerCase() === cleanLabel.toLowerCase()
+  );
+  if (found) return found.key;
+  // Fallback: match against the key itself
+  const foundByKey = SUBCONTRACT_REASON_OPTIONS.find(
+    (r) => r.key.toLowerCase() === cleanLabel.toLowerCase()
+  );
+  return foundByKey ? foundByKey.key : "";
+};
+
 const defaultFormData = (): JobCardFormData => ({
   work_order: "", qty_to_manufacture: 0, posting_date: new Date(),
   pending_qty: 0, total_completed_qty: 0, process_loss_qty: 0,
@@ -1341,6 +1371,7 @@ const defaultFormData = (): JobCardFormData => ({
   for_quantity: 0, hour_rate: 0, actual_start_date: null, actual_end_date: null,
   remarks: "", company: "", status: "Open", assigned_employees: [],
   source_warehouse: "", wip_warehouse: "", target_warehouse: "",
+  source_warehouse_name: "", wip_warehouse_name: "", target_warehouse_name: "",
   production_item: "", bom_no: "", finished_good: "", semi_fg_bom: "",
   operation: "", workstation_type: "", workstation: "", for_operation: "",
   item_name: "", project: "", operation_row_id: 1, operation_row_number: 1,
@@ -1380,6 +1411,7 @@ const mapJobCardItemsToSubcontractingItems = (rawItems: JobCardRawItem[] | undef
     rate: 0,
     amount: 0,
     warehouse: it.source_warehouse || "",
+    Warehouse: it.source_warehouse_name || "",
     description: it.description || "",
     conversion_factor: 1,
     job_card_item_id: it.id,
@@ -1700,6 +1732,13 @@ const JobCardForm: React.FC = () => {
 
     const materialItemsFromJobCard = mapJobCardItemsToSubcontractingItems(jc.items);
 
+    // 🆕 Parse the subcontract reason back from the saved remarks (or use
+    //    the direct field if the backend returns it).
+    const parsedReason =
+      (typeof jc.subcontract_reason === "string" && jc.subcontract_reason) ||
+      parseSubcontractReasonFromRemarks(jc.remarks || jc.remark || "") ||
+      "";
+
     setFormData((prev) => ({
       ...prev,
       work_order: jc.work_order || "", qty_to_manufacture: jc.requested_qty ?? jc.for_quantity ?? 0,
@@ -1714,6 +1753,7 @@ const JobCardForm: React.FC = () => {
       remarks: jc.remarks || "",
       status: jc.status || "Open",
       source_warehouse: jc.source_warehouse || "", wip_warehouse: jc.wip_warehouse || "",
+      source_warehouse_name: jc.source_warehouse_name || "", wip_warehouse_name: jc.wip_warehouse_name || "",
       target_warehouse: jc.target_warehouse || "", production_item: jc.production_item || "",
       bom_no: jc.bom_no || "", finished_good: jc.finished_good || "", semi_fg_bom: jc.semi_fg_bom || "",
       operation: jc.operation || "", workstation_type: jc.workstation_type || "",
@@ -1724,6 +1764,16 @@ const JobCardForm: React.FC = () => {
       operation_id: jc.operation_id || "", sequence_id: jc.sequence_id || 1,
       serial_no: jc.serial_no || "", assigned_employees: [],
       job_type: subcontractedFlag ? 'subcontracting' : 'internal',
+      // 🆕 Restore the subcontract reason so the dropdown shows the previous selection
+      subcontract_reason: parsedReason || prev.subcontract_reason,
+      // 🆕 Also restore vendor contact/name/address if present on the JC
+      subcontractor_name: jc.subcontractor_name || jc.supplier_name || prev.subcontractor_name,
+      subcontractor_contact: jc.subcontractor_contact || prev.subcontractor_contact,
+      subcontractor_address: jc.subcontractor_address || prev.subcontractor_address,
+      supplier_id:
+        jc.supplier_id !== undefined && jc.supplier_id !== null
+          ? String(jc.supplier_id)
+          : prev.supplier_id,
       delivery_challan_no: prev.delivery_challan_no || jc.delivery_challan_no || (jc.id ? `${jc.id}-01` : ""),
       material_sent_items: prev.material_sent_items.length > 0
         ? prev.material_sent_items
@@ -1804,7 +1854,7 @@ const JobCardForm: React.FC = () => {
     if (value === "__create_new__") { navigate("/work-order/new"); return; }
     const wo = workOrders.find((w) => w.name === value);
     setFormData((prev) => ({ ...prev, work_order: value, company: wo?.company ?? prev.company, qty_to_manufacture: wo?.qty ?? prev.qty_to_manufacture, item_name: wo?.item_name || prev.item_name }));
-    if (errors.work_order) setErrors((prev) => ({ ...prev, work_order: "" }));
+    if (errors.work_order) setErrors((prev) => ({ ...prev, [errors.work_order]: "" }));
   };
 
   const openEmployeeModal = async () => {
@@ -2055,12 +2105,14 @@ const JobCardForm: React.FC = () => {
       manufactured_qty: formData.total_completed_qty,
       operation: formData.operation || "",
       source_warehouse: formData.source_warehouse || "",
+      source_warehouse_name: formData.source_warehouse_name || "",
       wip_warehouse: formData.wip_warehouse || "",
       skip_material_transfer: 0,
       backflush_from_wip_warehouse: 0,
       workstation_type: formData.workstation_type || "",
       workstation: formData.workstation || "",
       target_warehouse: formData.target_warehouse || "",
+      target_warehouse_name: formData.target_warehouse_name || "",
       quality_inspection_template: formData.quality_inspection_template,
       quality_inspection: "",
       expected_start_date: formatDateTime(formData.expected_start_date),
@@ -2090,6 +2142,14 @@ const JobCardForm: React.FC = () => {
       barcode: "",
       batch_no: "",
       modified_by: "Administrator",
+      // 🆕 Persist the subcontract reason so it can be restored on edit.
+      //    If the backend ignores it, we still fall back to parsing remarks.
+      subcontract_reason: formData.subcontract_reason || "",
+      // 🆕 Persist vendor fields so they survive reload too.
+      subcontractor_name: formData.subcontractor_name || "",
+      subcontractor_contact: formData.subcontractor_contact || "",
+      subcontractor_address: formData.subcontractor_address || "",
+      supplier_id: formData.supplier_id ? Number(formData.supplier_id) : null,
     };
 
     if (isEditMode && currentJobCardId) {
@@ -2173,7 +2233,9 @@ const JobCardForm: React.FC = () => {
       amended_from: null,
       cost_center: "",
       set_warehouse: formData.source_warehouse || "",
+      set_warehouse_name: formData.source_warehouse_name || "",
       set_reserve_warehouse: formData.wip_warehouse || "",
+      set_reserve_warehouse_name: formData.wip_warehouse_name || "",
       reserve_stock: 1,
       distribute_additional_costs_based_on: "Qty",
       total_additional_costs: (formData.transport_cost || 0) + (formData.other_charges || 0),
@@ -2204,6 +2266,8 @@ const JobCardForm: React.FC = () => {
         service_cost_per_qty: item.service_cost_per_qty ?? 0,
         additional_cost_per_qty: item.additional_cost_per_qty ?? 0,
         warehouse: item.warehouse || formData.source_warehouse || "",
+        
+        warehouse_name: item.warehouse_name || formData.source_warehouse_name || "",
         expense_account: item.expense_account || "",
         manufacturer: item.manufacturer ?? null,
         manufacturer_part_no: item.manufacturer_part_no ?? null,
@@ -2269,7 +2333,11 @@ const JobCardForm: React.FC = () => {
       secondary_items_cost_per_qty: 0,
       rm_supp_cost: Number(rmSuppCost.toFixed(2)),
       warehouse: formData.target_warehouse || formData.source_warehouse || "",
+      warehouse_name: formData.target_warehouse_name || formData.source_warehouse_name || "",
       rejected_warehouse: formData.source_warehouse || "",
+      rejected_warehouse_name: formData.source_warehouse_name || "",
+      expense_account: null,
+      cost_center: null,
       subcontracting_order: scoRecordId,
       subcontracting_order_item: subcontractingOrderItemId,
       job_card: currentJobCardId,
@@ -2286,9 +2354,9 @@ const JobCardForm: React.FC = () => {
       batch_no: null,
       manufacturer: null,
       manufacturer_part_no: null,
-      expense_account: null,
+      
       service_expense_account: null,
-      cost_center: null,
+      
       project: formData.project || null,
     };
 
@@ -2310,8 +2378,13 @@ const JobCardForm: React.FC = () => {
       cost_center: null,
       project: formData.project || null,
       set_warehouse: formData.target_warehouse || formData.source_warehouse || null,
+      set_warehouse_name: formData.target_warehouse_name || formData.source_warehouse_name || null,
+      set_reserve_warehouse: formData.source_warehouse || null,
+      set_reserve_warehouse_name: formData.source_warehouse_name || null,
       rejected_warehouse: formData.source_warehouse || null,
+      rejected_warehouse_name: formData.source_warehouse_name || null,
       supplier_warehouse: formData.subcontractor_address || null,
+      supplier_warehouse_name: formData.subcontractor_address || null,
       in_words: null,
       bill_no: null,
       bill_date: null,
@@ -2372,6 +2445,14 @@ const JobCardForm: React.FC = () => {
         jcPayload.id = currentJobCardId;
         jcPayload.is_subcontracted = 1;
         jcPayload.remarks = updatedRemarks;
+        // 🆕 Persist the reason and vendor fields explicitly so they can be
+        //    restored on next edit even if remarks parsing fails.
+        jcPayload.subcontract_reason = formData.subcontract_reason;
+        jcPayload.subcontractor_name = formData.subcontractor_name;
+        jcPayload.subcontractor_contact = formData.subcontractor_contact;
+        jcPayload.subcontractor_address = formData.subcontractor_address;
+        jcPayload.supplier_id = formData.supplier_id ? Number(formData.supplier_id) : null;
+
         const jcResponse = await api.put("/job-card", jcPayload);
         if (jcResponse.data.success !== 1) {
           throw new Error(jcResponse.data?.message || "Failed to update job card");
@@ -2586,7 +2667,7 @@ const JobCardForm: React.FC = () => {
                         {balance}
                       </span>
                     </td>
-                    <td>{it.source_warehouse || "-"}</td>
+                    <td>{it.source_warehouse_name || "-"}</td>
                   </tr>
                 );
               })}
@@ -2875,7 +2956,7 @@ const JobCardForm: React.FC = () => {
                       <td>
                         <input
                           type="text"
-                          value={item.warehouse || ''}
+                          value={item.warehouse_name || ''}
                           onChange={(e) => updateSubcontractingItem(item.id, 'warehouse', e.target.value)}
                           className="jcf-cell-input"
                           placeholder="Warehouse"

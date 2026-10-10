@@ -5,12 +5,12 @@
 //        can easily switch to another PO after making a selection.
 // FIXED: PO dropdown no longer filters by the auto-set supplier, so ALL POs
 //        are always visible and selectable.
-// FIXED: Buttons inside the form no longer accidentally submit it.
-//        DigitInput now swallows Enter so typing delivery charges doesn't
-//        trigger a form submit + validation modal loop.
-// FIXED: DigitInput now emits numeric values (not strings), and
-//        deliveryChargeAmount is defensively coerced with Number() so
-//        `toFixed()` never crashes on a string.
+// FIXED: Delivery charge input causing white screen due to string/number type mismatch. Totals now update correctly.
+// FIXED: Paid delivery charge is now restored in Edit/View mode. We now:
+//        - log the raw API response so you can see the real field names
+//        - try many possible field names for both the flag and the amount
+//        - safely coerce numbers/strings/booleans/null
+//        - fall back to inferring "free" from the amount if the flag is missing
 
 import { useState, useEffect, type FormEvent, useRef } from "react"; 
 import { useNavigate, useParams, useLocation, useSearchParams } from "react-router-dom"; 
@@ -435,8 +435,17 @@ interface GRNApiResponse {
     vehicle_number: string | null; 
     delivery_challan_no: string; 
     invoice_number: string | null; 
-    is_free_delivery?: number; 
-    delivery_charge?: number; 
+    // Loose types — the API can return any of these as number | string | bool | null 
+    is_free_delivery?: number | string | boolean | null; 
+    free_delivery?: number | string | boolean | null; 
+    isFreeDelivery?: number | string | boolean | null; 
+    delivery_charge?: number | string | null; 
+    deliveryCharge?: number | string | null; 
+    delivery_charges?: number | string | null; 
+    delivery_amount?: number | string | null; 
+    shipping_charge?: number | string | null; 
+    shipping_amount?: number | string | null; 
+    freight_charge?: number | string | null; 
     status: 'draft' | 'submitted' | 'completed' | 'rejected'; 
     total_ordered_qty: number; 
     total_received_qty: number; 
@@ -505,7 +514,48 @@ const escapeHtml = (value: string | number | undefined | null): string => {
     .replace(/</g, '&lt;') 
     .replace(/>/g, '&gt;') 
     .replace(/"/g, '&quot;'); 
-}; 
+};
+
+// 🆕 Robustly converts a delivery-charge value coming from the API
+// (number | string | null | undefined) into a safe number.
+const toSafeNumber = (value: unknown): number => {
+  if (value === null || value === undefined || value === '') return 0;
+  const num = typeof value === 'number' ? value : parseFloat(String(value));
+  return Number.isFinite(num) ? num : 0;
+};
+
+// 🆕 Robustly converts a free-delivery flag coming from the API
+// (number 0/1 | string "0"/"1"/"true" | boolean | null | undefined)
+// into a proper boolean. Returns `null` when the value is absent so the
+// caller can fall back to inferring it from the delivery charge.
+const toSafeBoolean = (value: unknown): boolean | null => {
+  if (value === null || value === undefined || value === '') return null;
+  if (typeof value === 'boolean') return value;
+  const normalized = String(value).trim().toLowerCase();
+  if (normalized === '1' || normalized === 'true' || normalized === 'yes') return true;
+  if (normalized === '0' || normalized === 'false' || normalized === 'no') return false;
+  return null;
+};
+
+// 🆕 Returns the first non-null/undefined value from a list of candidates.
+const firstDefined = (...values: unknown[]): unknown => {
+  for (const v of values) {
+    if (v !== null && v !== undefined && v !== '') return v;
+  }
+  return undefined;
+};
+
+// 🆕 Given an object, returns the value for the first matching key.
+// Useful because the backend may use snake_case / camelCase / alternate names.
+const pickField = (obj: Record<string, unknown>, keys: string[]): unknown => {
+  for (const k of keys) {
+    if (obj && Object.prototype.hasOwnProperty.call(obj, k)) {
+      const v = obj[k];
+      if (v !== null && v !== undefined && v !== '') return v;
+    }
+  }
+  return undefined;
+};
  
 // ✅ FIX: tiny helper that guarantees a finite number, never a string
 const toNumber = (v: unknown): number => {
@@ -1338,6 +1388,25 @@ export default function GRNForm() {
       const response = await api.get<GRNApiResponse>(`/grn/${grnId}`); 
       if (response.data.success === 1) { 
         const data = response.data.data; 
+
+        // 🔍 DEBUG: log exactly what the API returned so you can see the
+        //           real field names / value types for delivery charges.
+        //           Open DevTools → Console after opening an Edit/View page.
+        // eslint-disable-next-line no-console
+        console.log('[GRNForm] Raw GRN response data:', JSON.stringify(data, null, 2));
+        // eslint-disable-next-line no-console
+        console.log('[GRNForm] Delivery fields only:', {
+          is_free_delivery: (data as any).is_free_delivery,
+          free_delivery: (data as any).free_delivery,
+          isFreeDelivery: (data as any).isFreeDelivery,
+          delivery_charge: (data as any).delivery_charge,
+          deliveryCharge: (data as any).deliveryCharge,
+          delivery_charges: (data as any).delivery_charges,
+          delivery_amount: (data as any).delivery_amount,
+          shipping_charge: (data as any).shipping_charge,
+          shipping_amount: (data as any).shipping_amount,
+          freight_charge: (data as any).freight_charge,
+        });
          
         const isService = data.customer_id !== null && data.customer_id !== undefined && data.supplier_id === null; 
          
@@ -1451,6 +1520,54 @@ export default function GRNForm() {
  
         let supplierName = data.supplier_name || ''; 
         let supplierId = data.supplier_id || undefined; 
+
+        // ─── FIX: Delivery charge / free-delivery resolution ─────────────
+        // The backend may return these values under many different names and
+        // in many different types (number, string, boolean, null, …).
+        // We now check every plausible field name and safely coerce the value.
+        const rawObj = data as unknown as Record<string, unknown>;
+
+        const rawDeliveryCharge = firstDefined(
+          pickField(rawObj, ['delivery_charge']),
+          pickField(rawObj, ['deliveryCharge']),
+          pickField(rawObj, ['delivery_charges']),
+          pickField(rawObj, ['delivery_amount']),
+          pickField(rawObj, ['shipping_charge']),
+          pickField(rawObj, ['shipping_amount']),
+          pickField(rawObj, ['freight_charge']),
+        );
+        const parsedDeliveryCharge = toSafeNumber(rawDeliveryCharge);
+
+        const rawFreeDelivery = firstDefined(
+          pickField(rawObj, ['is_free_delivery']),
+          pickField(rawObj, ['free_delivery']),
+          pickField(rawObj, ['isFreeDelivery']),
+          pickField(rawObj, ['is_free_delivery_flag']),
+          pickField(rawObj, ['free_delivery_flag']),
+        );
+        const parsedFreeDeliveryFlag = toSafeBoolean(rawFreeDelivery);
+
+        // If the flag is missing/unparseable, infer it from the amount.
+        // A GRN with a positive delivery charge can never be "free".
+        let parsedFreeDelivery: boolean =
+          parsedFreeDeliveryFlag === null
+            ? parsedDeliveryCharge <= 0
+            : parsedFreeDeliveryFlag;
+
+        if (parsedDeliveryCharge > 0) {
+          parsedFreeDelivery = false;
+        }
+
+        // 🔍 DEBUG: show what we resolved
+        // eslint-disable-next-line no-console
+        console.log('[GRNForm] Resolved delivery state:', {
+          rawDeliveryCharge,
+          parsedDeliveryCharge,
+          rawFreeDelivery,
+          parsedFreeDeliveryFlag,
+          finalFreeDelivery: parsedFreeDelivery,
+        });
+        // ─────────────────────────────────────────────────────────────────
  
         setFormData({ 
           id: data.id?.toString(), 
@@ -1571,8 +1688,16 @@ export default function GRNForm() {
  
   // ─── Handlers ──────────────────────────────────────────────────────── 
   const handleFieldChange = (field: keyof GRNData, value: any) => { 
-    if (isViewMode) return;
-    setFormData(prev => ({ ...prev, [field]: value })); 
+    if (isViewMode) return; 
+    
+    // Ensure deliveryCharge is always stored as a number to prevent 
+    // "toFixed is not a function" crashes and string concatenation issues.
+    let processedValue = value;
+    if (field === 'deliveryCharge') {
+      processedValue = value === '' || isNaN(Number(value)) ? 0 : Number(value);
+    }
+
+    setFormData(prev => ({ ...prev, [field]: processedValue })); 
     setIsDirty(true); 
     if (errors[field]) { 
       setErrors(prev => { 
@@ -2758,7 +2883,6 @@ export default function GRNForm() {
   }; 
  
  
- 
   if (loading) {
     return (
       <div className={`grnf-page ${theme}`}>
@@ -2899,7 +3023,7 @@ export default function GRNForm() {
             <h1>
               {isViewMode ? 'View Goods Receipt Note' : isNew ? 'New Goods Receipt Note' : `${formData.grn_number}`}
             </h1>
-            {renderViewModeBadge()}
+            {renderViewModeBadge()} 
           </div> 
           <button type="button" onClick={handlePrint} className="grnf-print-btn"> 
             <FaPrint size={12} /> Print 

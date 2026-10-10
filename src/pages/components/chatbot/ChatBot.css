@@ -454,13 +454,18 @@
   background: #ffffff;
   box-shadow: 0 1px 3px rgba(102, 126, 234, 0.06);
   max-width: 100%;
+  display: block; /* Ensures proper block context for scrolling */
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 4px; /* Space for the scrollbar */
 }
 
 .chat-table {
   width: 100%;
   border-collapse: collapse;
   font-size: 12.5px;
-  min-width: 100%;
+  /* FIXED: max-content forces the table to expand to fit its content, 
+     preventing columns from squishing and overlapping. */
+  min-width: max-content; 
   background: transparent;
   table-layout: auto;
 }
@@ -476,7 +481,7 @@
   text-align: left;
   padding: 9px 12px;
   border-bottom: 2px solid #c7d2fe;
-  white-space: nowrap;
+  white-space: nowrap; /* Prevents header text from wrapping */
   position: sticky;
   top: 0;
   z-index: 1;
@@ -488,11 +493,11 @@
   border-bottom: 1px solid #eef2ff;
   color: #1f2937;
   vertical-align: middle;
-  word-break: normal;
-  overflow-wrap: break-word;
-  max-width: 220px;
   font-size: 12.5px;
   line-height: 1.4;
+  /* FIXED: nowrap prevents text from wrapping and overlapping.
+     The wrapper handles horizontal scrolling instead. */
+  white-space: nowrap; 
 }
 
 .chat-table tbody tr:last-child td {
@@ -515,18 +520,10 @@
   color: #4f46e5;
   width: 44px;
   min-width: 44px;
-  max-width: 44px;
   text-align: right;
   padding-right: 10px;
   padding-left: 12px;
   font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-  overflow: visible;
-  letter-spacing: 0;
-}
-
-/* ─── Second column: keep names/IDs on one line if short ────── */
-.chat-table tbody td:nth-child(2) {
   white-space: nowrap;
 }
 
@@ -724,7 +721,6 @@
 
   .chat-table {
     font-size: 11px;
-    min-width: 100%;
   }
 
   .chat-table thead th {
@@ -736,7 +732,6 @@
   .chat-table tbody td {
     padding: 6px 8px;
     font-size: 11px;
-    max-width: 140px;
   }
 
   /* 🆕 Keep # column on one line even on mobile */
@@ -744,11 +739,9 @@
   .chat-table thead th:first-child {
     width: 36px;
     min-width: 36px;
-    max-width: 36px;
     padding-right: 8px;
     padding-left: 8px;
     font-size: 11px;
-    white-space: nowrap;
   }
 
   .chat-msg.bot .chat-bubble:has(.chat-table-wrap) {
@@ -770,7 +763,6 @@
   .chat-table tbody td {
     padding: 5px 6px;
     font-size: 10px;
-    max-width: 110px;
   }
 
   /* 🆕 Slightly narrower on tiny screens, still fits 2-digit numbers */
@@ -778,7 +770,6 @@
   .chat-table thead th:first-child {
     width: 32px;
     min-width: 32px;
-    max-width: 32px;
     padding-right: 6px;
     padding-left: 6px;
     font-size: 10px;
