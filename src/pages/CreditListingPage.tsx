@@ -706,7 +706,7 @@ const CreditListingPage: React.FC = () => {
           </div>
 
           <div className="ace-filter-right">
-            <select
+            {/*<select
               value={entryTypeFilter}
               onChange={(e) => {
                 setEntryTypeFilter(e.target.value);
@@ -719,7 +719,7 @@ const CreditListingPage: React.FC = () => {
                   {opt.label}
                 </option>
               ))}
-            </select>
+            </select>*/}
 
             <select
               value={statusFilter}

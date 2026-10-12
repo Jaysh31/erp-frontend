@@ -705,7 +705,7 @@ const DebitListingPage: React.FC = () => {
           </div>
 
           <div className="ace-filter-right">
-            <select
+            {/*<select
               value={entryTypeFilter}
               onChange={(e) => {
                 setEntryTypeFilter(e.target.value);
@@ -718,7 +718,7 @@ const DebitListingPage: React.FC = () => {
                   {opt.label}
                 </option>
               ))}
-            </select>
+            </select>*/}
 
             <select
               value={statusFilter}

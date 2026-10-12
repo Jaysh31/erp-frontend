@@ -836,24 +836,8 @@ const CreditForm: React.FC = () => {
                         <h1>
                           {isViewMode ? 'View Credit Entry' : isEdit ? 'Edit Credit Entry' : 'Credit Details'}
                         </h1>
-                        {isViewMode && (
-                          <span className="pof-view-mode-badge" style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '6px',
-                            background: '#6366f1',
-                            color: '#ffffff',
-                            padding: '4px 12px',
-                            borderRadius: '20px',
-                            fontSize: '12px',
-                            fontWeight: 500,
-                            marginLeft: '12px',
-                          }}>
-                            <FaEye size={12} />
-                            View Mode
-                          </span>
-                        )}
-                        {isEdit && !isViewMode && <span className="pof-status-badge">{formData.referenceType}</span>}
+                        
+                       
                       </div>
                       {!isViewMode && Object.keys(errors).length > 0 && (
                         <div className="pof-error-badge">
