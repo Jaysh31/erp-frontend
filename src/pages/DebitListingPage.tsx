@@ -887,7 +887,7 @@ const DebitListingPage: React.FC = () => {
 
           <button className="ace-btn-new" onClick={handleNewEntry}>
             <Plus size={12} />
-            New Debit Entry
+            New Payment Voucher
           </button>
         </div>
 

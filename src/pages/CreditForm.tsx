@@ -775,7 +775,7 @@ const CreditForm: React.FC = () => {
       setTimeout(() => setSuccessMessage(null), 5000);
     } catch (err: any) {
       console.error("Failed to save:", err);
-      alert(err.response?.data?.message || "Failed to save credit details");
+      alert(err.response?.data?.message || "Failed to save Customer Receipt Details");
     } finally {
       setSaving(false);
     }
@@ -834,7 +834,7 @@ const CreditForm: React.FC = () => {
                       </button>
                       <div className="pof-header-title">
                         <h1>
-                          {isViewMode ? 'View Credit Entry' : isEdit ? 'Edit Credit Entry' : 'Credit Details'}
+                          {isViewMode ? 'View Customer Receipt Details' : isEdit ? 'Edit Customer Receipt Details' : 'Customer Receipt Details'}
                         </h1>
                         
                        
@@ -851,7 +851,7 @@ const CreditForm: React.FC = () => {
       <div className="rd-credit-card">
         <div className="rd-credit-header">
           <h2>
-            REFERENCE DETAILS – CREDIT FORM
+            REFERENCE DETAILS – Customer Receipt Details
             {isReadOnly ? " (View)" : isEditOrView ? " (Edit)" : ""}
           </h2>
         </div>
