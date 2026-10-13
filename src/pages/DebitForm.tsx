@@ -788,7 +788,7 @@ const DebitForm: React.FC = () => {
       setTimeout(() => setSuccessMessage(null), 5000);
     } catch (err: any) {
       console.error("Failed to save:", err);
-      alert(err.response?.data?.message || "Failed to save debit details");
+      alert(err.response?.data?.message || "Failed to save Payment Voucher");
     } finally {
       setSaving(false);
     }
@@ -834,7 +834,7 @@ const DebitForm: React.FC = () => {
                 </button>
                 <div className="pof-header-title">
                   <h1>
-                    {isViewMode ? 'View Debit Entry' : isEdit ? 'Edit Debit Entry' : 'Debit Details'}
+                    {isViewMode ? 'View Payment Voucher' : isEdit ? 'Edit Payment Voucher' : 'Payment Voucher'}
                   </h1>
                   
                 </div>
@@ -849,7 +849,7 @@ const DebitForm: React.FC = () => {
       <div className="rd-credit-card">
         <div className="rd-credit-header">
           <h2>
-            REFERENCE DETAILS – DEBIT FORM
+            REFERENCE DETAILS – Payment Voucher
             {isReadOnly ? " (View)" : isEditOrView ? " (Edit)" : ""}
           </h2>
         </div>

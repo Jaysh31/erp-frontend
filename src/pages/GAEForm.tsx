@@ -786,7 +786,7 @@ const GAEForm: React.FC = () => {
                       </button>
                       <div className="pof-header-title">
                         <h1>
-                          General Account Entry Details
+                        Create Journal Entry
                         </h1>
                         
                       </div>

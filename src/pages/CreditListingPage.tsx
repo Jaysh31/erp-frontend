@@ -888,7 +888,7 @@ const CreditListingPage: React.FC = () => {
 
           <button className="ace-btn-new" onClick={handleNewEntry}>
             <Plus size={12} />
-            New Credit Entry
+            Customer Receipt Entry
           </button>
         </div>
 
@@ -968,7 +968,7 @@ const CreditListingPage: React.FC = () => {
                         paymentFilter !== "all" ||
                         (fromDate && toDate)
                           ? "Try adjusting your search criteria"
-                          : 'Create your first entry by clicking "New Credit Entry"'}
+                          : 'Create your first entry by clicking "Customer Receipt Entry"'}
                       </span>
                     </div>
                   </td>
@@ -1086,7 +1086,7 @@ const CreditListingPage: React.FC = () => {
                   paymentFilter !== "all" ||
                   (fromDate && toDate)
                     ? "Try adjusting your search criteria"
-                    : 'Create your first entry by clicking "New Credit Entry"'}
+                    : 'Create your first entry by clicking "Customer Receipt Entry"'}
                 </span>
               </div>
             </div>
