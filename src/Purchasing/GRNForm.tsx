@@ -12,86 +12,86 @@
 //        - safely coerce numbers/strings/booleans/null
 //        - fall back to inferring "free" from the amount if the flag is missing
 
-import { useState, useEffect, type FormEvent, useRef } from "react"; 
-import { useNavigate, useParams, useLocation, useSearchParams } from "react-router-dom"; 
-import toast from 'react-hot-toast'; 
-import { getUserRole } from '../utils/storage'; 
-import { 
-  FaArrowLeft, 
-  FaSave, 
-  FaSpinner, 
-  FaExclamationCircle, 
-  FaExclamationTriangle, 
-  FaInfoCircle, 
-  FaTimesCircle, 
-  FaCheckCircle, 
-  FaPlus, 
-  FaTrash, 
-  FaWarehouse, 
-  FaFileInvoice, 
-  FaBox, 
-  FaPhone, 
-  FaEnvelope, 
-  FaMapMarkerAlt, 
-  FaUserCircle, 
-  FaUsers, 
-  FaPercentage, 
-  FaReceipt, 
-  FaSearch, 
-  FaPrint, 
-  FaMoneyBillWave, 
-  FaGlobeAsia, 
+import { useState, useEffect, type FormEvent, useRef } from "react";
+import { useNavigate, useParams, useLocation, useSearchParams } from "react-router-dom";
+import toast from 'react-hot-toast';
+import { getUserRole } from '../utils/storage';
+import {
+  FaArrowLeft,
+  FaSave,
+  FaSpinner,
+  FaExclamationCircle,
+  FaExclamationTriangle,
+  FaInfoCircle,
+  FaTimesCircle,
+  FaCheckCircle,
+  FaPlus,
+  FaTrash,
+  FaWarehouse,
+  FaFileInvoice,
+  FaBox,
+  FaPhone,
+  FaEnvelope,
+  FaMapMarkerAlt,
+  FaUserCircle,
+  FaUsers,
+  FaPercentage,
+  FaReceipt,
+  FaSearch,
+  FaPrint,
+  FaMoneyBillWave,
+  FaGlobeAsia,
   FaBuilding,
   FaStickyNote,
   FaBoxes
-} from 'react-icons/fa'; 
-import "./GRNForm.css"; 
+} from 'react-icons/fa';
+import "./GRNForm.css";
 import { PageLoader } from '../components/PageLoader';
-import { useAdminTheme } from '../admin-theme/AdminThemeContext'; 
-import api from '../services/api'; 
- 
+import { useAdminTheme } from '../admin-theme/AdminThemeContext';
+import api from '../services/api';
+
 // ─── DigitInput Component ────────────────────────────────────────────── 
-interface DigitInputProps { 
-  label?: string; 
-  value: number | string; 
-  onChange: (value: number | string) => void; 
-  placeholder?: string; 
-  maxLength?: number; 
-  disabled?: boolean; 
-  className?: string; 
-  required?: boolean; 
-  allowDecimal?: boolean; 
-  min?: number; 
-  max?: number; 
-} 
- 
-const DigitInput: React.FC<DigitInputProps> = ({ 
-  label, 
-  value, 
-  onChange, 
-  placeholder = "Enter number", 
-  maxLength = 10, 
-  disabled = false, 
-  className = "", 
-  required = false, 
-  allowDecimal = false, 
-  min, 
-  max, 
-}) => { 
-  const [displayValue, setDisplayValue] = useState<string>(value !== undefined && value !== null ? String(value) : ''); 
- 
-  useEffect(() => { 
-    setDisplayValue(value !== undefined && value !== null ? String(value) : ''); 
-  }, [value]); 
- 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => { 
-    let inputValue = e.target.value; 
-     
-    if (allowDecimal) { 
-      const decimalRegex = /^[0-9]*\.?[0-9]*$/; 
-      if (decimalRegex.test(inputValue) || inputValue === '') { 
-        if (inputValue.replace('.', '').length <= maxLength) { 
-          setDisplayValue(inputValue); 
+interface DigitInputProps {
+  label?: string;
+  value: number | string;
+  onChange: (value: number | string) => void;
+  placeholder?: string;
+  maxLength?: number;
+  disabled?: boolean;
+  className?: string;
+  required?: boolean;
+  allowDecimal?: boolean;
+  min?: number;
+  max?: number;
+}
+
+const DigitInput: React.FC<DigitInputProps> = ({
+  label,
+  value,
+  onChange,
+  placeholder = "Enter number",
+  maxLength = 10,
+  disabled = false,
+  className = "",
+  required = false,
+  allowDecimal = false,
+  min,
+  max,
+}) => {
+  const [displayValue, setDisplayValue] = useState<string>(value !== undefined && value !== null ? String(value) : '');
+
+  useEffect(() => {
+    setDisplayValue(value !== undefined && value !== null ? String(value) : '');
+  }, [value]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let inputValue = e.target.value;
+
+    if (allowDecimal) {
+      const decimalRegex = /^[0-9]*\.?[0-9]*$/;
+      if (decimalRegex.test(inputValue) || inputValue === '') {
+        if (inputValue.replace('.', '').length <= maxLength) {
+          setDisplayValue(inputValue);
           // ✅ FIX: emit a number (or empty string) so downstream code
           //    never receives a numeric-looking string and calls .toFixed() on it.
           if (inputValue === '' || inputValue === '.') {
@@ -100,420 +100,420 @@ const DigitInput: React.FC<DigitInputProps> = ({
             const num = parseFloat(inputValue);
             onChange(Number.isNaN(num) ? '' : num);
           }
-        } 
-      } 
-    } else { 
-      const digitsOnly = inputValue.replace(/\D/g, ''); 
-      if (digitsOnly.length <= maxLength) { 
-        setDisplayValue(digitsOnly); 
+        }
+      }
+    } else {
+      const digitsOnly = inputValue.replace(/\D/g, '');
+      if (digitsOnly.length <= maxLength) {
+        setDisplayValue(digitsOnly);
         // ✅ FIX: emit number, not string
         onChange(digitsOnly === '' ? '' : Number(digitsOnly));
-      } 
-    } 
-  }; 
- 
-  const handleBlur = () => { 
-    if (displayValue !== '') { 
-      const numValue = parseFloat(displayValue); 
-      if (!isNaN(numValue)) { 
-        if (min !== undefined && numValue < min) { 
-          onChange(min); 
-          setDisplayValue(String(min)); 
-          return; 
-        } 
-        if (max !== undefined && numValue > max) { 
-          onChange(max); 
-          setDisplayValue(String(max)); 
-          return; 
-        } 
-      } 
-    } 
-  }; 
- 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => { 
-    if (e.key === 'ArrowUp' || e.key === 'ArrowDown') { 
-      e.preventDefault(); 
+      }
+    }
+  };
+
+  const handleBlur = () => {
+    if (displayValue !== '') {
+      const numValue = parseFloat(displayValue);
+      if (!isNaN(numValue)) {
+        if (min !== undefined && numValue < min) {
+          onChange(min);
+          setDisplayValue(String(min));
+          return;
+        }
+        if (max !== undefined && numValue > max) {
+          onChange(max);
+          setDisplayValue(String(max));
+          return;
+        }
+      }
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+      e.preventDefault();
       return;
-    } 
+    }
     // ✅ FIX: Never let Enter bubble up and submit the surrounding form.
     if (e.key === 'Enter') {
       e.preventDefault();
       e.stopPropagation();
       (e.currentTarget as HTMLInputElement).blur();
     }
-  }; 
- 
-  return ( 
-    <div className={`digit-input-wrapper ${className}`}> 
-      {label && ( 
-        <label className="digit-input-label"> 
-          {label} 
-          {required && <span className="grnf-required">*</span>} 
-        </label> 
-      )} 
-      <input 
-        type="text" 
-        inputMode={allowDecimal ? "decimal" : "numeric"} 
-        pattern={allowDecimal ? "[0-9]*[.]?[0-9]*" : "[0-9]*"} 
-        value={displayValue} 
-        onChange={handleChange} 
-        onBlur={handleBlur} 
-        onKeyDown={handleKeyDown} 
-        placeholder={placeholder} 
-        disabled={disabled} 
-        maxLength={maxLength + (allowDecimal ? 1 : 0)} 
-        className={`digit-input ${disabled ? 'digit-input-disabled' : ''}`} 
-      /> 
-    </div> 
-  ); 
-}; 
- 
+  };
+
+  return (
+    <div className={`digit-input-wrapper ${className}`}>
+      {label && (
+        <label className="digit-input-label">
+          {label}
+          {required && <span className="grnf-required">*</span>}
+        </label>
+      )}
+      <input
+        type="text"
+        inputMode={allowDecimal ? "decimal" : "numeric"}
+        pattern={allowDecimal ? "[0-9]*[.]?[0-9]*" : "[0-9]*"}
+        value={displayValue}
+        onChange={handleChange}
+        onBlur={handleBlur}
+        onKeyDown={handleKeyDown}
+        placeholder={placeholder}
+        disabled={disabled}
+        maxLength={maxLength + (allowDecimal ? 1 : 0)}
+        className={`digit-input ${disabled ? 'digit-input-disabled' : ''}`}
+      />
+    </div>
+  );
+};
+
 // ─── Entry Mode ───────────────────────────────────────────────────────── 
-type EntryMode = 'supplier' | 'manual'; 
- 
-interface GRNItem { 
-  id: string; 
-  itemCode: string; 
-  itemName: string; 
-  orderedQty: number; 
-  receivedQty: number; 
-  rejectedQty: number; 
-  uom: string; 
-  rate: number; 
-  remarks: string; 
-  poItemId?: number; 
-  itemId?: number; 
-  taxId?: number; 
-  taxType?: string; 
-  taxRate?: number; 
-  hsn?: string; 
-  isDraft?: boolean; 
-} 
- 
-interface ValidationError { 
-  field: string; 
-  label: string; 
-  message: string; 
-} 
- 
-interface GRNData { 
-  id?: string; 
-  grn_number: string; 
-  grnDate: string; 
-  isService: boolean; 
-  entryMode: EntryMode; 
-  supplier: string; 
-  supplierId?: number; 
-  purchaseOrder: string; 
-  purchaseOrderId?: number; 
-  warehouse: string; 
-  warehouseId?: number; 
-  customer: string; 
-  customerId?: number; 
-  receivedBy: string; 
-  receivedById?: number; 
-  vehicleNo: string; 
-  deliveryChallanNo: string; 
-  invoiceNo: string; 
-  freeDelivery: boolean; 
-  deliveryCharge: number; 
-  items: GRNItem[]; 
-} 
- 
-interface PurchaseOrder { 
-  id: number; 
-  name: string; 
-  supplier_name: string; 
-  supplier: string; 
-  company: string; 
-  transaction_date: string; 
-  schedule_date: string; 
-  currency: string; 
-  total_qty: number; 
-  total: number; 
-  net_total: number; 
-  grand_total: number; 
-  rounded_total: number; 
-  status: string; 
-  per_received: number; 
-  per_billed: number; 
-  title?: string; 
-} 
- 
-interface PurchaseOrderDetail extends PurchaseOrder { 
-  items: POItem[]; 
-  terms?: string; 
-  address_display?: string; 
-  contact_display?: string; 
-  contact_mobile?: string; 
-  contact_email?: string; 
-  cost_center?: string; 
-  set_warehouse?: string; 
-  tax_category?: string; 
-  shipping_rule?: string; 
-  incoterm?: string; 
-  named_place?: string; 
-  payment_terms_template?: string; 
-  tc_name?: string; 
-  conversion_rate?: number; 
-  price_list_currency?: string; 
-  plc_conversion_rate?: number; 
-  supplier_id?: number; 
-} 
- 
-interface POItem { 
-  id: number; 
-  item_code: string; 
-  item_name: string; 
-  qty: number; 
-  uom: string; 
-  rate: number; 
-  amount: number; 
-  received_qty: number; 
-  returned_qty: number; 
-  billed_amt: number; 
-  warehouse?: string; 
-  expense_account?: string; 
-  weight_per_unit?: number; 
-  weight_uom?: string; 
-  item_tax_rate?: number; 
-  item_tax_template?: string; 
-  cost_center?: string; 
-  hsn?: string; 
-  tax_id?: number; 
-  tax_type?: string; 
-} 
- 
-interface POApiResponse { 
-  success: number; 
-  data: { 
-    total: number; 
-    page: number; 
-    limit: number; 
-    records: PurchaseOrder[]; 
-  }; 
-} 
- 
-interface PODetailApiResponse { 
-  success: number; 
-  data: PurchaseOrderDetail; 
-} 
- 
-interface Warehouse { 
-  id: number; 
-  warehouse_name: string; 
-  company: string; 
-  parent_warehouse: string | null; 
-  warehouse_type: string | null; 
-  city: string | null; 
-  state: string | null; 
-  email_id: string | null; 
-  phone_no: string | null; 
-  disabled: number; 
-} 
- 
-interface WarehouseApiResponse { 
-  success: number; 
-  data: { 
-    total: number; 
-    page: number; 
-    limit: number; 
-    records: Warehouse[]; 
-  }; 
-} 
- 
-interface Employee { 
-  id: number; 
-  employee_name: string; 
-  first_name: string; 
-  middle_name: string; 
-  last_name: string; 
-  designation: string; 
-  department: string; 
-  company_email: string; 
-  cell_number: string; 
-  status: string; 
-  user_id: string | null; 
-} 
- 
-interface EmployeeApiResponse { 
-  success: number; 
-  data: { 
-    total: number; 
-    page: number; 
-    limit: number; 
-    records: Employee[]; 
-  }; 
-} 
- 
-interface Customer { 
-  id: number; 
-  customer_name: string; 
-  customer_type: string; 
-  customer_group: string; 
-  territory: string; 
-  mobile_no: string; 
-  email_id: string; 
-  default_currency: string; 
-  disabled: number; 
-  is_frozen: number; 
-  creation: string; 
-} 
- 
-interface CustomerApiResponse { 
-  success: number; 
-  data: { 
-    total: number; 
-    page: number; 
-    limit: number; 
-    records: Customer[]; 
-  }; 
-} 
- 
-interface Supplier { 
-  id: number; 
-  supplier_name: string; 
-  supplier_type: string; 
-  supplier_group: string; 
-  country: string; 
-  mobile_no: string; 
-  email_id: string; 
-  disabled: number; 
-} 
- 
-interface SupplierApiResponse { 
-  success: number; 
-  data: { 
-    total: number; 
-    page: number; 
-    limit: number; 
-    records: Supplier[]; 
-  }; 
-} 
- 
-interface ItemMaster { 
-  id: number; 
-  item_code: string; 
-  item_name: string; 
-  item_group: string; 
-  stock_uom: string; 
-  standard_rate: number; 
-  valuation_rate?: number; 
-  description?: string; 
-  tax_id: number | null; 
-  disabled: number; 
-  HSN?: string; 
-} 
- 
-interface TaxType { 
-  tax_id: number; 
-  tax_type: string; 
-} 
- 
-interface TaxApiResponse { 
-  success: number; 
-  data: TaxType[]; 
-} 
- 
-interface GRNApiResponse { 
-  success: number; 
-  data: { 
-    id: number; 
-    grn_number: string; 
-    grn_date: string; 
-    is_service?: number; 
-    entry_mode?: EntryMode; 
-    supplier_id: number | null; 
-    supplier_name: string | null; 
-    customer_id: number | null; 
-    purchase_order_id: number | null; 
-    warehouse_id: number; 
-    warehouse_name: string; 
-    customer_name?: string; 
-    received_by: string; 
-    received_by_id?: number; 
-    vehicle_number: string | null; 
-    delivery_challan_no: string; 
-    invoice_number: string | null; 
+type EntryMode = 'supplier' | 'manual';
+
+interface GRNItem {
+  id: string;
+  itemCode: string;
+  itemName: string;
+  orderedQty: number;
+  receivedQty: number;
+  rejectedQty: number;
+  uom: string;
+  rate: number;
+  remarks: string;
+  poItemId?: number;
+  itemId?: number;
+  taxId?: number;
+  taxType?: string;
+  taxRate?: number;
+  hsn?: string;
+  isDraft?: boolean;
+}
+
+interface ValidationError {
+  field: string;
+  label: string;
+  message: string;
+}
+
+interface GRNData {
+  id?: string;
+  grn_number: string;
+  grnDate: string;
+  isService: boolean;
+  entryMode: EntryMode;
+  supplier: string;
+  supplierId?: number;
+  purchaseOrder: string;
+  purchaseOrderId?: number;
+  warehouse: string;
+  warehouseId?: number;
+  customer: string;
+  customerId?: number;
+  receivedBy: string;
+  receivedById?: number;
+  vehicleNo: string;
+  deliveryChallanNo: string;
+  invoiceNo: string;
+  freeDelivery: boolean;
+  deliveryCharge: number;
+  items: GRNItem[];
+}
+
+interface PurchaseOrder {
+  id: number;
+  name: string;
+  supplier_name: string;
+  supplier: string;
+  company: string;
+  transaction_date: string;
+  schedule_date: string;
+  currency: string;
+  total_qty: number;
+  total: number;
+  net_total: number;
+  grand_total: number;
+  rounded_total: number;
+  status: string;
+  per_received: number;
+  per_billed: number;
+  title?: string;
+}
+
+interface PurchaseOrderDetail extends PurchaseOrder {
+  items: POItem[];
+  terms?: string;
+  address_display?: string;
+  contact_display?: string;
+  contact_mobile?: string;
+  contact_email?: string;
+  cost_center?: string;
+  set_warehouse?: string;
+  tax_category?: string;
+  shipping_rule?: string;
+  incoterm?: string;
+  named_place?: string;
+  payment_terms_template?: string;
+  tc_name?: string;
+  conversion_rate?: number;
+  price_list_currency?: string;
+  plc_conversion_rate?: number;
+  supplier_id?: number;
+}
+
+interface POItem {
+  id: number;
+  item_code: string;
+  item_name: string;
+  qty: number;
+  uom: string;
+  rate: number;
+  amount: number;
+  received_qty: number;
+  returned_qty: number;
+  billed_amt: number;
+  warehouse?: string;
+  expense_account?: string;
+  weight_per_unit?: number;
+  weight_uom?: string;
+  item_tax_rate?: number;
+  item_tax_template?: string;
+  cost_center?: string;
+  hsn?: string;
+  tax_id?: number;
+  tax_type?: string;
+}
+
+interface POApiResponse {
+  success: number;
+  data: {
+    total: number;
+    page: number;
+    limit: number;
+    records: PurchaseOrder[];
+  };
+}
+
+interface PODetailApiResponse {
+  success: number;
+  data: PurchaseOrderDetail;
+}
+
+interface Warehouse {
+  id: number;
+  warehouse_name: string;
+  company: string;
+  parent_warehouse: string | null;
+  warehouse_type: string | null;
+  city: string | null;
+  state: string | null;
+  email_id: string | null;
+  phone_no: string | null;
+  disabled: number;
+}
+
+interface WarehouseApiResponse {
+  success: number;
+  data: {
+    total: number;
+    page: number;
+    limit: number;
+    records: Warehouse[];
+  };
+}
+
+interface Employee {
+  id: number;
+  employee_name: string;
+  first_name: string;
+  middle_name: string;
+  last_name: string;
+  designation: string;
+  department: string;
+  company_email: string;
+  cell_number: string;
+  status: string;
+  user_id: string | null;
+}
+
+interface EmployeeApiResponse {
+  success: number;
+  data: {
+    total: number;
+    page: number;
+    limit: number;
+    records: Employee[];
+  };
+}
+
+interface Customer {
+  id: number;
+  customer_name: string;
+  customer_type: string;
+  customer_group: string;
+  territory: string;
+  mobile_no: string;
+  email_id: string;
+  default_currency: string;
+  disabled: number;
+  is_frozen: number;
+  creation: string;
+}
+
+interface CustomerApiResponse {
+  success: number;
+  data: {
+    total: number;
+    page: number;
+    limit: number;
+    records: Customer[];
+  };
+}
+
+interface Supplier {
+  id: number;
+  supplier_name: string;
+  supplier_type: string;
+  supplier_group: string;
+  country: string;
+  mobile_no: string;
+  email_id: string;
+  disabled: number;
+}
+
+interface SupplierApiResponse {
+  success: number;
+  data: {
+    total: number;
+    page: number;
+    limit: number;
+    records: Supplier[];
+  };
+}
+
+interface ItemMaster {
+  id: number;
+  item_code: string;
+  item_name: string;
+  item_group: string;
+  stock_uom: string;
+  standard_rate: number;
+  valuation_rate?: number;
+  description?: string;
+  tax_id: number | null;
+  disabled: number;
+  HSN?: string;
+}
+
+interface TaxType {
+  tax_id: number;
+  tax_type: string;
+}
+
+interface TaxApiResponse {
+  success: number;
+  data: TaxType[];
+}
+
+interface GRNApiResponse {
+  success: number;
+  data: {
+    id: number;
+    grn_number: string;
+    grn_date: string;
+    is_service?: number;
+    entry_mode?: EntryMode;
+    supplier_id: number | null;
+    supplier_name: string | null;
+    customer_id: number | null;
+    purchase_order_id: number | null;
+    warehouse_id: number;
+    warehouse_name: string;
+    customer_name?: string;
+    received_by: string;
+    received_by_id?: number;
+    vehicle_number: string | null;
+    delivery_challan_no: string;
+    invoice_number: string | null;
     // Loose types — the API can return any of these as number | string | bool | null 
-    is_free_delivery?: number | string | boolean | null; 
-    free_delivery?: number | string | boolean | null; 
-    isFreeDelivery?: number | string | boolean | null; 
-    delivery_charge?: number | string | null; 
-    deliveryCharge?: number | string | null; 
-    delivery_charges?: number | string | null; 
-    delivery_amount?: number | string | null; 
-    shipping_charge?: number | string | null; 
-    shipping_amount?: number | string | null; 
-    freight_charge?: number | string | null; 
-    status: 'draft' | 'submitted' | 'completed' | 'rejected'; 
-    total_ordered_qty: number; 
-    total_received_qty: number; 
-    total_accepted_qty: number; 
-    total_rejected_qty: number; 
-    remarks: string | null; 
-    total_items: number; 
-    items?: GRNApiItem[]; 
-  }; 
-} 
- 
-interface GRNApiItem { 
-  id: number; 
-  item_code: string; 
-  item_name: string; 
-  ordered_qty: number; 
-  received_qty: number; 
-  rejected_qty: number; 
-  uom: string; 
-  rate: number; 
-  remarks: string; 
-  po_item_id?: number; 
-  item_id?: number; 
-  tax_id?: number; 
-  tax_type?: string; 
-  item_tax_template?: string; 
-  hsn?: string; 
-} 
- 
+    is_free_delivery?: number | string | boolean | null;
+    free_delivery?: number | string | boolean | null;
+    isFreeDelivery?: number | string | boolean | null;
+    delivery_charge?: number | string | null;
+    deliveryCharge?: number | string | null;
+    delivery_charges?: number | string | null;
+    delivery_amount?: number | string | null;
+    shipping_charge?: number | string | null;
+    shipping_amount?: number | string | null;
+    freight_charge?: number | string | null;
+    status: 'draft' | 'submitted' | 'completed' | 'rejected';
+    total_ordered_qty: number;
+    total_received_qty: number;
+    total_accepted_qty: number;
+    total_rejected_qty: number;
+    remarks: string | null;
+    total_items: number;
+    items?: GRNApiItem[];
+  };
+}
+
+interface GRNApiItem {
+  id: number;
+  item_code: string;
+  item_name: string;
+  ordered_qty: number;
+  received_qty: number;
+  rejected_qty: number;
+  uom: string;
+  rate: number;
+  remarks: string;
+  po_item_id?: number;
+  item_id?: number;
+  tax_id?: number;
+  tax_type?: string;
+  item_tax_template?: string;
+  hsn?: string;
+}
+
 // ─── Helpers ─────────────────────────────────────────────────────────── 
-const parseGstPercent = (taxType?: string): number => { 
-  if (!taxType) return 0; 
-  const match = taxType.match(/(\d+(\.\d+)?)/); 
-  return match ? parseFloat(match[1]) : 0; 
-}; 
- 
-const extractTaxInfo = (taxType?: string, taxTemplate?: string): { rate: number; type: string; category: string } => { 
-  let taxString = taxType || taxTemplate || ''; 
-  if (!taxString) return { rate: 0, type: '', category: '' }; 
-   
-  const rateMatch = taxString.match(/(\d+(\.\d+)?)/); 
-  const rate = rateMatch ? parseFloat(rateMatch[1]) : 0; 
-   
-  let type = ''; 
-  if (taxString.includes('GST')) type = 'GST'; 
-  else if (taxString.includes('VAT')) type = 'VAT'; 
-  else if (taxString.includes('Tax')) type = 'Tax'; 
-   
-  return { rate, type, category: type || 'GST' }; 
-}; 
- 
-const computeItemAmounts = (item: GRNItem) => { 
-  const qty = item.receivedQty || 0; 
-  const amount = qty * (item.rate || 0); 
-  const gstPercent = item.taxRate || parseGstPercent(item.taxType) || 0; 
-  const sgst = (amount * gstPercent) / 2 / 100; 
-  const cgst = (amount * gstPercent) / 2 / 100; 
-  const total = amount + sgst + cgst; 
-  return { amount, sgst, cgst, total, gstPercent }; 
-}; 
- 
-const escapeHtml = (value: string | number | undefined | null): string => { 
-  const str = value === undefined || value === null ? '' : String(value); 
-  return str 
-    .replace(/&/g, '&amp;') 
-    .replace(/</g, '&lt;') 
-    .replace(/>/g, '&gt;') 
-    .replace(/"/g, '&quot;'); 
+const parseGstPercent = (taxType?: string): number => {
+  if (!taxType) return 0;
+  const match = taxType.match(/(\d+(\.\d+)?)/);
+  return match ? parseFloat(match[1]) : 0;
+};
+
+const extractTaxInfo = (taxType?: string, taxTemplate?: string): { rate: number; type: string; category: string } => {
+  let taxString = taxType || taxTemplate || '';
+  if (!taxString) return { rate: 0, type: '', category: '' };
+
+  const rateMatch = taxString.match(/(\d+(\.\d+)?)/);
+  const rate = rateMatch ? parseFloat(rateMatch[1]) : 0;
+
+  let type = '';
+  if (taxString.includes('GST')) type = 'GST';
+  else if (taxString.includes('VAT')) type = 'VAT';
+  else if (taxString.includes('Tax')) type = 'Tax';
+
+  return { rate, type, category: type || 'GST' };
+};
+
+const computeItemAmounts = (item: GRNItem) => {
+  const qty = item.receivedQty || 0;
+  const amount = qty * (item.rate || 0);
+  const gstPercent = item.taxRate || parseGstPercent(item.taxType) || 0;
+  const sgst = (amount * gstPercent) / 2 / 100;
+  const cgst = (amount * gstPercent) / 2 / 100;
+  const total = amount + sgst + cgst;
+  return { amount, sgst, cgst, total, gstPercent };
+};
+
+const escapeHtml = (value: string | number | undefined | null): string => {
+  const str = value === undefined || value === null ? '' : String(value);
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 };
 
 // 🆕 Robustly converts a delivery-charge value coming from the API
@@ -556,269 +556,269 @@ const pickField = (obj: Record<string, unknown>, keys: string[]): unknown => {
   }
   return undefined;
 };
- 
+
 // ✅ FIX: tiny helper that guarantees a finite number, never a string
 const toNumber = (v: unknown): number => {
   if (typeof v === 'number' && Number.isFinite(v)) return v;
   const n = parseFloat(String(v ?? ''));
   return Number.isFinite(n) ? n : 0;
 };
- 
+
 // ─── MAIN COMPONENT ────────────────────────────────────────────────────── 
- 
-export default function GRNForm() { 
-  const { id } = useParams<{ id: string }>(); 
-  const navigate = useNavigate(); 
-  const location = useLocation(); 
+
+export default function GRNForm() {
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
   const mode = searchParams.get('mode');
   const isViewMode = mode === 'view';
-  const { theme } = useAdminTheme(); 
-  const isNew = id === "new"; 
-  const isEditMode = !isNew && Boolean(id); 
- 
+  const { theme } = useAdminTheme();
+  const isNew = id === "new";
+  const isEditMode = !isNew && Boolean(id);
+
   // ─── Form State ──────────────────────────────────────────────────────── 
-  const [formData, setFormData] = useState<GRNData>({ 
-    grn_number: '', 
-    grnDate: new Date().toISOString().split('T')[0], 
-    isService: false, 
-    entryMode: 'supplier', 
-    supplier: '', 
-    supplierId: undefined, 
-    purchaseOrder: '', 
-    purchaseOrderId: undefined, 
-    warehouse: '', 
-    warehouseId: undefined, 
-    customer: '', 
-    customerId: undefined, 
-    receivedBy: '', 
-    receivedById: undefined, 
-    vehicleNo: '', 
-    deliveryChallanNo: '', 
-    invoiceNo: '', 
-    freeDelivery: true, 
-    deliveryCharge: 0, 
-    items: [], 
-  }); 
- 
-  const [, setIsDirty] = useState(isNew); 
-  const [submitting, setSubmitting] = useState(false); 
-  const [errors, setErrors] = useState<{ [key: string]: string }>({}); 
-  const [showValidationSummary, setShowValidationSummary] = useState(false); 
-  const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]); 
-  const [apiError, setApiError] = useState<string | null>(null); 
-  const [loading, setLoading] = useState<boolean>(isEditMode); 
- 
+  const [formData, setFormData] = useState<GRNData>({
+    grn_number: '',
+    grnDate: new Date().toISOString().split('T')[0],
+    isService: false,
+    entryMode: 'supplier',
+    supplier: '',
+    supplierId: undefined,
+    purchaseOrder: '',
+    purchaseOrderId: undefined,
+    warehouse: '',
+    warehouseId: undefined,
+    customer: '',
+    customerId: undefined,
+    receivedBy: '',
+    receivedById: undefined,
+    vehicleNo: '',
+    deliveryChallanNo: '',
+    invoiceNo: '',
+    freeDelivery: true,
+    deliveryCharge: 0,
+    items: [],
+  });
+
+  const [, setIsDirty] = useState(isNew);
+  const [submitting, setSubmitting] = useState(false);
+  const [errors, setErrors] = useState<{ [key: string]: string }>({});
+  const [showValidationSummary, setShowValidationSummary] = useState(false);
+  const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
+  const [apiError, setApiError] = useState<string | null>(null);
+  const [loading, setLoading] = useState<boolean>(isEditMode);
+
   // ─── Company ─────────────────────────────────────────────────────────── 
-  const [company, setCompany] = useState<string>('SculptorTech Pvt Ltd'); 
- 
+  const [company, setCompany] = useState<string>('SculptorTech Pvt Ltd');
+
   // ─── Success Modal ─────────────────────────────────────────────────── 
-  const [showSuccessModal, setShowSuccessModal] = useState(false); 
-  const [savedGrnNumber, setSavedGrnNumber] = useState<string>(''); 
-  const [isUpdateMode, setIsUpdateMode] = useState<boolean>(false); 
- 
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [savedGrnNumber, setSavedGrnNumber] = useState<string>('');
+  const [isUpdateMode, setIsUpdateMode] = useState<boolean>(false);
+
   // ─── Service Toggle Confirmation ───────────────────────────────────── 
-  const [showServiceToggleConfirm, setShowServiceToggleConfirm] = useState(false); 
-  const [pendingServiceToggle, setPendingServiceToggle] = useState(false); 
- 
+  const [showServiceToggleConfirm, setShowServiceToggleConfirm] = useState(false);
+  const [pendingServiceToggle, setPendingServiceToggle] = useState(false);
+
   // ─── PO Dropdown States ────────────────────────────────────────────── 
-  const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>([]); 
-  const [loadingPOs, setLoadingPOs] = useState(false); 
-  const [poSearchTerm, setPOSearchTerm] = useState(''); 
-  const [showPODropdown, setShowPODropdown] = useState(false); 
-  const [poCurrentPage, setPOCurrentPage] = useState(1); 
-  const [poItemsPerPage] = useState(10); 
-  const [, setTotalPOs] = useState(0); 
-  const [, setPODetailLoading] = useState(false); 
+  const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>([]);
+  const [loadingPOs, setLoadingPOs] = useState(false);
+  const [poSearchTerm, setPOSearchTerm] = useState('');
+  const [showPODropdown, setShowPODropdown] = useState(false);
+  const [poCurrentPage, setPOCurrentPage] = useState(1);
+  const [poItemsPerPage] = useState(10);
+  const [, setTotalPOs] = useState(0);
+  const [, setPODetailLoading] = useState(false);
   const [isPOFocused, setIsPOFocused] = useState(false);
-  const poInputRef = useRef<HTMLInputElement>(null); 
-  const poDropdownRef = useRef<HTMLDivElement>(null); 
- 
+  const poInputRef = useRef<HTMLInputElement>(null);
+  const poDropdownRef = useRef<HTMLDivElement>(null);
+
   // ─── Warehouse State ──────────────────────────────────────────────── 
-  const [warehouses, setWarehouses] = useState<Warehouse[]>([]); 
-  const [loadingWarehouses, setLoadingWarehouses] = useState(false); 
-  const [warehouseSearchTerm, setWarehouseSearchTerm] = useState(''); 
-  const [showWarehouseDropdown, setShowWarehouseDropdown] = useState(false); 
-  const warehouseInputRef = useRef<HTMLInputElement>(null); 
-  const warehouseDropdownRef = useRef<HTMLDivElement>(null); 
- 
+  const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
+  const [loadingWarehouses, setLoadingWarehouses] = useState(false);
+  const [warehouseSearchTerm, setWarehouseSearchTerm] = useState('');
+  const [showWarehouseDropdown, setShowWarehouseDropdown] = useState(false);
+  const warehouseInputRef = useRef<HTMLInputElement>(null);
+  const warehouseDropdownRef = useRef<HTMLDivElement>(null);
+
   // ─── Employee State ────────────────────────────────────────────────── 
-  const [employees, setEmployees] = useState<Employee[]>([]); 
-  const [loadingEmployees, setLoadingEmployees] = useState(false); 
-  const [employeeSearchTerm, setEmployeeSearchTerm] = useState(''); 
-  const [showEmployeeDropdown, setShowEmployeeDropdown] = useState(false); 
-  const employeeInputRef = useRef<HTMLInputElement>(null); 
-  const employeeDropdownRef = useRef<HTMLDivElement>(null); 
- 
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [loadingEmployees, setLoadingEmployees] = useState(false);
+  const [employeeSearchTerm, setEmployeeSearchTerm] = useState('');
+  const [showEmployeeDropdown, setShowEmployeeDropdown] = useState(false);
+  const employeeInputRef = useRef<HTMLInputElement>(null);
+  const employeeDropdownRef = useRef<HTMLDivElement>(null);
+
   // ─── Customer State ─────────────────────────────────────────────────── 
-  const [customers, setCustomers] = useState<Customer[]>([]); 
-  const [loadingCustomers, setLoadingCustomers] = useState(false); 
-  const [customerSearchTerm, setCustomerSearchTerm] = useState(''); 
-  const [showCustomerDropdown, setShowCustomerDropdown] = useState(false); 
-  const customerInputRef = useRef<HTMLInputElement>(null); 
-  const customerDropdownRef = useRef<HTMLDivElement>(null); 
- 
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [loadingCustomers, setLoadingCustomers] = useState(false);
+  const [customerSearchTerm, setCustomerSearchTerm] = useState('');
+  const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
+  const customerInputRef = useRef<HTMLInputElement>(null);
+  const customerDropdownRef = useRef<HTMLDivElement>(null);
+
   // ─── Supplier State ────────────────────────────────────────────────── 
-  const [suppliers, setSuppliers] = useState<Supplier[]>([]); 
-  const [loadingSuppliers, setLoadingSuppliers] = useState(false); 
-  const [supplierSearchTerm, setSupplierSearchTerm] = useState(''); 
-  const [showSupplierDropdown, setShowSupplierDropdown] = useState(false); 
-  const supplierInputRef = useRef<HTMLInputElement>(null); 
-  const supplierDropdownRef = useRef<HTMLDivElement>(null); 
- 
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [loadingSuppliers, setLoadingSuppliers] = useState(false);
+  const [supplierSearchTerm, setSupplierSearchTerm] = useState('');
+  const [showSupplierDropdown, setShowSupplierDropdown] = useState(false);
+  const supplierInputRef = useRef<HTMLInputElement>(null);
+  const supplierDropdownRef = useRef<HTMLDivElement>(null);
+
   // ─── Item Master & Portal States ─────────────────────────────────── 
-  const [itemsMaster, setItemsMaster] = useState<ItemMaster[]>([]); 
-  const [allItems, setAllItems] = useState<ItemMaster[]>([]); 
-  const [filteredItems, setFilteredItems] = useState<{ [key: number]: ItemMaster[] }>({}); 
-  const [searchTerms, setSearchTerms] = useState<{ [key: number]: string }>({}); 
-  const [showSuggestions, setShowSuggestions] = useState<{ [key: number]: boolean }>({}); 
-  const [dropdownPositions, setDropdownPositions] = useState<{ [key: number]: { top: number; left: number; width: number } }>({}); 
-  const [digitValues, setDigitValues] = useState<{ [key: number]: { [field: string]: string } }>({}); 
-  const inputRefs = useRef<{ [key: number]: HTMLInputElement | null }>({}); 
-  const suggestionRefs = useRef<{ [key: number]: HTMLDivElement | null }>({}); 
- 
+  const [itemsMaster, setItemsMaster] = useState<ItemMaster[]>([]);
+  const [allItems, setAllItems] = useState<ItemMaster[]>([]);
+  const [filteredItems, setFilteredItems] = useState<{ [key: number]: ItemMaster[] }>({});
+  const [searchTerms, setSearchTerms] = useState<{ [key: number]: string }>({});
+  const [showSuggestions, setShowSuggestions] = useState<{ [key: number]: boolean }>({});
+  const [dropdownPositions, setDropdownPositions] = useState<{ [key: number]: { top: number; left: number; width: number } }>({});
+  const [digitValues, setDigitValues] = useState<{ [key: number]: { [field: string]: string } }>({});
+  const inputRefs = useRef<{ [key: number]: HTMLInputElement | null }>({});
+  const suggestionRefs = useRef<{ [key: number]: HTMLDivElement | null }>({});
+
   // ─── Item Group Filter ────────────────────────────────────────────── 
-  const [itemGroupFilter, setItemGroupFilter] = useState<string>('all'); 
-  const [itemGroups, setItemGroups] = useState<string[]>([]); 
- 
+  const [itemGroupFilter, setItemGroupFilter] = useState<string>('all');
+  const [itemGroups, setItemGroups] = useState<string[]>([]);
+
   // ─── Add Item Popup Modal States ──────────────────────────────────── 
-  const [showAddItemPopup, setShowAddItemPopup] = useState<boolean>(false); 
-  const [activeRowIndex, setActiveRowIndex] = useState<number | null>(null); 
-  const [, setPendingItemSearch] = useState<string>(''); 
-  const [addingItem, setAddingItem] = useState<boolean>(false); 
-  const [newItem, setNewItem] = useState({ 
-    item_name: '', 
-    item_code: '', 
-    item_group: '', 
-    stock_uom: 'NOS', 
-    standard_rate: '', 
-    valuation_rate: '', 
-    description: '', 
-    tax_id: '', 
-    quantity: '1', 
-  }); 
- 
-  const [loadingItemsMaster, setLoadingItemsMaster] = useState(false); 
-  const [, setActiveItemSearchIndex] = useState<number | null>(null); 
-  const itemSearchDropdownRef = useRef<HTMLDivElement>(null); 
- 
+  const [showAddItemPopup, setShowAddItemPopup] = useState<boolean>(false);
+  const [activeRowIndex, setActiveRowIndex] = useState<number | null>(null);
+  const [, setPendingItemSearch] = useState<string>('');
+  const [addingItem, setAddingItem] = useState<boolean>(false);
+  const [newItem, setNewItem] = useState({
+    item_name: '',
+    item_code: '',
+    item_group: '',
+    stock_uom: 'NOS',
+    standard_rate: '',
+    valuation_rate: '',
+    description: '',
+    tax_id: '',
+    quantity: '1',
+  });
+
+  const [loadingItemsMaster, setLoadingItemsMaster] = useState(false);
+  const [, setActiveItemSearchIndex] = useState<number | null>(null);
+  const itemSearchDropdownRef = useRef<HTMLDivElement>(null);
+
   // ─── Tax Types State ─────────────────────────────────────────────── 
-  const [taxTypes, setTaxTypes] = useState<TaxType[]>([]); 
-  const [loadingTaxTypes, setLoadingTaxTypes] = useState(false); 
- 
+  const [taxTypes, setTaxTypes] = useState<TaxType[]>([]);
+  const [loadingTaxTypes, setLoadingTaxTypes] = useState(false);
+
   // ─── PO Items Cache ───────────────────────────────────────────────── 
-  const [poItemsCache, setPoItemsCache] = useState<{ [poId: number]: POItem[] }>({}); 
-  const [loadingPOItems, setLoadingPOItems] = useState<{ [poId: number]: boolean }>({}); 
- 
+  const [poItemsCache, setPoItemsCache] = useState<{ [poId: number]: POItem[] }>({});
+  const [loadingPOItems, setLoadingPOItems] = useState<{ [poId: number]: boolean }>({});
+
   // ─── PurchaseBillForm-style Item Search & Note Popover States ──────── 
-  const [, setItemSearch] = useState<string>(''); 
-  const [selectedItemRowIndex, setSelectedItemRowIndex] = useState<number | null>(null); 
-  const [showItemDropdown, setShowItemDropdown] = useState<boolean>(false); 
-  const [notePopoverIndex, setNotePopoverIndex] = useState<number | null>(null); 
-  const [] = useState<ItemMaster[]>([]); 
-  const [] = useState<boolean>(false); 
- 
+  const [, setItemSearch] = useState<string>('');
+  const [selectedItemRowIndex, setSelectedItemRowIndex] = useState<number | null>(null);
+  const [showItemDropdown, setShowItemDropdown] = useState<boolean>(false);
+  const [notePopoverIndex, setNotePopoverIndex] = useState<number | null>(null);
+  const [] = useState<ItemMaster[]>([]);
+  const [] = useState<boolean>(false);
+
   // ─── View Mode Badge ────────────────────────────────────────────────── 
-  const renderViewModeBadge = () => { 
-    if (!isViewMode) return null; 
-     
-    return ( 
-      <span className="grnf-view-mode-badge" style={{ 
-        display: 'inline-flex', 
-        alignItems: 'center', 
-        gap: '6px', 
-        background: '#6366f1', 
-        color: '#ffffff', 
-        padding: '4px 12px', 
-        borderRadius: '20px', 
-        fontSize: '12px', 
-        fontWeight: 500, 
-        marginLeft: '12px', 
-      }}> 
-        
-      </span> 
-    ); 
-  }; 
- 
+  const renderViewModeBadge = () => {
+    if (!isViewMode) return null;
+
+    return (
+      <span className="grnf-view-mode-badge" style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: '6px',
+        background: '#6366f1',
+        color: '#ffffff',
+        padding: '4px 12px',
+        borderRadius: '20px',
+        fontSize: '12px',
+        fontWeight: 500,
+        marginLeft: '12px',
+      }}>
+
+      </span>
+    );
+  };
+
   const poDisplayValue = isPOFocused
     ? poSearchTerm
     : (formData.purchaseOrder || poSearchTerm);
- 
+
   // ─── Fetch Warehouses ────────────────────────────────────────────── 
-  const fetchWarehouses = async () => { 
+  const fetchWarehouses = async () => {
     if (isViewMode) return;
-    setLoadingWarehouses(true); 
-    try { 
-      const response = await api.get<WarehouseApiResponse>('/warehouse?limit=200'); 
-      if (response.data.success === 1) { 
-        const records = response.data.data.records || []; 
-        setWarehouses(records); 
-      } 
-    } catch (err) { 
-      console.error('Error fetching warehouses:', err); 
-    } finally { 
-      setLoadingWarehouses(false); 
-    } 
+    setLoadingWarehouses(true);
+    try {
+      const response = await api.get<WarehouseApiResponse>('/warehouse?limit=200');
+      if (response.data.success === 1) {
+        const records = response.data.data.records || [];
+        setWarehouses(records);
+      }
+    } catch (err) {
+      console.error('Error fetching warehouses:', err);
+    } finally {
+      setLoadingWarehouses(false);
+    }
   };
- 
+
   // ─── Fetch Employees ──────────────────────────────────────────────── 
-  const fetchEmployees = async () => { 
+  const fetchEmployees = async () => {
     if (isViewMode) return;
-    setLoadingEmployees(true); 
-    try { 
-      const response = await api.get<EmployeeApiResponse>('/employee'); 
-      if (response.data.success === 1) { 
-        const records = response.data.data.records || []; 
-        setEmployees(records); 
-      } 
-    } catch (err) { 
-      console.error('Error fetching employees:', err); 
-    } finally { 
-      setLoadingEmployees(false); 
-    } 
-  }; 
- 
+    setLoadingEmployees(true);
+    try {
+      const response = await api.get<EmployeeApiResponse>('/employee');
+      if (response.data.success === 1) {
+        const records = response.data.data.records || [];
+        setEmployees(records);
+      }
+    } catch (err) {
+      console.error('Error fetching employees:', err);
+    } finally {
+      setLoadingEmployees(false);
+    }
+  };
+
   // ─── Fetch Customers ───────────────────────────────────────────────── 
-  const fetchCustomers = async () => { 
+  const fetchCustomers = async () => {
     if (isViewMode) return;
-    setLoadingCustomers(true); 
-    try { 
-      const response = await api.get<CustomerApiResponse>('/customer'); 
-      if (response.data.success === 1) { 
-        const records = response.data.data.records || []; 
-        setCustomers(records); 
-      } 
-    } catch (err) { 
-      console.error('Error fetching customers:', err); 
-    } finally { 
-      setLoadingCustomers(false); 
-    } 
-  }; 
- 
+    setLoadingCustomers(true);
+    try {
+      const response = await api.get<CustomerApiResponse>('/customer');
+      if (response.data.success === 1) {
+        const records = response.data.data.records || [];
+        setCustomers(records);
+      }
+    } catch (err) {
+      console.error('Error fetching customers:', err);
+    } finally {
+      setLoadingCustomers(false);
+    }
+  };
+
   // ─── Fetch Suppliers ────────────────────────────────────────────────── 
-  const fetchSuppliers = async () => { 
+  const fetchSuppliers = async () => {
     if (isViewMode) return;
-    setLoadingSuppliers(true); 
-    try { 
-      const response = await api.get<SupplierApiResponse>('/supplier'); 
-      if (response.data.success === 1) { 
-        const records = response.data.data.records || []; 
-        setSuppliers(records); 
-      } 
-    } catch (err) { 
-      console.error('Error fetching suppliers:', err); 
-    } finally { 
-      setLoadingSuppliers(false); 
-    } 
-  }; 
- 
+    setLoadingSuppliers(true);
+    try {
+      const response = await api.get<SupplierApiResponse>('/supplier');
+      if (response.data.success === 1) {
+        const records = response.data.data.records || [];
+        setSuppliers(records);
+      }
+    } catch (err) {
+      console.error('Error fetching suppliers:', err);
+    } finally {
+      setLoadingSuppliers(false);
+    }
+  };
+
   // ─── Fetch Item Master ────────────────────────────────────────────── 
-  const fetchItemsMaster = async (): Promise<ItemMaster[]> => { 
+  const fetchItemsMaster = async (): Promise<ItemMaster[]> => {
     // Fetch item master in View mode too, so saved GRN rows can resolve HSN from the API.
-    setLoadingItemsMaster(true); 
-    try { 
-      const response = await api.get('/item?limit=200'); 
-      if (response.data && response.data.success === 1) { 
+    setLoadingItemsMaster(true);
+    try {
+      const response = await api.get('/item?limit=200');
+      if (response.data && response.data.success === 1) {
         const rawItems = response.data.data;
         const items = Array.isArray(rawItems)
           ? rawItems
@@ -827,214 +827,214 @@ export default function GRNForm() {
             : Array.isArray(rawItems?.items)
               ? rawItems.items
               : [];
-        const mappedItems: ItemMaster[] = items.map((item: any) => ({ 
-          id: item.id, 
-          item_code: item.item_code, 
-          item_name: item.item_name, 
-          stock_uom: item.stock_uom || 'NOS', 
-          standard_rate: item.standard_rate || 0, 
-          valuation_rate: item.valuation_rate || item.standard_rate || 0, 
-          description: item.description, 
-          brand: item.brand, 
-          item_group: item.item_group || 'Uncategorized', 
-          tax_id: item.tax_id, 
-          HSN: item.HSN || item.hsn || item.hsn_code || item.hsn_number || item.item_hsn || item.gst_hsn_code || '', 
-          disabled: item.disabled, 
-        })); 
- 
-        setItemsMaster(mappedItems); 
-        setAllItems(mappedItems); 
- 
-        const groups = Array.from(new Set(mappedItems.map(i => i.item_group).filter(Boolean))) as string[]; 
-        setItemGroups(groups); 
- 
-        setFilteredItems(prev => { 
-          const newFiltered = { ...prev }; 
-          formData.items.forEach((_, index) => { 
-            newFiltered[index] = mappedItems; 
-          }); 
-          return newFiltered; 
-        }); 
- 
-        return mappedItems; 
-      } 
-      return []; 
-    } catch (err) { 
-      console.error('Error fetching items:', err); 
-      return []; 
-    } finally { 
-      setLoadingItemsMaster(false); 
-    } 
-  }; 
- 
+        const mappedItems: ItemMaster[] = items.map((item: any) => ({
+          id: item.id,
+          item_code: item.item_code,
+          item_name: item.item_name,
+          stock_uom: item.stock_uom || 'NOS',
+          standard_rate: item.standard_rate || 0,
+          valuation_rate: item.valuation_rate || item.standard_rate || 0,
+          description: item.description,
+          brand: item.brand,
+          item_group: item.item_group || 'Uncategorized',
+          tax_id: item.tax_id,
+          HSN: item.HSN || item.hsn || item.hsn_code || item.hsn_number || item.item_hsn || item.gst_hsn_code || '',
+          disabled: item.disabled,
+        }));
+
+        setItemsMaster(mappedItems);
+        setAllItems(mappedItems);
+
+        const groups = Array.from(new Set(mappedItems.map(i => i.item_group).filter(Boolean))) as string[];
+        setItemGroups(groups);
+
+        setFilteredItems(prev => {
+          const newFiltered = { ...prev };
+          formData.items.forEach((_, index) => {
+            newFiltered[index] = mappedItems;
+          });
+          return newFiltered;
+        });
+
+        return mappedItems;
+      }
+      return [];
+    } catch (err) {
+      console.error('Error fetching items:', err);
+      return [];
+    } finally {
+      setLoadingItemsMaster(false);
+    }
+  };
+
   // ─── Fetch Tax Types ──────────────────────────────────────────────── 
-  const fetchTaxTypes = async (): Promise<TaxType[]> => { 
+  const fetchTaxTypes = async (): Promise<TaxType[]> => {
     if (isViewMode) return [];
-    setLoadingTaxTypes(true); 
-    try { 
-      const response = await api.get<TaxApiResponse>('/item/get-tax'); 
-      if (response.data.success === 1) { 
-        const records = response.data.data || []; 
-        setTaxTypes(records); 
-        return records; 
-      } 
-      return []; 
-    } catch (err) { 
-      console.error('Error fetching tax types:', err); 
-      return []; 
-    } finally { 
-      setLoadingTaxTypes(false); 
-    } 
-  }; 
- 
+    setLoadingTaxTypes(true);
+    try {
+      const response = await api.get<TaxApiResponse>('/item/get-tax');
+      if (response.data.success === 1) {
+        const records = response.data.data || [];
+        setTaxTypes(records);
+        return records;
+      }
+      return [];
+    } catch (err) {
+      console.error('Error fetching tax types:', err);
+      return [];
+    } finally {
+      setLoadingTaxTypes(false);
+    }
+  };
+
   // ─── Fetch Purchase Orders ────────────────────────────────────────── 
-  const fetchPurchaseOrders = async () => { 
+  const fetchPurchaseOrders = async () => {
     if (isViewMode) return;
-    setLoadingPOs(true); 
-    try { 
-      const response = await api.get<POApiResponse>( 
-        `/purchase-order?page=${poCurrentPage}&limit=${poItemsPerPage}` 
-      ); 
- 
-      if (response.data.success === 1) { 
-        const records = response.data.data.records || []; 
-        setPurchaseOrders(records); 
-        setTotalPOs(response.data.data.total || records.length); 
-      } 
-    } catch (err) { 
-      console.error('Error fetching purchase orders:', err); 
-    } finally { 
-      setLoadingPOs(false); 
-    } 
-  }; 
- 
+    setLoadingPOs(true);
+    try {
+      const response = await api.get<POApiResponse>(
+        `/purchase-order?page=${poCurrentPage}&limit=${poItemsPerPage}`
+      );
+
+      if (response.data.success === 1) {
+        const records = response.data.data.records || [];
+        setPurchaseOrders(records);
+        setTotalPOs(response.data.data.total || records.length);
+      }
+    } catch (err) {
+      console.error('Error fetching purchase orders:', err);
+    } finally {
+      setLoadingPOs(false);
+    }
+  };
+
   // ─── Fetch Purchase Order Details ────────────────────────────────── 
-  const fetchPurchaseOrderDetail = async (poId: number) => { 
+  const fetchPurchaseOrderDetail = async (poId: number) => {
     if (isViewMode) return;
-    setPODetailLoading(true); 
-    try { 
-      const response = await api.get<PODetailApiResponse>(`/purchase-order/${poId}`); 
-       
-      if (response.data.success === 1) { 
-        const poDetail = response.data.data; 
-        if (poDetail.items) { 
-          setPoItemsCache(prev => ({ 
-            ...prev, 
-            [poId]: poDetail.items 
-          })); 
-        } 
-        populateGRNFromPO(poDetail); 
-        setShowPODropdown(false); 
-      } 
-    } catch (err) { 
-      console.error('Error fetching purchase order details:', err); 
-      setApiError('Failed to fetch PO details'); 
-    } finally { 
-      setPODetailLoading(false); 
-    } 
-  }; 
- 
+    setPODetailLoading(true);
+    try {
+      const response = await api.get<PODetailApiResponse>(`/purchase-order/${poId}`);
+
+      if (response.data.success === 1) {
+        const poDetail = response.data.data;
+        if (poDetail.items) {
+          setPoItemsCache(prev => ({
+            ...prev,
+            [poId]: poDetail.items
+          }));
+        }
+        populateGRNFromPO(poDetail);
+        setShowPODropdown(false);
+      }
+    } catch (err) {
+      console.error('Error fetching purchase order details:', err);
+      setApiError('Failed to fetch PO details');
+    } finally {
+      setPODetailLoading(false);
+    }
+  };
+
   // ─── Resolve tax info from various sources ────────────────────────── 
-  const resolveTaxInfo = (item: any, taxTypesOverride?: TaxType[]): { taxId?: number; taxType?: string; taxRate?: number } => { 
-    const taxList = taxTypesOverride ?? taxTypes; 
- 
-    if (item.tax_id) { 
-      const tax = taxList.find(t => t.tax_id === item.tax_id); 
-      if (tax) { 
-        const { rate } = extractTaxInfo(tax.tax_type); 
-        return { taxId: item.tax_id, taxType: tax.tax_type, taxRate: rate }; 
-      } 
-    } 
- 
-    if (item.item_tax_template) { 
-      const { rate } = extractTaxInfo(undefined, item.item_tax_template); 
- 
-      let matchingTax: TaxType | undefined = undefined; 
- 
-      matchingTax = taxList.find(t => { 
-        const { rate: tRate } = extractTaxInfo(t.tax_type); 
-        return tRate === rate; 
-      }); 
- 
-      if (!matchingTax) { 
-        const templateClean = item.item_tax_template.replace(/\s/g, '').toLowerCase(); 
-        matchingTax = taxList.find(t => { 
-          const taxClean = t.tax_type.replace(/\s/g, '').toLowerCase(); 
-          return taxClean.includes(templateClean) || templateClean.includes(taxClean); 
-        }); 
-      } 
- 
-      if (matchingTax) { 
-        return { 
-          taxId: matchingTax.tax_id, 
-          taxType: matchingTax.tax_type, 
-          taxRate: rate 
-        }; 
-      } 
-      return { taxType: item.item_tax_template, taxRate: rate }; 
-    } 
- 
-    if (item.tax_type) { 
-      const { rate } = extractTaxInfo(item.tax_type); 
-      const matchingTax = taxList.find(t => { 
-        const { rate: tRate } = extractTaxInfo(t.tax_type); 
-        return tRate === rate; 
-      }); 
-      if (matchingTax) { 
-        return { taxId: matchingTax.tax_id, taxType: matchingTax.tax_type, taxRate: rate }; 
-      } 
-      return { taxType: item.tax_type, taxRate: rate }; 
-    } 
- 
-    return {}; 
-  }; 
- 
+  const resolveTaxInfo = (item: any, taxTypesOverride?: TaxType[]): { taxId?: number; taxType?: string; taxRate?: number } => {
+    const taxList = taxTypesOverride ?? taxTypes;
+
+    if (item.tax_id) {
+      const tax = taxList.find(t => t.tax_id === item.tax_id);
+      if (tax) {
+        const { rate } = extractTaxInfo(tax.tax_type);
+        return { taxId: item.tax_id, taxType: tax.tax_type, taxRate: rate };
+      }
+    }
+
+    if (item.item_tax_template) {
+      const { rate } = extractTaxInfo(undefined, item.item_tax_template);
+
+      let matchingTax: TaxType | undefined = undefined;
+
+      matchingTax = taxList.find(t => {
+        const { rate: tRate } = extractTaxInfo(t.tax_type);
+        return tRate === rate;
+      });
+
+      if (!matchingTax) {
+        const templateClean = item.item_tax_template.replace(/\s/g, '').toLowerCase();
+        matchingTax = taxList.find(t => {
+          const taxClean = t.tax_type.replace(/\s/g, '').toLowerCase();
+          return taxClean.includes(templateClean) || templateClean.includes(taxClean);
+        });
+      }
+
+      if (matchingTax) {
+        return {
+          taxId: matchingTax.tax_id,
+          taxType: matchingTax.tax_type,
+          taxRate: rate
+        };
+      }
+      return { taxType: item.item_tax_template, taxRate: rate };
+    }
+
+    if (item.tax_type) {
+      const { rate } = extractTaxInfo(item.tax_type);
+      const matchingTax = taxList.find(t => {
+        const { rate: tRate } = extractTaxInfo(t.tax_type);
+        return tRate === rate;
+      });
+      if (matchingTax) {
+        return { taxId: matchingTax.tax_id, taxType: matchingTax.tax_type, taxRate: rate };
+      }
+      return { taxType: item.tax_type, taxRate: rate };
+    }
+
+    return {};
+  };
+
   // ─── Resolve the actual Item Master id for a GRN item ──────────────── 
-  const resolveItemMasterId = (item: GRNItem): number | undefined => { 
-    if (item.itemCode) { 
-      const matchByCode = itemsMaster.find( 
-        im => (im.item_code || '').trim().toLowerCase() === item.itemCode.trim().toLowerCase() 
-      ); 
-      if (matchByCode) return matchByCode.id; 
-    } 
-    if (item.itemId) { 
-      const matchById = itemsMaster.find(im => im.id === item.itemId); 
-      if (matchById) return matchById.id; 
-    } 
-    return item.itemId; 
-  }; 
- 
+  const resolveItemMasterId = (item: GRNItem): number | undefined => {
+    if (item.itemCode) {
+      const matchByCode = itemsMaster.find(
+        im => (im.item_code || '').trim().toLowerCase() === item.itemCode.trim().toLowerCase()
+      );
+      if (matchByCode) return matchByCode.id;
+    }
+    if (item.itemId) {
+      const matchById = itemsMaster.find(im => im.id === item.itemId);
+      if (matchById) return matchById.id;
+    }
+    return item.itemId;
+  };
+
   // ─── Populate GRN from PO ────────────────────────────────────────── 
-  const populateGRNFromPO = (poDetail: PurchaseOrderDetail) => { 
+  const populateGRNFromPO = (poDetail: PurchaseOrderDetail) => {
     if (isViewMode) return;
-    
-    const items: GRNItem[] = (poDetail.items || []).map((item, index) => { 
-      const taxInfo = resolveTaxInfo(item); 
- 
-      const masterMatch = itemsMaster.find( 
-        im => (im.item_code || '').toLowerCase() === (item.item_code || '').toLowerCase() 
-      ); 
- 
-      return { 
-        id: `po-${poDetail.id}-${index}-${Date.now()}`, 
-        itemCode: item.item_code || '', 
-        itemName: item.item_name || '', 
-        orderedQty: item.qty || 0, 
-        receivedQty: 0, 
-        rejectedQty: 0, 
-        uom: item.uom || '', 
-        rate: item.rate || 0, 
-        remarks: '', 
-        poItemId: item.id, 
-        itemId: masterMatch?.id, 
-        taxId: taxInfo.taxId, 
-        taxType: taxInfo.taxType, 
-        taxRate: taxInfo.taxRate || 0, 
-        hsn: item.hsn || '', 
-        isDraft: false, 
-      }; 
-    }); 
- 
+
+    const items: GRNItem[] = (poDetail.items || []).map((item, index) => {
+      const taxInfo = resolveTaxInfo(item);
+
+      const masterMatch = itemsMaster.find(
+        im => (im.item_code || '').toLowerCase() === (item.item_code || '').toLowerCase()
+      );
+
+      return {
+        id: `po-${poDetail.id}-${index}-${Date.now()}`,
+        itemCode: item.item_code || '',
+        itemName: item.item_name || '',
+        orderedQty: item.qty || 0,
+        receivedQty: 0,
+        rejectedQty: 0,
+        uom: item.uom || '',
+        rate: item.rate || 0,
+        remarks: '',
+        poItemId: item.id,
+        itemId: masterMatch?.id,
+        taxId: taxInfo.taxId,
+        taxType: taxInfo.taxType,
+        taxRate: taxInfo.taxRate || 0,
+        hsn: item.hsn || masterMatch?.HSN || '',
+        isDraft: false,
+      };
+    });
+
     let warehouseId: number | undefined;
     let resolvedWarehouseName = poDetail.set_warehouse || '';
     if (poDetail.set_warehouse) {
@@ -1065,295 +1065,295 @@ export default function GRNForm() {
         resolvedWarehouseName = defaultWh.warehouse_name;
       }
     }
- 
-    let supplierId: number | undefined = poDetail.supplier_id; 
-    if (!supplierId && poDetail.supplier) { 
-      const supplierNum = parseInt(poDetail.supplier); 
-      if (!isNaN(supplierNum)) { 
-        supplierId = supplierNum; 
-      } 
-    } 
- 
-    const poName = poDetail.name || `PO-${String(poDetail.id).padStart(5, '0')}`; 
- 
-    setFormData(prev => ({ 
-      ...prev, 
-      supplier: poDetail.supplier_name || '', 
-      supplierId: supplierId, 
-      purchaseOrder: poName, 
-      purchaseOrderId: poDetail.id, 
+
+    let supplierId: number | undefined = poDetail.supplier_id;
+    if (!supplierId && poDetail.supplier) {
+      const supplierNum = parseInt(poDetail.supplier);
+      if (!isNaN(supplierNum)) {
+        supplierId = supplierNum;
+      }
+    }
+
+    const poName = poDetail.name || `PO-${String(poDetail.id).padStart(5, '0')}`;
+
+    setFormData(prev => ({
+      ...prev,
+      supplier: poDetail.supplier_name || '',
+      supplierId: supplierId,
+      purchaseOrder: poName,
+      purchaseOrderId: poDetail.id,
       warehouse: resolvedWarehouseName,
       warehouseId: warehouseId,
-      items: items, 
-    })); 
- 
+      items: items,
+    }));
+
     setPOSearchTerm('');
     setIsPOFocused(false);
-    if (poDetail.supplier_name) { 
-      setSupplierSearchTerm(poDetail.supplier_name); 
-    } 
-    if (resolvedWarehouseName) { 
+    if (poDetail.supplier_name) {
+      setSupplierSearchTerm(poDetail.supplier_name);
+    }
+    if (resolvedWarehouseName) {
       setWarehouseSearchTerm(resolvedWarehouseName);
-    } 
-    if (poDetail.company) { 
-      setCompany(poDetail.company); 
-    } 
-     
-    setIsDirty(true); 
-  }; 
- 
+    }
+    if (poDetail.company) {
+      setCompany(poDetail.company);
+    }
+
+    setIsDirty(true);
+  };
+
   // ─── Filtered lists ────────────────────────────────────────────────── 
-  const filteredWarehouses = warehouses.filter(w => 
-    (w.warehouse_name?.toLowerCase() || '').includes((warehouseSearchTerm || '').toLowerCase()) 
-  ); 
- 
-  const filteredEmployees = employees.filter(e => { 
-    const name = (e.employee_name || '').toLowerCase(); 
-    const designation = (e.designation || '').toLowerCase(); 
-    const department = (e.department || '').toLowerCase(); 
-    const search = (employeeSearchTerm || '').toLowerCase(); 
-    return name.includes(search) || designation.includes(search) || department.includes(search); 
-  }); 
- 
-  const filteredCustomers = customers.filter(c => { 
-    const name = (c.customer_name || '').toLowerCase(); 
-    const email = (c.email_id || '').toLowerCase(); 
-    const mobile = (c.mobile_no || ''); 
-    const search = (customerSearchTerm || '').toLowerCase(); 
-    return name.includes(search) || email.includes(search) || mobile.includes(search); 
-  }); 
- 
-  const filteredSuppliers = suppliers.filter(s => { 
-    const name = (s.supplier_name || '').toLowerCase(); 
-    const email = (s.email_id || '').toLowerCase(); 
-    const mobile = (s.mobile_no || ''); 
-    const search = (supplierSearchTerm || '').toLowerCase(); 
-    return name.includes(search) || email.includes(search) || mobile.includes(search); 
-  }); 
- 
-  const selectedSupplier = formData.supplierId 
-    ? suppliers.find(s => s.id === formData.supplierId) 
-    : undefined; 
- 
-  const selectedCustomer = formData.customerId 
-    ? customers.find(c => c.id === formData.customerId) 
-    : undefined; 
- 
+  const filteredWarehouses = warehouses.filter(w =>
+    (w.warehouse_name?.toLowerCase() || '').includes((warehouseSearchTerm || '').toLowerCase())
+  );
+
+  const filteredEmployees = employees.filter(e => {
+    const name = (e.employee_name || '').toLowerCase();
+    const designation = (e.designation || '').toLowerCase();
+    const department = (e.department || '').toLowerCase();
+    const search = (employeeSearchTerm || '').toLowerCase();
+    return name.includes(search) || designation.includes(search) || department.includes(search);
+  });
+
+  const filteredCustomers = customers.filter(c => {
+    const name = (c.customer_name || '').toLowerCase();
+    const email = (c.email_id || '').toLowerCase();
+    const mobile = (c.mobile_no || '');
+    const search = (customerSearchTerm || '').toLowerCase();
+    return name.includes(search) || email.includes(search) || mobile.includes(search);
+  });
+
+  const filteredSuppliers = suppliers.filter(s => {
+    const name = (s.supplier_name || '').toLowerCase();
+    const email = (s.email_id || '').toLowerCase();
+    const mobile = (s.mobile_no || '');
+    const search = (supplierSearchTerm || '').toLowerCase();
+    return name.includes(search) || email.includes(search) || mobile.includes(search);
+  });
+
+  const selectedSupplier = formData.supplierId
+    ? suppliers.find(s => s.id === formData.supplierId)
+    : undefined;
+
+  const selectedCustomer = formData.customerId
+    ? customers.find(c => c.id === formData.customerId)
+    : undefined;
+
   // ─── Fetch PO items on hover ────────────────────────────────────────── 
-  const fetchPOItems = async (poId: number) => { 
+  const fetchPOItems = async (poId: number) => {
     if (isViewMode) return;
-    if (poItemsCache[poId]) return; 
-    setLoadingPOItems(prev => ({ ...prev, [poId]: true })); 
-    try { 
-      const response = await api.get<PODetailApiResponse>(`/purchase-order/${poId}`); 
-      if (response.data.success === 1) { 
-        setPoItemsCache(prev => ({ 
-          ...prev, 
-          [poId]: response.data.data.items || [] 
-        })); 
-      } 
-    } catch (err) { 
-      console.error('Error fetching PO items:', err); 
-    } finally { 
-      setLoadingPOItems(prev => ({ ...prev, [poId]: false })); 
-    } 
-  }; 
- 
+    if (poItemsCache[poId]) return;
+    setLoadingPOItems(prev => ({ ...prev, [poId]: true }));
+    try {
+      const response = await api.get<PODetailApiResponse>(`/purchase-order/${poId}`);
+      if (response.data.success === 1) {
+        setPoItemsCache(prev => ({
+          ...prev,
+          [poId]: response.data.data.items || []
+        }));
+      }
+    } catch (err) {
+      console.error('Error fetching PO items:', err);
+    } finally {
+      setLoadingPOItems(prev => ({ ...prev, [poId]: false }));
+    }
+  };
+
   // ─── Get display name for PO ────────────────────────────────────────── 
-  const getPODisplayName = (po: PurchaseOrder): string => { 
-    if (po.name && po.name !== 'N/A' && po.name !== 'Draft') { 
-      return po.name; 
-    } 
-    return `PO-${String(po.id).padStart(5, '0')}`; 
-  }; 
- 
-  const filteredPOs = purchaseOrders.filter(po => { 
-    const searchLower = (poSearchTerm || '').toLowerCase(); 
-    const poDisplayName = getPODisplayName(po).toLowerCase(); 
-    const supplierName = (po.supplier_name || '').toLowerCase(); 
-    const poIdString = (po.id?.toString() || ''); 
-     
-    return poDisplayName.includes(searchLower) ||  
-           supplierName.includes(searchLower) ||  
-           poIdString.includes(searchLower); 
-  }); 
- 
+  const getPODisplayName = (po: PurchaseOrder): string => {
+    if (po.name && po.name !== 'N/A' && po.name !== 'Draft') {
+      return po.name;
+    }
+    return `PO-${String(po.id).padStart(5, '0')}`;
+  };
+
+  const filteredPOs = purchaseOrders.filter(po => {
+    const searchLower = (poSearchTerm || '').toLowerCase();
+    const poDisplayName = getPODisplayName(po).toLowerCase();
+    const supplierName = (po.supplier_name || '').toLowerCase();
+    const poIdString = (po.id?.toString() || '');
+
+    return poDisplayName.includes(searchLower) ||
+      supplierName.includes(searchLower) ||
+      poIdString.includes(searchLower);
+  });
+
   // ─── Update Dropdown Position for Portal ─────────────────────────── 
-  const updateDropdownPosition = (index: number) => { 
-    const inputEl = inputRefs.current[index]; 
-    if (inputEl) { 
-      const rect = inputEl.getBoundingClientRect(); 
-      setDropdownPositions(prev => ({ 
-        ...prev, 
-        [index]: { 
-          top: rect.bottom + 4, 
-          left: rect.left, 
-          width: Math.max(rect.width, 320) 
-        } 
-      })); 
-    } 
-  }; 
- 
+  const updateDropdownPosition = (index: number) => {
+    const inputEl = inputRefs.current[index];
+    if (inputEl) {
+      const rect = inputEl.getBoundingClientRect();
+      setDropdownPositions(prev => ({
+        ...prev,
+        [index]: {
+          top: rect.bottom + 4,
+          left: rect.left,
+          width: Math.max(rect.width, 320)
+        }
+      }));
+    }
+  };
+
   // ─── Click outside handlers ────────────────────────────────────────── 
-  useEffect(() => { 
-    const handleClickOutside = (event: MouseEvent) => { 
-      if ( 
-        warehouseDropdownRef.current &&  
-        !warehouseDropdownRef.current.contains(event.target as Node) && 
-        warehouseInputRef.current && 
-        !warehouseInputRef.current.contains(event.target as Node) 
-      ) { 
-        setShowWarehouseDropdown(false); 
-      } 
-      if ( 
-        employeeDropdownRef.current &&  
-        !employeeDropdownRef.current.contains(event.target as Node) && 
-        employeeInputRef.current && 
-        !employeeInputRef.current.contains(event.target as Node) 
-      ) { 
-        setShowEmployeeDropdown(false); 
-      } 
-      if ( 
-        poDropdownRef.current &&  
-        !poDropdownRef.current.contains(event.target as Node) && 
-        poInputRef.current && 
-        !poInputRef.current.contains(event.target as Node) 
-      ) { 
-        setShowPODropdown(false); 
-      } 
-      if ( 
-        customerDropdownRef.current && 
-        !customerDropdownRef.current.contains(event.target as Node) && 
-        customerInputRef.current && 
-        !customerInputRef.current.contains(event.target as Node) 
-      ) { 
-        setShowCustomerDropdown(false); 
-      } 
-      if ( 
-        supplierDropdownRef.current && 
-        !supplierDropdownRef.current.contains(event.target as Node) && 
-        supplierInputRef.current && 
-        !supplierInputRef.current.contains(event.target as Node) 
-      ) { 
-        setShowSupplierDropdown(false); 
-      } 
-      if ( 
-        itemSearchDropdownRef.current && 
-        !itemSearchDropdownRef.current.contains(event.target as Node) 
-      ) { 
-        setActiveItemSearchIndex(null); 
-      } 
- 
-      formData.items.forEach((_, idx) => { 
-        const inputEl = inputRefs.current[idx]; 
-        const suggestionEl = suggestionRefs.current[idx]; 
-        const target = event.target as Node; 
-        if ( 
-          inputEl && !inputEl.contains(target) && 
-          (!suggestionEl || !suggestionEl.contains(target)) 
-        ) { 
-          setShowSuggestions(prev => ({ ...prev, [idx]: false })); 
-        } 
-      }); 
-    }; 
- 
-    const handleScrollOrResize = () => { 
-      formData.items.forEach((_, idx) => { 
-        if (showSuggestions[idx]) { 
-          updateDropdownPosition(idx); 
-        } 
-      }); 
-    }; 
- 
-    document.addEventListener('mousedown', handleClickOutside); 
-    window.addEventListener('scroll', handleScrollOrResize, true); 
-    window.addEventListener('resize', handleScrollOrResize); 
-    return () => { 
-      document.removeEventListener('mousedown', handleClickOutside); 
-      window.removeEventListener('scroll', handleScrollOrResize, true); 
-      window.removeEventListener('resize', handleScrollOrResize); 
-    }; 
-  }, [formData.items, showSuggestions]); 
- 
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        warehouseDropdownRef.current &&
+        !warehouseDropdownRef.current.contains(event.target as Node) &&
+        warehouseInputRef.current &&
+        !warehouseInputRef.current.contains(event.target as Node)
+      ) {
+        setShowWarehouseDropdown(false);
+      }
+      if (
+        employeeDropdownRef.current &&
+        !employeeDropdownRef.current.contains(event.target as Node) &&
+        employeeInputRef.current &&
+        !employeeInputRef.current.contains(event.target as Node)
+      ) {
+        setShowEmployeeDropdown(false);
+      }
+      if (
+        poDropdownRef.current &&
+        !poDropdownRef.current.contains(event.target as Node) &&
+        poInputRef.current &&
+        !poInputRef.current.contains(event.target as Node)
+      ) {
+        setShowPODropdown(false);
+      }
+      if (
+        customerDropdownRef.current &&
+        !customerDropdownRef.current.contains(event.target as Node) &&
+        customerInputRef.current &&
+        !customerInputRef.current.contains(event.target as Node)
+      ) {
+        setShowCustomerDropdown(false);
+      }
+      if (
+        supplierDropdownRef.current &&
+        !supplierDropdownRef.current.contains(event.target as Node) &&
+        supplierInputRef.current &&
+        !supplierInputRef.current.contains(event.target as Node)
+      ) {
+        setShowSupplierDropdown(false);
+      }
+      if (
+        itemSearchDropdownRef.current &&
+        !itemSearchDropdownRef.current.contains(event.target as Node)
+      ) {
+        setActiveItemSearchIndex(null);
+      }
+
+      formData.items.forEach((_, idx) => {
+        const inputEl = inputRefs.current[idx];
+        const suggestionEl = suggestionRefs.current[idx];
+        const target = event.target as Node;
+        if (
+          inputEl && !inputEl.contains(target) &&
+          (!suggestionEl || !suggestionEl.contains(target))
+        ) {
+          setShowSuggestions(prev => ({ ...prev, [idx]: false }));
+        }
+      });
+    };
+
+    const handleScrollOrResize = () => {
+      formData.items.forEach((_, idx) => {
+        if (showSuggestions[idx]) {
+          updateDropdownPosition(idx);
+        }
+      });
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    window.addEventListener('scroll', handleScrollOrResize, true);
+    window.addEventListener('resize', handleScrollOrResize);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      window.removeEventListener('scroll', handleScrollOrResize, true);
+      window.removeEventListener('resize', handleScrollOrResize);
+    };
+  }, [formData.items, showSuggestions]);
+
   // ─── Fetch data on mount ──────────────────────────────────────────── 
-  useEffect(() => { 
-    const loadData = async () => { 
-      const [, , , , fetchedItemsMaster, fetchedTaxTypes] = await Promise.all([ 
-        fetchWarehouses(), 
-        fetchEmployees(), 
-        fetchCustomers(), 
-        fetchSuppliers(), 
-        fetchItemsMaster(), 
-        fetchTaxTypes(), 
-      ]); 
- 
+  useEffect(() => {
+    const loadData = async () => {
+      const [, , , , fetchedItemsMaster, fetchedTaxTypes] = await Promise.all([
+        fetchWarehouses(),
+        fetchEmployees(),
+        fetchCustomers(),
+        fetchSuppliers(),
+        fetchItemsMaster(),
+        fetchTaxTypes(),
+      ]);
 
-      if (isEditMode && id) { 
-        await fetchGRNData(id, fetchedTaxTypes, fetchedItemsMaster); 
-      } 
- 
-      if (location.state?.poData) { 
-        const poData = location.state.poData as PurchaseOrderDetail; 
-        populateGRNFromPO(poData); 
-      } 
- 
-      if (showPODropdown) { 
-        await fetchPurchaseOrders(); 
-      } 
-    }; 
- 
-    loadData(); 
-  }, [id, isEditMode, location.state]); 
- 
+
+      if (isEditMode && id) {
+        await fetchGRNData(id, fetchedTaxTypes, fetchedItemsMaster);
+      }
+
+      if (location.state?.poData) {
+        const poData = location.state.poData as PurchaseOrderDetail;
+        populateGRNFromPO(poData);
+      }
+
+      if (showPODropdown) {
+        await fetchPurchaseOrders();
+      }
+    };
+
+    loadData();
+  }, [id, isEditMode, location.state]);
+
   // ─── Default warehouse on new GRN ─────────────────────────────────── 
-  useEffect(() => { 
-    if (isEditMode) return; 
-    if (formData.warehouseId) return; 
+  useEffect(() => {
+    if (isEditMode) return;
+    if (formData.warehouseId) return;
     if (formData.warehouse && formData.warehouse.trim() !== '') return;
-    if (warehouses.length === 0) return; 
+    if (warehouses.length === 0) return;
 
-    const rawMaterialWarehouse = warehouses.find(w => 
-      (w.warehouse_name || '').trim().toLowerCase().includes('raw material') 
-    ); 
+    const rawMaterialWarehouse = warehouses.find(w =>
+      (w.warehouse_name || '').trim().toLowerCase().includes('raw material')
+    );
 
-    if (rawMaterialWarehouse) { 
-      setFormData(prev => ({ 
-        ...prev, 
-        warehouse: rawMaterialWarehouse.warehouse_name, 
-        warehouseId: rawMaterialWarehouse.id, 
-      })); 
-      setWarehouseSearchTerm(rawMaterialWarehouse.warehouse_name); 
-    } 
-  }, [warehouses, isEditMode, formData.warehouse, formData.warehouseId]); 
- 
-  useEffect(() => { 
-    if (showPODropdown) { 
-      fetchPurchaseOrders(); 
-    } 
-  }, [showPODropdown, poCurrentPage]); 
- 
+    if (rawMaterialWarehouse) {
+      setFormData(prev => ({
+        ...prev,
+        warehouse: rawMaterialWarehouse.warehouse_name,
+        warehouseId: rawMaterialWarehouse.id,
+      }));
+      setWarehouseSearchTerm(rawMaterialWarehouse.warehouse_name);
+    }
+  }, [warehouses, isEditMode, formData.warehouse, formData.warehouseId]);
+
+  useEffect(() => {
+    if (showPODropdown) {
+      fetchPurchaseOrders();
+    }
+  }, [showPODropdown, poCurrentPage]);
+
   // ─── Backfill itemId when Item Master loads ────────────────────────── 
-  useEffect(() => { 
-    if (itemsMaster.length === 0) return; 
-    setFormData(prev => { 
-      let changed = false; 
-      const items = prev.items.map(it => { 
-        const codeMatch = itemsMaster.find( 
-          im => (im.item_code || '').trim().toLowerCase() === (it.itemCode || '').trim().toLowerCase() 
-        ); 
-        if (codeMatch) { 
-          if (codeMatch.id !== it.itemId) { 
-            changed = true; 
-            return { ...it, itemId: codeMatch.id }; 
-          } 
-          return it; 
-        } 
-        return it; 
-      }); 
-      return changed ? { ...prev, items } : prev; 
-    }); 
-  }, [itemsMaster]); 
- 
+  useEffect(() => {
+    if (itemsMaster.length === 0) return;
+    setFormData(prev => {
+      let changed = false;
+      const items = prev.items.map(it => {
+        const codeMatch = itemsMaster.find(
+          im => (im.item_code || '').trim().toLowerCase() === (it.itemCode || '').trim().toLowerCase()
+        );
+        if (codeMatch) {
+          if (codeMatch.id !== it.itemId) {
+            changed = true;
+            return { ...it, itemId: codeMatch.id };
+          }
+          return it;
+        }
+        return it;
+      });
+      return changed ? { ...prev, items } : prev;
+    });
+  }, [itemsMaster]);
+
   // ─── Backfill warehouseId when warehouses list loads ─────────────── 
   useEffect(() => {
     if (warehouses.length === 0) return;
@@ -1380,21 +1380,21 @@ export default function GRNForm() {
       }));
     }
   }, [warehouses, formData.warehouse, formData.warehouseId]);
- 
+
   // ─── Fetch GRN Data for Edit ────────────────────────────────────── 
-  const fetchGRNData = async ( 
-    grnId: string, 
-    taxTypesOverride?: TaxType[], 
-    itemsMasterOverride?: ItemMaster[] 
-  ) => { 
-    setLoading(true); 
-    const taxList = taxTypesOverride ?? taxTypes; 
-    const itemMasterList = itemsMasterOverride ?? itemsMaster; 
- 
-    try { 
-      const response = await api.get<GRNApiResponse>(`/grn/${grnId}`); 
-      if (response.data.success === 1) { 
-        const data = response.data.data; 
+  const fetchGRNData = async (
+    grnId: string,
+    taxTypesOverride?: TaxType[],
+    itemsMasterOverride?: ItemMaster[]
+  ) => {
+    setLoading(true);
+    const taxList = taxTypesOverride ?? taxTypes;
+    const itemMasterList = itemsMasterOverride ?? itemsMaster;
+
+    try {
+      const response = await api.get<GRNApiResponse>(`/grn/${grnId}`);
+      if (response.data.success === 1) {
+        const data = response.data.data;
 
         // 🔍 DEBUG: log exactly what the API returned so you can see the
         //           real field names / value types for delivery charges.
@@ -1414,120 +1414,120 @@ export default function GRNForm() {
           shipping_amount: (data as any).shipping_amount,
           freight_charge: (data as any).freight_charge,
         });
-         
-        const isService = data.customer_id !== null && data.customer_id !== undefined && data.supplier_id === null; 
-         
-        let entryMode: EntryMode = 'manual'; 
-        if (data.purchase_order_id !== null && data.purchase_order_id !== undefined && data.purchase_order_id > 0) { 
-          entryMode = 'supplier'; 
-        } else if (data.supplier_id !== null && data.supplier_id !== undefined) { 
-          entryMode = 'manual'; 
-        } else { 
-          entryMode = 'manual'; 
-        } 
-         
-        const items: GRNItem[] = (data.items || []).map((item, index) => { 
-          let taxId: number | undefined = item.tax_id || undefined; 
-          let taxType: string | undefined = item.tax_type || undefined; 
-          let taxRate: number = 0; 
-           
-          if (item.item_tax_template) { 
-            const rateMatch = item.item_tax_template.match(/(\d+(\.\d+)?)/); 
-            const rate = rateMatch ? parseFloat(rateMatch[1]) : 0; 
-            taxRate = rate; 
-             
-            let matchingTax: TaxType | undefined = undefined; 
-             
-            matchingTax = taxList.find(t => { 
-              const tRateMatch = t.tax_type.match(/(\d+(\.\d+)?)/); 
-              const tRate = tRateMatch ? parseFloat(tRateMatch[1]) : 0; 
-              return tRate === rate; 
-            }); 
-             
-            if (!matchingTax) { 
-              const templateClean = item.item_tax_template.replace(/\s/g, '').toLowerCase(); 
-              matchingTax = taxList.find(t => { 
-                const taxClean = t.tax_type.replace(/\s/g, '').toLowerCase(); 
-                return taxClean.includes(templateClean) || templateClean.includes(taxClean); 
-              }); 
-            } 
-             
-            if (!matchingTax && rate > 0) { 
-              matchingTax = taxList.find(t => { 
-                const taxLower = t.tax_type.toLowerCase(); 
-                return taxLower.includes(rate.toString()) && taxLower.includes('gst'); 
-              }); 
-            } 
-             
-            if (!matchingTax && rate > 0) { 
-              matchingTax = taxList.find(t => { 
-                const tRateMatch = t.tax_type.match(/(\d+(\.\d+)?)/); 
-                const tRate = tRateMatch ? parseFloat(tRateMatch[1]) : 0; 
-                return tRate === rate; 
-              }); 
-            } 
-             
-            if (matchingTax) { 
-              taxId = matchingTax.tax_id; 
-              taxType = matchingTax.tax_type; 
-            } else { 
-              taxType = item.item_tax_template; 
-              const taxByRate = taxList.find(t => { 
-                const tRateMatch = t.tax_type.match(/(\d+(\.\d+)?)/); 
-                const tRate = tRateMatch ? parseFloat(tRateMatch[1]) : 0; 
-                return tRate === rate; 
-              }); 
-              if (taxByRate) { 
-                taxId = taxByRate.tax_id; 
-                taxType = taxByRate.tax_type; 
-              } 
-            } 
-          } 
-           
-          if (!taxId && !taxType) { 
-            const resolved = resolveTaxInfo(item, taxList); 
-            taxId = resolved.taxId; 
-            taxType = resolved.taxType; 
-            taxRate = resolved.taxRate || 0; 
-          } 
- 
-          const masterMatch = itemMasterList.find( 
+
+        const isService = data.customer_id !== null && data.customer_id !== undefined && data.supplier_id === null;
+
+        let entryMode: EntryMode = 'manual';
+        if (data.purchase_order_id !== null && data.purchase_order_id !== undefined && data.purchase_order_id > 0) {
+          entryMode = 'supplier';
+        } else if (data.supplier_id !== null && data.supplier_id !== undefined) {
+          entryMode = 'manual';
+        } else {
+          entryMode = 'manual';
+        }
+
+        const items: GRNItem[] = (data.items || []).map((item, index) => {
+          let taxId: number | undefined = item.tax_id || undefined;
+          let taxType: string | undefined = item.tax_type || undefined;
+          let taxRate: number = 0;
+
+          if (item.item_tax_template) {
+            const rateMatch = item.item_tax_template.match(/(\d+(\.\d+)?)/);
+            const rate = rateMatch ? parseFloat(rateMatch[1]) : 0;
+            taxRate = rate;
+
+            let matchingTax: TaxType | undefined = undefined;
+
+            matchingTax = taxList.find(t => {
+              const tRateMatch = t.tax_type.match(/(\d+(\.\d+)?)/);
+              const tRate = tRateMatch ? parseFloat(tRateMatch[1]) : 0;
+              return tRate === rate;
+            });
+
+            if (!matchingTax) {
+              const templateClean = item.item_tax_template.replace(/\s/g, '').toLowerCase();
+              matchingTax = taxList.find(t => {
+                const taxClean = t.tax_type.replace(/\s/g, '').toLowerCase();
+                return taxClean.includes(templateClean) || templateClean.includes(taxClean);
+              });
+            }
+
+            if (!matchingTax && rate > 0) {
+              matchingTax = taxList.find(t => {
+                const taxLower = t.tax_type.toLowerCase();
+                return taxLower.includes(rate.toString()) && taxLower.includes('gst');
+              });
+            }
+
+            if (!matchingTax && rate > 0) {
+              matchingTax = taxList.find(t => {
+                const tRateMatch = t.tax_type.match(/(\d+(\.\d+)?)/);
+                const tRate = tRateMatch ? parseFloat(tRateMatch[1]) : 0;
+                return tRate === rate;
+              });
+            }
+
+            if (matchingTax) {
+              taxId = matchingTax.tax_id;
+              taxType = matchingTax.tax_type;
+            } else {
+              taxType = item.item_tax_template;
+              const taxByRate = taxList.find(t => {
+                const tRateMatch = t.tax_type.match(/(\d+(\.\d+)?)/);
+                const tRate = tRateMatch ? parseFloat(tRateMatch[1]) : 0;
+                return tRate === rate;
+              });
+              if (taxByRate) {
+                taxId = taxByRate.tax_id;
+                taxType = taxByRate.tax_type;
+              }
+            }
+          }
+
+          if (!taxId && !taxType) {
+            const resolved = resolveTaxInfo(item, taxList);
+            taxId = resolved.taxId;
+            taxType = resolved.taxType;
+            taxRate = resolved.taxRate || 0;
+          }
+
+          const masterMatch = itemMasterList.find(
             im => (item.item_id != null && Number(im.id) === Number(item.item_id)) ||
-              (im.item_code || '').trim().toLowerCase() === (item.item_code || '').trim().toLowerCase() 
-          ); 
- 
-          return { 
-            id: item.id?.toString() || `item-${index}-${Date.now()}`, 
-            itemCode: item.item_code || '', 
-            itemName: item.item_name || '', 
-            orderedQty: item.ordered_qty || 0, 
-            receivedQty: item.received_qty || 0, 
-            rejectedQty: item.rejected_qty || 0, 
-            uom: item.uom || '', 
-            rate: item.rate || 0, 
-            remarks: item.remarks || '', 
-            poItemId: item.po_item_id || item.id, 
-            itemId: masterMatch?.id || item.item_id, 
-            taxId: taxId, 
-            taxType: taxType, 
-            taxRate: taxRate, 
-            hsn: item.hsn|| '', 
-            isDraft: false, 
-          }; 
-        }) || []; 
- 
-        let customerName = data.customer_name || ''; 
-        let customerId = data.customer_id || undefined; 
-         
-        if (customerId && !customerName) { 
-          const foundCustomer = customers.find(c => c.id === customerId); 
-          if (foundCustomer) { 
-            customerName = foundCustomer.customer_name; 
-          } 
-        } 
- 
-        let supplierName = data.supplier_name || ''; 
-        let supplierId = data.supplier_id || undefined; 
+              (im.item_code || '').trim().toLowerCase() === (item.item_code || '').trim().toLowerCase()
+          );
+
+          return {
+            id: item.id?.toString() || `item-${index}-${Date.now()}`,
+            itemCode: item.item_code || '',
+            itemName: item.item_name || '',
+            orderedQty: item.ordered_qty || 0,
+            receivedQty: item.received_qty || 0,
+            rejectedQty: item.rejected_qty || 0,
+            uom: item.uom || '',
+            rate: item.rate || 0,
+            remarks: item.remarks || '',
+            poItemId: item.po_item_id || item.id,
+            itemId: masterMatch?.id || item.item_id,
+            taxId: taxId,
+            taxType: taxType,
+            taxRate: taxRate,
+            hsn: item.hsn || masterMatch?.HSN || '',
+            isDraft: false,
+          };
+        }) || [];
+
+        let customerName = data.customer_name || '';
+        let customerId = data.customer_id || undefined;
+
+        if (customerId && !customerName) {
+          const foundCustomer = customers.find(c => c.id === customerId);
+          if (foundCustomer) {
+            customerName = foundCustomer.customer_name;
+          }
+        }
+
+        let supplierName = data.supplier_name || '';
+        let supplierId = data.supplier_id || undefined;
 
         // ─── FIX: Delivery charge / free-delivery resolution ─────────────
         // The backend may return these values under many different names and
@@ -1576,128 +1576,128 @@ export default function GRNForm() {
           finalFreeDelivery: parsedFreeDelivery,
         });
         // ─────────────────────────────────────────────────────────────────
- 
-        setFormData({ 
-          id: data.id?.toString(), 
-          grn_number: data.grn_number || '', 
-          grnDate: data.grn_date ? new Date(data.grn_date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0], 
-          isService: isService, 
-          entryMode: entryMode, 
-          supplier: isService ? '' : (supplierName || ''), 
-          supplierId: isService ? undefined : (supplierId || undefined), 
-          purchaseOrder: data.purchase_order_id ? `PO-${String(data.purchase_order_id).padStart(5, '0')}` : '', 
-          purchaseOrderId: data.purchase_order_id || undefined, 
-          warehouse: data.warehouse_name || '', 
-          warehouseId: data.warehouse_id || undefined, 
-          customer: isService ? customerName : '', 
-          customerId: isService ? customerId : undefined, 
-          receivedBy: data.received_by || '', 
-          receivedById: data.received_by_id, 
-          vehicleNo: data.vehicle_number || '', 
-          deliveryChallanNo: data.delivery_challan_no || '', 
-          invoiceNo: data.invoice_number || '', 
-          freeDelivery: data.is_free_delivery === undefined ? true : data.is_free_delivery === 1, 
+
+        setFormData({
+          id: data.id?.toString(),
+          grn_number: data.grn_number || '',
+          grnDate: data.grn_date ? new Date(data.grn_date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+          isService: isService,
+          entryMode: entryMode,
+          supplier: isService ? '' : (supplierName || ''),
+          supplierId: isService ? undefined : (supplierId || undefined),
+          purchaseOrder: data.purchase_order_id ? `PO-${String(data.purchase_order_id).padStart(5, '0')}` : '',
+          purchaseOrderId: data.purchase_order_id || undefined,
+          warehouse: data.warehouse_name || '',
+          warehouseId: data.warehouse_id || undefined,
+          customer: isService ? customerName : '',
+          customerId: isService ? customerId : undefined,
+          receivedBy: data.received_by || '',
+          receivedById: data.received_by_id,
+          vehicleNo: data.vehicle_number || '',
+          deliveryChallanNo: data.delivery_challan_no || '',
+          invoiceNo: data.invoice_number || '',
+          freeDelivery: data.is_free_delivery === undefined ? true : data.is_free_delivery === 1,
           // ✅ FIX: coerce to number — API might return a string
-          deliveryCharge: toNumber(data.delivery_charge), 
-          items: items, 
-        }); 
- 
-        setWarehouseSearchTerm(data.warehouse_name || ''); 
-        setEmployeeSearchTerm(data.received_by || ''); 
-         
-        if (data.purchase_order_id) { 
-          setPOSearchTerm(`PO-${String(data.purchase_order_id).padStart(5, '0')}`); 
-        } else { 
-          setPOSearchTerm(''); 
-        } 
-         
-        if (isService && customerName) { 
-          setCustomerSearchTerm(customerName); 
-        } else { 
-          setCustomerSearchTerm(''); 
-        } 
-         
-        if (!isService && supplierName) { 
-          setSupplierSearchTerm(supplierName); 
-        } else { 
-          setSupplierSearchTerm(''); 
-        } 
-      } 
-    } catch (err) { 
-      console.error('Error fetching GRN:', err); 
-      setApiError('Failed to load GRN data'); 
-    } finally { 
-      setLoading(false); 
-    } 
-  }; 
- 
+          deliveryCharge: toNumber(data.delivery_charge),
+          items: items,
+        });
+
+        setWarehouseSearchTerm(data.warehouse_name || '');
+        setEmployeeSearchTerm(data.received_by || '');
+
+        if (data.purchase_order_id) {
+          setPOSearchTerm(`PO-${String(data.purchase_order_id).padStart(5, '0')}`);
+        } else {
+          setPOSearchTerm('');
+        }
+
+        if (isService && customerName) {
+          setCustomerSearchTerm(customerName);
+        } else {
+          setCustomerSearchTerm('');
+        }
+
+        if (!isService && supplierName) {
+          setSupplierSearchTerm(supplierName);
+        } else {
+          setSupplierSearchTerm('');
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching GRN:', err);
+      setApiError('Failed to load GRN data');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // ─── Validation ────────────────────────────────────────────────────── 
-  const getAllValidationErrors = (): ValidationError[] => { 
+  const getAllValidationErrors = (): ValidationError[] => {
     if (isViewMode) return [];
-    
-    const allErrors: ValidationError[] = []; 
- 
-    if (formData.isService) { 
-      if (!(formData.customer || '').trim()) { 
-        allErrors.push({ field: 'customer', label: 'Customer', message: 'Customer is required' }); 
-      } 
-    } else { 
-      if (!(formData.supplier || '').trim()) { 
-        allErrors.push({ field: 'supplier', label: 'Supplier', message: 'Supplier is required' }); 
-      } 
-      if (formData.entryMode === 'supplier' && !(formData.purchaseOrder || '').trim()) { 
-        allErrors.push({ field: 'purchaseOrder', label: 'Purchase Order', message: 'Purchase Order is required' }); 
-      } 
-    } 
- 
-    if (!formData.warehouseId && !(formData.warehouse || '').trim()) { 
-      allErrors.push({ field: 'warehouse', label: 'Warehouse', message: 'Warehouse is required' }); 
-    } 
- 
-    if (!(formData.receivedBy || '').trim()) { 
-      allErrors.push({ field: 'receivedBy', label: 'Received By', message: 'Received By is required' }); 
-    } 
- 
-    if (!formData.freeDelivery && (!formData.deliveryCharge || toNumber(formData.deliveryCharge) <= 0)) { 
-      allErrors.push({ field: 'deliveryCharge', label: 'Delivery Charge', message: 'Enter the amount paid for delivery, or mark delivery as free' }); 
-    } 
- 
-    if (formData.items.length === 0) { 
-      allErrors.push({ field: 'items', label: 'Items', message: 'At least one item is required' }); 
-    } 
- 
-    formData.items.forEach((item, index) => { 
-      if (!(item.itemCode || '').trim()) { 
-        allErrors.push({ field: `items[${index}].itemCode`, label: `Item ${index + 1} Code`, message: 'Item code is required' }); 
-      } 
-      if (!(item.itemName || '').trim()) { 
-        allErrors.push({ field: `items[${index}].itemName`, label: `Item ${index + 1} Name`, message: 'Item name is required' }); 
-      } 
-      if (!Number.isFinite(item.receivedQty) || item.receivedQty <= 0) { 
-        allErrors.push({ 
-          field: `items[${index}].receivedQty`, 
-          label: `Item ${index + 1} Received Qty`, 
-          message: 'Received quantity must be greater than 0' 
-        }); 
-      } 
-      if (item.rejectedQty < 0) { 
-        allErrors.push({ field: `items[${index}].rejectedQty`, label: `Item ${index + 1} Rejected Qty`, message: 'Rejected quantity cannot be negative' }); 
-      } 
-      if (item.rejectedQty > item.receivedQty) { 
-        allErrors.push({ field: `items[${index}].rejectedQty`, label: `Item ${index + 1} Quantities`, message: 'Rejected cannot exceed Received quantity' }); 
-      } 
-      if (!item.taxId) { 
-        allErrors.push({ field: `items[${index}].taxId`, label: `Item ${index + 1} GST`, message: 'GST/Tax type is required' }); 
-      } 
-    }); 
- 
-    return allErrors; 
-  }; 
- 
+
+    const allErrors: ValidationError[] = [];
+
+    if (formData.isService) {
+      if (!(formData.customer || '').trim()) {
+        allErrors.push({ field: 'customer', label: 'Customer', message: 'Customer is required' });
+      }
+    } else {
+      if (!(formData.supplier || '').trim()) {
+        allErrors.push({ field: 'supplier', label: 'Supplier', message: 'Supplier is required' });
+      }
+      if (formData.entryMode === 'supplier' && !(formData.purchaseOrder || '').trim()) {
+        allErrors.push({ field: 'purchaseOrder', label: 'Purchase Order', message: 'Purchase Order is required' });
+      }
+    }
+
+    if (!formData.warehouseId && !(formData.warehouse || '').trim()) {
+      allErrors.push({ field: 'warehouse', label: 'Warehouse', message: 'Warehouse is required' });
+    }
+
+    if (!(formData.receivedBy || '').trim()) {
+      allErrors.push({ field: 'receivedBy', label: 'Received By', message: 'Received By is required' });
+    }
+
+    if (!formData.freeDelivery && (!formData.deliveryCharge || toNumber(formData.deliveryCharge) <= 0)) {
+      allErrors.push({ field: 'deliveryCharge', label: 'Delivery Charge', message: 'Enter the amount paid for delivery, or mark delivery as free' });
+    }
+
+    if (formData.items.length === 0) {
+      allErrors.push({ field: 'items', label: 'Items', message: 'At least one item is required' });
+    }
+
+    formData.items.forEach((item, index) => {
+      if (!(item.itemCode || '').trim()) {
+        allErrors.push({ field: `items[${index}].itemCode`, label: `Item ${index + 1} Code`, message: 'Item code is required' });
+      }
+      if (!(item.itemName || '').trim()) {
+        allErrors.push({ field: `items[${index}].itemName`, label: `Item ${index + 1} Name`, message: 'Item name is required' });
+      }
+      if (!Number.isFinite(item.receivedQty) || item.receivedQty <= 0) {
+        allErrors.push({
+          field: `items[${index}].receivedQty`,
+          label: `Item ${index + 1} Received Qty`,
+          message: 'Received quantity must be greater than 0'
+        });
+      }
+      if (item.rejectedQty < 0) {
+        allErrors.push({ field: `items[${index}].rejectedQty`, label: `Item ${index + 1} Rejected Qty`, message: 'Rejected quantity cannot be negative' });
+      }
+      if (item.rejectedQty > item.receivedQty) {
+        allErrors.push({ field: `items[${index}].rejectedQty`, label: `Item ${index + 1} Quantities`, message: 'Rejected cannot exceed Received quantity' });
+      }
+      if (!item.taxId) {
+        allErrors.push({ field: `items[${index}].taxId`, label: `Item ${index + 1} GST`, message: 'GST/Tax type is required' });
+      }
+    });
+
+    return allErrors;
+  };
+
   // ─── Handlers ──────────────────────────────────────────────────────── 
-  const handleFieldChange = (field: keyof GRNData, value: any) => { 
-    if (isViewMode) return; 
-    
+  const handleFieldChange = (field: keyof GRNData, value: any) => {
+    if (isViewMode) return;
+
     // Ensure deliveryCharge is always stored as a number to prevent 
     // "toFixed is not a function" crashes and string concatenation issues.
     let processedValue = value;
@@ -1705,509 +1705,509 @@ export default function GRNForm() {
       processedValue = value === '' || isNaN(Number(value)) ? 0 : Number(value);
     }
 
-    setFormData(prev => ({ ...prev, [field]: processedValue })); 
-    setIsDirty(true); 
-    if (errors[field]) { 
-      setErrors(prev => { 
-        const newErrors = { ...prev }; 
-        delete newErrors[field]; 
-        return newErrors; 
-      }); 
-    } 
-  }; 
- 
-  const handleServiceToggle = (checked: boolean) => { 
+    setFormData(prev => ({ ...prev, [field]: processedValue }));
+    setIsDirty(true);
+    if (errors[field]) {
+      setErrors(prev => {
+        const newErrors = { ...prev };
+        delete newErrors[field];
+        return newErrors;
+      });
+    }
+  };
+
+  const handleServiceToggle = (checked: boolean) => {
     if (isViewMode) return;
-    if (formData.items.length > 0 || formData.supplier || formData.customer || formData.purchaseOrder) { 
-      setPendingServiceToggle(checked); 
-      setShowServiceToggleConfirm(true); 
-    } else { 
-      applyServiceToggle(checked); 
-    } 
-  }; 
- 
-  const applyServiceToggle = (checked: boolean) => { 
+    if (formData.items.length > 0 || formData.supplier || formData.customer || formData.purchaseOrder) {
+      setPendingServiceToggle(checked);
+      setShowServiceToggleConfirm(true);
+    } else {
+      applyServiceToggle(checked);
+    }
+  };
+
+  const applyServiceToggle = (checked: boolean) => {
     if (isViewMode) return;
-    setFormData(prev => ({ 
-      ...prev, 
-      isService: checked, 
-      entryMode: checked ? 'manual' : 'supplier', 
-      supplier: '', 
-      supplierId: undefined, 
-      purchaseOrder: '', 
-      purchaseOrderId: undefined, 
-      customer: '', 
-      customerId: undefined, 
-      items: [], 
-    })); 
-    if (checked) { 
-      setPOSearchTerm(''); 
-      setSupplierSearchTerm(''); 
-    } else { 
-      setCustomerSearchTerm(''); 
-    } 
-    setIsDirty(true); 
-    setShowServiceToggleConfirm(false); 
-  }; 
- 
-  const handleEntryModeChange = (mode: EntryMode) => { 
+    setFormData(prev => ({
+      ...prev,
+      isService: checked,
+      entryMode: checked ? 'manual' : 'supplier',
+      supplier: '',
+      supplierId: undefined,
+      purchaseOrder: '',
+      purchaseOrderId: undefined,
+      customer: '',
+      customerId: undefined,
+      items: [],
+    }));
+    if (checked) {
+      setPOSearchTerm('');
+      setSupplierSearchTerm('');
+    } else {
+      setCustomerSearchTerm('');
+    }
+    setIsDirty(true);
+    setShowServiceToggleConfirm(false);
+  };
+
+  const handleEntryModeChange = (mode: EntryMode) => {
     if (isViewMode) return;
-    setFormData(prev => ({ 
-      ...prev, 
-      entryMode: mode, 
-      items: [], 
-      purchaseOrder: mode === 'supplier' ? prev.purchaseOrder : '', 
-      purchaseOrderId: mode === 'supplier' ? prev.purchaseOrderId : undefined, 
-    })); 
-    if (mode !== 'supplier') { 
-      setPOSearchTerm(''); 
-    } 
-    setIsDirty(true); 
-  }; 
- 
-  const handleWarehouseSelect = (warehouse: Warehouse) => { 
+    setFormData(prev => ({
+      ...prev,
+      entryMode: mode,
+      items: [],
+      purchaseOrder: mode === 'supplier' ? prev.purchaseOrder : '',
+      purchaseOrderId: mode === 'supplier' ? prev.purchaseOrderId : undefined,
+    }));
+    if (mode !== 'supplier') {
+      setPOSearchTerm('');
+    }
+    setIsDirty(true);
+  };
+
+  const handleWarehouseSelect = (warehouse: Warehouse) => {
     if (isViewMode) return;
-    setFormData(prev => ({  
-      ...prev,  
-      warehouse: warehouse.warehouse_name, 
-      warehouseId: warehouse.id 
-    })); 
-    setWarehouseSearchTerm(warehouse.warehouse_name); 
-    setShowWarehouseDropdown(false); 
-    setIsDirty(true); 
-  }; 
- 
-  const handleEmployeeSelect = (employee: Employee) => { 
+    setFormData(prev => ({
+      ...prev,
+      warehouse: warehouse.warehouse_name,
+      warehouseId: warehouse.id
+    }));
+    setWarehouseSearchTerm(warehouse.warehouse_name);
+    setShowWarehouseDropdown(false);
+    setIsDirty(true);
+  };
+
+  const handleEmployeeSelect = (employee: Employee) => {
     if (isViewMode) return;
-    setFormData(prev => ({  
-      ...prev,  
-      receivedBy: employee.employee_name, 
-      receivedById: employee.id 
-    })); 
-    setEmployeeSearchTerm(employee.employee_name); 
-    setShowEmployeeDropdown(false); 
-    setIsDirty(true); 
-  }; 
- 
-  const handleCustomerSelect = (customer: Customer) => { 
+    setFormData(prev => ({
+      ...prev,
+      receivedBy: employee.employee_name,
+      receivedById: employee.id
+    }));
+    setEmployeeSearchTerm(employee.employee_name);
+    setShowEmployeeDropdown(false);
+    setIsDirty(true);
+  };
+
+  const handleCustomerSelect = (customer: Customer) => {
     if (isViewMode) return;
-    setFormData(prev => ({ 
-      ...prev, 
-      customer: customer.customer_name, 
-      customerId: customer.id, 
-    })); 
-    setCustomerSearchTerm(customer.customer_name); 
-    setShowCustomerDropdown(false); 
-    setIsDirty(true); 
-  }; 
- 
-  const handleSupplierSelect = (supplier: Supplier) => { 
+    setFormData(prev => ({
+      ...prev,
+      customer: customer.customer_name,
+      customerId: customer.id,
+    }));
+    setCustomerSearchTerm(customer.customer_name);
+    setShowCustomerDropdown(false);
+    setIsDirty(true);
+  };
+
+  const handleSupplierSelect = (supplier: Supplier) => {
     if (isViewMode) return;
-    setFormData(prev => ({ 
-      ...prev, 
-      supplier: supplier.supplier_name, 
-      supplierId: supplier.id, 
-      purchaseOrder: '', 
-      purchaseOrderId: undefined, 
-    })); 
-    setSupplierSearchTerm(supplier.supplier_name); 
-    setShowSupplierDropdown(false); 
-    setPOSearchTerm(''); 
-    setPOCurrentPage(1); 
-    setIsDirty(true); 
-    if (formData.entryMode === 'supplier') { 
-      fetchPurchaseOrders(); 
-    } 
-  }; 
- 
-  const handlePOSelect = (po: PurchaseOrder) => { 
+    setFormData(prev => ({
+      ...prev,
+      supplier: supplier.supplier_name,
+      supplierId: supplier.id,
+      purchaseOrder: '',
+      purchaseOrderId: undefined,
+    }));
+    setSupplierSearchTerm(supplier.supplier_name);
+    setShowSupplierDropdown(false);
+    setPOSearchTerm('');
+    setPOCurrentPage(1);
+    setIsDirty(true);
+    if (formData.entryMode === 'supplier') {
+      fetchPurchaseOrders();
+    }
+  };
+
+  const handlePOSelect = (po: PurchaseOrder) => {
     if (isViewMode) return;
-    const poName = getPODisplayName(po); 
-    setPOSearchTerm(''); 
+    const poName = getPODisplayName(po);
+    setPOSearchTerm('');
     setIsPOFocused(false);
-    setFormData(prev => ({ 
-      ...prev, 
-      purchaseOrder: poName, 
-      purchaseOrderId: po.id, 
-      supplier: po.supplier_name || '', 
-      supplierId: po.supplier ? parseInt(po.supplier) || prev.supplierId : prev.supplierId, 
-    })); 
-    setSupplierSearchTerm(po.supplier_name || ''); 
-    setShowPODropdown(false); 
-    fetchPurchaseOrderDetail(po.id); 
-  }; 
- 
-  const handleItemChange = (index: number, field: keyof GRNItem, value: any) => { 
+    setFormData(prev => ({
+      ...prev,
+      purchaseOrder: poName,
+      purchaseOrderId: po.id,
+      supplier: po.supplier_name || '',
+      supplierId: po.supplier ? parseInt(po.supplier) || prev.supplierId : prev.supplierId,
+    }));
+    setSupplierSearchTerm(po.supplier_name || '');
+    setShowPODropdown(false);
+    fetchPurchaseOrderDetail(po.id);
+  };
+
+  const handleItemChange = (index: number, field: keyof GRNItem, value: any) => {
     if (isViewMode) return;
-    const updatedItems = [...formData.items]; 
-    updatedItems[index] = { ...updatedItems[index], [field]: value }; 
-    setFormData(prev => ({ ...prev, items: updatedItems })); 
-    setIsDirty(true); 
-  }; 
- 
-  const filterItems = (index: number, searchTerm: string) => { 
+    const updatedItems = [...formData.items];
+    updatedItems[index] = { ...updatedItems[index], [field]: value };
+    setFormData(prev => ({ ...prev, items: updatedItems }));
+    setIsDirty(true);
+  };
+
+  const filterItems = (index: number, searchTerm: string) => {
     if (isViewMode) return;
-    let filtered = allItems.length > 0 ? allItems : itemsMaster; 
-     
-    if (itemGroupFilter !== 'all') { 
-      filtered = filtered.filter(item => item.item_group === itemGroupFilter); 
-    } 
-     
-    if (searchTerm && searchTerm.length >= 1) { 
-      const term = searchTerm.toLowerCase().trim(); 
-      filtered = filtered.filter(item =>  
-        (item.item_code || '').toLowerCase().includes(term) || 
-        (item.item_name || '').toLowerCase().includes(term) || 
-        (item.item_group && item.item_group.toLowerCase().includes(term)) || 
-        (item.description && item.description.toLowerCase().includes(term)) 
-      ); 
-    } 
-     
-    setFilteredItems(prev => ({ ...prev, [index]: filtered })); 
-    setShowSuggestions(prev => ({ ...prev, [index]: filtered.length > 0 || searchTerm.trim().length > 0 })); 
-     
-    if (inputRefs.current[index]) { 
-      updateDropdownPosition(index); 
-    } 
-  }; 
- 
-  const openItemDropdown = (index: number) => { 
+    let filtered = allItems.length > 0 ? allItems : itemsMaster;
+
+    if (itemGroupFilter !== 'all') {
+      filtered = filtered.filter(item => item.item_group === itemGroupFilter);
+    }
+
+    if (searchTerm && searchTerm.length >= 1) {
+      const term = searchTerm.toLowerCase().trim();
+      filtered = filtered.filter(item =>
+        (item.item_code || '').toLowerCase().includes(term) ||
+        (item.item_name || '').toLowerCase().includes(term) ||
+        (item.item_group && item.item_group.toLowerCase().includes(term)) ||
+        (item.description && item.description.toLowerCase().includes(term))
+      );
+    }
+
+    setFilteredItems(prev => ({ ...prev, [index]: filtered }));
+    setShowSuggestions(prev => ({ ...prev, [index]: filtered.length > 0 || searchTerm.trim().length > 0 }));
+
+    if (inputRefs.current[index]) {
+      updateDropdownPosition(index);
+    }
+  };
+
+  const openItemDropdown = (index: number) => {
     if (isViewMode) return;
-    updateDropdownPosition(index); 
-    const currentItem = formData.items[index]; 
- 
-    if (currentItem?.itemId) { 
-      filterItems(index, ''); 
-    } else { 
-      const searchVal = searchTerms[index] || currentItem?.itemCode || ''; 
-      filterItems(index, searchVal); 
-    } 
-  }; 
- 
-  const handleItemSearch = (index: number, value: string) => { 
+    updateDropdownPosition(index);
+    const currentItem = formData.items[index];
+
+    if (currentItem?.itemId) {
+      filterItems(index, '');
+    } else {
+      const searchVal = searchTerms[index] || currentItem?.itemCode || '';
+      filterItems(index, searchVal);
+    }
+  };
+
+  const handleItemSearch = (index: number, value: string) => {
     if (isViewMode) return;
-    setSearchTerms(prev => ({ ...prev, [index]: value })); 
- 
-    const updatedItems = [...formData.items]; 
-    updatedItems[index] = {  
-      ...updatedItems[index],  
-      itemCode: value  
-    }; 
-    setFormData(prev => ({ ...prev, items: updatedItems })); 
-    setIsDirty(true); 
- 
-    if (!value.trim()) { 
-      updatedItems[index] = { 
-        ...updatedItems[index], 
-        itemId: undefined, 
-        itemCode: '', 
-        itemName: '', 
-        uom: 'NOS', 
-        rate: 0, 
-        remarks: '', 
-        hsn: '', 
-        taxId: undefined, 
-        taxType: undefined, 
-        taxRate: 0, 
-        isDraft: true, 
-      }; 
-      setFormData(prev => ({ ...prev, items: updatedItems })); 
-      setDigitValues(prev => ({ 
-        ...prev, 
-        [index]: { ...prev[index], receivedQty: '0', rate: '0', rejectedQty: '0' } 
-      })); 
-      setShowSuggestions(prev => ({ ...prev, [index]: false })); 
- 
-      let filtered = allItems.length > 0 ? allItems : itemsMaster; 
-      if (itemGroupFilter !== 'all') { 
-        filtered = filtered.filter(item => item.item_group === itemGroupFilter); 
-      } 
-      setFilteredItems(prev => ({ 
-        ...prev, 
-        [index]: filtered, 
-      })); 
-      return; 
-    } 
-     
-    filterItems(index, value); 
-  }; 
- 
-  const handleSelectItem = (index: number, item: ItemMaster) => { 
+    setSearchTerms(prev => ({ ...prev, [index]: value }));
+
+    const updatedItems = [...formData.items];
+    updatedItems[index] = {
+      ...updatedItems[index],
+      itemCode: value
+    };
+    setFormData(prev => ({ ...prev, items: updatedItems }));
+    setIsDirty(true);
+
+    if (!value.trim()) {
+      updatedItems[index] = {
+        ...updatedItems[index],
+        itemId: undefined,
+        itemCode: '',
+        itemName: '',
+        uom: 'NOS',
+        rate: 0,
+        remarks: '',
+        hsn: '',
+        taxId: undefined,
+        taxType: undefined,
+        taxRate: 0,
+        isDraft: true,
+      };
+      setFormData(prev => ({ ...prev, items: updatedItems }));
+      setDigitValues(prev => ({
+        ...prev,
+        [index]: { ...prev[index], receivedQty: '0', rate: '0', rejectedQty: '0' }
+      }));
+      setShowSuggestions(prev => ({ ...prev, [index]: false }));
+
+      let filtered = allItems.length > 0 ? allItems : itemsMaster;
+      if (itemGroupFilter !== 'all') {
+        filtered = filtered.filter(item => item.item_group === itemGroupFilter);
+      }
+      setFilteredItems(prev => ({
+        ...prev,
+        [index]: filtered,
+      }));
+      return;
+    }
+
+    filterItems(index, value);
+  };
+
+  const handleSelectItem = (index: number, item: ItemMaster) => {
     if (isViewMode) return;
-    const updatedItems = [...formData.items]; 
-    const rate = item.standard_rate || item.valuation_rate || 0; 
-    const taxInfo = resolveTaxInfo(item); 
- 
-    updatedItems[index] = { 
-      ...updatedItems[index], 
-      itemId: item.id, 
-      itemCode: item.item_code, 
-      itemName: item.item_name, 
-      uom: item.stock_uom || 'NOS', 
-      rate: rate, 
-      receivedQty: updatedItems[index]?.receivedQty !== undefined && updatedItems[index]?.receivedQty !== 0 ? updatedItems[index]?.receivedQty : 1, 
-      taxId: taxInfo.taxId || item.tax_id || undefined, 
-      taxType: taxInfo.taxType, 
-      taxRate: taxInfo.taxRate || 0, 
-      hsn: item.HSN || (item as any).hsn || (item as any).hsn_code || (item as any).hsn_number || (item as any).item_hsn || (item as any).gst_hsn_code || '', 
-      isDraft: true, 
-    }; 
-    setFormData(prev => ({ ...prev, items: updatedItems })); 
-    setDigitValues(prev => ({ 
-      ...prev, 
-      [index]: { 
-        ...prev[index], 
-        rate: String(rate), 
-      } 
-    })); 
-    setSearchTerms(prev => ({ ...prev, [index]: item.item_code })); 
-    setShowSuggestions(prev => ({ ...prev, [index]: false })); 
-    setShowItemDropdown(false); 
-    setItemSearch(''); 
-    setSelectedItemRowIndex(null); 
-    setIsDirty(true); 
-  }; 
- 
-  const handleClearItem = (index: number) => { 
+    const updatedItems = [...formData.items];
+    const rate = item.standard_rate || item.valuation_rate || 0;
+    const taxInfo = resolveTaxInfo(item);
+
+    updatedItems[index] = {
+      ...updatedItems[index],
+      itemId: item.id,
+      itemCode: item.item_code,
+      itemName: item.item_name,
+      uom: item.stock_uom || 'NOS',
+      rate: rate,
+      receivedQty: updatedItems[index]?.receivedQty !== undefined && updatedItems[index]?.receivedQty !== 0 ? updatedItems[index]?.receivedQty : 1,
+      taxId: taxInfo.taxId || item.tax_id || undefined,
+      taxType: taxInfo.taxType,
+      taxRate: taxInfo.taxRate || 0,
+      hsn: item.HSN || (item as any).hsn || (item as any).hsn_code || (item as any).hsn_number || (item as any).item_hsn || (item as any).gst_hsn_code || '',
+      isDraft: true,
+    };
+    setFormData(prev => ({ ...prev, items: updatedItems }));
+    setDigitValues(prev => ({
+      ...prev,
+      [index]: {
+        ...prev[index],
+        rate: String(rate),
+      }
+    }));
+    setSearchTerms(prev => ({ ...prev, [index]: item.item_code }));
+    setShowSuggestions(prev => ({ ...prev, [index]: false }));
+    setShowItemDropdown(false);
+    setItemSearch('');
+    setSelectedItemRowIndex(null);
+    setIsDirty(true);
+  };
+
+  const handleClearItem = (index: number) => {
     if (isViewMode) return;
-    handleItemSearch(index, ''); 
-  }; 
- 
-  const handleDigitReceivedQtyChange = (index: number, val: number | string) => { 
+    handleItemSearch(index, '');
+  };
+
+  const handleDigitReceivedQtyChange = (index: number, val: number | string) => {
     if (isViewMode) return;
-    const valStr = String(val); 
-    const num = parseFloat(valStr) || 0; 
-    setDigitValues(prev => ({ 
-      ...prev, 
-      [index]: { ...prev[index], receivedQty: valStr } 
-    })); 
-    handleItemChange(index, 'receivedQty', num); 
-  }; 
- 
-  const handleDigitRejectedQtyChange = (index: number, val: number | string) => { 
+    const valStr = String(val);
+    const num = parseFloat(valStr) || 0;
+    setDigitValues(prev => ({
+      ...prev,
+      [index]: { ...prev[index], receivedQty: valStr }
+    }));
+    handleItemChange(index, 'receivedQty', num);
+  };
+
+  const handleDigitRejectedQtyChange = (index: number, val: number | string) => {
     if (isViewMode) return;
-    const valStr = String(val); 
-    const num = parseFloat(valStr) || 0; 
-    setDigitValues(prev => ({ 
-      ...prev, 
-      [index]: { ...prev[index], rejectedQty: valStr } 
-    })); 
-    handleItemChange(index, 'rejectedQty', num); 
-  }; 
- 
-  const handleDigitRateChange = (index: number, val: number | string) => { 
+    const valStr = String(val);
+    const num = parseFloat(valStr) || 0;
+    setDigitValues(prev => ({
+      ...prev,
+      [index]: { ...prev[index], rejectedQty: valStr }
+    }));
+    handleItemChange(index, 'rejectedQty', num);
+  };
+
+  const handleDigitRateChange = (index: number, val: number | string) => {
     if (isViewMode) return;
-    const valStr = String(val); 
-    const num = parseFloat(valStr) || 0; 
-    setDigitValues(prev => ({ 
-      ...prev, 
-      [index]: { ...prev[index], rate: valStr } 
-    })); 
-    handleItemChange(index, 'rate', num); 
-  }; 
- 
-  const resetNewItemForm = () => { 
-    setNewItem({ 
-      item_name: '', 
-      item_code: '', 
-      item_group: '', 
-      stock_uom: 'NOS', 
-      standard_rate: '', 
-      valuation_rate: '', 
-      description: '', 
-      tax_id: '', 
-      quantity: '1', 
-    }); 
-  }; 
- 
-  const handleCreateNewItem = async (e?: React.FormEvent) => { 
+    const valStr = String(val);
+    const num = parseFloat(valStr) || 0;
+    setDigitValues(prev => ({
+      ...prev,
+      [index]: { ...prev[index], rate: valStr }
+    }));
+    handleItemChange(index, 'rate', num);
+  };
+
+  const resetNewItemForm = () => {
+    setNewItem({
+      item_name: '',
+      item_code: '',
+      item_group: '',
+      stock_uom: 'NOS',
+      standard_rate: '',
+      valuation_rate: '',
+      description: '',
+      tax_id: '',
+      quantity: '1',
+    });
+  };
+
+  const handleCreateNewItem = async (e?: React.FormEvent) => {
     if (isViewMode) return;
-    if (e) e.preventDefault(); 
-    if (!newItem.item_name.trim()) { 
-      toast.error('Item name is required'); 
-      return; 
-    } 
-    setAddingItem(true); 
-    try { 
-      const generatedCode = newItem.item_code.trim() || `ITEM-${Date.now().toString().slice(-6)}`; 
-      const payload = { 
-        item_name: newItem.item_name.trim(), 
-        item_code: generatedCode, 
-        item_group: newItem.item_group.trim() || 'Raw Material', 
-        stock_uom: newItem.stock_uom.trim() || 'NOS', 
-        standard_rate: parseFloat(newItem.standard_rate) || 0, 
-        valuation_rate: parseFloat(newItem.valuation_rate) || parseFloat(newItem.standard_rate) || 0, 
-        description: newItem.description.trim() || '', 
-        tax_id: newItem.tax_id ? parseInt(newItem.tax_id) : undefined, 
-        is_purchase_item: 1, 
-      }; 
- 
-      const response = await api.post('/item', payload); 
-      if (response.data && response.data.success === 1) { 
-        toast.success('Item created successfully'); 
-        const newItemId = response.data.data?.id || response.data.data?.insertId; 
-         
-        const updatedList = await fetchItemsMaster(); 
-         
-        if (activeRowIndex !== null) { 
-          const createdItem = updatedList.find(i => i.id === newItemId || i.item_code === generatedCode); 
-          if (createdItem) { 
-            handleSelectItem(activeRowIndex, createdItem); 
-            const qtyNum = parseFloat(newItem.quantity) || 1; 
-            handleDigitReceivedQtyChange(activeRowIndex, qtyNum); 
-          } 
-        } 
-        setShowAddItemPopup(false); 
-        resetNewItemForm(); 
-        setPendingItemSearch(''); 
-        setActiveRowIndex(null); 
-      } else { 
-        toast.error(response.data?.message || 'Failed to create item'); 
-      } 
-    } catch (err: any) { 
-      console.error('Error creating item:', err); 
-      if (err.response?.status === 409) { 
-        toast.error('An item with this code already exists'); 
-      } else { 
-        toast.error(err.response?.data?.message || 'Failed to create item'); 
-      } 
-    } finally { 
-      setAddingItem(false); 
-    } 
-  }; 
- 
-  const handleItemTaxChange = (index: number, taxId: number) => { 
+    if (e) e.preventDefault();
+    if (!newItem.item_name.trim()) {
+      toast.error('Item name is required');
+      return;
+    }
+    setAddingItem(true);
+    try {
+      const generatedCode = newItem.item_code.trim() || `ITEM-${Date.now().toString().slice(-6)}`;
+      const payload = {
+        item_name: newItem.item_name.trim(),
+        item_code: generatedCode,
+        item_group: newItem.item_group.trim() || 'Raw Material',
+        stock_uom: newItem.stock_uom.trim() || 'NOS',
+        standard_rate: parseFloat(newItem.standard_rate) || 0,
+        valuation_rate: parseFloat(newItem.valuation_rate) || parseFloat(newItem.standard_rate) || 0,
+        description: newItem.description.trim() || '',
+        tax_id: newItem.tax_id ? parseInt(newItem.tax_id) : undefined,
+        is_purchase_item: 1,
+      };
+
+      const response = await api.post('/item', payload);
+      if (response.data && response.data.success === 1) {
+        toast.success('Item created successfully');
+        const newItemId = response.data.data?.id || response.data.data?.insertId;
+
+        const updatedList = await fetchItemsMaster();
+
+        if (activeRowIndex !== null) {
+          const createdItem = updatedList.find(i => i.id === newItemId || i.item_code === generatedCode);
+          if (createdItem) {
+            handleSelectItem(activeRowIndex, createdItem);
+            const qtyNum = parseFloat(newItem.quantity) || 1;
+            handleDigitReceivedQtyChange(activeRowIndex, qtyNum);
+          }
+        }
+        setShowAddItemPopup(false);
+        resetNewItemForm();
+        setPendingItemSearch('');
+        setActiveRowIndex(null);
+      } else {
+        toast.error(response.data?.message || 'Failed to create item');
+      }
+    } catch (err: any) {
+      console.error('Error creating item:', err);
+      if (err.response?.status === 409) {
+        toast.error('An item with this code already exists');
+      } else {
+        toast.error(err.response?.data?.message || 'Failed to create item');
+      }
+    } finally {
+      setAddingItem(false);
+    }
+  };
+
+  const handleItemTaxChange = (index: number, taxId: number) => {
     if (isViewMode) return;
-    const tax = taxTypes.find(t => t.tax_id === taxId); 
-    const { rate } = extractTaxInfo(tax?.tax_type); 
-    const updatedItems = [...formData.items]; 
-    updatedItems[index] = { 
-      ...updatedItems[index], 
-      taxId: taxId, 
-      taxType: tax?.tax_type, 
-      taxRate: rate, 
-    }; 
-    setFormData(prev => ({ ...prev, items: updatedItems })); 
-    setIsDirty(true); 
-  }; 
- 
-  const addItem = () => { 
+    const tax = taxTypes.find(t => t.tax_id === taxId);
+    const { rate } = extractTaxInfo(tax?.tax_type);
+    const updatedItems = [...formData.items];
+    updatedItems[index] = {
+      ...updatedItems[index],
+      taxId: taxId,
+      taxType: tax?.tax_type,
+      taxRate: rate,
+    };
+    setFormData(prev => ({ ...prev, items: updatedItems }));
+    setIsDirty(true);
+  };
+
+  const addItem = () => {
     if (isViewMode) return;
-    const newIdx = formData.items.length; 
-    const newItem: GRNItem = { 
-      id: Date.now().toString(), 
-      itemCode: '', 
-      itemName: '', 
-      orderedQty: 0, 
-      receivedQty: 0, 
-      rejectedQty: 0, 
-      uom: 'NOS', 
-      rate: 0, 
-      remarks: '', 
-      taxRate: 0, 
-      hsn: '', 
-      isDraft: true, 
-    }; 
-    setFormData(prev => ({ ...prev, items: [...prev.items, newItem] })); 
-    setFilteredItems(prev => ({ ...prev, [newIdx]: allItems.length > 0 ? allItems : itemsMaster })); 
-    setIsDirty(true); 
-  }; 
- 
-  const removeItem = (index: number) => { 
+    const newIdx = formData.items.length;
+    const newItem: GRNItem = {
+      id: Date.now().toString(),
+      itemCode: '',
+      itemName: '',
+      orderedQty: 0,
+      receivedQty: 0,
+      rejectedQty: 0,
+      uom: 'NOS',
+      rate: 0,
+      remarks: '',
+      taxRate: 0,
+      hsn: '',
+      isDraft: true,
+    };
+    setFormData(prev => ({ ...prev, items: [...prev.items, newItem] }));
+    setFilteredItems(prev => ({ ...prev, [newIdx]: allItems.length > 0 ? allItems : itemsMaster }));
+    setIsDirty(true);
+  };
+
+  const removeItem = (index: number) => {
     if (isViewMode) return;
-    setFormData(prev => ({ 
-      ...prev, 
-      items: prev.items.filter((_, i) => i !== index) 
-    })); 
-    setShowSuggestions(prev => { 
-      const next = { ...prev }; 
-      delete next[index]; 
-      return next; 
-    }); 
-    setIsDirty(true); 
-  }; 
- 
+    setFormData(prev => ({
+      ...prev,
+      items: prev.items.filter((_, i) => i !== index)
+    }));
+    setShowSuggestions(prev => {
+      const next = { ...prev };
+      delete next[index];
+      return next;
+    });
+    setIsDirty(true);
+  };
+
   // ─── Bill Totals ────────────────────────────────────────────────────── 
-  const billTotals = formData.items.reduce( 
-    (acc, item) => { 
-      const { amount, sgst, cgst, total } = computeItemAmounts(item); 
-      acc.subtotal += amount; 
-      acc.sgst += sgst; 
-      acc.cgst += cgst; 
-      acc.itemsTotal += total; 
-      return acc; 
-    }, 
-    { subtotal: 0, sgst: 0, cgst: 0, itemsTotal: 0 } 
-  ); 
+  const billTotals = formData.items.reduce(
+    (acc, item) => {
+      const { amount, sgst, cgst, total } = computeItemAmounts(item);
+      acc.subtotal += amount;
+      acc.sgst += sgst;
+      acc.cgst += cgst;
+      acc.itemsTotal += total;
+      return acc;
+    },
+    { subtotal: 0, sgst: 0, cgst: 0, itemsTotal: 0 }
+  );
   // ✅ FIX: use toNumber() so deliveryChargeAmount is ALWAYS a number —
   //    previously it could be a string (from DigitInput) and .toFixed() crashed.
-  const deliveryChargeAmount = formData.freeDelivery 
-    ? 0 
-    : toNumber(formData.deliveryCharge); 
-  const grandTotal = toNumber(billTotals.itemsTotal) + deliveryChargeAmount; 
- 
+  const deliveryChargeAmount = formData.freeDelivery
+    ? 0
+    : toNumber(formData.deliveryCharge);
+  const grandTotal = toNumber(billTotals.itemsTotal) + deliveryChargeAmount;
+
   // ─── Get draft items ────────────────────────────────────────────────── 
-  const draftItems = formData.items.filter(item => item.isDraft === true); 
- 
+  const draftItems = formData.items.filter(item => item.isDraft === true);
+
   // ─── Inventory Sync ─────────────────────────────────────────────────── 
-  const postInventoryForItems = async (items: GRNItem[]) => { 
+  const postInventoryForItems = async (items: GRNItem[]) => {
     if (isViewMode) return;
-    const inventoryType = formData.isService ? 'External' : 'Internal'; 
-    const role = getUserRole(); 
- 
-    const grnId = isEditMode && id ? parseInt(id) : undefined; 
-    const grnNumber = isEditMode ? formData.grn_number : undefined; 
- 
-    const results = await Promise.allSettled( 
-      items.map((item) => { 
-        const resolvedItemId = resolveItemMasterId(item); 
- 
-        const payload = { 
-          item_Id: resolvedItemId, 
-          item_code: item.itemCode, 
-          warehouse_Id: formData.warehouseId, 
-          actual_qty: item.receivedQty || 0, 
-          ordered_qty: item.orderedQty || item.receivedQty || 0, 
-          stock_uom: item.uom, 
-          company: company, 
-          valuation_rate: item.rate || 0, 
-          modified_by: role?.name, 
-          type: inventoryType, 
-          grn_id: grnId, 
-          grn_number: grnNumber, 
-        }; 
- 
-        if (!resolvedItemId) { 
-          console.warn( 
-            `Could not resolve Item Master id for item_code "${item.itemCode}" — sending inventory entry without item_Id.` 
-          ); 
-        } 
- 
-        return api.post('/inventory', payload); 
-      }) 
-    ); 
- 
-    const failed = results.filter(r => r.status === 'rejected'); 
-    if (failed.length > 0) { 
-      console.error(`Failed to post ${failed.length} of ${items.length} inventory entries`, failed); 
-    } 
-  }; 
- 
+    const inventoryType = formData.isService ? 'External' : 'Internal';
+    const role = getUserRole();
+
+    const grnId = isEditMode && id ? parseInt(id) : undefined;
+    const grnNumber = isEditMode ? formData.grn_number : undefined;
+
+    const results = await Promise.allSettled(
+      items.map((item) => {
+        const resolvedItemId = resolveItemMasterId(item);
+
+        const payload = {
+          item_Id: resolvedItemId,
+          item_code: item.itemCode,
+          warehouse_Id: formData.warehouseId,
+          actual_qty: item.receivedQty || 0,
+          ordered_qty: item.orderedQty || item.receivedQty || 0,
+          stock_uom: item.uom,
+          company: company,
+          valuation_rate: item.rate || 0,
+          modified_by: role?.name,
+          type: inventoryType,
+          grn_id: grnId,
+          grn_number: grnNumber,
+        };
+
+        if (!resolvedItemId) {
+          console.warn(
+            `Could not resolve Item Master id for item_code "${item.itemCode}" — sending inventory entry without item_Id.`
+          );
+        }
+
+        return api.post('/inventory', payload);
+      })
+    );
+
+    const failed = results.filter(r => r.status === 'rejected');
+    if (failed.length > 0) {
+      console.error(`Failed to post ${failed.length} of ${items.length} inventory entries`, failed);
+    }
+  };
+
   // ─── Print ──────────────────────────────────────────────────────────── 
-  const handlePrint = () => { 
-    const printWindow = window.open('', '_blank', 'width=900,height=1000'); 
-    if (!printWindow) { 
-      setApiError('Please allow pop-ups to print this document.'); 
-      return; 
-    } 
- 
-    const partyRows = formData.isService 
+  const handlePrint = () => {
+    const printWindow = window.open('', '_blank', 'width=900,height=1000');
+    if (!printWindow) {
+      setApiError('Please allow pop-ups to print this document.');
+      return;
+    }
+
+    const partyRows = formData.isService
       ? ` 
         <tr><td class="label">Customer</td><td>${escapeHtml(formData.customer || '-')}</td></tr> 
         <tr><td class="label">Mobile</td><td>${escapeHtml(selectedCustomer?.mobile_no || '-')}</td></tr> 
         <tr><td class="label">Email</td><td>${escapeHtml(selectedCustomer?.email_id || '-')}</td></tr> 
         <tr><td class="label">Warehouse</td><td>${escapeHtml(formData.warehouse || '-')}</td></tr> 
-      ` 
+      `
       : ` 
         <tr><td class="label">Supplier</td><td>${escapeHtml(formData.supplier || '-')}</td></tr> 
         <tr><td class="label">Mobile</td><td>${escapeHtml(selectedSupplier?.mobile_no || '-')}</td></tr> 
@@ -2215,10 +2215,10 @@ export default function GRNForm() {
         <tr><td class="label">Country</td><td>${escapeHtml(selectedSupplier?.country || '-')}</td></tr> 
         <tr><td class="label">Purchase Order</td><td>${escapeHtml(formData.entryMode === 'supplier' ? (formData.purchaseOrder || '-') : 'Manual Entry')}</td></tr> 
         <tr><td class="label">Warehouse</td><td>${escapeHtml(formData.warehouse || '-')}</td></tr> 
-      `; 
- 
-    const itemRows = formData.items.map((item, idx) => { 
-      const { sgst, cgst, total, gstPercent } = computeItemAmounts(item); 
+      `;
+
+    const itemRows = formData.items.map((item, idx) => {
+      const { sgst, cgst, total, gstPercent } = computeItemAmounts(item);
       return ` 
         <tr> 
           <td>${idx + 1}</td> 
@@ -2233,9 +2233,9 @@ export default function GRNForm() {
           <td class="num">${cgst.toFixed(2)}</td> 
           <td class="num">${total.toFixed(2)}</td> 
         </tr> 
-      `; 
-    }).join(''); 
- 
+      `;
+    }).join('');
+
     const html = ` 
       <!DOCTYPE html> 
       <html> 
@@ -2297,876 +2297,876 @@ export default function GRNForm() {
         </table> 
       </body> 
       </html> 
-    `; 
- 
-    printWindow.document.open(); 
-    printWindow.document.write(html); 
-    printWindow.document.close(); 
-    printWindow.focus(); 
-    setTimeout(() => { 
-      printWindow.print(); 
-    }, 300); 
-  }; 
- 
+    `;
+
+    printWindow.document.open();
+    printWindow.document.write(html);
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => {
+      printWindow.print();
+    }, 300);
+  };
+
   // ─── Save Handler ────────────────────────────────────────────────── 
-  const handleSave = async (e: FormEvent<HTMLFormElement>) => { 
+  const handleSave = async (e: FormEvent<HTMLFormElement>) => {
     if (isViewMode) {
       navigate('/grn');
       return;
     }
-    
-    e.preventDefault(); 
+
+    e.preventDefault();
 
     // ✅ FIX: Guard against re-entrant submits.
     if (submitting) return;
 
-    setApiError(null); 
- 
-    const validationErrorsList = getAllValidationErrors(); 
-    if (validationErrorsList.length > 0) { 
-      setValidationErrors(validationErrorsList); 
-      setShowValidationSummary(true); 
-      return; 
-    } 
- 
-    setSubmitting(true); 
-    try { 
-      let grnType = 'Internal'; 
-      if (formData.isService) { 
-        grnType = 'External'; 
-      } else if (formData.entryMode === 'supplier') { 
-        grnType = 'Internal'; 
-      } else { 
-        grnType = 'Internal'; 
-      } 
- 
-      const payload: any = { 
-        grn_number: formData.grn_number || `GRN-${Date.now()}`, 
-        grn_date: formData.grnDate, 
-        is_service: formData.isService ? 1 : 0, 
-        entry_mode: formData.entryMode, 
-        type: grnType, 
-        status: 'submitted', 
-        received_by: formData.receivedBy, 
-        received_by_id: formData.receivedById, 
-        warehouse_id: formData.warehouseId, 
-        warehouse_name: formData.warehouse, 
-        vehicle_number: formData.vehicleNo || null, 
-        delivery_challan_no: formData.deliveryChallanNo || '', 
-        invoice_number: formData.invoiceNo || null, 
-        is_free_delivery: formData.freeDelivery ? 1 : 0, 
+    setApiError(null);
+
+    const validationErrorsList = getAllValidationErrors();
+    if (validationErrorsList.length > 0) {
+      setValidationErrors(validationErrorsList);
+      setShowValidationSummary(true);
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      let grnType = 'Internal';
+      if (formData.isService) {
+        grnType = 'External';
+      } else if (formData.entryMode === 'supplier') {
+        grnType = 'Internal';
+      } else {
+        grnType = 'Internal';
+      }
+
+      const payload: any = {
+        grn_number: formData.grn_number || `GRN-${Date.now()}`,
+        grn_date: formData.grnDate,
+        is_service: formData.isService ? 1 : 0,
+        entry_mode: formData.entryMode,
+        type: grnType,
+        status: 'submitted',
+        received_by: formData.receivedBy,
+        received_by_id: formData.receivedById,
+        warehouse_id: formData.warehouseId,
+        warehouse_name: formData.warehouse,
+        vehicle_number: formData.vehicleNo || null,
+        delivery_challan_no: formData.deliveryChallanNo || '',
+        invoice_number: formData.invoiceNo || null,
+        is_free_delivery: formData.freeDelivery ? 1 : 0,
         // ✅ FIX: always send a number
-        delivery_charge: deliveryChargeAmount, 
-        items: formData.items.map(item => { 
-          const { amount, sgst, cgst, total } = computeItemAmounts(item); 
-          return { 
-            item_code: item.itemCode, 
-            item_name: item.itemName, 
-            ordered_qty: item.orderedQty || 0, 
-            received_qty: item.receivedQty || 0, 
-            rejected_qty: item.rejectedQty || 0, 
-            uom: item.uom || '', 
-            rate: item.rate || 0, 
-            purchase_rate: item.rate, 
-            remarks: item.remarks || null, 
-            item_id: resolveItemMasterId(item), 
-            tax_id: item.taxId, 
-            tax_type: item.taxType, 
-            item_tax_template: item.taxType || item.taxRate ? `${item.taxType || 'GST'} ${item.taxRate || 0}%` : '', 
-            hsn: item.hsn || '', 
-            amount: amount, 
-            sgst_amount: sgst, 
-            cgst_amount: cgst, 
-            item_total: total, 
-          }; 
-        }), 
-        subtotal: billTotals.subtotal, 
-        total_sgst: billTotals.sgst, 
-        total_cgst: billTotals.cgst, 
-        grand_total: grandTotal, 
-      }; 
- 
-      if (formData.isService) { 
-        payload.customer_id = formData.customerId; 
-        payload.customer_name = formData.customer; 
-      } else { 
-        payload.supplier_id = formData.supplierId; 
-        payload.supplier_name = formData.supplier; 
-        payload.purchase_order_id = formData.entryMode === 'supplier' ? formData.purchaseOrderId : undefined; 
-      } 
- 
-      let response; 
-      let isUpdate = false; 
-       
-      const editId = id && id !== 'new' && id !== 'view' ? parseInt(id) : null; 
- 
-      if (editId && !isNaN(editId) && isEditMode) { 
-        payload.id = editId; 
-        console.log('🔄 Updating GRN with ID:', editId); 
-        response = await api.put(`/grn`, payload); 
-        isUpdate = true; 
-      } else { 
-        console.log('✨ Creating new GRN'); 
-        response = await api.post('/grn', payload); 
-        isUpdate = false; 
-      } 
- 
-      if (response.data && response.data.success === 1) { 
-        console.log('GRN saved successfully:', response.data); 
-        setIsDirty(false); 
-        const generatedNumber = response.data?.data?.grn_number || payload.grn_number; 
-        setSavedGrnNumber(generatedNumber); 
-        setIsUpdateMode(isUpdate); 
- 
-        await postInventoryForItems(formData.items); 
- 
-        setShowSuccessModal(true); 
-      } else { 
-        setApiError(response.data?.message || 'Failed to save GRN'); 
-      } 
-    } catch (err: any) { 
-      console.error('Error saving GRN:', err); 
- 
-      if (err.response) { 
-        if (err.response.status === 409) { 
-          setApiError('A GRN with this number already exists'); 
-        } else if (err.response.status === 400) { 
-          setApiError(err.response.data?.message || 'Invalid data provided'); 
-        } else { 
-          setApiError(err.response.data?.message || 'Failed to save GRN'); 
-        } 
-      } else if (err.request) { 
-        setApiError('Network error. Please check your connection.'); 
-      } else { 
-        setApiError('An unexpected error occurred. Please try again.'); 
-      } 
-    } finally { 
-      setSubmitting(false); 
-    } 
-  }; 
- 
-  const handleSuccessModalOk = () => { 
-    setShowSuccessModal(false); 
-    navigate('/grn'); 
-  }; 
- 
-  const hasErrors = !isViewMode && getAllValidationErrors().length > 0; 
- 
-  const getPOStatusBadgeClass = (status: string) => { 
-    const safeStatus = (status || '').toLowerCase(); 
-    switch (safeStatus) { 
-      case 'draft': return 'grn-status-draft'; 
-      case 'submitted': return 'grn-status-submitted'; 
-      case 'partially received': return 'grn-status-partial'; 
-      case 'fully received': return 'grn-status-completed'; 
-      case 'cancelled': return 'grn-status-rejected'; 
-      case 'closed': return 'grn-status-closed'; 
-      default: return 'grn-status-draft'; 
-    } 
-  }; 
- 
+        delivery_charge: deliveryChargeAmount,
+        items: formData.items.map(item => {
+          const { amount, sgst, cgst, total } = computeItemAmounts(item);
+          return {
+            item_code: item.itemCode,
+            item_name: item.itemName,
+            ordered_qty: item.orderedQty || 0,
+            received_qty: item.receivedQty || 0,
+            rejected_qty: item.rejectedQty || 0,
+            uom: item.uom || '',
+            rate: item.rate || 0,
+            purchase_rate: item.rate,
+            remarks: item.remarks || null,
+            item_id: resolveItemMasterId(item),
+            tax_id: item.taxId,
+            tax_type: item.taxType,
+            item_tax_template: item.taxType || item.taxRate ? `${item.taxType || 'GST'} ${item.taxRate || 0}%` : '',
+            hsn: item.hsn || '',
+            amount: amount,
+            sgst_amount: sgst,
+            cgst_amount: cgst,
+            item_total: total,
+          };
+        }),
+        subtotal: billTotals.subtotal,
+        total_sgst: billTotals.sgst,
+        total_cgst: billTotals.cgst,
+        grand_total: grandTotal,
+      };
+
+      if (formData.isService) {
+        payload.customer_id = formData.customerId;
+        payload.customer_name = formData.customer;
+      } else {
+        payload.supplier_id = formData.supplierId;
+        payload.supplier_name = formData.supplier;
+        payload.purchase_order_id = formData.entryMode === 'supplier' ? formData.purchaseOrderId : undefined;
+      }
+
+      let response;
+      let isUpdate = false;
+
+      const editId = id && id !== 'new' && id !== 'view' ? parseInt(id) : null;
+
+      if (editId && !isNaN(editId) && isEditMode) {
+        payload.id = editId;
+        console.log('🔄 Updating GRN with ID:', editId);
+        response = await api.put(`/grn`, payload);
+        isUpdate = true;
+      } else {
+        console.log('✨ Creating new GRN');
+        response = await api.post('/grn', payload);
+        isUpdate = false;
+      }
+
+      if (response.data && response.data.success === 1) {
+        console.log('GRN saved successfully:', response.data);
+        setIsDirty(false);
+        const generatedNumber = response.data?.data?.grn_number || payload.grn_number;
+        setSavedGrnNumber(generatedNumber);
+        setIsUpdateMode(isUpdate);
+
+        await postInventoryForItems(formData.items);
+
+        setShowSuccessModal(true);
+      } else {
+        setApiError(response.data?.message || 'Failed to save GRN');
+      }
+    } catch (err: any) {
+      console.error('Error saving GRN:', err);
+
+      if (err.response) {
+        if (err.response.status === 409) {
+          setApiError('A GRN with this number already exists');
+        } else if (err.response.status === 400) {
+          setApiError(err.response.data?.message || 'Invalid data provided');
+        } else {
+          setApiError(err.response.data?.message || 'Failed to save GRN');
+        }
+      } else if (err.request) {
+        setApiError('Network error. Please check your connection.');
+      } else {
+        setApiError('An unexpected error occurred. Please try again.');
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleSuccessModalOk = () => {
+    setShowSuccessModal(false);
+    navigate('/grn');
+  };
+
+  const hasErrors = !isViewMode && getAllValidationErrors().length > 0;
+
+  const getPOStatusBadgeClass = (status: string) => {
+    const safeStatus = (status || '').toLowerCase();
+    switch (safeStatus) {
+      case 'draft': return 'grn-status-draft';
+      case 'submitted': return 'grn-status-submitted';
+      case 'partially received': return 'grn-status-partial';
+      case 'fully received': return 'grn-status-completed';
+      case 'cancelled': return 'grn-status-rejected';
+      case 'closed': return 'grn-status-closed';
+      default: return 'grn-status-draft';
+    }
+  };
+
   // ─── Render Add Item Popup ───────────────────────────────────────── 
-  const renderAddItemPopup = () => { 
-    if (!showAddItemPopup) return null; 
- 
-    return ( 
-      <div  
-        className="pof-modal-overlay"  
-        onClick={() => { 
-          setShowAddItemPopup(false); 
-          resetNewItemForm(); 
-          setPendingItemSearch(''); 
-          setActiveRowIndex(null); 
-        }} 
-        style={{ 
-          position: 'fixed', 
-          top: 0, 
-          left: 0, 
-          right: 0, 
-          bottom: 0, 
-          background: 'rgba(0, 0, 0, 0.5)', 
-          display: 'flex', 
-          alignItems: 'center', 
-          justifyContent: 'center', 
-          zIndex: 10000, 
-          padding: '20px', 
-        }} 
-      > 
-        <div  
-          className="pof-modal-content"  
-          onClick={(e) => e.stopPropagation()} 
-          style={{ 
-            background: theme === 'dark-theme' ? '#1e1e2f' : '#ffffff', 
-            borderRadius: '12px', 
-            width: '100%', 
-            maxWidth: '650px', 
-            maxHeight: '90vh', 
-            display: 'flex', 
-            flexDirection: 'column', 
-            boxShadow: '0 20px 60px rgba(0,0,0,0.3)', 
-            overflow: 'hidden', 
-          }} 
-        > 
-          <div className="pof-modal-header" style={{ 
-            padding: '16px 20px', 
-            borderBottom: `1px solid ${theme === 'dark-theme' ? '#2a2a3a' : '#e5e7eb'}`, 
-            display: 'flex', 
-            alignItems: 'center', 
-            justifyContent: 'space-between', 
-          }}> 
-            <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 600, color: theme === 'dark-theme' ? '#e5e7eb' : '#111827' }}> 
-              Add New Item 
-            </h3> 
-            <button  
+  const renderAddItemPopup = () => {
+    if (!showAddItemPopup) return null;
+
+    return (
+      <div
+        className="pof-modal-overlay"
+        onClick={() => {
+          setShowAddItemPopup(false);
+          resetNewItemForm();
+          setPendingItemSearch('');
+          setActiveRowIndex(null);
+        }}
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 10000,
+          padding: '20px',
+        }}
+      >
+        <div
+          className="pof-modal-content"
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            background: theme === 'dark-theme' ? '#1e1e2f' : '#ffffff',
+            borderRadius: '12px',
+            width: '100%',
+            maxWidth: '650px',
+            maxHeight: '90vh',
+            display: 'flex',
+            flexDirection: 'column',
+            boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+            overflow: 'hidden',
+          }}
+        >
+          <div className="pof-modal-header" style={{
+            padding: '16px 20px',
+            borderBottom: `1px solid ${theme === 'dark-theme' ? '#2a2a3a' : '#e5e7eb'}`,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+          }}>
+            <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 600, color: theme === 'dark-theme' ? '#e5e7eb' : '#111827' }}>
+              Add New Item
+            </h3>
+            <button
               type="button"
-              className="pof-modal-close-btn" 
-              onClick={() => { 
-                setShowAddItemPopup(false); 
-                resetNewItemForm(); 
-                setPendingItemSearch(''); 
-                setActiveRowIndex(null); 
-              }} 
-              style={{ 
-                background: 'transparent', 
-                border: 'none', 
-                fontSize: '20px', 
-                cursor: 'pointer', 
-                color: theme === 'dark-theme' ? '#9ca3af' : '#6b7280', 
-              }} 
-            > 
-              × 
-            </button> 
-          </div> 
-          <div className="pof-modal-body" style={{   
-            padding: '24px 20px', 
-            overflowY: 'auto', 
-            maxHeight: 'calc(90vh - 140px)', 
-          }}> 
-            <p className="pof-modal-subtitle" style={{ color: '#6b7280', fontSize: '13px', marginBottom: '16px' }}> 
-              Fill in the item details below. Fields marked with <span style={{ color: '#ef4444' }}>*</span> are required. 
-            </p> 
- 
-            <div style={{   
-              display: 'grid',   
-              gridTemplateColumns: '1fr 1fr', 
-              gap: '16px 20px', 
-            }}> 
-              <div className="pof-popup-field" style={{ marginBottom: '0', gridColumn: '1 / -1' }}> 
-                <label style={{   
-                  display: 'block',   
-                  fontSize: '13px',   
-                  fontWeight: 500, 
-                  marginBottom: '4px', 
-                  color: theme === 'dark-theme' ? '#e5e7eb' : '#374151' 
-                }}> 
-                  Item Name <span style={{ color: '#ef4444' }}>*</span> 
-                </label> 
-                <input 
-                  type="text" 
-                  value={newItem.item_name} 
-                  onChange={(e) => setNewItem(prev => ({ ...prev, item_name: e.target.value }))} 
-                  placeholder="e.g. Cotton Yarn 40s" 
-                  className="pof-form-field" 
-                  autoFocus 
-                  style={{ 
-                    width: '100%', 
-                    padding: '8px 12px', 
-                    border: `1px solid ${String(theme) === 'dark' ? '#3a3a4a' : '#d1d5db'}`, 
-                    borderRadius: '6px', 
-                    fontSize: '14px', 
-                    background: theme === 'dark-theme' ? '#2a2a3a' : '#ffffff', 
-                    color: theme === 'dark-theme' ? '#e5e7eb' : '#111827', 
-                  }} 
-                /> 
-                <span style={{ fontSize: '11px', color: '#6b7280' }}>Alphabets, digits, and spaces are allowed</span> 
-              </div> 
- 
-              <div className="pof-popup-field" style={{ marginBottom: '0' }}> 
-                <label style={{   
-                  display: 'block',   
-                  fontSize: '13px',   
-                  fontWeight: 500, 
-                  marginBottom: '4px', 
-                  color: theme === 'dark-theme' ? '#e5e7eb' : '#374151' 
-                }}> 
-                  Item Code 
-                </label> 
-                <input 
-                  type="text" 
-                  value={newItem.item_code} 
-                  onChange={(e) => setNewItem(prev => ({ ...prev, item_code: e.target.value.toUpperCase().replace(/[^a-zA-Z0-9\-]/g, "") }))} 
-                  placeholder="Auto-generated if left empty" 
-                  className="pof-form-field" 
-                  style={{ 
-                    width: '100%', 
-                    padding: '8px 12px', 
-                    border: `1px solid ${theme === 'dark-theme' ? '#3a3a4a' : '#d1d5db'}`, 
-                    borderRadius: '6px', 
-                    fontSize: '14px', 
-                    background: theme === 'dark-theme' ? '#2a2a3a' : '#ffffff', 
-                    color: theme === 'dark-theme' ? '#e5e7eb' : '#111827', 
-                  }} 
-                /> 
-                <span style={{ fontSize: '11px', color: '#6b7280' }}>Alphabets, digits, and hyphens are allowed. Auto-generated from name if empty.</span> 
-              </div> 
- 
-              <div className="pof-popup-field" style={{ marginBottom: '0' }}> 
-                <label style={{   
-                  display: 'block', 
-                  fontSize: '13px', 
-                  fontWeight: 500, 
-                  marginBottom: '4px', 
-                  color: theme === 'dark-theme' ? '#e5e7eb' : '#374151' 
-                }}> 
-                  Item Group <span style={{ color: '#ef4444' }}>*</span> 
-                </label> 
-                <input 
-                  type="text" 
-                  value={newItem.item_group} 
-                  onChange={(e) => setNewItem(prev => ({ ...prev, item_group: e.target.value }))} 
-                  placeholder="e.g. Raw Material, Finished Goods" 
-                  className="pof-form-field" 
-                  style={{ 
-                    width: '100%', 
-                    padding: '8px 12px', 
-                    border: `1px solid ${theme === 'dark-theme' ? '#3a3a4a' : '#d1d5db'}`, 
-                    borderRadius: '6px', 
-                    fontSize: '14px', 
-                    background: theme === 'dark-theme' ? '#2a2a3a' : '#ffffff', 
-                    color: theme === 'dark-theme' ? '#e5e7eb' : '#111827', 
-                  }} 
-                /> 
-                <span style={{ fontSize: '11px', color: '#6b7280' }}>Only alphabets and spaces are allowed</span> 
-              </div> 
- 
-              <div className="pof-popup-field" style={{ marginBottom: '0' }}> 
-                <label style={{   
-                  display: 'block', 
-                  fontSize: '13px', 
-                  fontWeight: 500, 
-                  marginBottom: '4px', 
-                  color: theme === 'dark-theme' ? '#e5e7eb' : '#374151' 
-                }}> 
-                  Default UOM <span style={{ color: '#ef4444' }}>*</span> 
-                </label> 
-                <input 
-                  type="text" 
-                  value={newItem.stock_uom} 
-                  onChange={(e) => setNewItem(prev => ({ ...prev, stock_uom: e.target.value }))} 
-                  placeholder="e.g. NOS, Kg, Meter" 
-                  className="pof-form-field" 
-                  style={{ 
-                    width: '100%', 
-                    padding: '8px 12px', 
-                    border: `1px solid ${theme === 'dark-theme' ? '#3a3a4a' : '#d1d5db'}`, 
-                    borderRadius: '6px', 
-                    fontSize: '14px', 
-                    background: theme === 'dark-theme' ? '#2a2a3a' : '#ffffff', 
-                    color: theme === 'dark-theme' ? '#e5e7eb' : '#111827', 
-                  }} 
-                /> 
-                <span style={{ fontSize: '11px', color: '#6b7280' }}>Alphabets, digits, and spaces are allowed</span> 
-              </div> 
- 
-              <div className="pof-popup-field" style={{ marginBottom: '0' }}> 
-                <label style={{   
-                  display: 'block', 
-                  fontSize: '13px', 
-                  fontWeight: 500, 
-                  marginBottom: '4px', 
-                  color: theme === 'dark-theme' ? '#e5e7eb' : '#374151' 
-                }}> 
-                  Tax 
-                </label> 
-                <select 
-                  value={newItem.tax_id} 
-                  onChange={(e) => setNewItem(prev => ({ ...prev, tax_id: e.target.value }))} 
-                  className="pof-form-field" 
-                  style={{ 
-                    width: '100%', 
-                    padding: '8px 12px', 
-                    border: `1px solid ${theme === 'dark-theme' ? '#3a3a4a' : '#d1d5db'}`, 
-                    borderRadius: '6px', 
-                    fontSize: '14px', 
-                    background: theme === 'dark-theme' ? '#2a2a3a' : '#ffffff', 
-                    color: theme === 'dark-theme' ? '#e5e7eb' : '#111827', 
-                  }} 
-                > 
-                  <option value="">Default Tax</option> 
-                  {taxTypes.map(tax => { 
-                    const { rate, category } = extractTaxInfo(tax.tax_type); 
-                    return ( 
-                      <option key={tax.tax_id} value={String(tax.tax_id)}> 
-                        {category} {rate}% 
-                      </option> 
-                    ); 
-                  })} 
-                </select> 
-              </div> 
- 
-              <div className="pof-popup-field" style={{ marginBottom: '0' }}> 
-                <label style={{   
-                  display: 'block', 
-                  fontSize: '13px', 
-                  fontWeight: 500, 
-                  marginBottom: '4px', 
-                  color: theme === 'dark-theme' ? '#e5e7eb' : '#374151' 
-                }}> 
-                  Quantity <span style={{ color: '#ef4444' }}>*</span> 
-                </label> 
-                <input 
-                  type="text" 
-                  inputMode="decimal" 
-                  pattern="[0-9]*[.]?[0-9]*" 
-                  value={newItem.quantity} 
-                  onChange={(e) => { 
-                    const val = e.target.value.replace(/[^0-9.]/g, ""); 
-                    setNewItem(prev => ({ ...prev, quantity: val })); 
-                  }} 
-                  placeholder="1" 
-                  className="pof-form-field" 
-                  style={{ 
-                    width: '100%', 
-                    padding: '8px 12px', 
-                    border: `1px solid ${theme === 'dark-theme' ? '#3a3a4a' : '#d1d5db'}`, 
-                    borderRadius: '6px', 
-                    fontSize: '14px', 
-                    background: theme === 'dark-theme' ? '#2a2a3a' : '#ffffff', 
-                    color: theme === 'dark-theme' ? '#e5e7eb' : '#111827', 
-                  }} 
-                /> 
-                <span style={{ fontSize: '11px', color: '#6b7280' }}>Quantity for this GRN line item</span> 
-              </div> 
- 
-              <div className="pof-popup-field" style={{ marginBottom: '0' }}> 
-                <label style={{   
-                  display: 'block', 
-                  fontSize: '13px', 
-                  fontWeight: 500, 
-                  marginBottom: '4px', 
-                  color: theme === 'dark-theme' ? '#e5e7eb' : '#374151' 
-                }}> 
-                  Purchase Rate (base price) 
-                </label> 
-                <input 
-                  type="text" 
-                  inputMode="decimal" 
-                  pattern="[0-9]*[.]?[0-9]*" 
-                  value={newItem.standard_rate} 
-                  onChange={(e) => { 
-                    const val = e.target.value.replace(/[^0-9.]/g, ""); 
-                    setNewItem(prev => ({ ...prev, standard_rate: val })); 
-                  }} 
-                  placeholder="0.00" 
-                  className="pof-form-field" 
-                  style={{ 
-                    width: '100%', 
-                    padding: '8px 12px', 
-                    border: `1px solid ${theme === 'dark-theme' ? '#3a3a4a' : '#d1d5db'}`, 
-                    borderRadius: '6px', 
-                    fontSize: '14px', 
-                    background: theme === 'dark-theme' ? '#2a2a3a' : '#ffffff', 
-                    color: theme === 'dark-theme' ? '#e5e7eb' : '#111827', 
-                  }} 
-                /> 
-                <span style={{ fontSize: '11px', color: '#6b7280' }}>The cost at which you purchase this item.</span> 
-              </div> 
- 
-              <div className="pof-popup-field" style={{ marginBottom: '0' }}> 
-                <label style={{   
-                  display: 'block', 
-                  fontSize: '13px', 
-                  fontWeight: 500, 
-                  marginBottom: '4px', 
-                  color: theme === 'dark-theme' ? '#e5e7eb' : '#374151' 
-                }}> 
-                  Valuation Rate 
-                </label> 
-                <input 
-                  type="text" 
-                  inputMode="decimal" 
-                  pattern="[0-9]*[.]?[0-9]*" 
-                  value={newItem.valuation_rate} 
-                  onChange={(e) => { 
-                    const val = e.target.value.replace(/[^0-9.]/g, ""); 
-                    setNewItem(prev => ({ ...prev, valuation_rate: val })); 
-                  }} 
-                  placeholder="0.00" 
-                  className="pof-form-field" 
-                  style={{ 
-                    width: '100%', 
-                    padding: '8px 12px', 
-                    border: `1px solid ${theme === 'dark-theme' ? '#3a3a4a' : '#d1d5db'}`, 
-                    borderRadius: '6px', 
-                    fontSize: '14px', 
-                    background: theme === 'dark-theme' ? '#2a2a3a' : '#ffffff', 
-                    color: theme === 'dark-theme' ? '#e5e7eb' : '#111827', 
-                  }} 
-                /> 
-                <span style={{ fontSize: '11px', color: '#6b7280' }}>The rate at which this item is valued. Used as Price Before Tax.</span> 
-              </div> 
- 
-              <div className="pof-popup-field" style={{ marginBottom: '0', gridColumn: '1 / -1' }}> 
-                <label style={{   
-                  display: 'block', 
-                  fontSize: '13px', 
-                  fontWeight: 500, 
-                  marginBottom: '4px', 
-                  color: theme === 'dark-theme' ? '#e5e7eb' : '#374151' 
-                }}> 
-                  Description 
-                </label> 
-                <input 
-                  type="text" 
-                  value={newItem.description} 
-                  onChange={(e) => setNewItem(prev => ({ ...prev, description: e.target.value }))} 
-                  placeholder="Item description" 
-                  className="pof-form-field" 
-                  style={{ 
-                    width: '100%', 
-                    padding: '8px 12px', 
-                    border: `1px solid ${theme === 'dark-theme' ? '#3a3a4a' : '#d1d5db'}`, 
-                    borderRadius: '6px', 
-                    fontSize: '14px', 
-                    background: theme === 'dark-theme' ? '#2a2a3a' : '#ffffff', 
-                    color: theme === 'dark-theme' ? '#e5e7eb' : '#111827', 
-                  }} 
-                /> 
-              </div> 
-            </div> 
-          </div> 
-          <div className="pof-modal-footer" style={{ 
-            padding: '16px 20px', 
-            borderTop: `1px solid ${theme === 'dark-theme' ? '#2a2a3a' : '#e5e7eb'}`, 
-            display: 'flex', 
-            justifyContent: 'flex-end', 
-            gap: '12px', 
-          }}> 
-            <button 
-              type="button" 
-              className="pof-btn-cancel" 
-              onClick={() => { 
-                setShowAddItemPopup(false); 
-                resetNewItemForm(); 
-                setPendingItemSearch(''); 
-                setActiveRowIndex(null); 
-              }} 
-              style={{ 
-                padding: '8px 16px', 
-                borderRadius: '6px', 
-                border: `1px solid ${theme === 'dark-theme' ? '#3a3a4a' : '#d1d5db'}`, 
-                background: 'transparent', 
-                color: theme === 'dark-theme' ? '#e5e7eb' : '#374151', 
-                cursor: 'pointer', 
-                fontWeight: 500, 
-              }} 
-            > 
-              Cancel 
-            </button> 
-            <button 
-              type="button" 
-              className="pof-btn-submit" 
-              onClick={() => handleCreateNewItem()} 
-              disabled={addingItem} 
-              style={{ 
-                padding: '8px 20px', 
-                borderRadius: '6px', 
-                border: 'none', 
-                background: '#6366f1', 
-                color: '#ffffff', 
-                cursor: 'pointer', 
-                fontWeight: 500, 
-                display: 'flex', 
-                alignItems: 'center', 
-                gap: '6px', 
-              }} 
-            > 
-              {addingItem && <FaSpinner className="pof-spinning" size={12} />} 
-              Create Item 
-            </button> 
-          </div> 
-        </div> 
-      </div> 
-    ); 
-  }; 
- 
- 
+              className="pof-modal-close-btn"
+              onClick={() => {
+                setShowAddItemPopup(false);
+                resetNewItemForm();
+                setPendingItemSearch('');
+                setActiveRowIndex(null);
+              }}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                fontSize: '20px',
+                cursor: 'pointer',
+                color: theme === 'dark-theme' ? '#9ca3af' : '#6b7280',
+              }}
+            >
+              ×
+            </button>
+          </div>
+          <div className="pof-modal-body" style={{
+            padding: '24px 20px',
+            overflowY: 'auto',
+            maxHeight: 'calc(90vh - 140px)',
+          }}>
+            <p className="pof-modal-subtitle" style={{ color: '#6b7280', fontSize: '13px', marginBottom: '16px' }}>
+              Fill in the item details below. Fields marked with <span style={{ color: '#ef4444' }}>*</span> are required.
+            </p>
+
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr',
+              gap: '16px 20px',
+            }}>
+              <div className="pof-popup-field" style={{ marginBottom: '0', gridColumn: '1 / -1' }}>
+                <label style={{
+                  display: 'block',
+                  fontSize: '13px',
+                  fontWeight: 500,
+                  marginBottom: '4px',
+                  color: theme === 'dark-theme' ? '#e5e7eb' : '#374151'
+                }}>
+                  Item Name <span style={{ color: '#ef4444' }}>*</span>
+                </label>
+                <input
+                  type="text"
+                  value={newItem.item_name}
+                  onChange={(e) => setNewItem(prev => ({ ...prev, item_name: e.target.value }))}
+                  placeholder="e.g. Cotton Yarn 40s"
+                  className="pof-form-field"
+                  autoFocus
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: `1px solid ${String(theme) === 'dark' ? '#3a3a4a' : '#d1d5db'}`,
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    background: theme === 'dark-theme' ? '#2a2a3a' : '#ffffff',
+                    color: theme === 'dark-theme' ? '#e5e7eb' : '#111827',
+                  }}
+                />
+                <span style={{ fontSize: '11px', color: '#6b7280' }}>Alphabets, digits, and spaces are allowed</span>
+              </div>
+
+              <div className="pof-popup-field" style={{ marginBottom: '0' }}>
+                <label style={{
+                  display: 'block',
+                  fontSize: '13px',
+                  fontWeight: 500,
+                  marginBottom: '4px',
+                  color: theme === 'dark-theme' ? '#e5e7eb' : '#374151'
+                }}>
+                  Item Code
+                </label>
+                <input
+                  type="text"
+                  value={newItem.item_code}
+                  onChange={(e) => setNewItem(prev => ({ ...prev, item_code: e.target.value.toUpperCase().replace(/[^a-zA-Z0-9\-]/g, "") }))}
+                  placeholder="Auto-generated if left empty"
+                  className="pof-form-field"
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: `1px solid ${theme === 'dark-theme' ? '#3a3a4a' : '#d1d5db'}`,
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    background: theme === 'dark-theme' ? '#2a2a3a' : '#ffffff',
+                    color: theme === 'dark-theme' ? '#e5e7eb' : '#111827',
+                  }}
+                />
+                <span style={{ fontSize: '11px', color: '#6b7280' }}>Alphabets, digits, and hyphens are allowed. Auto-generated from name if empty.</span>
+              </div>
+
+              <div className="pof-popup-field" style={{ marginBottom: '0' }}>
+                <label style={{
+                  display: 'block',
+                  fontSize: '13px',
+                  fontWeight: 500,
+                  marginBottom: '4px',
+                  color: theme === 'dark-theme' ? '#e5e7eb' : '#374151'
+                }}>
+                  Item Group <span style={{ color: '#ef4444' }}>*</span>
+                </label>
+                <input
+                  type="text"
+                  value={newItem.item_group}
+                  onChange={(e) => setNewItem(prev => ({ ...prev, item_group: e.target.value }))}
+                  placeholder="e.g. Raw Material, Finished Goods"
+                  className="pof-form-field"
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: `1px solid ${theme === 'dark-theme' ? '#3a3a4a' : '#d1d5db'}`,
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    background: theme === 'dark-theme' ? '#2a2a3a' : '#ffffff',
+                    color: theme === 'dark-theme' ? '#e5e7eb' : '#111827',
+                  }}
+                />
+                <span style={{ fontSize: '11px', color: '#6b7280' }}>Only alphabets and spaces are allowed</span>
+              </div>
+
+              <div className="pof-popup-field" style={{ marginBottom: '0' }}>
+                <label style={{
+                  display: 'block',
+                  fontSize: '13px',
+                  fontWeight: 500,
+                  marginBottom: '4px',
+                  color: theme === 'dark-theme' ? '#e5e7eb' : '#374151'
+                }}>
+                  Default UOM <span style={{ color: '#ef4444' }}>*</span>
+                </label>
+                <input
+                  type="text"
+                  value={newItem.stock_uom}
+                  onChange={(e) => setNewItem(prev => ({ ...prev, stock_uom: e.target.value }))}
+                  placeholder="e.g. NOS, Kg, Meter"
+                  className="pof-form-field"
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: `1px solid ${theme === 'dark-theme' ? '#3a3a4a' : '#d1d5db'}`,
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    background: theme === 'dark-theme' ? '#2a2a3a' : '#ffffff',
+                    color: theme === 'dark-theme' ? '#e5e7eb' : '#111827',
+                  }}
+                />
+                <span style={{ fontSize: '11px', color: '#6b7280' }}>Alphabets, digits, and spaces are allowed</span>
+              </div>
+
+              <div className="pof-popup-field" style={{ marginBottom: '0' }}>
+                <label style={{
+                  display: 'block',
+                  fontSize: '13px',
+                  fontWeight: 500,
+                  marginBottom: '4px',
+                  color: theme === 'dark-theme' ? '#e5e7eb' : '#374151'
+                }}>
+                  Tax
+                </label>
+                <select
+                  value={newItem.tax_id}
+                  onChange={(e) => setNewItem(prev => ({ ...prev, tax_id: e.target.value }))}
+                  className="pof-form-field"
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: `1px solid ${theme === 'dark-theme' ? '#3a3a4a' : '#d1d5db'}`,
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    background: theme === 'dark-theme' ? '#2a2a3a' : '#ffffff',
+                    color: theme === 'dark-theme' ? '#e5e7eb' : '#111827',
+                  }}
+                >
+                  <option value="">Default Tax</option>
+                  {taxTypes.map(tax => {
+                    const { rate, category } = extractTaxInfo(tax.tax_type);
+                    return (
+                      <option key={tax.tax_id} value={String(tax.tax_id)}>
+                        {category} {rate}%
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+
+              <div className="pof-popup-field" style={{ marginBottom: '0' }}>
+                <label style={{
+                  display: 'block',
+                  fontSize: '13px',
+                  fontWeight: 500,
+                  marginBottom: '4px',
+                  color: theme === 'dark-theme' ? '#e5e7eb' : '#374151'
+                }}>
+                  Quantity <span style={{ color: '#ef4444' }}>*</span>
+                </label>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  pattern="[0-9]*[.]?[0-9]*"
+                  value={newItem.quantity}
+                  onChange={(e) => {
+                    const val = e.target.value.replace(/[^0-9.]/g, "");
+                    setNewItem(prev => ({ ...prev, quantity: val }));
+                  }}
+                  placeholder="1"
+                  className="pof-form-field"
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: `1px solid ${theme === 'dark-theme' ? '#3a3a4a' : '#d1d5db'}`,
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    background: theme === 'dark-theme' ? '#2a2a3a' : '#ffffff',
+                    color: theme === 'dark-theme' ? '#e5e7eb' : '#111827',
+                  }}
+                />
+                <span style={{ fontSize: '11px', color: '#6b7280' }}>Quantity for this GRN line item</span>
+              </div>
+
+              <div className="pof-popup-field" style={{ marginBottom: '0' }}>
+                <label style={{
+                  display: 'block',
+                  fontSize: '13px',
+                  fontWeight: 500,
+                  marginBottom: '4px',
+                  color: theme === 'dark-theme' ? '#e5e7eb' : '#374151'
+                }}>
+                  Purchase Rate (base price)
+                </label>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  pattern="[0-9]*[.]?[0-9]*"
+                  value={newItem.standard_rate}
+                  onChange={(e) => {
+                    const val = e.target.value.replace(/[^0-9.]/g, "");
+                    setNewItem(prev => ({ ...prev, standard_rate: val }));
+                  }}
+                  placeholder="0.00"
+                  className="pof-form-field"
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: `1px solid ${theme === 'dark-theme' ? '#3a3a4a' : '#d1d5db'}`,
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    background: theme === 'dark-theme' ? '#2a2a3a' : '#ffffff',
+                    color: theme === 'dark-theme' ? '#e5e7eb' : '#111827',
+                  }}
+                />
+                <span style={{ fontSize: '11px', color: '#6b7280' }}>The cost at which you purchase this item.</span>
+              </div>
+
+              <div className="pof-popup-field" style={{ marginBottom: '0' }}>
+                <label style={{
+                  display: 'block',
+                  fontSize: '13px',
+                  fontWeight: 500,
+                  marginBottom: '4px',
+                  color: theme === 'dark-theme' ? '#e5e7eb' : '#374151'
+                }}>
+                  Valuation Rate
+                </label>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  pattern="[0-9]*[.]?[0-9]*"
+                  value={newItem.valuation_rate}
+                  onChange={(e) => {
+                    const val = e.target.value.replace(/[^0-9.]/g, "");
+                    setNewItem(prev => ({ ...prev, valuation_rate: val }));
+                  }}
+                  placeholder="0.00"
+                  className="pof-form-field"
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: `1px solid ${theme === 'dark-theme' ? '#3a3a4a' : '#d1d5db'}`,
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    background: theme === 'dark-theme' ? '#2a2a3a' : '#ffffff',
+                    color: theme === 'dark-theme' ? '#e5e7eb' : '#111827',
+                  }}
+                />
+                <span style={{ fontSize: '11px', color: '#6b7280' }}>The rate at which this item is valued. Used as Price Before Tax.</span>
+              </div>
+
+              <div className="pof-popup-field" style={{ marginBottom: '0', gridColumn: '1 / -1' }}>
+                <label style={{
+                  display: 'block',
+                  fontSize: '13px',
+                  fontWeight: 500,
+                  marginBottom: '4px',
+                  color: theme === 'dark-theme' ? '#e5e7eb' : '#374151'
+                }}>
+                  Description
+                </label>
+                <input
+                  type="text"
+                  value={newItem.description}
+                  onChange={(e) => setNewItem(prev => ({ ...prev, description: e.target.value }))}
+                  placeholder="Item description"
+                  className="pof-form-field"
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: `1px solid ${theme === 'dark-theme' ? '#3a3a4a' : '#d1d5db'}`,
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    background: theme === 'dark-theme' ? '#2a2a3a' : '#ffffff',
+                    color: theme === 'dark-theme' ? '#e5e7eb' : '#111827',
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+          <div className="pof-modal-footer" style={{
+            padding: '16px 20px',
+            borderTop: `1px solid ${theme === 'dark-theme' ? '#2a2a3a' : '#e5e7eb'}`,
+            display: 'flex',
+            justifyContent: 'flex-end',
+            gap: '12px',
+          }}>
+            <button
+              type="button"
+              className="pof-btn-cancel"
+              onClick={() => {
+                setShowAddItemPopup(false);
+                resetNewItemForm();
+                setPendingItemSearch('');
+                setActiveRowIndex(null);
+              }}
+              style={{
+                padding: '8px 16px',
+                borderRadius: '6px',
+                border: `1px solid ${theme === 'dark-theme' ? '#3a3a4a' : '#d1d5db'}`,
+                background: 'transparent',
+                color: theme === 'dark-theme' ? '#e5e7eb' : '#374151',
+                cursor: 'pointer',
+                fontWeight: 500,
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="pof-btn-submit"
+              onClick={() => handleCreateNewItem()}
+              disabled={addingItem}
+              style={{
+                padding: '8px 20px',
+                borderRadius: '6px',
+                border: 'none',
+                background: '#6366f1',
+                color: '#ffffff',
+                cursor: 'pointer',
+                fontWeight: 500,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+              }}
+            >
+              {addingItem && <FaSpinner className="pof-spinning" size={12} />}
+              Create Item
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+
   if (loading) {
     return (
       <div className={`grnf-page ${theme}`}>
         <div className="grnf-inner">
-          <PageLoader 
-            message="Loading GRN From..." 
+          <PageLoader
+            message="Loading GRN From..."
           />
         </div>
       </div>
     );
   }
- 
-  return ( 
-    <div className={`grnf-page ${theme}`}> 
-      <div className="grnf-inner"> 
- 
-        {renderAddItemPopup()} 
- 
-        {showSuccessModal && ( 
-          <div className="grnf-modal-overlay" onClick={() => setShowSuccessModal(false)}> 
-            <div className="grnf-success-modal" onClick={(e) => e.stopPropagation()}> 
-              <div className="grnf-success-icon-circle"> 
-                <FaCheckCircle size={48} /> 
-              </div> 
-              <h2>{isUpdateMode ? 'GRN Updated Successfully!' : 'GRN Created Successfully!'}</h2> 
-              <p className="grnf-success-message"> 
-                {isUpdateMode  
-                  ? 'Your Goods Receipt Note has been updated successfully.' 
-                  : 'Your Goods Receipt Note has been saved successfully.'} 
-              </p> 
-              <div className="grnf-success-grn-box"> 
-                <span className="grnf-success-label">GRN Number</span> 
-                <span className="grnf-success-number">{savedGrnNumber}</span> 
-              </div> 
-              <div className="grnf-success-actions"> 
-                <button  
+
+  return (
+    <div className={`grnf-page ${theme}`}>
+      <div className="grnf-inner">
+
+        {renderAddItemPopup()}
+
+        {showSuccessModal && (
+          <div className="grnf-modal-overlay" onClick={() => setShowSuccessModal(false)}>
+            <div className="grnf-success-modal" onClick={(e) => e.stopPropagation()}>
+              <div className="grnf-success-icon-circle">
+                <FaCheckCircle size={48} />
+              </div>
+              <h2>{isUpdateMode ? 'GRN Updated Successfully!' : 'GRN Created Successfully!'}</h2>
+              <p className="grnf-success-message">
+                {isUpdateMode
+                  ? 'Your Goods Receipt Note has been updated successfully.'
+                  : 'Your Goods Receipt Note has been saved successfully.'}
+              </p>
+              <div className="grnf-success-grn-box">
+                <span className="grnf-success-label">GRN Number</span>
+                <span className="grnf-success-number">{savedGrnNumber}</span>
+              </div>
+              <div className="grnf-success-actions">
+                <button
                   type="button"
-                  className="grnf-success-btn grnf-success-btn-primary"  
-                  onClick={handleSuccessModalOk} 
-                > 
-                  View All GRNs 
-                </button> 
-                <button  
+                  className="grnf-success-btn grnf-success-btn-primary"
+                  onClick={handleSuccessModalOk}
+                >
+                  View All GRNs
+                </button>
+                <button
                   type="button"
-                  className="grnf-success-btn grnf-success-btn-secondary"  
-                  onClick={() => setShowSuccessModal(false)} 
-                > 
-                  Continue Editing 
-                </button> 
-              </div> 
-            </div> 
-          </div> 
-        )} 
- 
-        {showServiceToggleConfirm && ( 
-          <div className="grnf-modal-overlay" onClick={() => setShowServiceToggleConfirm(false)}> 
-            <div className="grnf-confirm-modal" onClick={(e) => e.stopPropagation()}> 
-              <div className="grnf-confirm-icon"> 
-                <FaExclamationTriangle size={32} /> 
-              </div> 
-              <h3>Confirm Mode Change</h3> 
-              <p className="grnf-confirm-message"> 
-                Switching to <strong>{pendingServiceToggle ? 'Service' : 'Supplier'}</strong> mode will clear all current items and selections.  
-                This action cannot be undone. 
-              </p> 
-              <p className="grnf-confirm-warning">Are you sure you want to continue?</p> 
-              <div className="grnf-confirm-actions"> 
-                <button  
+                  className="grnf-success-btn grnf-success-btn-secondary"
+                  onClick={() => setShowSuccessModal(false)}
+                >
+                  Continue Editing
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showServiceToggleConfirm && (
+          <div className="grnf-modal-overlay" onClick={() => setShowServiceToggleConfirm(false)}>
+            <div className="grnf-confirm-modal" onClick={(e) => e.stopPropagation()}>
+              <div className="grnf-confirm-icon">
+                <FaExclamationTriangle size={32} />
+              </div>
+              <h3>Confirm Mode Change</h3>
+              <p className="grnf-confirm-message">
+                Switching to <strong>{pendingServiceToggle ? 'Service' : 'Supplier'}</strong> mode will clear all current items and selections.
+                This action cannot be undone.
+              </p>
+              <p className="grnf-confirm-warning">Are you sure you want to continue?</p>
+              <div className="grnf-confirm-actions">
+                <button
                   type="button"
-                  className="grnf-confirm-btn grnf-confirm-btn-cancel"  
-                  onClick={() => setShowServiceToggleConfirm(false)} 
-                > 
-                  No, Keep Current 
-                </button> 
-                <button  
+                  className="grnf-confirm-btn grnf-confirm-btn-cancel"
+                  onClick={() => setShowServiceToggleConfirm(false)}
+                >
+                  No, Keep Current
+                </button>
+                <button
                   type="button"
-                  className="grnf-confirm-btn grnf-confirm-btn-proceed"  
-                  onClick={() => applyServiceToggle(pendingServiceToggle)} 
-                > 
-                  Yes, Switch Mode 
-                </button> 
-              </div> 
-            </div> 
-          </div> 
-        )} 
- 
-        {showValidationSummary && validationErrors.length > 0 && ( 
-          <div className="grnf-modal-overlay" onClick={() => setShowValidationSummary(false)}> 
-            <div className="grnf-validation-modal" onClick={(e) => e.stopPropagation()}> 
-              <div className="grnf-modal-header"> 
-                <h2> 
-                  <FaExclamationTriangle /> Missing Required Fields 
-                </h2> 
-                <button type="button" className="grnf-modal-close" onClick={() => setShowValidationSummary(false)}>×</button> 
-              </div> 
-              <div className="grnf-modal-body"> 
-                <p className="grnf-modal-description"> 
-                  Please fill in the following required fields before submitting: 
-                </p> 
-                <div className="grnf-validation-errors-list"> 
-                  {validationErrors.map((error, idx) => ( 
-                    <div key={idx} className="grnf-validation-error-item"> 
-                      <div className="grnf-error-header"> 
-                        <FaTimesCircle className="grnf-error-icon" /> 
-                        <strong>{error.label}</strong> 
-                      </div> 
-                      <div className="grnf-error-message">{error.message}</div> 
-                    </div> 
-                  ))} 
-                </div> 
-                <div className="grnf-validation-tip"> 
-                  <FaInfoCircle className="grnf-tip-icon" /> 
-                  Please fix the errors above before submitting 
-                </div> 
-              </div> 
-              <div className="grnf-modal-footer"> 
-                <button type="button" className="grnf-btn-cancel" onClick={() => setShowValidationSummary(false)}> 
-                  Close 
-                </button> 
-              </div> 
-            </div> 
-          </div> 
-        )} 
- 
-        {apiError && ( 
-          <div className="grnf-api-error"> 
-            <FaExclamationCircle className="grnf-error-icon" /> 
-            <span>{apiError}</span> 
-            <button type="button" className="grnf-error-close" onClick={() => setApiError(null)}>×</button> 
-          </div> 
-        )} 
- 
-        <div className="grnf-header"> 
-          <button type="button" onClick={() => navigate('/grn')} className="grnf-back-btn"> 
-            <FaArrowLeft size={9} /> Back 
-          </button> 
-          <div className="grnf-header-title"> 
+                  className="grnf-confirm-btn grnf-confirm-btn-proceed"
+                  onClick={() => applyServiceToggle(pendingServiceToggle)}
+                >
+                  Yes, Switch Mode
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showValidationSummary && validationErrors.length > 0 && (
+          <div className="grnf-modal-overlay" onClick={() => setShowValidationSummary(false)}>
+            <div className="grnf-validation-modal" onClick={(e) => e.stopPropagation()}>
+              <div className="grnf-modal-header">
+                <h2>
+                  <FaExclamationTriangle /> Missing Required Fields
+                </h2>
+                <button type="button" className="grnf-modal-close" onClick={() => setShowValidationSummary(false)}>×</button>
+              </div>
+              <div className="grnf-modal-body">
+                <p className="grnf-modal-description">
+                  Please fill in the following required fields before submitting:
+                </p>
+                <div className="grnf-validation-errors-list">
+                  {validationErrors.map((error, idx) => (
+                    <div key={idx} className="grnf-validation-error-item">
+                      <div className="grnf-error-header">
+                        <FaTimesCircle className="grnf-error-icon" />
+                        <strong>{error.label}</strong>
+                      </div>
+                      <div className="grnf-error-message">{error.message}</div>
+                    </div>
+                  ))}
+                </div>
+                <div className="grnf-validation-tip">
+                  <FaInfoCircle className="grnf-tip-icon" />
+                  Please fix the errors above before submitting
+                </div>
+              </div>
+              <div className="grnf-modal-footer">
+                <button type="button" className="grnf-btn-cancel" onClick={() => setShowValidationSummary(false)}>
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {apiError && (
+          <div className="grnf-api-error">
+            <FaExclamationCircle className="grnf-error-icon" />
+            <span>{apiError}</span>
+            <button type="button" className="grnf-error-close" onClick={() => setApiError(null)}>×</button>
+          </div>
+        )}
+
+        <div className="grnf-header">
+          <button type="button" onClick={() => navigate('/grn')} className="grnf-back-btn">
+            <FaArrowLeft size={9} /> Back
+          </button>
+          <div className="grnf-header-title">
             <h1>
               {isViewMode ? 'View Goods Receipt Note' : isNew ? 'New Goods Receipt Note' : `${formData.grn_number}`}
             </h1>
-            {renderViewModeBadge()} 
-          </div> 
-          <button type="button" onClick={handlePrint} className="grnf-print-btn"> 
-            <FaPrint size={12} /> Print 
-          </button> 
-          {!isViewMode && hasErrors && ( 
-            <div className="grnf-error-badge"> 
-              <FaExclamationTriangle size={12} /> 
-              {getAllValidationErrors().length} missing field{getAllValidationErrors().length !== 1 ? 's' : ''} 
-            </div> 
-          )} 
-        </div> 
- 
-        <form onSubmit={handleSave}> 
- 
-          <div className="grnf-card"> 
- 
-            <div className="grnf-service-toggle-row"> 
-              <label className="grnf-checkbox-label"> 
-                <input 
-                  type="checkbox" 
-                  checked={formData.isService} 
-                  onChange={(e) => handleServiceToggle(e.target.checked)} 
-                  disabled={isViewMode || submitting} 
-                  className="grnf-checkbox" 
-                /> 
-                <span>Is Service Bill</span> 
-              </label> 
-            </div> 
- 
-            {!formData.isService && ( 
-              <div className="grnf-entry-mode-section"> 
-                <div className="grnf-entry-mode-toggle"> 
-                  <button 
-                    type="button" 
-                    className={`grnf-mode-btn${formData.entryMode === 'supplier' ? ' grnf-mode-btn-active' : ''}`} 
-                    onClick={() => handleEntryModeChange('supplier')} 
-                    disabled={isViewMode || submitting} 
-                  > 
-                    <FaFileInvoice size={12} /> By Purchase Order 
-                  </button> 
-                  <button 
-                    type="button" 
-                    className={`grnf-mode-btn${formData.entryMode === 'manual' ? ' grnf-mode-btn-active' : ''}`} 
-                    onClick={() => handleEntryModeChange('manual')} 
-                    disabled={isViewMode || submitting} 
-                  > 
-                    <FaSearch size={12} /> Direct Entry 
-                  </button> 
-                </div> 
-              </div> 
-            )} 
- 
-            <div className="grnf-compact-layout"> 
-               
-              <div className="grnf-left-column"> 
-                <div className="grnf-info-section"> 
-                  <div className="grnf-section-label"> 
-                    {formData.isService ? 'Customer Details' : 'Supplier & Order Details'} 
-                  </div> 
-                  {formData.isService ? ( 
-                    <div className="grnf-info-row"> 
-                      <div className="grnf-info-field"> 
-                        <label>Customer <span className="grnf-required">*</span></label> 
-                        <div className="grnf-warehouse-wrapper"> 
-                          <input 
-                            ref={customerInputRef} 
-                            type="text" 
-                            value={customerSearchTerm} 
-                            onChange={(e) => { 
+            
+          </div>
+          <button type="button" onClick={handlePrint} className="grnf-print-btn">
+            <FaPrint size={12} /> Print
+          </button>
+          {!isViewMode && hasErrors && (
+            <div className="grnf-error-badge">
+              <FaExclamationTriangle size={12} />
+              {getAllValidationErrors().length} missing field{getAllValidationErrors().length !== 1 ? 's' : ''}
+            </div>
+          )}
+        </div>
+
+        <form onSubmit={handleSave}>
+
+          <div className="grnf-card">
+
+            <div className="grnf-service-toggle-row">
+              <label className="grnf-checkbox-label">
+                <input
+                  type="checkbox"
+                  checked={formData.isService}
+                  onChange={(e) => handleServiceToggle(e.target.checked)}
+                  disabled={isViewMode || submitting}
+                  className="grnf-checkbox"
+                />
+                <span>Is Service Bill</span>
+              </label>
+            </div>
+
+            {!formData.isService && (
+              <div className="grnf-entry-mode-section">
+                <div className="grnf-entry-mode-toggle">
+                  <button
+                    type="button"
+                    className={`grnf-mode-btn${formData.entryMode === 'supplier' ? ' grnf-mode-btn-active' : ''}`}
+                    onClick={() => handleEntryModeChange('supplier')}
+                    disabled={isViewMode || submitting}
+                  >
+                    <FaFileInvoice size={12} /> By Purchase Order
+                  </button>
+                  <button
+                    type="button"
+                    className={`grnf-mode-btn${formData.entryMode === 'manual' ? ' grnf-mode-btn-active' : ''}`}
+                    onClick={() => handleEntryModeChange('manual')}
+                    disabled={isViewMode || submitting}
+                  >
+                    <FaSearch size={12} /> Direct Entry
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <div className="grnf-compact-layout">
+
+              <div className="grnf-left-column">
+                <div className="grnf-info-section">
+                  <div className="grnf-section-label">
+                    {formData.isService ? 'Customer Details' : 'Supplier & Order Details'}
+                  </div>
+                  {formData.isService ? (
+                    <div className="grnf-info-row">
+                      <div className="grnf-info-field">
+                        <label>Customer <span className="grnf-required">*</span></label>
+                        <div className="grnf-warehouse-wrapper">
+                          <input
+                            ref={customerInputRef}
+                            type="text"
+                            value={customerSearchTerm}
+                            onChange={(e) => {
                               if (isViewMode) return;
-                              setCustomerSearchTerm(e.target.value); 
-                              setShowCustomerDropdown(true); 
-                              setFormData(prev => ({ ...prev, customer: e.target.value, customerId: undefined })); 
-                              setIsDirty(true); 
-                            }} 
-                            onFocus={() => { if (!isViewMode) setShowCustomerDropdown(true); }} 
-                            className={`grnf-form-field${errors.customer ? ' grnf-field-error' : ''} ${isViewMode ? 'grnf-field-disabled' : ''}`} 
-                            placeholder="Search customer..." 
-                            disabled={isViewMode || submitting} 
-                            autoComplete="off" 
-                          /> 
-                          {loadingCustomers && <FaSpinner className="grnf-warehouse-spinner grnf-spinning" size={14} />} 
-                          {!isViewMode && showCustomerDropdown && filteredCustomers.length > 0 && ( 
-                            <div ref={customerDropdownRef} className="grnf-warehouse-dropdown grnf-dropdown-large"> 
-                              {filteredCustomers.map((customer) => ( 
-                                <div 
-                                  key={customer.id} 
-                                  className="grnf-warehouse-item" 
-                                  onClick={() => handleCustomerSelect(customer)} 
-                                > 
-                                  <div className="grnf-warehouse-item-name"> 
-                                    <FaUsers className="grnf-warehouse-item-icon" size={12} /> 
-                                    {customer.customer_name} 
-                                  </div> 
-                                  <div className="grnf-warehouse-item-details"> 
-                                    {customer.customer_group && <span>{customer.customer_group}</span>} 
-                                    {customer.mobile_no && <span><FaPhone size={10} /> {customer.mobile_no}</span>} 
-                                  </div> 
-                                </div> 
-                              ))} 
-                            </div> 
-                          )} 
-                        </div> 
-                      </div> 
-                      <div className="grnf-info-field"> 
-                        <label>Warehouse <span className="grnf-required">*</span></label> 
-                        <div className="grnf-warehouse-wrapper"> 
-                          <input 
-                            ref={warehouseInputRef} 
-                            type="text" 
-                            value={warehouseSearchTerm} 
-                            onChange={(e) => { 
+                              setCustomerSearchTerm(e.target.value);
+                              setShowCustomerDropdown(true);
+                              setFormData(prev => ({ ...prev, customer: e.target.value, customerId: undefined }));
+                              setIsDirty(true);
+                            }}
+                            onFocus={() => { if (!isViewMode) setShowCustomerDropdown(true); }}
+                            className={`grnf-form-field${errors.customer ? ' grnf-field-error' : ''} ${isViewMode ? 'grnf-field-disabled' : ''}`}
+                            placeholder="Search customer..."
+                            disabled={isViewMode || submitting}
+                            autoComplete="off"
+                          />
+                          {loadingCustomers && <FaSpinner className="grnf-warehouse-spinner grnf-spinning" size={14} />}
+                          {!isViewMode && showCustomerDropdown && filteredCustomers.length > 0 && (
+                            <div ref={customerDropdownRef} className="grnf-warehouse-dropdown grnf-dropdown-large">
+                              {filteredCustomers.map((customer) => (
+                                <div
+                                  key={customer.id}
+                                  className="grnf-warehouse-item"
+                                  onClick={() => handleCustomerSelect(customer)}
+                                >
+                                  <div className="grnf-warehouse-item-name">
+                                    <FaUsers className="grnf-warehouse-item-icon" size={12} />
+                                    {customer.customer_name}
+                                  </div>
+                                  <div className="grnf-warehouse-item-details">
+                                    {customer.customer_group && <span>{customer.customer_group}</span>}
+                                    {customer.mobile_no && <span><FaPhone size={10} /> {customer.mobile_no}</span>}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <div className="grnf-info-field">
+                        <label>Warehouse <span className="grnf-required">*</span></label>
+                        <div className="grnf-warehouse-wrapper">
+                          <input
+                            ref={warehouseInputRef}
+                            type="text"
+                            value={warehouseSearchTerm}
+                            onChange={(e) => {
                               if (isViewMode) return;
-                              setWarehouseSearchTerm(e.target.value); 
-                              setShowWarehouseDropdown(true); 
-                              setFormData(prev => ({ ...prev, warehouse: e.target.value, warehouseId: undefined })); 
-                              setIsDirty(true); 
-                            }} 
-                            onFocus={() => { if (!isViewMode) setShowWarehouseDropdown(true); }} 
-                            className={`grnf-form-field${errors.warehouse ? ' grnf-field-error' : ''} ${isViewMode ? 'grnf-field-disabled' : ''}`} 
-                            placeholder="Search warehouse..." 
-                            disabled={isViewMode || submitting} 
-                            autoComplete="off" 
-                          /> 
-                          {loadingWarehouses && <FaSpinner className="grnf-warehouse-spinner grnf-spinning" size={14} />} 
-                          {!isViewMode && showWarehouseDropdown && filteredWarehouses.length > 0 && ( 
-                            <div ref={warehouseDropdownRef} className="grnf-warehouse-dropdown"> 
-                              {filteredWarehouses.map((warehouse) => ( 
-                                <div 
-                                  key={warehouse.id} 
-                                  className="grnf-warehouse-item" 
-                                  onMouseDown={(e) => { 
-                                    e.preventDefault(); 
-                                    handleWarehouseSelect(warehouse); 
-                                  }} 
+                              setWarehouseSearchTerm(e.target.value);
+                              setShowWarehouseDropdown(true);
+                              setFormData(prev => ({ ...prev, warehouse: e.target.value, warehouseId: undefined }));
+                              setIsDirty(true);
+                            }}
+                            onFocus={() => { if (!isViewMode) setShowWarehouseDropdown(true); }}
+                            className={`grnf-form-field${errors.warehouse ? ' grnf-field-error' : ''} ${isViewMode ? 'grnf-field-disabled' : ''}`}
+                            placeholder="Search warehouse..."
+                            disabled={isViewMode || submitting}
+                            autoComplete="off"
+                          />
+                          {loadingWarehouses && <FaSpinner className="grnf-warehouse-spinner grnf-spinning" size={14} />}
+                          {!isViewMode && showWarehouseDropdown && filteredWarehouses.length > 0 && (
+                            <div ref={warehouseDropdownRef} className="grnf-warehouse-dropdown">
+                              {filteredWarehouses.map((warehouse) => (
+                                <div
+                                  key={warehouse.id}
+                                  className="grnf-warehouse-item"
+                                  onMouseDown={(e) => {
+                                    e.preventDefault();
+                                    handleWarehouseSelect(warehouse);
+                                  }}
                                 >
                                   <div className="grnf-warehouse-item-name">
                                     <FaWarehouse className="grnf-warehouse-item-icon" size={12} />
@@ -3309,7 +3309,7 @@ export default function GRNForm() {
                                       const poItems = poItemsCache[po.id] || [];
                                       const isLoadingItems = loadingPOItems[po.id];
                                       const poDisplayName = getPODisplayName(po);
-                                      
+
                                       const uniqueItems = poItems.reduce((acc, current) => {
                                         const exists = acc.find(item => item.item_code === current.item_code);
                                         if (!exists) {
@@ -3317,7 +3317,7 @@ export default function GRNForm() {
                                         }
                                         return acc;
                                       }, [] as POItem[]);
-                                      
+
                                       return (
                                         <div
                                           key={po.id}
@@ -3356,7 +3356,7 @@ export default function GRNForm() {
                                             <span>• {po.currency || 'INR'} {(po.grand_total || 0).toFixed(2)}</span>
                                             <span>• Received: {(po.per_received || 0)}%</span>
                                           </div>
-                                          
+
                                           {isLoadingItems && (
                                             <div className="grnf-po-items-loading">
                                               <FaSpinner className="grnf-spinning" size={10} /> Loading items...
@@ -3683,7 +3683,7 @@ export default function GRNForm() {
                           let filtered = allItems.length > 0 ? allItems : itemsMaster;
                           if (term.length >= 1) {
                             const t = term.toLowerCase().trim();
-                            filtered = filtered.filter(item => 
+                            filtered = filtered.filter(item =>
                               (item.item_code || '').toLowerCase().includes(t) ||
                               (item.item_name || '').toLowerCase().includes(t)
                             );
@@ -3706,7 +3706,7 @@ export default function GRNForm() {
                             let filtered = (allItems.length > 0 ? allItems : itemsMaster).filter(item => item.item_group === group);
                             if (term.length >= 1) {
                               const t = term.toLowerCase().trim();
-                              filtered = filtered.filter(item => 
+                              filtered = filtered.filter(item =>
                                 (item.item_code || '').toLowerCase().includes(t) ||
                                 (item.item_name || '').toLowerCase().includes(t)
                               );
@@ -3753,7 +3753,7 @@ export default function GRNForm() {
                           <th className="grnf-ith">Rejected Qty</th>
                           <th className="pif-ith">UOM</th>
                           <th className="grnf-ith">Ordered Rate <span className="grnf-required">*</span></th>
-                          
+
                           <th className="grnf-ith">Tax% <span className="grnf-required">*</span></th>
                           <th className="grnf-ith ">Amount</th>
                           <th className="grnf-ith">Note</th>
@@ -4055,7 +4055,7 @@ export default function GRNForm() {
                                   disabled={submitting}
                                 />
                               </td>
-                              
+
                               <td className="pif-itd pof-itd pif-itd-num" data-label="Tax% *">
                                 <select
                                   className="pif-cell-input pof-cell-select pof-tax-select"

@@ -714,6 +714,7 @@ export default function PurchaseOrderForm() {
                 description: mappedItem.description || '',
                 taxId: rowTaxId,
                 taxRate: rowTaxRate,
+                
                 hsn: mappedItem.hsn || '',
               };
               setFormData(prev => ({ ...prev, items: updatedItems }));
@@ -3578,7 +3579,7 @@ export default function PurchaseOrderForm() {
             <h1>
               {isViewMode ? 'View Purchase Order' : isEdit ? 'Edit Purchase Order' : 'New Purchase Order'}
             </h1>
-            {isViewMode && (
+            {/*isViewMode && (
               <span className="pof-view-mode-badge" style={{
                 display: 'inline-flex',
                 alignItems: 'center',
@@ -3595,7 +3596,7 @@ export default function PurchaseOrderForm() {
                 View Mode
               </span>
             )}
-            {isEdit && !isViewMode && <span className="pof-status-badge">{formData.status}</span>}
+            {isEdit && !isViewMode && <span className="pof-status-badge">{formData.status}</span>*/}
           </div>
           {!isViewMode && hasErrors && (
             <div className="pof-error-badge">
@@ -4032,20 +4033,32 @@ export default function PurchaseOrderForm() {
                           />
                         </td>
                         <td className="pof-itd" data-label="HSN">
-                          <input
-                            className={`pof-cell-input ${isViewMode ? 'pof-field-disabled' : ''}`}
-                            type="text"
-                            value={item.hsn || ''}
-                            onChange={(e) => {
-                              if (isViewMode) return;
-                              const updatedItems = [...formData.items];
-                              updatedItems[index] = { ...updatedItems[index], hsn: e.target.value };
-                              setFormData(prev => ({ ...prev, items: updatedItems }));
-                            }}
-                            placeholder="HSN"
-                            disabled={isViewMode}
-                          />
-                        </td>
+  {isViewMode ? (
+    <div className="pof-cell-input">
+      {item.hsn || "-"}
+    </div>
+  ) : (
+    <input
+      type="text"
+      className="pof-cell-input"
+      value={item.hsn || ""}
+      onChange={(e) => {
+        const updatedItems = [...formData.items];
+
+        updatedItems[index] = {
+          ...updatedItems[index],
+          hsn: e.target.value,
+        };
+
+        setFormData((prev) => ({
+          ...prev,
+          items: updatedItems,
+        }));
+      }}
+      placeholder="HSN"
+    />
+  )}
+</td>
                         <td className="pof-itd" data-label="Qty *">
                           {/* ✅ FIXED: Quantity input now allows decimals */}
                           <DigitInput
