@@ -87,8 +87,8 @@ const PAGE_TITLES: Record<string, string> = {
   "/quotation/new": "Quotation / Add New Quotation",
   "/Workstation": "Workstation",
   "/operations": "Operations",
-  "/Tax-Invoice": "Tax-Invoice",
-  "/Tax-Invoice/new": "Tax-Invoice / Add New Tax-Invoice",
+  "/Tax-Invoice": "Tax Invoice",
+  "/Tax-Invoice/new": "Tax Invoice / Add New Tax Invoice",
   "/delivery-challan":"Delivery Challan",
   "/delivery-challan/new":"Delivery Challan / Add New Delivery Challan",
   "/proforma-invoice": "Proforma Invoice",
@@ -120,7 +120,7 @@ const PAGE_TITLES: Record<string, string> = {
   "/proforma-invoice/:id":"Proforma Invoice / Proforma Invoice Details",
   "/grn/:id":"GRN / GRN Details",
   "/delivery-challan/:id":"Delivery Challan / Delivery Challan Details",
-  "/Tax-Invoice/:id":"Tax-Invoice / Tax-Invoice Details"
+  "/Tax-Invoice/:id":"Tax Invoice / Tax Invoice Details"
 };
 
 // Module names for display

@@ -2239,7 +2239,7 @@ export default function PurchaseInvoiceForm() {
             <h1>
               {isViewMode ? 'View Purchase Bill' : isEdit ? `${formData.invoiceNumber || 'Edit Purchase Bill'}` : 'New Purchase Bill'}
             </h1>
-            {renderViewModeBadge()}
+            
           </div>
           <button type="button" onClick={handlePrint} className="print-btn" disabled={items.length === 0}>
             <FaPrint size={12} /> Print
