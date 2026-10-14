@@ -118,15 +118,6 @@ const statusColors: Record<string, string> = {
 
 // Soft/light backgrounds.
 // These are intentionally similar to .qa-purple { background: #f1eafe; }
-const statusLightColors: Record<string, string> = {
-  Draft: "#f1f5f9",
-  Open: "#eaf2ff",
-  "In Process": "#fff7df",
-  Completed: "#eaf8ef",
-  Stopped: "#feecec",
-  "On Hold": "#f1eafe",
-  Pending: "#fff7df",
-};
 
 // ============================================================
 // COMPONENT
@@ -749,43 +740,7 @@ export default function DashboardPage() {
     );
   };
 
-  const formatDate = (
-    value: any
-  ) => {
-    if (!value) return "";
 
-    return new Date(
-      value
-    ).toLocaleDateString(
-      "en-IN",
-      {
-        day: "2-digit",
-        month: "short",
-        year: "numeric",
-      }
-    );
-  };
-
-  const getActivityIcon = (
-    status?: string
-  ) => {
-    switch (status) {
-      case "Completed":
-        return <FaCheckCircle />;
-
-      case "In Process":
-        return <FaHourglassHalf />;
-
-      case "Open":
-        return <FaPlay />;
-
-      case "Stopped":
-        return <FaExclamationTriangle />;
-
-      default:
-        return <FaClock />;
-    }
-  };
 
   // ==========================================================
   // RENDER

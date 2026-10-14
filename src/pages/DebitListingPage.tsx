@@ -118,11 +118,7 @@ const STATUS_OPTIONS = [
   { value: "Cancelled", label: "Cancelled" },
 ];
 
-const ENTRY_TYPE_OPTIONS = [
-  { value: "all", label: "All Types" },
-  { value: "Credit", label: "Credit" },
-  { value: "Debit", label: "Debit" },
-];
+
 
 const PAYMENT_MODES = [
   { value: "all", label: "All Modes" },
