@@ -21,6 +21,7 @@ import {
   FaCalendarAlt,
   FaArrowUp,
   FaArrowDown,
+  FaChevronDown
 } from 'react-icons/fa';
 import './LedgerAccounts.css';
 import api from '../services/api'; // adjust path if needed
@@ -246,6 +247,18 @@ const LedgerAccounts: React.FC = () => {
     });
     return g;
   }, [filtered]);
+
+  
+const [expandedRows, setExpandedRows] = useState<number[]>([]);
+
+const toggleRowExpand = (id: number) => {
+  setExpandedRows((prev) =>
+    prev.includes(id)
+      ? prev.filter((rowId) => rowId !== id)
+      : [...prev, id]
+  );
+};
+
 
   const totals = useMemo(() => {
     let credit = 0;
@@ -881,6 +894,205 @@ const LedgerAccounts: React.FC = () => {
           </div>
         )}
       </div>
+
+
+
+
+
+
+
+{/*Mobile view*/}
+      <div className="ledger-mobile-list">
+      <div className="ledger-mobile-list-header">
+        <span>Entry No. • Party • Type</span>
+        <span className="ledger-mobile-count">
+          {filtered.length} entries
+        </span>
+      </div>
+
+      {filtered.length === 0 ? (
+        <div className="ledger-mobile-empty">
+          <FaBook size={30} />
+          <strong>
+            {loading ? 'Loading entries…' : 'No account entries found'}
+          </strong>
+          <span>Try changing your search, filters, or date range.</span>
+        </div>
+      ) : (
+        <div className="ledger-mobile-cards">
+          {filtered.map((entry) => {
+            const expanded = expandedRows.includes(entry.id);
+            const isCredit = entry.entry_type === 'Credit';
+            const partyName =
+              entry.party_name ||
+              `${entry.party_type} #${entry.party_id}`;
+
+            return (
+              <div
+                className={`ledger-mobile-card ${
+                  selectedAccount?.id === entry.id ? 'selected' : ''
+                }`}
+                key={entry.id}
+              >
+                <div
+                  className="ledger-mobile-card-header"
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => {
+                    setSelectedAccount(entry);
+                    toggleRowExpand(entry.id);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      setSelectedAccount(entry);
+                      toggleRowExpand(entry.id);
+                    }
+                  }}
+                >
+                  <div className="ledger-mobile-card-main">
+                    <div className="ledger-mobile-entry-number">
+                      <FaFileAlt />
+                      <span>{entry.entry_no || `Entry #${entry.id}`}</span>
+                    </div>
+
+                    <div className="ledger-mobile-party">
+                      {partyName}
+                    </div>
+
+                    <div className="ledger-mobile-badges">
+                      {getEntryTypeBadge(entry.entry_type)}
+                      {entry.payment_type && (
+                        <span className="ledger-mobile-mode">
+                          {entry.payment_type}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    className={`ledger-mobile-expand ${
+                      expanded ? 'expanded' : ''
+                    }`}
+                    aria-label={
+                      expanded ? 'Collapse entry details' : 'Expand entry details'
+                    }
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleRowExpand(entry.id);
+                    }}
+                  >
+                    <FaChevronDown
+                        size={13}
+                        className="sales-mobile-chevron"
+                        />
+                  </button>
+                </div>
+
+        
+
+                {expanded && (
+                  <div className="ledger-mobile-details">
+                  <div className="ledger-mobile-detail-row">
+                    <span>Date</span>
+                    <strong>{formatDate(entry.entry_date)}</strong>
+                  </div>
+
+                    <div className="ledger-mobile-detail-row">
+                      <span>Reference Type</span>
+                      <strong>{entry.reference_type || '—'}{entry.reference_no || '—'}</strong>
+                      
+                    </div>
+
+                    <div className="ledger-mobile-detail-row">
+                      <span>Bank Account</span>
+                      <strong>{getBankLabel(entry.bank_detail_id)}</strong>
+                    </div>
+
+                    <div className="ledger-mobile-detail-row">
+                      <span>Payment Mode</span>
+                      <strong>{entry.payment_type || '—'}</strong>
+                    </div>
+
+                    {/*<div className="ledger-mobile-detail-row">
+                      <span>Transaction ID</span>
+                      <strong>
+                        {entry.transaction_id == null
+                          ? '—'
+                          : String(entry.transaction_id)}
+                      </strong>
+                    </div>
+
+                    <div className="ledger-mobile-detail-row">
+                      <span>Transaction Date</span>
+                      <strong>{formatDate(entry.transaction_date)}</strong>
+                    </div>*/}
+
+                    
+
+                    <div className="ledger-mobile-detail-row">
+                      <span>Amount</span>
+                      <div className="ledger-mobile-summary-item">
+                    
+                
+                    <strong
+                      className={
+                        isCredit
+                          ? 'ledger-mobile-credit'
+                          : 'ledger-mobile-debit'
+                      }
+                    >
+                      {isCredit ? '+' : '−'}
+                      {formatCurrency(entry.total_amount)}
+                    </strong>  </div>
+                    </div>
+
+                  
+
+                    <div className="ledger-mobile-actions">
+                      <button
+                        type="button"
+                        className="ledger-mobile-action ledger-mobile-view"
+                        onClick={() => openDetails(entry)}
+                      >
+                        <FaEye /> View Details
+                      </button>
+
+                      <button
+                        type="button"
+                        className="ledger-mobile-action ledger-mobile-edit"
+                        onClick={() => {
+                          // Connect your edit route or handler here.
+                          setSelectedAccount(entry);
+                        }}
+                      >
+                        <FaEdit /> Edit
+                      </button>
+
+                      <button
+                        type="button"
+                        className="ledger-mobile-action ledger-mobile-delete"
+                        onClick={() => {
+                          // Connect your delete confirmation/API here.
+                          setSelectedAccount(entry);
+                        }}
+                      >
+                        <FaTrash /> Delete
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+
+
+
+      
 
       {/* Create Modal (unchanged) */}
       {showCreateModal && (

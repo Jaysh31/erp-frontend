@@ -1118,3 +1118,666 @@
     width: 100%;
   }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/* =========================================================
+   CUSTOMER INVOICES — RESPONSIVE MOBILE UI
+   Desktop table remains unchanged
+========================================================= */
+
+/* Main page */
+.customer-invoices-page {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  overflow-x: hidden;
+}
+
+/* Prevent child elements from expanding the page */
+.customer-invoices-page *,
+.customer-invoices-page *::before,
+.customer-invoices-page *::after {
+  box-sizing: border-box;
+}
+
+.customer-invoices-page > * {
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* Desktop table alignment */
+.ci-table-wrap {
+  width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.ci-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.ci-td-meta {
+  display: table-cell;
+  text-align: right;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.ci-td-meta .ci-action-buttons {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+/* Mobile invoice cards are hidden on desktop */
+.customer-invoices-page .sales-mobile-list-wrap {
+  display: none;
+}
+
+/* =========================================================
+   TABLET AND MOBILE
+========================================================= */
+@media screen and (max-width: 768px) {
+  .customer-invoices-page {
+    width: 100%;
+    height: auto;
+    min-height: 0;
+    padding: 12px;
+    gap: 14px;
+    overflow-x: hidden;
+    overflow-y: visible;
+    border-radius: 10px;
+  }
+
+  /* Page headings */
+  .customer-invoices-page h1,
+  .customer-invoices-page h2,
+  .customer-invoices-page h3 {
+    max-width: 100%;
+    overflow-wrap: anywhere;
+  }
+
+  /* Statistics cards */
+  .customer-invoices-page .ci-stats-grid,
+  .customer-invoices-page .ci-stats,
+  .customer-invoices-page .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    width: 100%;
+  }
+
+  .customer-invoices-page .ci-stat-card,
+  .customer-invoices-page .stat-card {
+    min-width: 0;
+    padding: 12px;
+    border-radius: 10px;
+  }
+
+  .customer-invoices-page .ci-stat-card *,
+  .customer-invoices-page .stat-card * {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  /* Search and filters */
+  .customer-invoices-page .ci-filter-bar,
+  .customer-invoices-page .ci-filters,
+  .customer-invoices-page .ci-toolbar {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    width: 100%;
+  }
+
+  .customer-invoices-page .ci-search,
+  .customer-invoices-page .ci-search-box,
+  .customer-invoices-page .ci-filter-group {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .customer-invoices-page input,
+  .customer-invoices-page select {
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  .customer-invoices-page .ci-search input,
+  .customer-invoices-page .ci-search-box input {
+    width: 100%;
+    min-height: 42px;
+    font-size: 14px;
+  }
+
+  /* Hide desktop table and show mobile list */
+  .customer-invoices-page .ci-table-wrap {
+    display: none !important;
+  }
+
+  .customer-invoices-page .sales-mobile-list-wrap {
+    display: block !important;
+    width: 100%;
+    min-width: 0;
+    margin: 0;
+    overflow: hidden;
+    background: var(--card-bg, #ffffff);
+    border: 1px solid var(--border-color, #e5e7eb);
+    border-radius: 12px;
+  }
+
+  /* Mobile list header */
+  .customer-invoices-page .sales-mobile-list-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 12px;
+    background: var(--layout-bg, #f8fafc);
+    border-bottom: 1px solid var(--border-color, #e5e7eb);
+  }
+
+  .customer-invoices-page .sales-mobile-th-primary {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 5px;
+    min-width: 0;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-secondary, #64748b);
+  }
+
+  .customer-invoices-page .sales-mobile-th-sep {
+    color: var(--text-secondary, #94a3b8);
+  }
+
+  .customer-invoices-page .sales-count-label {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    min-width: 26px;
+    height: 26px;
+    padding: 0 7px;
+    border-radius: 7px;
+    background: var(--primary-color, #6366f1);
+    color: #ffffff;
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  /* Mobile card list */
+  .customer-invoices-page .sales-mobile-cards {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .customer-invoices-page .sales-mobile-card {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    margin: 0;
+    overflow: hidden;
+    background: var(--card-bg, #ffffff);
+    border: 0;
+    border-bottom: 1px solid var(--border-color, #e5e7eb);
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .customer-invoices-page .sales-mobile-card:last-child {
+    border-bottom: none;
+  }
+
+  /* Card heading row */
+  .customer-invoices-page .sales-mobile-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    width: 100%;
+    min-width: 0;
+    padding: 14px 12px;
+    cursor: pointer;
+  }
+
+  .customer-invoices-page .sales-mobile-card-primary {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .customer-invoices-page .sales-mobile-card-primary-row {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    min-width: 0;
+  }
+
+  .customer-invoices-page .sales-mobile-header-badge {
+    flex-shrink: 0;
+    max-width: 46%;
+    overflow: hidden;
+    color: var(--text-primary, #1f2937);
+    font-family: monospace;
+    font-size: 12px;
+    font-weight: 700;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .customer-invoices-page .sales-mobile-item-name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .customer-invoices-page .qt-td-customer {
+    display: block;
+    max-width: 100%;
+    margin-top: 5px;
+    overflow: hidden;
+    color: var(--primary-color, #6366f1);
+    font-size: 13px;
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+
+  /* Expand / collapse button */
+  .customer-invoices-page .sales-mobile-dropdown-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border: 1px solid var(--border-color, #e5e7eb);
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text-secondary, #64748b);
+    cursor: pointer;
+  }
+
+  .customer-invoices-page .sales-mobile-chevron {
+    transition: transform 0.2s ease;
+  }
+
+  .customer-invoices-page
+    .sales-mobile-dropdown-btn.expanded
+    .sales-mobile-chevron {
+    transform: rotate(180deg);
+  }
+
+  /* Expanded invoice details */
+  .customer-invoices-page .sales-mobile-card-details {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    width: 100%;
+    min-width: 0;
+    padding: 0 12px 12px;
+  }
+
+  .customer-invoices-page .sales-mobile-detail-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    width: 100%;
+    min-width: 0;
+    padding: 10px 0;
+    border-top: 1px solid var(--border-color, #e5e7eb);
+  }
+
+  .customer-invoices-page .sales-mobile-detail-label {
+    flex: 0 0 42%;
+    min-width: 0;
+    color: var(--text-secondary, #64748b);
+    font-size: 12px;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+  }
+
+  .customer-invoices-page .sales-mobile-detail-value {
+    flex: 1;
+    min-width: 0;
+    color: var(--text-primary, #334155);
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.5;
+    text-align: right;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  /* Invoice status */
+  .customer-invoices-page .ci-status,
+  .customer-invoices-page .ci-status-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    max-width: 100%;
+    padding: 4px 8px;
+    border-radius: 6px;
+    font-size: 11px;
+    line-height: 1.4;
+    white-space: normal;
+    text-align: center;
+  }
+
+  /* Card action buttons */
+  .customer-invoices-page .sales-mobile-action-buttons {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 6px;
+    min-width: 0;
+  }
+
+  .customer-invoices-page .sales-mobile-detail-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 10px;
+    width: 100%;
+    padding-top: 12px;
+    margin-top: 4px;
+    border-top: 1px solid var(--border-color, #e5e7eb);
+  }
+
+  .customer-invoices-page .ci-action-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    border-radius: 8px;
+  }
+
+  /* Empty state */
+  .customer-invoices-page .qt-empty-state {
+    width: 100%;
+    padding: 28px 14px;
+    text-align: center;
+  }
+
+  .customer-invoices-page .qt-empty-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 9px;
+    color: var(--text-secondary, #64748b);
+  }
+
+  /* Pagination */
+  .customer-invoices-page .ci-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 10px;
+    width: 100%;
+    padding: 12px 0;
+  }
+
+  .customer-invoices-page .ci-pagination-left,
+  .customer-invoices-page .ci-pagination-right {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .customer-invoices-page .ci-pagination button {
+    min-height: 34px;
+  }
+
+  /* Modals */
+  .customer-invoices-page .ci-modal-overlay {
+    padding: 12px;
+  }
+
+  .customer-invoices-page .ci-modal {
+    width: 100%;
+    max-width: 480px;
+    max-height: calc(100dvh - 24px);
+    margin: auto;
+    overflow-y: auto;
+  }
+}
+
+/* =========================================================
+   SMALL MOBILE PHONES
+========================================================= */
+@media screen and (max-width: 480px) {
+  .customer-invoices-page {
+    padding: 9px;
+    gap: 12px;
+  }
+
+  .customer-invoices-page .ci-stats-grid,
+  .customer-invoices-page .ci-stats,
+  .customer-invoices-page .stats-grid {
+    gap: 8px;
+  }
+
+  .customer-invoices-page .ci-stat-card,
+  .customer-invoices-page .stat-card {
+    padding: 10px;
+  }
+
+  .customer-invoices-page .sales-mobile-list-header {
+    padding: 10px;
+  }
+
+  .customer-invoices-page .sales-mobile-card-header {
+    padding: 12px 10px;
+  }
+
+  .customer-invoices-page .sales-mobile-card-details {
+    padding: 0 10px 10px;
+  }
+
+  .customer-invoices-page .sales-mobile-card-primary-row {
+    gap: 7px;
+  }
+
+  .customer-invoices-page .sales-mobile-header-badge {
+    max-width: 43%;
+    font-size: 11px;
+  }
+
+  .customer-invoices-page .sales-mobile-detail-row {
+    gap: 8px;
+  }
+
+  .customer-invoices-page .sales-mobile-detail-label {
+    flex-basis: 40%;
+    font-size: 11px;
+  }
+
+  .customer-invoices-page .sales-mobile-detail-value {
+    font-size: 11px;
+  }
+
+  .customer-invoices-page .sales-mobile-action-buttons {
+    gap: 4px;
+  }
+
+  .customer-invoices-page .sales-mobile-action-buttons .ci-action-btn {
+    width: 30px;
+    height: 30px;
+  }
+
+  .customer-invoices-page .sales-mobile-detail-footer {
+    align-items: flex-start;
+  }
+
+  .customer-invoices-page .ci-pagination {
+    justify-content: center;
+  }
+
+  .customer-invoices-page .ci-pagination-left,
+  .customer-invoices-page .ci-pagination-right {
+    justify-content: center;
+    width: 100%;
+  }
+}
+
+/* =========================================================
+   EXTRA SMALL PHONES
+========================================================= */
+@media screen and (max-width: 360px) {
+  .customer-invoices-page {
+    padding: 7px;
+  }
+
+  .customer-invoices-page .ci-stats-grid,
+  .customer-invoices-page .ci-stats,
+  .customer-invoices-page .stats-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .customer-invoices-page .sales-mobile-card-header {
+    gap: 6px;
+  }
+
+  .customer-invoices-page .sales-mobile-header-badge {
+    max-width: 40%;
+    font-size: 10px;
+  }
+
+  .customer-invoices-page .sales-mobile-dropdown-btn {
+    width: 29px;
+    height: 29px;
+  }
+}
+
+/* =========================================================
+   DARK THEME
+========================================================= */
+.dark-theme .customer-invoices-page .sales-mobile-list-wrap,
+.dark-theme .customer-invoices-page .sales-mobile-card {
+  background: var(--card-bg, #1e293b);
+  border-color: var(--border-color, #334155);
+}
+
+.dark-theme .customer-invoices-page .sales-mobile-list-header {
+  background: var(--layout-bg, #0f172a);
+  border-color: var(--border-color, #334155);
+}
+
+.dark-theme .customer-invoices-page .sales-mobile-detail-row,
+.dark-theme .customer-invoices-page .sales-mobile-detail-footer {
+  border-color: var(--border-color, #334155);
+}
+
+.dark-theme .customer-invoices-page .sales-mobile-header-badge,
+.dark-theme .customer-invoices-page .sales-mobile-detail-value {
+  color: var(--text-primary, #f8fafc);
+}
+
+.dark-theme .customer-invoices-page .sales-mobile-th-primary,
+.dark-theme .customer-invoices-page .sales-mobile-detail-label {
+  color: var(--text-secondary, #94a3b8);
+}
+
+.dark-theme .customer-invoices-page .sales-mobile-dropdown-btn {
+  border-color: var(--border-color, #334155);
+  color: var(--text-secondary, #94a3b8);
+}
+
+
+
+
+
+/* ==========================================
+   CUSTOMER INVOICES — MOBILE SIDE-BY-SIDE UI
+========================================== */
+
+@media screen and (max-width: 768px) {
+
+  /* Statistics cards side by side */
+  .customer-invoices-page .ci-stats-container {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .customer-invoices-page .ci-stats-container > * {
+    width: 100%;
+    min-width: 0;
+    margin: 0;
+  }
+
+  
+}
+
+
+
+
+.sales-mobile-invoice-status {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 7px;
+}
+
+.sales-mobile-invoice-status .ci-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 100%;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.sales-mobile-invoice-status .ci-status-badge span {
+  overflow-wrap: anywhere;
+}
+
+.dark-theme .sales-mobile-invoice-status .ci-status-badge {
+  color: inherit;
+}
