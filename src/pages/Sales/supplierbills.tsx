@@ -5,7 +5,7 @@ import {
   FaFilter, FaCheckCircle, FaClock, FaTimesCircle,
   FaFileAlt, FaExternalLinkAlt,
   FaChartLine, FaTimes, FaSpinner,
-  FaBoxOpen, FaMoneyBillWave, FaExclamationTriangle, FaWallet
+  FaBoxOpen, FaMoneyBillWave, FaExclamationTriangle, FaWallet,FaChevronDown
 } from 'react-icons/fa';
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
 import toast from 'react-hot-toast';
@@ -147,6 +147,11 @@ const threeDigitWords = (n: number): string => {
   return twoDigitWords(n);
 };
 
+
+
+
+
+
 const numberToIndianWords = (value: number): string => {
   let num = Math.round(Math.abs(value));
   if (num === 0) return 'Zero';
@@ -256,6 +261,13 @@ export default function SupplierBills() {
   const [printLoadingId, setPrintLoadingId] = useState<string | null>(null);
 
   const [bills, setBills] = useState<SupplierBill[]>([]);
+  const [expandedRows, setExpandedRows] = useState<string[]>([]);
+
+  const toggleRowExpand = (billId: string) => {
+    setExpandedRows((rows) =>
+      rows.includes(billId) ? rows.filter((id) => id !== billId) : [...rows, billId]
+    );
+  };
 
   // Pagination (mirrors the API's page / limit / total shape)
   const [page, setPage] = useState(1);
@@ -842,6 +854,177 @@ export default function SupplierBills() {
           )}
         </div>
       )}
+
+
+
+
+
+
+
+
+      {/* Mobile Supplier Bills */}
+      {!loading && !error && (
+        <div className="sb-mobile-list-wrap">
+          <div className="sb-mobile-list-header">
+            <div className="sb-mobile-header-title">
+              <span>Bill No. • Supplier • Status</span>
+            </div>
+            <span className="sb-mobile-count">
+              {filteredBills.length} bills
+            </span>
+          </div>
+
+          {filteredBills.length === 0 ? (
+            <div className="sb-mobile-empty">
+              <FaBoxOpen size={32} />
+              <p>No supplier bills found</p>
+              <span>Try adjusting your search filters.</span>
+            </div>
+          ) : (
+            <div className="sb-mobile-cards">
+              {filteredBills.map((bill) => {
+                const isExpanded = expandedRows.includes(bill.id);
+                const overdue = isOverdue(bill);
+                const displayStatus = overdue ? 'Overdue' : bill.status;
+
+                return (
+                  <div className="sb-mobile-card" key={bill.id}>
+                    <div
+                      className="sb-mobile-card-header"
+                      onClick={() => toggleRowExpand(bill.id)}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          toggleRowExpand(bill.id);
+                        }
+                      }}
+                    >
+                      <div className="sb-mobile-card-main">
+                        <div className="sb-mobile-bill-number">
+                          {bill.billNumber}
+                        </div>
+
+                        <div className="sb-mobile-supplier-name">
+                          {bill.supplierName || 'Unknown Supplier'}
+                        </div>
+
+                        <div className="sb-mobile-status-row">
+                          <span
+                            className={`sb-status-badge ${getStatusColor(displayStatus)}`}
+                          >
+                            {getStatusIcon(displayStatus)}
+                            {displayStatus}
+                          </span>
+
+                          {overdue && (
+                            <span className="sb-mobile-overdue-label">
+                              <FaExclamationTriangle size={10} />
+                              Payment overdue
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        className={`sb-mobile-expand-btn ${isExpanded ? 'expanded' : ''}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleRowExpand(bill.id);
+                        }}
+                        aria-label={isExpanded ? 'Collapse bill details' : 'Expand bill details'}
+                      >
+                        <FaChevronDown
+                                          size={13}
+                                          className="sales-mobile-chevron"
+                                        />
+                      </button>
+                    </div>
+
+                   
+                      
+
+                    {isExpanded && (
+                      <div className="sb-mobile-card-details">
+                        
+
+                        <div className="sb-mobile-detail-row">
+                          <span>Posting Date</span>
+                          <strong>
+                            {bill.postingDate
+                              ? new Date(bill.postingDate).toLocaleDateString()
+                              : '-'}
+                          </strong>
+                        </div>
+
+                        <div className="sb-mobile-detail-row">
+                          <span>Due Date</span>
+                          <strong className={overdue ? 'sb-mobile-overdue' : ''}>
+                            {bill.dueDate
+                              ? new Date(bill.dueDate).toLocaleDateString()
+                              : '-'}
+                          </strong>
+                        </div>
+
+                        
+                        <div className="sb-mobile-detail-row">
+                        <span className="sb-mobile-label">Grand Total</span>
+                        <strong>
+                          {bill.currency} {bill.grandTotal.toLocaleString()}
+                        </strong>
+                      </div>
+
+                      <div className="sb-mobile-detail-row">
+                        <span className="sb-mobile-label">Outstanding</span>
+                        <strong
+                          className={
+                            bill.outstandingAmount > 0
+                              ? 'sb-mobile-outstanding'
+                              : ''
+                          }
+                        >
+                          {bill.currency} {bill.outstandingAmount.toLocaleString()}
+                        </strong>
+                      </div>
+                  
+                      
+                        
+   
+                        <div className="sb-mobile-actions">
+                           <button className="sb-action-btn sb-action-view" onClick={() => handleView(bill)} title="View / Edit">
+                          <FaEye size={12} />
+                        </button>
+                        <button
+                          className="sb-action-btn sb-action-print"
+                          onClick={() => handlePrintBill(bill)}
+                          title="Print"
+                          disabled={printLoadingId === bill.id}
+                        >
+                          {printLoadingId === bill.id ? <FaSpinner className="spinning" size={12} /> : <FaPrint size={12} />}
+                        </button>
+                        <button className="sb-action-btn sb-action-edit" onClick={() => handleEdit(bill)} title="Edit">
+                          <FaEdit size={12} />
+                        </button>
+                        <button className="sb-action-btn sb-action-delete" onClick={() => handleDeleteClick(bill)} title="Delete">
+                          <FaTrash size={12} />
+                        </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+
+
+
+
 
       {/* Footer / Pagination */}
       <div className="sb-pagination">

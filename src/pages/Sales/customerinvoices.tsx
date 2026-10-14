@@ -5,11 +5,12 @@ import {
   FaFilter, FaCheckCircle, FaClock, FaTimesCircle,
   FaFileAlt, FaExternalLinkAlt,
   FaChartLine, FaTimes, FaSpinner,
-  FaBoxOpen, FaMoneyBillWave, FaExclamationTriangle, FaWallet
+  FaBoxOpen, FaMoneyBillWave, FaExclamationTriangle, FaWallet, FaChevronDown
 } from 'react-icons/fa';
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
 import toast from 'react-hot-toast';
 import './customerinvoices.css';
+
 import api from '../../services/api';
 
 /* ─────────────────────── Types ─────────────────────── */
@@ -294,6 +295,17 @@ export default function CustomerInvoices() {
   const [printLoadingId, setPrintLoadingId] = useState<string | null>(null);
 
   const [invoices, setInvoices] = useState<CustomerInvoice[]>([]);
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(() => new Set());
+
+  const toggleRowExpand = (id: string, event?: { stopPropagation: () => void }) => {
+    event?.stopPropagation();
+    setExpandedRows((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
   // Pagination (mirrors the API's page / limit / total shape)
   const [page, setPage] = useState(1);
@@ -830,7 +842,7 @@ export default function CustomerInvoices() {
             <table className="ci-table">
               <thead>
                 <tr>
-                  <th className="ci-th">Invoice #</th>
+                  <th className="ci-th">Invoice No</th>
                   <th className="ci-th">Customer</th>
                   <th className="ci-th">Posting Date</th>
                   <th className="ci-th">Due Date</th>
@@ -900,6 +912,248 @@ export default function CustomerInvoices() {
           )}
         </div>
       )}
+
+
+
+
+{/* Mobile Table */}
+<div className="sales-mobile-list-wrap">
+  <div className="sales-mobile-list-header">
+    <div className="sales-mobile-th-primary">
+      <span>Invoice No</span>
+      <span className="sales-mobile-th-sep">•</span>
+      <span>Customer</span>
+      <span className="sales-mobile-th-sep">•</span>
+      <span>Status</span>
+    </div>
+
+    <div className="sales-mobile-th-right">
+      <span className="sales-count-label">
+        {filteredInvoices.length}
+      </span>
+    </div>
+  </div>
+
+  {loading ? (
+    <div className="qt-empty-state">
+      <div className="qt-empty-content">
+        <FaSpinner className="spinning" size={24} />
+        <p>Loading customer invoices...</p>
+      </div>
+    </div>
+  ) : error ? (
+    <div className="qt-empty-state">
+      <div className="qt-empty-content">
+        <FaExclamationTriangle size={24} />
+        <p>{error}</p>
+        <button
+          type="button"
+          className="ci-retry-btn"
+          onClick={() => fetchInvoices(page)}
+        >
+          Retry
+        </button>
+      </div>
+    </div>
+  ) : filteredInvoices.length === 0 ? (
+    <div className="qt-empty-state">
+      <div className="qt-empty-content">
+        <FaBoxOpen size={32} />
+        <p>No customer invoices found</p>
+        <span>Try adjusting your search or filters.</span>
+      </div>
+    </div>
+  ) : (
+    <div className="sales-mobile-cards">
+      {filteredInvoices.map((item) => {
+        const isExpanded = expandedRows.has(item.id);
+        const overdue = isOverdue(item);
+        const displayStatus = overdue ? 'Overdue' : item.status;
+
+        return (
+          <div
+            key={item.id}
+            className={`sales-mobile-card ${
+              isExpanded ? 'sales-mobile-card-expanded' : ''
+            }`}
+          >
+            {/* Invoice header */}
+            <div
+              className="sales-mobile-card-header"
+              onClick={() => toggleRowExpand(item.id)}
+            >
+              <div className="sales-mobile-card-primary">
+                <div className="sales-mobile-card-primary-row">
+                  <span className="sales-mobile-header-badge">
+                    {item.invoiceNumber}
+                  </span>
+
+                  <div className="sales-mobile-item-name">
+                    <span
+                      className="qt-td-customer"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleView(item);
+                      }}
+                    >
+                      {item.customerName || item.customer || '-'}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="sales-mobile-invoice-status">
+                  <span
+                    className={`ci-status-badge ${getStatusColor(displayStatus)}`}
+                  >
+                    {getStatusIcon(displayStatus)}
+                    <span>{displayStatus}</span>
+                  </span>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                className={`sales-mobile-dropdown-btn ${
+                  isExpanded ? 'expanded' : ''
+                }`}
+                onClick={(e) => toggleRowExpand(item.id, e)}
+                aria-label={isExpanded ? 'Collapse invoice' : 'Expand invoice'}
+                aria-expanded={isExpanded}
+              >
+                <FaChevronDown
+                  size={13}
+                  className="sales-mobile-chevron"
+                />
+              </button>
+            </div>
+
+            {/* Expanded invoice details */}
+            {isExpanded && (
+              <div className="sales-mobile-card-details">
+                
+
+                <div className="sales-mobile-detail-row">
+                  <span className="sales-mobile-detail-label">
+                    Posting Date
+                  </span>
+                  <span className="sales-mobile-detail-value">
+                    {item.postingDate
+                      ? new Date(item.postingDate).toLocaleDateString()
+                      : '-'}
+                  </span>
+                </div>
+
+                <div className="sales-mobile-detail-row">
+                  <span className="sales-mobile-detail-label">
+                    Due Date
+                  </span>
+                  <span
+                    className="sales-mobile-detail-value"
+                    style={{
+                      color: overdue
+                        ? 'var(--danger-color, #ef4444)'
+                        : undefined,
+                    }}
+                  >
+                    {item.dueDate
+                      ? new Date(item.dueDate).toLocaleDateString()
+                      : '-'}
+                  </span>
+                </div>
+
+                
+
+                <div className="sales-mobile-detail-row">
+                  <span className="sales-mobile-detail-label">
+                    Grand Total
+                  </span>
+                  <span className="sales-mobile-detail-value">
+                    {item.currency} {(item.grandTotal || 0).toLocaleString()}
+                  </span>
+                </div>
+
+               
+
+                <div className="sales-mobile-detail-row">
+                  <span className="sales-mobile-detail-label">
+                    Outstanding Amount
+                  </span>
+                  <span
+                    className="sales-mobile-detail-value"
+                    style={{
+                      color:
+                        item.outstandingAmount > 0
+                          ? 'var(--danger-color, #ef4444)'
+                          : undefined,
+                    }}
+                  >
+                    {item.currency}{' '}
+                    {(item.outstandingAmount || 0).toLocaleString()}
+                  </span>
+                </div>
+
+                {/* Invoice actions */}
+                <div className="sales-mobile-detail-footer">
+                  <span className="sales-mobile-card-meta-text">
+                   Actions
+                  </span>
+
+                  <div className="sales-mobile-action-buttons">
+                    <button
+                      type="button"
+                      className="ci-action-btn ci-action-view"
+                      onClick={() => handleView(item)}
+                      title="View Invoice"
+                      aria-label="View invoice"
+                    >
+                      <FaEye size={12} />
+                    </button>
+
+                    <button
+                      type="button"
+                      className="ci-action-btn ci-action-print"
+                      onClick={() => handlePrintInvoice(item)}
+                      title="Print Invoice"
+                      aria-label="Print invoice"
+                      disabled={printLoadingId === item.id}
+                    >
+                      {printLoadingId === item.id ? (
+                        <FaSpinner className="spinning" size={12} />
+                      ) : (
+                        <FaPrint size={12} />
+                      )}
+                    </button>
+
+                    <button
+                      type="button"
+                      className="ci-action-btn ci-action-edit"
+                      onClick={() => handleEdit(item)}
+                      title="Edit Invoice"
+                      aria-label="Edit invoice"
+                    >
+                      <FaEdit size={12} />
+                    </button>
+
+                    <button
+                      type="button"
+                      className="ci-action-btn ci-action-delete"
+                      onClick={() => handleDeleteClick(item)}
+                      title="Delete Invoice"
+                      aria-label="Delete invoice"
+                    >
+                      <FaTrash size={12} />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  )}
+</div>
+
 
       {/* Footer / Pagination */}
       <div className="ci-pagination">
