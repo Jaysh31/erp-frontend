@@ -294,12 +294,13 @@ select.form-field {
   margin-bottom: 12px;
 }
 
+/* 🎨 Role count badge — lighter blue for better text contrast */
 .uf-role-count {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   padding: 2px 10px;
-  background: var(--primary-color);
+  background: rgb(86, 185, 86);
   color: white;
   border-radius: 20px;
   font-size: 12px;
@@ -317,12 +318,13 @@ select.form-field {
   gap: 8px;
 }
 
+/* 🎨 Role tag chip — lighter blue so white text is clearly readable */
 .uf-role-tag {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   padding: 6px 12px 6px 10px;
-  background: var(--primary-color);
+  background: rgb(86, 185, 86);
   color: white;
   border-radius: 20px;
   font-size: 13px;
@@ -400,7 +402,7 @@ select.form-field {
 }
 
 .uf-role-item:hover {
-  border-color: var(--primary-color);
+  border-color: #5dade2;
   background: var(--hover-bg);
 }
 
@@ -420,17 +422,19 @@ select.form-field {
 .uf-role-item-badge {
   font-size: 10px;
   padding: 2px 8px;
-  background: rgba(52, 152, 219, 0.1);
-  color: var(--primary-color);
+  background: rgba(93, 173, 226, 0.15);
+  color: rgb(86, 185, 86);
+  
   border-radius: 12px;
   font-weight: 500;
 }
 
+/* 🎨 Add-role circular button — lighter blue */
 .uf-add-role {
   flex-shrink: 0;
   width: 28px;
   height: 28px;
-  background: var(--primary-color);
+  background: rgb(86, 185, 86);
   border: none;
   color: white;
   border-radius: 50%;
@@ -442,8 +446,9 @@ select.form-field {
 }
 
 .uf-add-role:hover {
+  background: #4a9fd4;
   transform: scale(1.1);
-  box-shadow: 0 2px 8px rgba(52, 152, 219, 0.3);
+  box-shadow: 0 2px 8px rgba(93, 173, 226, 0.4);
 }
 
 .uf-add-role:disabled {

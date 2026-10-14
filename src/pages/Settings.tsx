@@ -4,9 +4,7 @@ import { useAdminTheme, type AdminThemeType, type DateFormatType } from '../admi
 import toast from 'react-hot-toast';
 import './Settings.css';
 
-
-// ✅ FIXED: Changed 'dd/mmmyyyy' to 'ddmmmyyyy'
-
+// NOTE: This file does not control the sidebar. The sidebar is controlled by App.tsx and Layout.tsx.
 
 const Settings: React.FC = () => {
   const { theme, setTheme, dateFormat, setDateFormat } = useAdminTheme();
@@ -81,7 +79,6 @@ const Settings: React.FC = () => {
     const format = dateFormats.find(f => f.id === formatId);
     toast.success(`Date format changed to: ${format?.pattern}`);
   };
-
 
   return (
     <div className="settings-container">
@@ -223,14 +220,9 @@ const Settings: React.FC = () => {
               </div>
             ))}
           </div>
-
-          
-              
-            </div>
-          </div>
         </div>
-      
-    
+      </div>
+    </div>
   );
 };
 

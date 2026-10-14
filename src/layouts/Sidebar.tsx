@@ -53,11 +53,11 @@ const ROUTE_MODULE_MAP: Array<{ prefix: string; module: string }> = [
   { prefix: "/sales-invoice", module: "sales" },
   { prefix: "/customer", module: "sales" },
   { prefix: "/sales/item-list", module: "sales" },
-{ prefix: "/sales/item-group", module: "sales" },
+  { prefix: "/sales/item-group", module: "sales" },
 
   // Setup
   { prefix: "/item-list", module: "setup" },
-{ prefix: "/item-group", module: "setup" },
+  { prefix: "/item-group", module: "setup" },
   { prefix: "/warehouse", module: "setup" },
   { prefix: "/Workstation", module: "setup" },
   { prefix: "/operations", module: "setup" },
@@ -108,8 +108,9 @@ const ROUTE_MODULE_MAP: Array<{ prefix: string; module: string }> = [
   // Tools
   { prefix: "/tools", module: "tools" },
 
-  // Settings / Theme
-  { prefix: "/settings", module: "theme" },
+  // ❌ REMOVED: { prefix: "/settings", module: "theme" } 
+  // By removing this, navigating to /settings will NOT change the currentModule.
+  // It will stay on whatever module you were previously viewing (e.g., Manufacturing).
 
   // Dashboards
   { prefix: "/dashboard/manufacturing", module: "manufacturing" },
@@ -325,6 +326,10 @@ export default function Sidebar({
   // ═══════════════════════════════════════════════════════════════════
   useEffect(() => {
     const mod = findModuleForPath(location.pathname);
+    // Because we removed /settings from ROUTE_MODULE_MAP, 
+    // findModuleForPath("/settings") will return "". 
+    // The condition `if (mod && ...)` will evaluate to false, 
+    // so we do NOT update the currentModule. It stays as it was!
     if (mod && mod !== currentModule) {
       console.log(`📌 Sidebar module → ${mod} (${location.pathname})`);
       setCurrentModule(mod as ModuleType);

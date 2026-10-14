@@ -26,7 +26,7 @@
 }
 
 .um-page::-webkit-scrollbar-thumb:hover {
-  background: var(--primary-color, #6366f1);
+  background: var(--primary-color, #9a9bf0);
 }
 
 .um-inner {
@@ -102,7 +102,7 @@
 }
 
 .um-search-input:focus {
-  border-color: var(--primary-color, #2563eb);
+  border-color: var(--primary-color, #8fb0f7);
   box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
 }
 
@@ -144,7 +144,7 @@
 }
 
 .um-filter-select:focus {
-  border-color: var(--primary-color, #2563eb);
+  border-color: var(--primary-color, #8ca8e3);
   box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
 }
 
@@ -338,7 +338,7 @@
   font-size: 11px;
   font-weight: 600;
   background: #eff6ff;
-  color: #2563eb;
+  color: #6e8dd1;
 }
 
 /* ── Status Badge ────────────────────────────────────────── */
@@ -504,7 +504,7 @@
 
 .um-page-btn:hover:not(:disabled) {
   background: var(--nav-hover, #f3f4f6);
-  border-color: var(--primary-color, #6366f1);
+  border-color: var(--primary-color, #9394c9);
 }
 
 .um-page-btn:disabled {

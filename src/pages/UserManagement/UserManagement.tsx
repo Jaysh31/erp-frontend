@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
   FaSearch,
   FaFilter,
@@ -46,6 +46,7 @@ interface ApiResponse {
 
 export default function UserManagement() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { theme } = useAdminTheme();
 
   // ─── State ─────────────────────────────────────────────────────────────
@@ -59,17 +60,21 @@ export default function UserManagement() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
-  // Refs to prevent duplicate API calls
-  const isInitialized = useRef(false);
+  // 🆕 Only guard against concurrent duplicate fetches — NOT against
+  // refetching after navigation. (The old `isInitialized` ref blocked
+  // every subsequent fetch after the first mount, which is why the role
+  // column stayed stale after an edit.)
   const isFetching = useRef(false);
 
   // ─── Helper Functions ──────────────────────────────────────────────────
 
-  // Format date to "X h" or "X d" format
-
-
   const formatFullName = (user: User) => {
-    return user.full_name || `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.name || user.email;
+    return (
+      user.full_name ||
+      `${user.first_name || ''} ${user.last_name || ''}`.trim() ||
+      user.name ||
+      user.email
+    );
   };
 
   // ─── API Calls ─────────────────────────────────────────────────────────
@@ -81,8 +86,17 @@ export default function UserManagement() {
       isFetching.current = true;
       setLoading(true);
 
-      const response = await api.get<ApiResponse>('/user');
-      
+      // 🆕 Cache-busting via a query param only.
+      //    Do NOT add custom headers like Cache-Control / Pragma — those
+      //    are "non-simple" CORS headers and cause the browser to send a
+      //    preflight OPTIONS request. If the backend doesn't whitelist
+      //    them, the real request is blocked → Axios throws "Network Error".
+      //    A timestamp query param is a "simple" request, no preflight,
+      //    and still bypasses the browser / axios cache.
+      const response = await api.get<ApiResponse>('/user', {
+        params: { _t: Date.now() },
+      });
+
       if (response.data.success === 1 && response.data.users) {
         setUsers(response.data.users);
         setFilteredUsers(response.data.users);
@@ -95,12 +109,28 @@ export default function UserManagement() {
     }
   }, []);
 
-  // ─── Initial Load ──────────────────────────────────────────────────────
+  // ─── Initial Load + Refetch on Return ──────────────────────────────────
+  // 🆕 Refetch every time the user navigates back to this route.
+  //    `location.pathname` changes when returning from /users/new or
+  //    /users/:id, so the list is always fresh.
   useEffect(() => {
-    if (!isInitialized.current) {
-      isInitialized.current = true;
-      fetchUsers();
-    }
+    fetchUsers();
+  }, [location.pathname, fetchUsers]);
+
+  // 🆕 Safety net: if the edit was done in a modal / drawer / new tab and
+  //    the route never changed, refetch when the window regains focus or
+  //    the tab becomes visible again.
+  useEffect(() => {
+    const handleFocus = () => fetchUsers();
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') fetchUsers();
+    };
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
   }, [fetchUsers]);
 
   // ─── Filter & Search ──────────────────────────────────────────────────
@@ -122,9 +152,9 @@ export default function UserManagement() {
 
     // Status filter - consider users with role_profile_name as active
     if (statusFilter === 'active') {
-      filtered = filtered.filter(u => u.role_profile_name !== null);
+      filtered = filtered.filter((u) => u.role_profile_name !== null);
     } else if (statusFilter === 'inactive') {
-      filtered = filtered.filter(u => u.role_profile_name === null);
+      filtered = filtered.filter((u) => u.role_profile_name === null);
     }
 
     setFilteredUsers(filtered);
@@ -149,7 +179,8 @@ export default function UserManagement() {
     const maxVisible = 5;
     let startPage = Math.max(1, currentPage - Math.floor(maxVisible / 2));
     let endPage = Math.min(totalPages, startPage + maxVisible - 1);
-    if (endPage - startPage + 1 < maxVisible) startPage = Math.max(1, endPage - maxVisible + 1);
+    if (endPage - startPage + 1 < maxVisible)
+      startPage = Math.max(1, endPage - maxVisible + 1);
     for (let i = startPage; i <= endPage; i++) pages.push(i);
     return pages;
   };
@@ -171,11 +202,11 @@ export default function UserManagement() {
 
   const handleDeleteUser = async (userId: number) => {
     if (!window.confirm('Are you sure you want to delete this user?')) return;
-    
+
     try {
       // Try different possible endpoint patterns
       let response;
-      
+
       // Try with /user/{id} first
       try {
         response = await api.delete(`/user/${userId}`);
@@ -198,7 +229,7 @@ export default function UserManagement() {
           throw err;
         }
       }
-      
+
       if (response?.data?.success === 1) {
         await fetchUsers();
         alert('User deleted successfully');
@@ -212,21 +243,17 @@ export default function UserManagement() {
   };
 
   // ─── Loading Screen ─────────────────────────────────────────────────────
-    if (loading) {
-      return (
-        <div className={`p-6 max-w-7xl mx-auto ${theme}`}>
-          <PageLoader
-            message="Loading Organization & User Management List..." 
-            //subtitle="Calculating bill of materials, operations rates, and component structures"
-          />
-        </div>
-      );
-    }
+  if (loading) {
+    return (
+      <div className={`p-6 max-w-7xl mx-auto ${theme}`}>
+        <PageLoader message="Loading Organization & User Management List..." />
+      </div>
+    );
+  }
 
   return (
     <div className={`um-page ${theme}`}>
       <div className="um-inner">
-
         {/* Filter Bar */}
         <div className="um-filter-bar">
           <div className="um-filter-left">
@@ -240,15 +267,18 @@ export default function UserManagement() {
                 className="um-search-input"
               />
               {search && (
-                <button className="um-search-clear" onClick={() => setSearch('')}>
+                <button
+                  className="um-search-clear"
+                  onClick={() => setSearch('')}
+                >
                   <FaTimes size={12} />
                 </button>
               )}
             </div>
           </div>
           <div className="bom-filter-right">
-            <select 
-              value={statusFilter} 
+            <select
+              value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
               className="um-filter-select"
             >
@@ -260,12 +290,14 @@ export default function UserManagement() {
               <FaFilter size={12} />
               Filter
             </button>
-            
           </div>
-          <button className="um-btn-primary" onClick={() => navigate('/users/new')}>
-              <FaPlus size={12} />
-              Add User
-            </button>
+          <button
+            className="um-btn-primary"
+            onClick={() => navigate('/users/new')}
+          >
+            <FaPlus size={12} />
+            Add User
+          </button>
         </div>
 
         {/* Active Filters Indicator */}
@@ -280,13 +312,11 @@ export default function UserManagement() {
             )}
             {statusFilter !== 'all' && (
               <span>
-                <strong>Status:</strong> {statusFilter === 'active' ? 'Active' : 'Inactive'}
+                <strong>Status:</strong>{' '}
+                {statusFilter === 'active' ? 'Active' : 'Inactive'}
               </span>
             )}
-            <button 
-              onClick={clearFilters}
-              className="um-clear-filters"
-            >
+            <button onClick={clearFilters} className="um-clear-filters">
               <FaTimes size={10} /> Clear All
             </button>
           </div>
@@ -304,16 +334,24 @@ export default function UserManagement() {
                 <th className="um-th">Email</th>
                 <th className="um-th">Status</th>
                 <th className="um-th um-th-meta">
-                  <span className="um-count-label">{/*filteredUsers.length} of {users.length}</span>*/}
-
-                  {filteredUsers.length> 0
-                        ? `${getStartIndex()}–${getEndIndex()}`
-                        : '0'} of {filteredUsers.length}
-                    </span>
-                    
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary, #9ca3af)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
-                    </svg>
+                  <span className="um-count-label">
+                    {filteredUsers.length > 0
+                      ? `${getStartIndex()}–${getEndIndex()}`
+                      : '0'}{' '}
+                    of {filteredUsers.length}
+                  </span>
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="var(--text-secondary, #9ca3af)"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+                  </svg>
                 </th>
               </tr>
             </thead>
@@ -322,11 +360,20 @@ export default function UserManagement() {
                 <tr>
                   <td colSpan={7} className="um-empty-state">
                     <div className="um-empty-content">
-                      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-                        <circle cx="9" cy="7" r="4"/>
-                        <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
-                        <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                      <svg
+                        width="48"
+                        height="48"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="var(--text-secondary)"
+                        strokeWidth="1.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                        <circle cx="9" cy="7" r="4" />
+                        <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                        <path d="M16 3.13a4 4 0 0 1 0 7.75" />
                       </svg>
                       <p>No users found</p>
                       <span>Try adjusting your search criteria</span>
@@ -340,28 +387,35 @@ export default function UserManagement() {
                       {(currentPage - 1) * itemsPerPage + index + 1}
                     </td>
                     <td className="um-td">
-                      <span className="um-role-badge">{user.role_profile_name || 'N/A'}</span>
+                      <span className="um-role-badge">
+                        {user.role_profile_name || 'N/A'}
+                      </span>
                     </td>
                     <td className="um-td">{formatFullName(user)}</td>
                     <td className="um-td">{user.mobile_no || '-'}</td>
                     <td className="um-td">{user.email}</td>
                     <td className="um-td">
-                      <span className={`um-status-badge ${user.role_profile_name ? 'um-status-active' : 'um-status-inactive'}`}>
+                      <span
+                        className={`um-status-badge ${
+                          user.role_profile_name
+                            ? 'um-status-active'
+                            : 'um-status-inactive'
+                        }`}
+                      >
                         {user.role_profile_name ? 'Active' : 'Inactive'}
                       </span>
                     </td>
                     <td className="um-td um-td-meta">
-
                       <div className="um-action-buttons">
-                        <button 
-                          className="um-action-btn um-action-edit" 
+                        <button
+                          className="um-action-btn um-action-edit"
                           onClick={() => navigate(`/users/${user.id}`)}
                           title="Edit"
                         >
                           <FaEdit size={12} />
                         </button>
-                        <button 
-                          className="um-action-btn um-action-delete" 
+                        <button
+                          className="um-action-btn um-action-delete"
                           onClick={() => handleDeleteUser(user.id)}
                           title="Delete"
                         >
@@ -380,8 +434,8 @@ export default function UserManagement() {
         <div className="um-pagination">
           <div className="um-pagination-left">
             <span className="um-pagination-label">Show:</span>
-            <select 
-              value={itemsPerPage} 
+            <select
+              value={itemsPerPage}
               onChange={(e) => setItemsPerPage(Number(e.target.value))}
               className="um-page-size-select"
             >
@@ -393,39 +447,46 @@ export default function UserManagement() {
             <span className="um-pagination-label">entries</span>
           </div>
           <div className="um-pagination-center">
-            <button 
-              onClick={() => goToPage(1)} 
-              disabled={currentPage === 1 || filteredUsers.length === 0} 
+            <button
+              onClick={() => goToPage(1)}
+              disabled={currentPage === 1 || filteredUsers.length === 0}
               className="um-page-btn"
             >
               <FaAngleDoubleLeft size={12} />
             </button>
-            <button 
-              onClick={() => goToPage(currentPage - 1)} 
-              disabled={currentPage === 1 || filteredUsers.length === 0} 
+            <button
+              onClick={() => goToPage(currentPage - 1)}
+              disabled={currentPage === 1 || filteredUsers.length === 0}
               className="um-page-btn"
             >
               <FaChevronLeft size={12} />
             </button>
-            {filteredUsers.length > 0 && getPageNumbers().map(page => (
-              <button
-                key={page}
-                onClick={() => goToPage(page)}
-                className={`um-page-btn ${currentPage === page ? 'um-page-btn-active' : ''}`}
-              >
-                {page}
-              </button>
-            ))}
-            <button 
-              onClick={() => goToPage(currentPage + 1)} 
-              disabled={currentPage === totalPages || filteredUsers.length === 0} 
+            {filteredUsers.length > 0 &&
+              getPageNumbers().map((page) => (
+                <button
+                  key={page}
+                  onClick={() => goToPage(page)}
+                  className={`um-page-btn ${
+                    currentPage === page ? 'um-page-btn-active' : ''
+                  }`}
+                >
+                  {page}
+                </button>
+              ))}
+            <button
+              onClick={() => goToPage(currentPage + 1)}
+              disabled={
+                currentPage === totalPages || filteredUsers.length === 0
+              }
               className="um-page-btn"
             >
               <FaChevronRight size={12} />
             </button>
-            <button 
-              onClick={() => goToPage(totalPages)} 
-              disabled={currentPage === totalPages || filteredUsers.length === 0} 
+            <button
+              onClick={() => goToPage(totalPages)}
+              disabled={
+                currentPage === totalPages || filteredUsers.length === 0
+              }
               className="um-page-btn"
             >
               <FaAngleDoubleRight size={12} />
@@ -433,11 +494,11 @@ export default function UserManagement() {
           </div>
           <div className="um-pagination-right">
             <span className="um-pagination-info">
-              {filteredUsers.length > 0 ? (
-                `Showing ${getStartIndex()} to ${getEndIndex()} of ${filteredUsers.length} entries`
-              ) : (
-                'No entries to show'
-              )}
+              {filteredUsers.length > 0
+                ? `Showing ${getStartIndex()} to ${getEndIndex()} of ${
+                    filteredUsers.length
+                  } entries`
+                : 'No entries to show'}
             </span>
           </div>
         </div>
