@@ -1696,11 +1696,6 @@
   .dashboard {
     padding: 13px;
   }
-<<<<<<< Updated upstream
-
-  .header-left h1 {
-    font-size: 23px;
-=======
   
   .header-left h1 {
   font-size: 24px;
@@ -1710,7 +1705,6 @@
 }
   .actions-grid {
     grid-template-columns: 1fr 1fr;
->>>>>>> Stashed changes
   }
 
   .header-right {
