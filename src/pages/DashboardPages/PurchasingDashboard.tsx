@@ -51,17 +51,6 @@ interface GRN {
   created_at?: string;
 }
 
-interface PurchaseOrder {
-  id?: number | string;
-  po_no?: string;
-  supplier_name?: string;
-  status?: string;
-  grand_total?: number | string;
-  total?: number | string;
-  posting_date?: string;
-  created_at?: string;
-}
-
 interface DashboardStats {
   totalInvoices: number;
   totalSpend: number;

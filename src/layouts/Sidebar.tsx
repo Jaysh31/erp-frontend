@@ -21,6 +21,7 @@
 // // Import permission helper
 
 // import { hasSubmoduleByName } from '../utils/permissions';
+import api from '../services/api';
 
 
 
@@ -499,6 +500,7 @@
 //   const { currentModule, setCurrentModule } = useModule();
 
 //   const [sidebarSearch, setSidebarSearch] = useState('');
+
 
 //   const [expandedCategories, setExpandedCategories] = useState<{ [key: string]: boolean }>(() => {
 
@@ -2551,6 +2553,14 @@ interface SidebarProps {
   onToggleMinimize?: () => void;
 }
 
+
+interface AppConfiguration {
+  appName?: string;
+  logoUrl?: string;
+}
+
+
+
 interface MenuItem {
   title: string;
   icon: JSX.Element;
@@ -2558,6 +2568,12 @@ interface MenuItem {
   apiSubmodule?: string; // submodule name as returned by login API (omit to always show)
   activeMatch?: string[]; // extra prefixes that should highlight this item
 }
+
+
+
+
+
+
 
 // ═══════════════════════════════════════════════════════════════════
 // ROUTE → MODULE MAP
@@ -2789,6 +2805,35 @@ export default function Sidebar({
   const location = useLocation();
   const { currentModule, setCurrentModule } = useModule();
   const [sidebarSearch, setSidebarSearch] = useState('');
+  const [appName, setAppName] = useState("ChandraTara Ind");
+  const [logoUrl, setLogoUrl] = useState("");
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const fetchConfiguration = async () => {
+      try {
+        const response = await api.get("/config/getConfiguration");
+        const config =
+          response.data?.data ??
+          response.data?.configuration ??
+          response.data;
+
+        if (!isMounted) return;
+
+        const configuredAppName = config?.appName ?? config?.appname;
+        if (configuredAppName) setAppName(configuredAppName);
+        if (config?.logoUrl) setLogoUrl(config.logoUrl);
+      } catch (error) {
+        console.error("Failed to fetch application configuration:", error);
+      }
+    };
+
+    fetchConfiguration();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
   const [expandedCategories, setExpandedCategories] = useState<{ [key: string]: boolean }>(() => {
     const saved = localStorage.getItem('expandedCategories');
     return saved ? JSON.parse(saved) : {
@@ -2946,7 +2991,7 @@ export default function Sidebar({
         { title: 'Sales Order', icon: <SalesOrderIcon />, path: '/sales-order', apiSubmodule: 'Sales Order' },
         { title: 'Proforma Invoice', icon: <SalesOrderIcon />, path: '/proforma-invoice', apiSubmodule: 'Proforma Invoice' },
         { title: 'Delivery Challans', icon: <ReceiptIcon />, path: '/delivery-challan', apiSubmodule: 'Delivery Challans' },
-        { title: 'Tax Invoice', icon: <InvoiceIcon />, path: '/Tax-Invoice', apiSubmodule: 'Tax Invoice/Sale Bill' }
+        { title: 'Tax Invoice', icon: <InvoiceIcon />, path: '/Tax-Invoice' }
       ]
     },
     {
@@ -3226,11 +3271,20 @@ export default function Sidebar({
         {/* Logo */}
         <div className="sidebar-header">
           <div className="logo">
-            <div className="logo-icon">
-              <img src={logo} alt="SculptERP Logo" className="logo-image" />
-            </div>
-            <div className="logo-text">ChandraTara Ind</div>
-          </div>
+    <div className="logo-icon">
+      <img
+        src={logoUrl || logo}
+        alt={`${appName} Logo`}
+        className="logo-image"
+        onError={(e) => {
+          e.currentTarget.onerror = null;
+          e.currentTarget.src = logo;
+        }}
+      />
+    </div>
+
+    <div className="logo-text">{appName}</div>
+  </div>
           {onClose && (
             <button
               className="mobile-close-btn"

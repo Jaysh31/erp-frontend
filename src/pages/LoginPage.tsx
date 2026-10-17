@@ -1,6 +1,6 @@
 // LoginPage.tsx (Updated)
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import "./LoginPage.css";
 import { useAdminTheme } from '../admin-theme/AdminThemeContext';
@@ -9,6 +9,47 @@ import { storage } from '../utils/storage';
 import logo from '../assets/logo.png';
 
 export default function LoginPage() {
+
+  const [appName, setAppName] = useState("ChandraTara Ind");
+  const [logoUrl, setLogoUrl] = useState("");
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const fetchConfiguration = async () => {
+      try {
+        const response = await api.get("/config/getConfiguration");
+        const responseData = response?.data;
+        const config =
+          responseData?.data ??
+          responseData?.configuration ??
+          responseData;
+
+        if (!isMounted || !config) return;
+
+        const configuredAppName = config.appName ?? config.appname;
+        const configuredLogoUrl = config.logoUrl ?? config.logo_url;
+
+        if (typeof configuredAppName === "string" && configuredAppName.trim()) {
+          setAppName(configuredAppName);
+        }
+
+        if (typeof configuredLogoUrl === "string" && configuredLogoUrl.trim()) {
+          setLogoUrl(configuredLogoUrl);
+        }
+      } catch (error) {
+        console.error("Failed to fetch application configuration:", error);
+      }
+    };
+
+    void fetchConfiguration();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+
   const navigate = useNavigate();
   const { theme } = useAdminTheme();
 
@@ -105,9 +146,19 @@ export default function LoginPage() {
         <div className="login-card">
           <div className="login-header">
             <div className="login-logo">
-              <img src={logo} alt="SculptERP Logo" className="login-logo-image" />
+              {/*<img src={logo} alt="SculptERP Logo" className="login-logo-image" />*/}
+               <img
+      src={logoUrl || logo}
+      alt={`${appName} Logo`}
+      className="login-logo-image"
+      onError={(e) => {
+        e.currentTarget.onerror = null;
+        e.currentTarget.src = logo;
+      }}
+    />
             </div>
-            <h1>ChandraTara ERP</h1>
+            {/*<h1>ChandraTara ERP</h1>*/}
+            <h1>{appName}</h1>
             <p>Sign in to your account to continue</p>
           </div>
 
@@ -215,3 +266,4 @@ export default function LoginPage() {
     </div>
   );
 }
+
