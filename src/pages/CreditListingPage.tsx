@@ -118,11 +118,6 @@ const STATUS_OPTIONS = [
   { value: "Cancelled", label: "Cancelled" },
 ];
 
-const ENTRY_TYPE_OPTIONS = [
-  { value: "all", label: "All Types" },
-  { value: "Credit", label: "Credit" },
-  { value: "Debit", label: "Debit" },
-];
 
 const PAYMENT_MODES = [
   { value: "all", label: "All Modes" },
@@ -156,6 +151,14 @@ const formatDate = (value: string | null | undefined): string => {
   });
 };
 
+/** Local-time YYYY-MM-DD (no timezone drift) */
+const toISODate = (d: Date): string => {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+};
+
 /* ─────────────────── Component ─────────────────── */
 
 const CreditListingPage: React.FC = () => {
@@ -164,7 +167,8 @@ const CreditListingPage: React.FC = () => {
 
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [entryTypeFilter, setEntryTypeFilter] = useState("all");
+  // ✅ Default to Credit — this is the "Credit Listing" page.
+  const [entryTypeFilter, setEntryTypeFilter] = useState("Credit");
   const [paymentFilter, setPaymentFilter] = useState("all");
 
   const [loading, setLoading] = useState(false);
@@ -263,7 +267,7 @@ const CreditListingPage: React.FC = () => {
       currentMonth.getMonth(),
       day
     );
-    const dateStr = date.toISOString().split("T")[0];
+    const dateStr = toISODate(date); // ✅ local-time ISO, no timezone drift
     if (!fromDate || (fromDate && toDate)) {
       setFromDate(dateStr);
       setToDate("");
@@ -297,8 +301,8 @@ const CreditListingPage: React.FC = () => {
     const today = new Date();
     const from = new Date(today);
     from.setDate(today.getDate() - days);
-    setFromDate(from.toISOString().split("T")[0]);
-    setToDate(today.toISOString().split("T")[0]);
+    setFromDate(toISODate(from));
+    setToDate(toISODate(today));
     setCurrentPage(1);
   };
 
@@ -314,14 +318,24 @@ const CreditListingPage: React.FC = () => {
         limit: String(1000),
       });
 
+      // ✅ Send entry_type to the API. Defaults to "credit"; if the user
+      //    explicitly chooses Debit in the dropdown, we send "debit".
+      if (entryTypeFilter !== "all") {
+        params.append("entry_type", entryTypeFilter.toLowerCase());
+      } else {
+        // "All Types" still defaults to credit on this listing page
+        params.append("entry_type", "credit");
+      }
+
       if (searchTerm.trim()) params.append("search", searchTerm.trim());
       if (statusFilter !== "all") params.append("status", statusFilter);
       if (fromDate) params.append("date_from", fromDate);
       if (toDate) params.append("date_to", toDate);
 
-      const response = await api.get<AccountEntryListResponse>(
-        `/account_entry?${params.toString()}`
-      );
+      const url = `/account_entry?${params.toString()}`;
+      console.log("Fetching account entries:", url);
+
+      const response = await api.get<AccountEntryListResponse>(url);
 
       if (response.data?.success === 1) {
         const data = response.data.data;
@@ -360,6 +374,7 @@ const CreditListingPage: React.FC = () => {
 
   useEffect(() => {
     fetchEntries();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [statusFilter, entryTypeFilter, fromDate, toDate]);
 
   useEffect(() => {
@@ -368,6 +383,7 @@ const CreditListingPage: React.FC = () => {
       else fetchEntries();
     }, 500);
     return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchTerm]);
 
   useEffect(() => {
@@ -381,20 +397,17 @@ const CreditListingPage: React.FC = () => {
   }, []);
 
   /* ─── Derived filtering ─── */
-
+  // Note: entry_type is now filtered server-side, so we only filter
+  // payment_type client-side here.
   const filteredEntries = useMemo(() => {
     let filtered = [...allEntries];
-
-    if (entryTypeFilter !== "all") {
-      filtered = filtered.filter((e) => e.entry_type === entryTypeFilter);
-    }
 
     if (paymentFilter !== "all") {
       filtered = filtered.filter((e) => e.payment_type === paymentFilter);
     }
 
     return filtered;
-  }, [allEntries, entryTypeFilter, paymentFilter]);
+  }, [allEntries, paymentFilter]);
 
   /* ─── Pagination ─── */
 
@@ -472,7 +485,7 @@ const CreditListingPage: React.FC = () => {
   const clearFilters = () => {
     setSearchTerm("");
     setStatusFilter("all");
-    setEntryTypeFilter("all");
+    setEntryTypeFilter("Credit"); // ✅ back to the page's default
     setPaymentFilter("all");
     setFromDate("");
     setToDate("");
@@ -688,7 +701,7 @@ const CreditListingPage: React.FC = () => {
           </div>
 
           <div className="ace-filter-right">
-            <select
+            {/*<select
               value={entryTypeFilter}
               onChange={(e) => {
                 setEntryTypeFilter(e.target.value);
@@ -701,7 +714,7 @@ const CreditListingPage: React.FC = () => {
                   {opt.label}
                 </option>
               ))}
-            </select>
+            </select>*/}
 
             <select
               value={statusFilter}
@@ -868,21 +881,21 @@ const CreditListingPage: React.FC = () => {
             </div>
           </div>
 
-          <button className="ace-btn-primary" onClick={handleNewEntry}>
+          <button className="ace-btn-new" onClick={handleNewEntry}>
             <Plus size={12} />
-            New Credit Entry
+            Customer Receipt Entry
           </button>
         </div>
 
         {(searchTerm ||
           statusFilter !== "all" ||
-          entryTypeFilter !== "all" ||
+          entryTypeFilter !== "Credit" ||
           paymentFilter !== "all" ||
           (fromDate && toDate)) && (
           <div className="ace-active-filters">
             <FilterIcon size={12} style={{ color: "var(--primary-color)" }} />
             <span>Active filters:</span>
-            {entryTypeFilter !== "all" && (
+            {entryTypeFilter !== "Credit" && (
               <span>
                 <strong>Type:</strong> {entryTypeFilter}
               </span>
@@ -946,11 +959,11 @@ const CreditListingPage: React.FC = () => {
                       <span>
                         {searchTerm ||
                         statusFilter !== "all" ||
-                        entryTypeFilter !== "all" ||
+                        entryTypeFilter !== "Credit" ||
                         paymentFilter !== "all" ||
                         (fromDate && toDate)
                           ? "Try adjusting your search criteria"
-                          : 'Create your first entry by clicking "New Credit Entry"'}
+                          : 'Create your first entry by clicking "Customer Receipt Entry"'}
                       </span>
                     </div>
                   </td>
@@ -1064,11 +1077,11 @@ const CreditListingPage: React.FC = () => {
                 <span>
                   {searchTerm ||
                   statusFilter !== "all" ||
-                  entryTypeFilter !== "all" ||
+                  entryTypeFilter !== "Credit" ||
                   paymentFilter !== "all" ||
                   (fromDate && toDate)
                     ? "Try adjusting your search criteria"
-                    : 'Create your first entry by clicking "New Credit Entry"'}
+                    : 'Create your first entry by clicking "Customer Receipt Entry"'}
                 </span>
               </div>
             </div>

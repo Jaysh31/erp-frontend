@@ -8,7 +8,7 @@ import {
   FaPrint, FaPlus, FaTrash, FaTruck,
   FaUser, FaUsers, FaWarehouse, FaPhone, FaEnvelope, FaGlobeAsia,
   FaStickyNote,
-  FaSearch, FaEye,
+  FaSearch, 
 } from 'react-icons/fa';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useAdminTheme } from '../admin-theme/AdminThemeContext';
@@ -367,27 +367,7 @@ export default function PurchaseInvoiceForm() {
   const [, setSavedInvoiceNumber] = useState<string>('');
 
   // ─── View Mode Badge ─────────────────────────────────────────────────────────
-  const renderViewModeBadge = () => {
-    if (!isViewMode) return null;
-    
-    return (
-      <span className="pif-view-mode-badge" style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: '6px',
-        background: '#6366f1',
-        color: '#ffffff',
-        padding: '4px 12px',
-        borderRadius: '20px',
-        fontSize: '12px',
-        fontWeight: 500,
-        marginLeft: '12px',
-      }}>
-        <FaEye size={12} />
-        View Mode
-      </span>
-    );
-  };
+
 
   // ─── Handle Add New Supplier ──────────────────────────────────────────────
   const handleAddNewSupplier = async () => {
@@ -507,6 +487,30 @@ export default function PurchaseInvoiceForm() {
       setPendingWarehouseId(null);
     }
   }, [pendingWarehouseId, warehouses]);
+
+  // ─── Resolve missing HSN values from the Item API master ───────────────────
+  // Existing purchase-invoice rows may not return HSN. Match the row to the
+  // /item?limit=200 response by item_id first, then item_code, and fill only
+  // empty HSN values so API-loaded invoice data and user edits are preserved.
+  useEffect(() => {
+    if (!itemsList.length || !items.length) return;
+    let changed = false;
+    const nextItems = items.map(row => {
+      const currentHsn = row.HSN || (row as any).hsn_code || (row as any).hsn || (row as any).item_hsn || '';
+      if (String(currentHsn).trim()) return row;
+
+      const catalogItem = itemsList.find((catalog: any) =>
+        (row.item_id != null && Number(catalog.id) === Number(row.item_id)) ||
+        (row.item_code && String(catalog.item_code || '').trim().toLowerCase() === String(row.item_code).trim().toLowerCase())
+      ) as any;
+      const hsn = catalogItem?.HSN || catalogItem?.hsn_code || catalogItem?.hsn ||
+        catalogItem?.item_hsn || catalogItem?.gst_hsn_code || catalogItem?.hsnCode || '';
+      if (!String(hsn).trim()) return row;
+      changed = true;
+      return { ...row, HSN: String(hsn) };
+    });
+    if (changed) setItems(nextItems);
+  }, [itemsList, items]);
 
   // ─── ✅ NEW: Sync tax_rate from tax_id once BOTH taxes and items are loaded.
   //     - If a row has a tax_id  → rate is derived from the tax master.
@@ -628,13 +632,18 @@ export default function PurchaseInvoiceForm() {
 
   // ─── Fetch Items ────────────────────────────────────────────────────────────
   const fetchItems = async () => {
-    if (isViewMode) return;
+    // Load the item master in view mode too, so HSN can be resolved from the API
+    // when an existing purchase invoice item does not contain its own HSN field.
     setLoadingItems(true);
     try {
       const res = await api.get('/item?limit=200');
       if (res.data?.success === 1) {
         const records = res.data.data?.records || res.data.data || [];
-        setItemsList(records);
+        const normalizedRecords = (Array.isArray(records) ? records : []).map((item: any) => ({
+          ...item,
+          HSN: item.HSN || item.hsn_code || item.hsn || item.item_hsn || item.gst_hsn_code || item.hsnCode || '',
+        }));
+        setItemsList(normalizedRecords);
       }
     } catch (err) {
       console.error('Error fetching items:', err);
@@ -1261,7 +1270,7 @@ export default function PurchaseInvoiceForm() {
               grn_refs: it.grn_refs || [],
               tax_rate: resolvedTaxRate || 0,
               tax_id: taxId,
-              HSN: it.hsn_code || it.HSN || '',
+              HSN: it.hsn_code || it.HSN || it.hsn || it.item_hsn || '',
               note: it.note || '',
             };
           });
@@ -2210,7 +2219,7 @@ export default function PurchaseInvoiceForm() {
             <h1>
               {isViewMode ? 'View Purchase Bill' : isEdit ? `${formData.invoiceNumber || 'Edit Purchase Bill'}` : 'New Purchase Bill'}
             </h1>
-            {renderViewModeBadge()}
+            
           </div>
           <button type="button" onClick={handlePrint} className="print-btn" disabled={items.length === 0}>
             <FaPrint size={12} /> Print
@@ -2475,6 +2484,7 @@ export default function PurchaseInvoiceForm() {
                   </>
                 )}
 
+                {/* ── Invoice Date + Delivery Date ──────────────────────────── */}
                 <div className="pif-grid-2">
                   <div className="pif-field">
                     <label className="pif-label">
@@ -2488,8 +2498,28 @@ export default function PurchaseInvoiceForm() {
                         if (isViewMode) return;
                         setFormData(p => ({ ...p, date: e.target.value }));
                       }}
+                      onClick={(e) => {
+                        // ✅ FIX: Force native date picker to open reliably.
+                        //    Also close any open dropdowns that may be overlaying it.
+                        setShowSupplierDropdown(false);
+                        setShowPoDropdown(false);
+                        setShowGrnDropdown(false);
+                        setShowItemDropdown(false);
+                        const input = e.currentTarget;
+                        if (!isViewMode && typeof input.showPicker === 'function') {
+                          try { input.showPicker(); } catch { /* ignore */ }
+                        }
+                      }}
+                      onMouseDown={() => {
+                        // ✅ FIX: close overlays before the calendar popup appears
+                        setShowSupplierDropdown(false);
+                        setShowPoDropdown(false);
+                        setShowGrnDropdown(false);
+                        setShowItemDropdown(false);
+                      }}
                       className={`form-field ${validationErrors.some(e => e.field === 'date') ? 'field-error' : ''} ${isViewMode ? 'field-disabled' : ''}`}
                       disabled={isViewMode}
+                      style={{ pointerEvents: isViewMode ? 'none' : 'auto', cursor: 'pointer' }}
                     />
                   </div>
 
@@ -2505,33 +2535,27 @@ export default function PurchaseInvoiceForm() {
                         if (isViewMode) return;
                         setFormData(p => ({ ...p, deliveryDate: e.target.value }));
                       }}
-                      onClick={e => {
-                        if (isViewMode) return;
-                        // ✅ Open the native calendar picker on click
-                        const el = e.currentTarget as HTMLInputElement & {
-                          showPicker?: () => void;
-                        };
-                        try {
-                          el.showPicker?.();
-                        } catch {
-                          /* Picker already open or not supported — ignore */
+                      onClick={(e) => {
+                        // ✅ FIX: same treatment as Invoice Date
+                        setShowSupplierDropdown(false);
+                        setShowPoDropdown(false);
+                        setShowGrnDropdown(false);
+                        setShowItemDropdown(false);
+                        const input = e.currentTarget;
+                        if (!isViewMode && typeof input.showPicker === 'function') {
+                          try { input.showPicker(); } catch { /* ignore */ }
                         }
                       }}
-                      onFocus={e => {
-                        if (isViewMode) return;
-                        // ✅ Also open the picker when the field is focused (e.g. via keyboard/tab)
-                        const el = e.currentTarget as HTMLInputElement & {
-                          showPicker?: () => void;
-                        };
-                        try {
-                          el.showPicker?.();
-                        } catch {
-                          /* Ignore */
-                        }
+                      onMouseDown={() => {
+                        setShowSupplierDropdown(false);
+                        setShowPoDropdown(false);
+                        setShowGrnDropdown(false);
+                        setShowItemDropdown(false);
                       }}
                       className={`form-field ${isViewMode ? 'field-disabled' : ''}`}
                       style={{ cursor: isViewMode ? 'default' : 'pointer' }}
                       disabled={isViewMode}
+                      
                     />
                   </div>
                   </div>
@@ -2968,28 +2992,6 @@ export default function PurchaseInvoiceForm() {
                     </select>
                   </div>
                 </div>
-
-                {/* GST Summary */}
-                <div className="pif-party-detail-card">
-                  <div className="pif-party-card-header">
-                    <FaMoneyBillWave size={14} />
-                    <span>GST Summary</span>
-                  </div>
-                  <div className="pif-party-card-content">
-                    <div className="pif-party-info-item">
-                      <span className="pif-party-info-label">CGST</span>
-                      <span className="pif-party-info-value">₹ {cgstAmount.toFixed(2)}</span>
-                    </div>
-                    <div className="pif-party-info-item">
-                      <span className="pif-party-info-label">SGST</span>
-                      <span className="pif-party-info-value">₹ {sgstAmount.toFixed(2)}</span>
-                    </div>
-                    <div className="pif-party-info-item">
-                      <span className="pif-party-info-label">Total GST</span>
-                      <span className="pif-party-info-value">₹ {totalTax.toFixed(2)}</span>
-                    </div>
-                  </div>
-                </div>
               </div>
             </div>
 
@@ -3133,13 +3135,19 @@ export default function PurchaseInvoiceForm() {
                               />
                             </td>
                             <td className="pif-itd pof-itd" data-label="HSN">
-                              <input
-                                type="text"
-                                value={row.HSN || ''}
-                                onChange={e => handleItemFieldChange(row.id, 'HSN', e.target.value)}
-                                className="pif-cell-input pof-cell-input"
-                                placeholder="HSN"
-                              />
+                              {isViewMode ? (
+                                <span className="pif-cell-readonly pof-uom-display">
+                                  {row.HSN ||  '-'}
+                                </span>
+                              ) : (
+                                <input
+                                  type="text"
+                                  value={row.HSN || ''}
+                                  onChange={e => handleItemFieldChange(row.id, 'HSN', e.target.value)}
+                                  className="pif-cell-input pof-cell-input"
+                                  placeholder="HSN"
+                                />
+                              )}
                             </td>
                             <td className="pif-itd pof-itd pif-itd-num" data-label="Ordered Qty">
                               <span className="pif-cell-readonly pof-uom-display">{row.ordered_qty || 0}</span>
@@ -3201,12 +3209,9 @@ export default function PurchaseInvoiceForm() {
                                 step="0.01"
                               />
                             </td>
-                            {/* ✅ FIX: removed the <td> that was nested inside another <td> (invalid HTML) */}
                             <td className="pif-itd pof-itd pif-itd-num pif-amount pof-itd-amount pif-itd-amount pif-itd-amount-wide" data-label="Amount">
                               ₹ {(row.amount || 0).toFixed(2)}
                             </td>
-                            {/* ✅ FIX: dropdown is now bound to tax_id (not the rate), so GST18 / IGST18
-                                 are distinct options and the selected id is what gets saved */}
                             <td className="pif-itd pof-itd pif-itd-num" data-label="Tax %">
                               <select
                                 value={row.tax_id ?? ''}
@@ -3254,7 +3259,6 @@ export default function PurchaseInvoiceForm() {
                                   title="Remove item"
                                 >
                                   <FaTrash size={12} />
-                                  
                                 </button>
                               </td>
                             )}
@@ -3359,6 +3363,3 @@ export default function PurchaseInvoiceForm() {
     </div>
   );
 }
-
-
-

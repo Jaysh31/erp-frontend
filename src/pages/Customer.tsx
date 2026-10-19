@@ -751,6 +751,7 @@ const Customer: React.FC = () => {
             Add Customer
           </button>
         </div>
+        
       </div>
 
       {/* Active filters indicator */}
@@ -1001,6 +1002,235 @@ const Customer: React.FC = () => {
               </tbody>
             </table>
           </div>
+
+
+
+
+
+          {/* ============================================================
+    CUSTOMER MOBILE TABLE
+    Desktop table remains unchanged.
+    This section is shown only on mobile.
+============================================================ */}
+
+<div className="customer-mobile-list-wrap">
+
+  {/* Mobile Table Header */}
+  <div className="customer-mobile-list-header">
+    <div className="customer-mobile-header-left">
+      <span className="customer-mobile-header-title">CUSTOMER</span>
+      <span className="customer-mobile-header-title">TYPE</span>
+    </div>
+
+    <div className="customer-mobile-header-right">
+      <span className="customer-mobile-count">
+        {totalItems > 0
+          ? `${getStartIndex()}–${getEndIndex()} of ${totalItems}`
+          : `0 of ${totalItems}`}
+      </span>
+    </div>
+  </div>
+
+  {/* Empty State */}
+  {paginatedData.length === 0 ? (
+    <div className="customer-mobile-empty">
+      <div className="customer-mobile-empty-content">
+        <FaUser size={30} />
+        <p>No customers found</p>
+        <span>Try adjusting your search criteria</span>
+      </div>
+    </div>
+  ) : (
+
+    /* Customer Cards */
+    <div className="customer-mobile-cards">
+
+      {paginatedData.map((row) => {
+
+        const isExpanded = expandedRows.has(row.id);
+
+        return (
+          <div
+            key={row.id}
+            className={`customer-mobile-card ${
+              isExpanded ? 'customer-mobile-card-expanded' : ''
+            }`}
+          >
+
+            {/* ==================================================
+                CARD HEADER
+                Customer | Type | Expand
+            ================================================== */}
+            <div
+              className="customer-mobile-card-header"
+              onClick={() => toggleRow(row.id)}
+            >
+
+              <div className="customer-mobile-card-primary">
+
+                <span
+                  className="customer-mobile-customer-name"
+                  title={row.customerName}
+                >
+                  {row.customerName || '—'}
+                </span>
+
+                <span
+                  className="customer-mobile-customer-type"
+                  title={row.customerType}
+                >
+                  {row.customerType || '—'}
+                </span>
+
+              </div>
+
+              {/* Expand / Collapse */}
+              <button
+                type="button"
+                className={`customer-mobile-dropdown-btn ${
+                  isExpanded ? 'expanded' : ''
+                }`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggleRow(row.id);
+                }}
+                aria-label={
+                  isExpanded
+                    ? 'Collapse customer details'
+                    : 'Expand customer details'
+                }
+              >
+                <FaChevronDown
+                  size={12}
+                  className="customer-mobile-chevron"
+                />
+              </button>
+
+            </div>
+
+            {/* ==================================================
+                EXPANDED DETAILS
+            ================================================== */}
+            {isExpanded && (
+              <div className="customer-mobile-card-details">
+
+                {/* GROUP */}
+                <div className="customer-mobile-detail-row">
+                  <span className="customer-mobile-detail-label">
+                    GROUP
+                  </span>
+
+                  <span className="customer-mobile-detail-value">
+                    {row.customerGroup || '—'}
+                  </span>
+                </div>
+
+                {/* EMAIL */}
+                <div className="customer-mobile-detail-row">
+                  <span className="customer-mobile-detail-label">
+                    EMAIL
+                  </span>
+
+                  <span className="customer-mobile-detail-value customer-mobile-email">
+                    {row.email ? (
+                      <a
+                        href={`mailto:${row.email}`}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {row.email}
+                      </a>
+                    ) : (
+                      '—'
+                    )}
+                  </span>
+                </div>
+
+                {/* MOBILE */}
+                <div className="customer-mobile-detail-row">
+                  <span className="customer-mobile-detail-label">
+                    MOBILE
+                  </span>
+
+                  <span className="customer-mobile-detail-value">
+                    {row.mobile ? (
+                      <a
+                        href={`tel:${row.mobile}`}
+                        className="customer-mobile-phone"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {row.mobile}
+                      </a>
+                    ) : (
+                      '—'
+                    )}
+                  </span>
+                </div>
+
+                {/* STATUS */}
+                <div className="customer-mobile-detail-row">
+                  <span className="customer-mobile-detail-label">
+                    STATUS
+                  </span>
+
+                  <span className="customer-mobile-detail-value">
+                    {getStatusBadge(row.status)}
+                  </span>
+                </div>
+
+                {/* ==================================================
+                    ACTION FOOTER
+                ================================================== */}
+                <div className="customer-mobile-card-footer">
+
+                  <div className="customer-mobile-action-buttons">
+
+                    {/* EDIT */}
+                    <button
+                      type="button"
+                      className="customer-mobile-action-btn customer-mobile-edit-btn"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleEdit(row.id);
+                      }}
+                      title="Edit Customer"
+                    >
+                      <FaEdit size={11} />
+                    </button>
+
+                    {/* DELETE */}
+                    <button
+                      type="button"
+                      className="customer-mobile-action-btn customer-mobile-delete-btn"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDelete(row);
+                      }}
+                      title="Delete Customer"
+                      disabled={isDeleting}
+                    >
+                      <FaTrash size={11} />
+                    </button>
+
+                  </div>
+
+                </div>
+
+              </div>
+            )}
+
+          </div>
+        );
+      })}
+
+    </div>
+  )}
+
+</div>
+
+
+
+
+
 
           {/* Pagination */}
           <div className="igl-pagination">

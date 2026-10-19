@@ -5,6 +5,7 @@ import { useNavigate } from "react-router-dom";
 import {
   FaBoxes,
   FaClock,
+
   FaIndustry,
   FaCheckCircle,
   FaExclamationTriangle,
@@ -18,6 +19,7 @@ import {
   FaCube,
   FaCubes,
   FaSyncAlt,
+
 } from "react-icons/fa";
 
 import {
@@ -116,15 +118,6 @@ const statusColors: Record<string, string> = {
 
 // Soft/light backgrounds.
 // These are intentionally similar to .qa-purple { background: #f1eafe; }
-const statusLightColors: Record<string, string> = {
-  Draft: "#f1f5f9",
-  Open: "#eaf2ff",
-  "In Process": "#fff7df",
-  Completed: "#eaf8ef",
-  Stopped: "#feecec",
-  "On Hold": "#f1eafe",
-  Pending: "#fff7df",
-};
 
 // ============================================================
 // COMPONENT
@@ -747,43 +740,7 @@ export default function DashboardPage() {
     );
   };
 
-  const formatDate = (
-    value: any
-  ) => {
-    if (!value) return "";
 
-    return new Date(
-      value
-    ).toLocaleDateString(
-      "en-IN",
-      {
-        day: "2-digit",
-        month: "short",
-        year: "numeric",
-      }
-    );
-  };
-
-  const getActivityIcon = (
-    status?: string
-  ) => {
-    switch (status) {
-      case "Completed":
-        return <FaCheckCircle />;
-
-      case "In Process":
-        return <FaHourglassHalf />;
-
-      case "Open":
-        return <FaPlay />;
-
-      case "Stopped":
-        return <FaExclamationTriangle />;
-
-      default:
-        return <FaClock />;
-    }
-  };
 
   // ==========================================================
   // RENDER
@@ -1184,9 +1141,7 @@ export default function DashboardPage() {
               </p>
             </div>
 
-            <div className="heading-icon">
-              <FaPlus />
-            </div>
+           
           </div>
 
           <div className="quick-action-list">
@@ -1591,156 +1546,100 @@ export default function DashboardPage() {
           </div>
         </section>
 
-        {/* ==================================================
-            RECENT ACTIVITY
-        ================================================== */}
-
-        <section className="dashboard-card recent-card full-width">
-
-          <div className="card-heading">
-            <div>
-              <h2>
-                Recent Activity
-              </h2>
-
-              <p>
-                Latest manufacturing updates
-              </p>
-            </div>
-
-            <button
-              className="card-link"
-              onClick={() =>
-                handleNavigate(
-                  "/work-order"
-                )
-              }
-            >
-              View All
-              <FaArrowRight />
-            </button>
-          </div>
-
-          <div className="activity-table">
-
-            <div className="activity-header">
-              <span>
-                Activity
-              </span>
-
-              <span>
-                Module
-              </span>
-
-              <span>
-                Status
-              </span>
-
-              <span>
-                Date
-              </span>
-            </div>
-
-            {loading ? (
-              <div className="activity-loading">
-                <span className="spinner" />
-                Loading activity...
-              </div>
-            ) : dashboardData.recentActivity.length === 0 ? (
-              <div className="activity-empty-row">
-                <FaClock />
-                No recent activity
-              </div>
-            ) : (
-              dashboardData.recentActivity.map(
-                (activity: any, index: number) => {
-                  const activityColor =
-                    statusColors[activity.status] ||
-                    "#3b82f6";
-
-                  const activityLightColor =
-                    statusLightColors[activity.status] ||
-                    "#eaf2ff";
-
-                  return (
-                    <div
-                      className="activity-row"
-                      key={index}
-                    >
-
-                      {/* ACTIVITY */}
-                      <div className="activity-main">
-
-                        <div
-                          className="activity-icon"
-                          style={{
-                            background:
-                              activityLightColor,
-                            color:
-                              activityColor,
-                          }}
-                        >
-                          {getActivityIcon(
-                            activity.status
-                          )}
-                        </div>
-
-                        <div>
-                          <strong>
-                            {activity.production_item ||
-                              activity.item_name ||
-                              activity.name ||
-                              `WO-${activity.id}`}
-                          </strong>
-
-                          <small>
-                            Qty:{" "}
-                            {activity.qty ||
-                              activity.for_quantity ||
-                              activity.requested_qty ||
-                              0}
-                          </small>
-                        </div>
-                      </div>
-
-                      {/* MODULE */}
-                      <span className="module-badge">
-                        {activity.work_order
-                          ? "Job Card"
-                          : "Work Order"}
-                      </span>
-
-                      {/* STATUS */}
-                      <span
-                        className="activity-status-badge"
-                        style={{
-                          color:
-                            activityColor,
-
-                          background:
-                            activityLightColor,
-                        }}
-                      >
-                        {activity.status ||
-                          "Unknown"}
-                      </span>
-
-                      {/* DATE */}
-                      <span className="activity-date">
-                        {formatDate(
-                          activity.modified ||
-                            activity.creation
-                        )}
-                      </span>
-
-                    </div>
-                  );
-                }
-              )
-            )}
-          </div>
-        </section>
-
+       {/* ====================================================
+                   RECENT ACTIVITY
+               ==================================================== */}
+               <div className="card recent-activity">
+                 <div className="card-header">
+                   <div>
+                     <h3>Recent Activity</h3>
+                     <span className="card-subtitle">
+                       Latest work orders and job card updates
+                     </span>
+                   </div>
+       
+                   <button className="view-all" onClick={() => handleNavigate("/work-order")}>
+                     View All
+                     <FaArrowRight />
+                   </button>
+                 </div>
+       
+                 <div className="activity-list">
+                   {loading ? (
+                     <div className="activity-empty">
+                       <span className="loading-spinner" />
+                       Loading activity...
+                     </div>
+                   ) : dashboardData.recentActivity.length === 0 ? (
+                     <div className="activity-empty">
+                       <FaClock />
+                       <span>No recent activity</span>
+                     </div>
+                   ) : (
+                     dashboardData.recentActivity.map((activity: any, index: number) => (
+                       <div key={index} className="activity-item">
+                         <div
+                           className={`activity-icon status-${
+                             activity.status?.toLowerCase().replace(" ", "") || "pending"
+                           }`}
+                         >
+                           {activity.status === "Completed" ? (
+                             <FaCheckCircle />
+                           ) : activity.status === "In Process" ? (
+                             <FaHourglassHalf />
+                           ) : activity.status === "Open" ? (
+                             <FaPlay />
+                           ) : (
+                             <FaClock />
+                           )}
+                         </div>
+       
+                         <div className="activity-content">
+                           <div className="activity-title">
+                             {activity.production_item ||
+                               activity.item_name ||
+                               activity.name ||
+                               `WO-${activity.id}`}
+       
+                             {activity.work_order && (
+                               <span className="activity-wo">
+                                 {" "}• WO: {activity.work_order}
+                               </span>
+                             )}
+                           </div>
+       
+                           <div className="activity-meta">
+                             <span
+                               className="activity-status"
+                               style={{
+                                 backgroundColor: statusColors[activity.status] || "#3b82f6",
+                               }}
+                             >
+                               {activity.status || "Unknown"}
+                             </span>
+       
+                             <span className="activity-type">
+                               {activity.work_order ? "Job Card" : "Work Order"}
+                             </span>
+       
+                             <span className="activity-date">
+                               {activity.modified
+                                 ? new Date(activity.modified).toLocaleDateString()
+                                 : activity.creation
+                                 ? new Date(activity.creation).toLocaleDateString()
+                                 : ""}
+                             </span>
+                           </div>
+                         </div>
+       
+                         <div className="activity-qty">
+                           Qty: {activity.qty || activity.for_quantity || activity.requested_qty || 0}
+                         </div>
+                       </div>
+                     ))
+                   )}
+                 </div>
+               </div>
         {/* ==================================================
             MANUFACTURING METRICS
         ================================================== */}

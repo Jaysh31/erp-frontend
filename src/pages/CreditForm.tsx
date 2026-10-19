@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import "./CreditForm.css";
 import api from "../services/api";
-import { FaArrowLeft, FaExclamationTriangle, FaEye } from "react-icons/fa";
+import { FaArrowLeft, FaExclamationTriangle } from "react-icons/fa";
 
 /* ----------------------------- Interfaces ----------------------------- */
 
@@ -775,7 +775,7 @@ const CreditForm: React.FC = () => {
       setTimeout(() => setSuccessMessage(null), 5000);
     } catch (err: any) {
       console.error("Failed to save:", err);
-      alert(err.response?.data?.message || "Failed to save credit details");
+      alert(err.response?.data?.message || "Failed to save Customer Receipt Details");
     } finally {
       setSaving(false);
     }
@@ -834,26 +834,10 @@ const CreditForm: React.FC = () => {
                       </button>
                       <div className="pof-header-title">
                         <h1>
-                          {isViewMode ? 'View Credit Entry' : isEdit ? 'Edit Credit Entry' : 'Credit Details'}
+                          {isViewMode ? 'View Customer Receipt Details' : isEdit ? 'Edit Customer Receipt Details' : 'Customer Receipt Details'}
                         </h1>
-                        {isViewMode && (
-                          <span className="pof-view-mode-badge" style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '6px',
-                            background: '#6366f1',
-                            color: '#ffffff',
-                            padding: '4px 12px',
-                            borderRadius: '20px',
-                            fontSize: '12px',
-                            fontWeight: 500,
-                            marginLeft: '12px',
-                          }}>
-                            <FaEye size={12} />
-                            View Mode
-                          </span>
-                        )}
-                        {isEdit && !isViewMode && <span className="pof-status-badge">{formData.referenceType}</span>}
+                        
+                       
                       </div>
                       {!isViewMode && Object.keys(errors).length > 0 && (
                         <div className="pof-error-badge">
@@ -867,7 +851,7 @@ const CreditForm: React.FC = () => {
       <div className="rd-credit-card">
         <div className="rd-credit-header">
           <h2>
-            REFERENCE DETAILS – CREDIT FORM
+            REFERENCE DETAILS – Customer Receipt Details
             {isReadOnly ? " (View)" : isEditOrView ? " (Edit)" : ""}
           </h2>
         </div>

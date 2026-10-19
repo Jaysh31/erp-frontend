@@ -1,0 +1,1099 @@
+
+/* ============================================================
+   CHART OF ACCOUNTS
+   Modern ERP UI + Settings Theme Integration
+============================================================ */
+
+/* ---------- Theme Variables: Light Mode ---------- */
+
+.chart-of-accounts {
+  --coa-page-bg: #f8fafc;
+  --coa-card-bg: #ffffff;
+  --coa-input-bg: #f8fafc;
+  --coa-hover-bg: #f1f5f9;
+  --coa-selected-bg: #eff6ff;
+  --coa-text-primary: #1e293b;
+  --coa-text-secondary: #64748b;
+  --coa-text-muted: #94a3b8;
+  --coa-border: #e2e8f0;
+  --coa-border-light: #f1f5f9;
+  --coa-primary: var(--primary-color, #2c7a8a);
+  --coa-shadow: 0 2px 8px rgba(15, 23, 42, 0.05);
+
+  min-height: 100vh;
+  padding: 24px;
+  background: var(--coa-page-bg);
+  color: var(--coa-text-primary);
+  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  box-sizing: border-box;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.chart-of-accounts *,
+.chart-of-accounts *::before,
+.chart-of-accounts *::after {
+  box-sizing: border-box;
+}
+
+/* ---------- Header ---------- */
+
+.chart-of-accounts .page-header,
+.chart-of-accounts .coa-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 24px;
+  padding: 22px 24px;
+  background: var(--coa-card-bg);
+  border: 1px solid var(--coa-border);
+  border-radius: 14px;
+  box-shadow: var(--coa-shadow);
+}
+
+.chart-of-accounts h1,
+.chart-of-accounts .page-title {
+  margin: 0;
+  color: var(--coa-text-primary);
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.chart-of-accounts h2,
+.chart-of-accounts h3 {
+  color: var(--coa-text-primary);
+}
+
+.chart-of-accounts p {
+  color: var(--coa-text-secondary);
+}
+
+/* ---------- Buttons ---------- */
+
+.chart-of-accounts button {
+  font-family: inherit;
+}
+
+.chart-of-accounts .btn-primary,
+.chart-of-accounts .btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 9px 15px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease,
+    transform 0.2s ease;
+}
+
+.chart-of-accounts .btn-primary {
+  background: var(--coa-primary);
+  color: #ffffff;
+}
+
+.chart-of-accounts .btn-primary:hover {
+  filter: brightness(0.94);
+}
+
+.chart-of-accounts .btn-secondary {
+  background: var(--coa-card-bg);
+  border-color: var(--coa-border);
+  color: var(--coa-text-primary);
+}
+
+.chart-of-accounts .btn-secondary:hover {
+  background: var(--coa-hover-bg);
+  border-color: var(--coa-primary);
+}
+
+/* ---------- Toolbar / Search / Filters ---------- */
+
+.chart-of-accounts .toolbar,
+.chart-of-accounts .accounts-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 20px;
+  padding: 16px;
+  background: var(--coa-card-bg);
+  border: 1px solid var(--coa-border);
+  border-radius: 12px;
+  box-shadow: var(--coa-shadow);
+}
+
+.chart-of-accounts .toolbar-left,
+.chart-of-accounts .toolbar-right {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  min-width: 0;
+}
+
+.chart-of-accounts .search-box {
+  position: relative;
+  flex: 1;
+  min-width: 220px;
+}
+
+.chart-of-accounts .search-box input,
+.chart-of-accounts .search-input {
+  width: 100%;
+  min-height: 40px;
+  padding: 10px 14px 10px 38px;
+  background: var(--coa-input-bg);
+  color: var(--coa-text-primary);
+  border: 1px solid var(--coa-border);
+  border-radius: 8px;
+  outline: none;
+  font-size: 13px;
+}
+
+.chart-of-accounts .search-box input:focus,
+.chart-of-accounts .search-input:focus {
+  border-color: var(--coa-primary);
+  box-shadow: 0 0 0 3px rgba(44, 122, 138, 0.12);
+}
+
+.chart-of-accounts input,
+.chart-of-accounts select,
+.chart-of-accounts textarea {
+  color: var(--coa-text-primary);
+}
+
+.chart-of-accounts input::placeholder,
+.chart-of-accounts textarea::placeholder {
+  color: var(--coa-text-muted);
+}
+
+/* ---------- View Toggle ---------- */
+
+.chart-of-accounts .view-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  background: var(--coa-hover-bg);
+  border: 1px solid var(--coa-border);
+  border-radius: 9px;
+}
+
+.chart-of-accounts .view-toggle button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 7px 12px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--coa-text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.chart-of-accounts .view-toggle button.active {
+  background: var(--coa-card-bg);
+  color: var(--coa-primary);
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.1);
+}
+
+/* ---------- Account Tree ---------- */
+
+.chart-of-accounts .accounts-tree {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+.chart-of-accounts .group-section {
+  overflow: hidden;
+  background: var(--coa-card-bg);
+  border: 1px solid var(--coa-border);
+  border-radius: 12px;
+  box-shadow: var(--coa-shadow);
+}
+
+.chart-of-accounts .group-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 60px;
+  padding: 14px 18px;
+  background: var(--coa-input-bg);
+  border-left: 4px solid var(--coa-primary);
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.chart-of-accounts .group-header:hover {
+  background: var(--coa-hover-bg);
+}
+
+.chart-of-accounts .group-header-left,
+.chart-of-accounts .group-header-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.chart-of-accounts .group-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 17px;
+}
+
+.chart-of-accounts .group-name {
+  color: var(--coa-text-primary);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.chart-of-accounts .group-count {
+  color: var(--coa-text-muted);
+  font-size: 12px;
+}
+
+.chart-of-accounts .group-total {
+  color: var(--coa-text-primary);
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.chart-of-accounts .group-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--coa-text-secondary);
+}
+
+/* ---------- Individual Account ---------- */
+
+.chart-of-accounts .account-item-wrapper {
+  min-width: 0;
+}
+
+.chart-of-accounts .account-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  min-width: 0;
+  padding: 13px 16px;
+  border-bottom: 1px solid var(--coa-border-light);
+  cursor: pointer;
+  transition: background 0.18s ease;
+}
+
+.chart-of-accounts .account-item:hover {
+  background: var(--coa-hover-bg);
+}
+
+.chart-of-accounts .account-item.selected {
+  background: var(--coa-selected-bg);
+  box-shadow: inset 3px 0 var(--coa-primary);
+}
+
+.chart-of-accounts .account-item-left,
+.chart-of-accounts .account-item-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.chart-of-accounts .account-item-left {
+  flex: 1;
+}
+
+.chart-of-accounts .account-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 34px;
+  width: 34px;
+  height: 34px;
+  background: var(--coa-hover-bg);
+  color: var(--coa-primary);
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+.chart-of-accounts .account-info {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  min-width: 0;
+}
+
+.chart-of-accounts .account-name {
+  color: var(--coa-text-primary);
+  font-size: 13px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.chart-of-accounts .account-code {
+  padding: 3px 6px;
+  background: var(--coa-hover-bg);
+  color: var(--coa-text-secondary);
+  border-radius: 4px;
+  font-family: "Courier New", monospace;
+  font-size: 11px;
+}
+
+.chart-of-accounts .account-type {
+  color: var(--coa-text-muted);
+  font-size: 11px;
+}
+
+.chart-of-accounts .account-balance {
+  color: var(--coa-text-primary);
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.chart-of-accounts .account-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.chart-of-accounts .action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: var(--coa-text-secondary);
+  cursor: pointer;
+}
+
+.chart-of-accounts .action-btn:hover {
+  background: var(--coa-hover-bg);
+  border-color: var(--coa-border);
+  color: var(--coa-primary);
+}
+
+.chart-of-accounts .account-children {
+  margin-left: 20px;
+  border-left: 1px dashed var(--coa-border);
+}
+
+/* ---------- Type Icons ---------- */
+
+.chart-of-accounts .type-icon {
+  flex-shrink: 0;
+  font-size: 14px;
+}
+
+.chart-of-accounts .type-icon.asset {
+  color: #10b981;
+}
+
+.chart-of-accounts .type-icon.liability {
+  color: #ef4444;
+}
+
+.chart-of-accounts .type-icon.equity {
+  color: #6366f1;
+}
+
+.chart-of-accounts .type-icon.income {
+  color: #f59e0b;
+}
+
+.chart-of-accounts .type-icon.expense {
+  color: #8b5cf6;
+}
+
+/* ---------- Status Badges ---------- */
+
+.chart-of-accounts .status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  width: fit-content;
+  padding: 5px 9px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.chart-of-accounts .status-badge.active {
+  background: #ecfdf5;
+  color: #059669;
+}
+
+.chart-of-accounts .status-badge.inactive {
+  background: #fef2f2;
+  color: #dc2626;
+}
+
+/* ---------- List View ---------- */
+
+.chart-of-accounts .accounts-list-view {
+  width: 100%;
+  overflow-x: auto;
+  background: var(--coa-card-bg);
+  border: 1px solid var(--coa-border);
+  border-radius: 12px;
+  box-shadow: var(--coa-shadow);
+}
+
+.chart-of-accounts .accounts-table {
+  width: 100%;
+  min-width: 760px;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.chart-of-accounts .accounts-table thead {
+  background: var(--coa-input-bg);
+}
+
+.chart-of-accounts .accounts-table th {
+  padding: 14px 16px;
+  color: var(--coa-text-secondary);
+  border-bottom: 1px solid var(--coa-border);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  white-space: nowrap;
+}
+
+.chart-of-accounts .accounts-table td {
+  padding: 13px 16px;
+  color: var(--coa-text-primary);
+  border-bottom: 1px solid var(--coa-border-light);
+  font-size: 13px;
+}
+
+.chart-of-accounts .accounts-table tbody tr {
+  transition: background 0.15s ease;
+}
+
+.chart-of-accounts .accounts-table tbody tr:hover {
+  background: var(--coa-hover-bg);
+}
+
+.chart-of-accounts .accounts-table tbody tr.selected {
+  background: var(--coa-selected-bg);
+}
+
+/* ---------- Account Details Sidebar ---------- */
+
+.chart-of-accounts .account-sidebar,
+.chart-of-accounts .details-sidebar {
+  width: 340px;
+  max-width: 100%;
+  background: var(--coa-card-bg);
+  border: 1px solid var(--coa-border);
+  border-radius: 12px;
+  box-shadow: var(--coa-shadow);
+  overflow: hidden;
+}
+
+.chart-of-accounts .sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--coa-border);
+}
+
+.chart-of-accounts .sidebar-header h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--coa-text-primary);
+}
+
+.chart-of-accounts .sidebar-content {
+  padding: 20px;
+}
+
+.chart-of-accounts .detail-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-bottom: 16px;
+}
+
+.chart-of-accounts .detail-field label {
+  color: var(--coa-text-muted);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.chart-of-accounts .detail-value {
+  color: var(--coa-text-primary);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.chart-of-accounts .sidebar-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  margin-top: 20px;
+}
+
+.chart-of-accounts .full-width {
+  width: 100%;
+}
+
+/* ---------- Modals ---------- */
+
+.chart-of-accounts .modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(15, 23, 42, 0.55);
+  backdrop-filter: blur(4px);
+}
+
+.chart-of-accounts .modal-content {
+  width: 100%;
+  max-width: 560px;
+  max-height: 90vh;
+  overflow-y: auto;
+  background: var(--coa-card-bg);
+  border: 1px solid var(--coa-border);
+  border-radius: 14px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+}
+
+.chart-of-accounts .modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px 22px;
+  border-bottom: 1px solid var(--coa-border);
+}
+
+.chart-of-accounts .modal-header h2 {
+  margin: 0;
+  color: var(--coa-text-primary);
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.chart-of-accounts .modal-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: var(--coa-text-secondary);
+  font-size: 24px;
+  cursor: pointer;
+}
+
+.chart-of-accounts .modal-close:hover {
+  background: var(--coa-hover-bg);
+}
+
+.chart-of-accounts .modal-body {
+  padding: 22px;
+}
+
+.chart-of-accounts .form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+.chart-of-accounts .form-group label {
+  color: var(--coa-text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.chart-of-accounts .form-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.chart-of-accounts .form-input,
+.chart-of-accounts .form-select,
+.chart-of-accounts .form-textarea {
+  width: 100%;
+  min-width: 0;
+  padding: 10px 12px;
+  background: var(--coa-input-bg);
+  color: var(--coa-text-primary);
+  border: 1px solid var(--coa-border);
+  border-radius: 8px;
+  font-size: 13px;
+  outline: none;
+}
+
+.chart-of-accounts .form-input:focus,
+.chart-of-accounts .form-select:focus,
+.chart-of-accounts .form-textarea:focus {
+  border-color: var(--coa-primary);
+  box-shadow: 0 0 0 3px rgba(44, 122, 138, 0.12);
+}
+
+.chart-of-accounts .form-textarea {
+  min-height: 90px;
+  resize: vertical;
+}
+
+.chart-of-accounts .modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 16px 22px;
+  border-top: 1px solid var(--coa-border);
+}
+
+/* ============================================================
+   DARK THEME — Matches ERP Settings
+   Supports common app-level theme selectors.
+============================================================ */
+
+.dark-theme .chart-of-accounts,
+[data-theme="dark"] .chart-of-accounts,
+[data-admin-theme="dark"] .chart-of-accounts {
+  --coa-page-bg: #111827;
+  --coa-card-bg: #1e293b;
+  --coa-input-bg: #172033;
+  --coa-hover-bg: #273449;
+  --coa-selected-bg: #243b53;
+  --coa-text-primary: #f1f5f9;
+  --coa-text-secondary: #cbd5e1;
+  --coa-text-muted: #94a3b8;
+  --coa-border: #334155;
+  --coa-border-light: #293548;
+  --coa-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
+
+  background: var(--coa-page-bg);
+  color: var(--coa-text-primary);
+}
+
+.dark-theme .chart-of-accounts .group-header,
+[data-theme="dark"] .chart-of-accounts .group-header,
+[data-admin-theme="dark"] .chart-of-accounts .group-header {
+  background: var(--coa-input-bg);
+}
+
+.dark-theme .chart-of-accounts .group-header:hover,
+[data-theme="dark"] .chart-of-accounts .group-header:hover,
+[data-admin-theme="dark"] .chart-of-accounts .group-header:hover {
+  background: var(--coa-hover-bg);
+}
+
+.dark-theme .chart-of-accounts .account-item.selected,
+[data-theme="dark"] .chart-of-accounts .account-item.selected,
+[data-admin-theme="dark"] .chart-of-accounts .account-item.selected {
+  background: var(--coa-selected-bg);
+}
+
+.dark-theme .chart-of-accounts .status-badge.active,
+[data-theme="dark"] .chart-of-accounts .status-badge.active,
+[data-admin-theme="dark"] .chart-of-accounts .status-badge.active {
+  background: rgba(16, 185, 129, 0.16);
+  color: #34d399;
+}
+
+.dark-theme .chart-of-accounts .status-badge.inactive,
+[data-theme="dark"] .chart-of-accounts .status-badge.inactive,
+[data-admin-theme="dark"] .chart-of-accounts .status-badge.inactive {
+  background: rgba(239, 68, 68, 0.16);
+  color: #f87171;
+}
+
+.dark-theme .chart-of-accounts .accounts-table thead,
+[data-theme="dark"] .chart-of-accounts .accounts-table thead,
+[data-admin-theme="dark"] .chart-of-accounts .accounts-table thead {
+  background: var(--coa-input-bg);
+}
+
+/* ============================================================
+   RESPONSIVE TABLET
+============================================================ */
+
+@media (max-width: 992px) {
+  .chart-of-accounts {
+    padding: 18px;
+  }
+
+  .chart-of-accounts .account-item {
+    flex-wrap: wrap;
+  }
+
+  .chart-of-accounts .account-item-right {
+    flex-wrap: wrap;
+  }
+
+  .chart-of-accounts .account-sidebar,
+  .chart-of-accounts .details-sidebar {
+    width: 100%;
+  }
+}
+
+/* ============================================================
+   RESPONSIVE MOBILE
+============================================================ */
+
+@media (max-width: 768px) {
+  .chart-of-accounts {
+    padding: 12px;
+  }
+
+  .chart-of-accounts .page-header,
+  .chart-of-accounts .coa-header {
+    align-items: stretch;
+    flex-direction: column;
+    padding: 16px;
+  }
+
+  .chart-of-accounts h1,
+  .chart-of-accounts .page-title {
+    font-size: 21px;
+  }
+
+  .chart-of-accounts .toolbar,
+  .chart-of-accounts .accounts-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+    padding: 12px;
+  }
+
+  .chart-of-accounts .toolbar-left,
+  .chart-of-accounts .toolbar-right {
+    width: 100%;
+  }
+
+  .chart-of-accounts .search-box {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .chart-of-accounts .view-toggle {
+    width: 100%;
+  }
+
+  .chart-of-accounts .view-toggle button {
+    flex: 1;
+  }
+
+  .chart-of-accounts .group-header {
+    gap: 8px;
+    padding: 12px;
+  }
+
+  .chart-of-accounts .group-header-left,
+  .chart-of-accounts .group-header-right {
+    gap: 7px;
+  }
+
+  .chart-of-accounts .group-name {
+    font-size: 12px;
+  }
+
+  .chart-of-accounts .group-total {
+    font-size: 11px;
+  }
+
+  .chart-of-accounts .account-item {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 10px;
+    padding: 12px;
+  }
+
+  .chart-of-accounts .account-item-left {
+    width: 100%;
+  }
+
+  .chart-of-accounts .account-info {
+    gap: 5px 8px;
+  }
+
+  .chart-of-accounts .account-item-right {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    width: 100%;
+    padding-left: 42px;
+  }
+
+  .chart-of-accounts .account-actions {
+    margin-left: auto;
+  }
+
+  .chart-of-accounts .account-children {
+    margin-left: 10px;
+  }
+
+  .chart-of-accounts .accounts-list-view {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .chart-of-accounts .accounts-table {
+    min-width: 720px;
+  }
+
+  .chart-of-accounts .form-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+
+  .chart-of-accounts .modal-overlay {
+    padding: 12px;
+  }
+
+  .chart-of-accounts .modal-content {
+    max-height: 94vh;
+  }
+
+  .chart-of-accounts .modal-header,
+  .chart-of-accounts .modal-body,
+  .chart-of-accounts .modal-footer {
+    padding: 15px;
+  }
+}
+
+@media (max-width: 380px) {
+  .chart-of-accounts {
+    padding: 8px;
+  }
+
+  .chart-of-accounts .group-header {
+    padding: 10px 8px;
+  }
+
+  .chart-of-accounts .group-header-left,
+  .chart-of-accounts .group-header-right {
+    gap: 5px;
+  }
+
+  .chart-of-accounts .group-total {
+    font-size: 10px;
+  }
+
+  .chart-of-accounts .account-item-right {
+    padding-left: 0;
+  }
+
+  .chart-of-accounts .action-btn {
+    width: 28px;
+    height: 28px;
+  }
+}
+
+
+
+
+
+
+/* =========================================
+   STATS BAR — MOBILE RESPONSIVE
+========================================= */
+
+@media screen and (max-width: 768px) {
+  .stats-bar {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    width: 100%;
+    align-items: stretch;
+  }
+
+  .stats-bar > * {
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+  }
+
+  /* Row 1 */
+  .stats-bar > :nth-child(1) {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .stats-bar > :nth-child(2) {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  /* Row 2 */
+  .stats-bar > :nth-child(3) {
+    grid-column: 2;
+    grid-row: 2;
+  }
+
+  .stats-bar > :nth-child(4) {
+    grid-column: 1;
+    grid-row: 2;
+  }
+}
+
+@media screen and (max-width: 480px) {
+  .stats-bar {
+    gap: 8px;
+  }
+
+  .stats-bar > * {
+    padding: 12px;
+    min-width: 0;
+  }
+}
+
+
+
+
+
+
+/* =========================================
+   FILTER GROUP — DESKTOP + MOBILE
+========================================= */
+
+/* Desktop: keep all filters on one line */
+.filter-group {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px;
+  width: 100%;
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+
+.filter-group > * {
+  flex-shrink: 0;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+/* Prevent filter controls from wrapping */
+.filter-group select,
+.filter-group button,
+.filter-group input {
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+/* Mobile: More Filters left, All Groups right */
+@media screen and (max-width: 768px) {
+  .filter-group {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    flex-wrap: nowrap;
+  }
+
+  .filter-group > :nth-child(1) {
+    order: 1;
+    margin-right: auto;
+  }
+
+  .filter-group > :nth-child(2) {
+    order: 2;
+    margin-left: auto;
+  }
+
+  .filter-group > * {
+    flex-shrink: 1;
+  }
+}
+
+@media screen and (max-width: 480px) {
+  .filter-group {
+    gap: 6px;
+  }
+
+  .filter-group button,
+  .filter-group select {
+    font-size: 12px;
+    padding: 8px 10px;
+  }
+}
+
+
+
+/* =========================================
+   FILTER GROUP — MOBILE LAYOUT
+========================================= */
+
+@media screen and (max-width: 768px) {
+  .filter-group {
+    display: flex !important;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    width: 100%;
+    flex-wrap: nowrap;
+  }
+
+  /* More Filters — LEFT */
+  .filter-group > :nth-child(1) {
+    order: 1;
+    margin-right: auto;
+    min-width: 0;
+  }
+
+  /* All Groups — RIGHT */
+  .filter-group > :nth-child(2) {
+    order: 2;
+    margin-left: auto;
+    min-width: 0;
+  }
+
+  .filter-group select,
+  .filter-group button {
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+}
+
+@media screen and (max-width: 480px) {
+  .filter-group {
+    gap: 8px;
+  }
+}

@@ -1,6 +1,6 @@
 /* ═══════════════════════════════════════════════════════════════
-   ACCOUNT DEBIT ENTRY (ADE) — Listing Page
-   Mirrors CreditListingPage layout with rose/red accent colors
+   ACCOUNT CREDIT ENTRY (ACE) — Listing Page
+   Theme-aware (Blue / Green) — driven by AdminThemeContext vars
    ═══════════════════════════════════════════════════════════════ */
 
    .ace-page {
@@ -27,7 +27,7 @@
     border-radius: 3px;
   }
   .ace-page::-webkit-scrollbar-thumb:hover {
-    background: var(--primary-color, #ef4444);
+    background: var(--primary-color, #6366f1);
   }
   
   .ace-page * { box-sizing: border-box; }
@@ -67,13 +67,21 @@
   }
   
   .ace-tab--active {
-    background: linear-gradient(135deg, #ef4444, #dc2626);
+    background: linear-gradient(
+      135deg,
+      var(--primary-gradient-start, var(--primary-color, #6366f1)),
+      var(--primary-gradient-end, var(--primary-hover, #4f46e5))
+    );
     color: #ffffff;
-    box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);
+    box-shadow: 0 2px 8px rgba(var(--primary-rgb, 99, 102, 241), 0.3);
   }
   
   .ace-tab--active:hover {
-    background: linear-gradient(135deg, #dc2626, #b91c1c);
+    background: linear-gradient(
+      135deg,
+      var(--primary-gradient-end, var(--primary-hover, #4f46e5)),
+      var(--primary-color, #6366f1)
+    );
     color: #ffffff;
   }
   
@@ -133,7 +141,7 @@
     border: 1px solid var(--border-color, #e5e7eb);
     border-radius: 8px;
     font-size: 13px;
-    background: var(--input-bg, white);
+    background: var(--input-bg, #ffffff);
     color: var(--text-primary, #374151);
     outline: none;
     transition: border-color 0.2s;
@@ -141,8 +149,8 @@
   }
   
   .ace-search-input:focus {
-    border-color: #ef4444;
-    box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1);
+    border-color: var(--primary-color, #6366f1);
+    box-shadow: 0 0 0 3px rgba(var(--primary-rgb, 99, 102, 241), 0.1);
   }
   
   .ace-search-input::placeholder { color: var(--text-secondary, #9ca3af); }
@@ -173,7 +181,7 @@
     border: 1px solid var(--border-color, #e5e7eb);
     border-radius: 8px;
     font-size: 13px;
-    background: var(--card-bg, white);
+    background: var(--card-bg, #ffffff);
     color: var(--text-primary, #374151);
     cursor: pointer;
     outline: none;
@@ -181,8 +189,8 @@
   }
   
   .ace-filter-select:focus {
-    border-color: #ef4444;
-    box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1);
+    border-color: var(--primary-color, #6366f1);
+    box-shadow: 0 0 0 3px rgba(var(--primary-rgb, 99, 102, 241), 0.1);
   }
   
   /* ── Date picker ─────────────────────────────────────── */
@@ -210,27 +218,27 @@
   }
   
   .ace-date-toggle-btn:hover {
-    background: var(--bg-hover, #e5e7eb);
-    border-color: #ef4444;
+    background: var(--nav-hover, #e5e7eb);
+    border-color: var(--primary-color, #6366f1);
     color: var(--text-primary, #1f2433);
   }
   
   .ace-date-toggle-btn.active {
-    background: #ef4444;
+    background: var(--primary-color, #6366f1);
     color: white;
-    border-color: #ef4444;
+    border-color: var(--primary-color, #6366f1);
   }
   
   .ace-date-picker-popup {
     position: absolute;
     top: calc(100% + 6px);
     right: 0;
-    background: var(--bg-primary, #ffffff);
+    background: var(--card-bg, #ffffff);
     border: 1px solid var(--border-color, #d1d5db);
     border-radius: 8px;
     padding: 16px;
     min-width: 280px;
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 10px 40px var(--shadow-color, rgba(0, 0, 0, 0.15));
     z-index: 1000;
     animation: aceSlideDown 0.2s ease;
   }
@@ -285,9 +293,9 @@
   }
   
   .ace-quick-filter-btn:hover {
-    background: #ef4444;
+    background: var(--primary-color, #6366f1);
     color: white;
-    border-color: #ef4444;
+    border-color: var(--primary-color, #6366f1);
   }
   
   .ace-calendar {
@@ -321,9 +329,9 @@
   }
   
   .ace-calendar-nav:hover {
-    background: #ef4444;
+    background: var(--primary-color, #6366f1);
     color: white;
-    border-color: #ef4444;
+    border-color: var(--primary-color, #6366f1);
   }
   
   .ace-calendar-month {
@@ -364,7 +372,7 @@
   
   .ace-calendar-day:hover,
   .ace-calendar-day.selected {
-    background: #ef4444;
+    background: var(--primary-color, #6366f1);
     color: white;
   }
   
@@ -390,11 +398,11 @@
     height: 34px;
   }
   
-  .ace-btn-clear-filter:hover { background: var(--bg-hover, #e5e7eb); }
+  .ace-btn-clear-filter:hover { background: var(--nav-hover, #e5e7eb); }
   
   .ace-btn-apply-filter {
     padding: 6px 16px;
-    background: #ef4444;
+    background: var(--primary-color, #6366f1);
     border: none;
     border-radius: 6px;
     color: white;
@@ -406,9 +414,9 @@
   }
   
   .ace-btn-apply-filter:hover:not(:disabled) {
-    background: #dc2626;
+    background: var(--primary-hover, #4f46e5);
     transform: translateY(-1px);
-    box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);
+    box-shadow: 0 2px 8px rgba(var(--primary-rgb, 99, 102, 241), 0.3);
   }
   
   .ace-btn-apply-filter:disabled {
@@ -416,29 +424,6 @@
     cursor: not-allowed;
   }
   
-  /* ── Primary CTA ─────────────────────────────────────── */
-  .ace-btn-primary {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    height: 38px;
-    padding: 0 16px;
-    border: none;
-    border-radius: 8px;
-    background: linear-gradient(135deg, #ef4444, #dc2626);
-    color: #fff;
-    font-size: 13px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.15s ease;
-    white-space: nowrap;
-  }
-  
-  .ace-btn-primary:hover {
-    background: linear-gradient(135deg, #dc2626, #b91c1c);
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
-  }
   
   /* ── Active filters indicator ───────────────────────── */
   .ace-active-filters {
@@ -446,7 +431,7 @@
     align-items: center;
     gap: 12px;
     padding: 8px 16px;
-    background: rgba(239, 68, 68, 0.08);
+    background: rgba(var(--primary-rgb, 99, 102, 241), 0.08);
     border-radius: 8px;
     font-size: 12px;
     flex-wrap: wrap;
@@ -471,7 +456,7 @@
     transition: all 0.15s;
   }
   
-  .ace-clear-filters:hover { background: var(--layout-bg, #f9fafb); }
+  .ace-clear-filters:hover { background: var(--nav-hover, #f9fafb); }
   
   /* ── Table ──────────────────────────────────────────── */
   .ace-desktop-table-wrap { display: block; }
@@ -537,14 +522,18 @@
   .ace-tr:hover { background: var(--nav-hover, #f9fafb); }
   .ace-tr + .ace-tr td { border-top: 1px solid var(--border-color, #f3f4f6); }
   
+  /* ── Entry No — black ───────────────────────────────── */
   .ace-id-link {
     font-weight: 700;
-    color: #dc2626;
+    color: var(--text-primary, #111827);
     font-size: 13px;
     text-decoration: none;
   }
   
-  .ace-id-link:hover { text-decoration: underline; }
+  .ace-id-link:hover {
+    color: var(--text-primary, #111827);
+    text-decoration: underline;
+  }
   
   /* Party badge */
   .ace-party-badge {
@@ -556,9 +545,9 @@
     border-radius: 6px;
     font-size: 11.5px;
     font-weight: 600;
-    background: #eff6ff;
-    color: #1d4ed8;
-    border: 1px solid #bfdbfe;
+    background: rgba(var(--primary-rgb, 99, 102, 241), 0.08);
+    color: var(--primary-color, #1d4ed8);
+    border: 1px solid rgba(var(--primary-rgb, 99, 102, 241), 0.25);
   }
   
   /* Reference cell */
@@ -592,44 +581,19 @@
     border-radius: 6px;
     font-size: 11px;
     font-weight: 600;
-    background: #f3f4f6;
-    color: #374151;
-    border: 1px solid #e5e7eb;
+    background: var(--nav-hover, #f3f4f6);
+    color: var(--text-primary, #374151);
+    border: 1px solid var(--border-color, #e5e7eb);
     text-transform: uppercase;
     letter-spacing: 0.4px;
   }
   
-  /* Amount — debit uses red tone */
+  /* ── Amount — black ─────────────────────────────────── */
   .ace-amount {
     font-weight: 700;
-    color: #b91c1c;
+    color: var(--text-primary, #111827);
     font-size: 13px;
     white-space: nowrap;
-  }
-  
-  /* Entry type badges */
-  .ace-entry-type-badge {
-    display: inline-flex;
-    align-items: center;
-    height: 22px;
-    padding: 0 10px;
-    border-radius: 6px;
-    font-size: 11px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.4px;
-  }
-  
-  .ace-type--credit {
-    background: #dcfce7;
-    color: #15803d;
-    border: 1px solid #86efac;
-  }
-  
-  .ace-type--debit {
-    background: #fee2e2;
-    color: #b91c1c;
-    border: 1px solid #fecaca;
   }
   
   /* Status pill */
@@ -650,9 +614,9 @@
   }
   
   .ace-status--submitted {
-    background: #dcfce7;
-    color: #15803d;
-    border: 1px solid #86efac;
+    background: rgba(var(--primary-rgb, 99, 102, 241), 0.14);
+    color: var(--primary-color, #15803d);
+    border: 1px solid rgba(var(--primary-rgb, 99, 102, 241), 0.3);
   }
   
   .ace-status--cancelled {
@@ -681,8 +645,12 @@
     background: transparent;
   }
   
-  .ace-action-view { color: #dc2626; }
-  .ace-action-view:hover { background: rgba(239, 68, 68, 0.1); }
+  .ace-action-view {
+    color: var(--primary-color, #6366f1);
+  }
+  .ace-action-view:hover {
+    background: rgba(var(--primary-rgb, 99, 102, 241), 0.1);
+  }
   
   .ace-action-edit { color: #f59e0b; }
   .ace-action-edit:hover { background: rgba(245, 158, 11, 0.1); }
@@ -722,7 +690,7 @@
     width: 40px;
     height: 40px;
     border: 3px solid var(--border-color, #e5e7eb);
-    border-top-color: #ef4444;
+    border-top-color: var(--primary-color, #6366f1);
     border-radius: 50%;
     animation: ace-spin 0.8s linear infinite;
   }
@@ -736,19 +704,80 @@
   @keyframes ace-spin { to { transform: rotate(360deg); } }
   
   /* ── Pagination ──────────────────────────────────── */
-  .ace-pagination {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 12px 0 0 0;
-    flex-wrap: wrap;
-    gap: 12px;
-    background: transparent;
-    flex-shrink: 0;
-    border-top: 1px solid var(--border-color, #e5e7eb);
-    margin-top: 4px;
-  }
-  
+  /* ── Pagination ──────────────────────────────────── */
+.ace-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  flex-wrap: wrap;
+  gap: 12px;
+  background: #ffffff;                  /* ✅ white footer */
+  flex-shrink: 0;
+  border-top: 1px solid #e5e7eb;
+  border-radius: 0 0 12px 12px;
+  margin-top: 4px;
+}
+  /* ═══════════════════════════════════════════════════════════════
+   PAGINATION FOOTER — white background + neutral text
+   ═══════════════════════════════════════════════════════════════ */
+
+.ace-page .ace-pagination {
+  background: #ffffff !important;
+}
+
+/* Footer labels — neutral grey, not red */
+.ace-page .ace-pagination-label,
+.ace-page .ace-pagination-info,
+.ace-page .ace-pagination-page,
+.ace-page .ace-count-label {
+  color: #6b7280 !important;
+}
+
+/* Page buttons — white cards, dark text */
+.ace-page .ace-page-btn,
+.ace-page .ace-page-size-select {
+  background: #ffffff !important;
+  border: 1px solid #e5e7eb !important;
+  color: #374151 !important;
+}
+
+.ace-page .ace-page-btn:hover:not(:disabled) {
+  background: #f3f4f6 !important;
+  border-color: #10b981 !important;
+}
+
+/* Active page — green to match the CTA */
+.ace-page .ace-page-btn-active,
+.ace-page .ace-page-btn-active:hover {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
+  border-color: #10b981 !important;
+  color: #ffffff !important;
+}
+
+.ace-page .ace-page-btn svg {
+  stroke: currentColor;
+}
+
+/* Dark theme — flip to dark surface */
+.dark-theme .ace-page .ace-pagination {
+  background: #1e293b !important;
+  border-top-color: #334155;
+}
+
+.dark-theme .ace-page .ace-pagination-label,
+.dark-theme .ace-page .ace-pagination-info,
+.dark-theme .ace-page .ace-pagination-page,
+.dark-theme .ace-page .ace-count-label {
+  color: #94a3b8 !important;
+}
+
+.dark-theme .ace-page .ace-page-btn,
+.dark-theme .ace-page .ace-page-size-select {
+  background: #1e293b !important;
+  border-color: #334155 !important;
+  color: #f8fafc !important;
+}
   .ace-pagination-left,
   .ace-pagination-right {
     display: flex;
@@ -772,7 +801,7 @@
     border: 1px solid var(--border-color, #e5e7eb);
     border-radius: 6px;
     font-size: 13px;
-    background: var(--card-bg, white);
+    background: var(--card-bg, #ffffff);
     color: var(--text-primary, #374151);
     cursor: pointer;
     height: 34px;
@@ -784,7 +813,7 @@
     padding: 0 10px;
     border: 1px solid var(--border-color, #e5e7eb);
     border-radius: 6px;
-    background: var(--card-bg, white);
+    background: var(--card-bg, #ffffff);
     font-size: 13px;
     color: var(--text-primary, #374151);
     cursor: pointer;
@@ -796,18 +825,18 @@
   
   .ace-page-btn:hover:not(:disabled) {
     background: var(--nav-hover, #f3f4f6);
-    border-color: #ef4444;
+    border-color: var(--primary-color, #6366f1);
   }
   
   .ace-page-btn:disabled { opacity: 0.5; cursor: not-allowed; }
   
   .ace-page-btn-active {
-    background: #ef4444;
+    background: var(--primary-color, #6366f1);
     color: white;
-    border-color: #ef4444;
+    border-color: var(--primary-color, #6366f1);
   }
   
-  .ace-page-btn-active:hover { background: #dc2626; }
+  .ace-page-btn-active:hover { background: var(--primary-hover, #4f46e5); }
   
   .ace-pagination-info,
   .ace-pagination-page {
@@ -1017,7 +1046,7 @@
     to   { opacity: 1; transform: translateX(0); }
   }
   
-  .ace-toast--success { border-left: 4px solid #10b981; }
+  .ace-toast--success { border-left: 4px solid var(--primary-color, #6366f1); }
   .ace-toast--error   { border-left: 4px solid #dc2626; }
   .ace-toast--info    { border-left: 4px solid #3b82f6; }
   
@@ -1031,7 +1060,10 @@
     flex-shrink: 0;
   }
   
-  .ace-toast--success .ace-toast-icon { background: #dcfce7; color: #16a34a; }
+  .ace-toast--success .ace-toast-icon {
+    background: rgba(var(--primary-rgb, 99, 102, 241), 0.14);
+    color: var(--primary-color, #6366f1);
+  }
   .ace-toast--error   .ace-toast-icon { background: #fef2f2; color: #dc2626; }
   .ace-toast--info    .ace-toast-icon { background: #eff6ff; color: #3b82f6; }
   
@@ -1135,7 +1167,7 @@
     transition: border-color 0.18s ease, box-shadow 0.18s ease;
   }
   
-  .ace-mobile-card:hover { border-color: #cbd5e1; }
+  .ace-mobile-card:hover { border-color: var(--border-color, #cbd5e1); }
   .ace-mobile-card-expanded { box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08); }
   
   .ace-mobile-card-header {
@@ -1157,6 +1189,7 @@
     overflow: hidden;
   }
   
+  /* ── Mobile Entry No — black ────────────────────────── */
   .ace-mobile-id {
     width: 110px;
     min-width: 110px;
@@ -1164,12 +1197,15 @@
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
     font-size: 13.5px;
     font-weight: 700;
-    color: #dc2626;
+    color: var(--text-primary, #111827);
     text-decoration: none;
     white-space: nowrap;
   }
   
-  .ace-mobile-id:hover { text-decoration: underline; }
+  .ace-mobile-id:hover {
+    color: var(--text-primary, #111827);
+    text-decoration: underline;
+  }
   
   .ace-mobile-item-name {
     flex: 1;
@@ -1199,15 +1235,15 @@
   }
   
   .ace-mobile-dropdown-btn:hover {
-    background: rgba(239, 68, 68, 0.08);
-    border-color: #fca5a5;
-    color: #dc2626;
+    background: rgba(var(--primary-rgb, 99, 102, 241), 0.08);
+    border-color: var(--primary-color, #6366f1);
+    color: var(--primary-color, #6366f1);
   }
   
   .ace-mobile-dropdown-btn.expanded {
-    background: rgba(239, 68, 68, 0.12);
-    border-color: #f87171;
-    color: #dc2626;
+    background: rgba(var(--primary-rgb, 99, 102, 241), 0.12);
+    border-color: var(--primary-color, #6366f1);
+    color: var(--primary-color, #6366f1);
   }
   
   .ace-mobile-chevron {
@@ -1357,13 +1393,7 @@
       justify-content: center !important;
     }
   
-    .ace-filter-right .ace-btn-primary {
-      grid-column: 1 / -1 !important;
-      grid-row: 3 !important;
-      width: 100% !important;
-      height: 36px !important;
-      justify-content: center !important;
-    }
+  
   
     .ace-date-picker-popup {
       position: fixed;
@@ -1395,7 +1425,9 @@
     .ace-page-btn { height: 32px; font-size: 12px; }
   }
   
-  /* ── Dark theme ─────────────────────────────────── */
+  /* ═══════════════════════════════════════════════════════════════
+     DARK THEME (kept for backward compat — not selectable in Settings)
+     ═══════════════════════════════════════════════════════════════ */
   .dark-theme .ace-page { background: var(--layout-bg, #0f172a); }
   
   .dark-theme .ace-filter-select,
@@ -1443,6 +1475,17 @@
     color: var(--text-primary, #f8fafc);
   }
   
+  /* Dark theme — Entry No / Amount / Mobile ID stay light text */
+  .dark-theme .ace-id-link,
+  .dark-theme .ace-mobile-id,
+  .dark-theme .ace-amount {
+    color: var(--text-primary, #f8fafc);
+  }
+  .dark-theme .ace-id-link:hover,
+  .dark-theme .ace-mobile-id:hover {
+    color: var(--text-primary, #f8fafc);
+  }
+  
   .dark-theme .ace-mobile-card {
     background: var(--card-bg, #1e293b);
     border-color: var(--border-color, #334155);
@@ -1472,3 +1515,234 @@
   }
   .dark-theme .ace-toast-title { color: var(--text-primary, #f8fafc); }
   .dark-theme .ace-toast-message { color: var(--text-secondary, #94a3b8); }
+  
+  /* ═══════════════════════════════════════════════════════════════
+     FORCE NEUTRAL COLORS — Entry No & Amount (always dark/black)
+     Appended last so it wins the cascade against theme tokens.
+     ═══════════════════════════════════════════════════════════════ */
+  
+  /* ── Desktop — Entry No ─────────────────────────────── */
+  .ace-page .ace-id-link,
+  .ace-page .ace-td-id {
+    color: #111827 !important;
+  }
+  
+  .ace-page .ace-id-link:hover {
+    color: #111827 !important;
+  }
+  
+  /* ── Desktop — Amount ───────────────────────────────── */
+  .ace-page .ace-amount,
+  .ace-page .ace-td.ace-amount {
+    color: #111827 !important;
+  }
+  
+  /* ── Mobile — Entry No ──────────────────────────────── */
+  .ace-page .ace-mobile-id {
+    color: #111827 !important;
+  }
+  
+  .ace-page .ace-mobile-id:hover {
+    color: #111827 !important;
+  }
+  
+  /* ── Mobile — Amount ────────────────────────────────── */
+  .ace-page .ace-mobile-detail-value.ace-amount {
+    color: #111827 !important;
+  }
+  
+  /* ── Dark theme — flip to light text ────────────────── */
+  .dark-theme .ace-page .ace-id-link,
+  .dark-theme .ace-page .ace-td-id,
+  .dark-theme .ace-page .ace-amount,
+  .dark-theme .ace-page .ace-td.ace-amount,
+  .dark-theme .ace-page .ace-mobile-id,
+  .dark-theme .ace-page .ace-mobile-detail-value.ace-amount {
+    color: #f8fafc !important;
+  }
+  
+  .dark-theme .ace-page .ace-id-link:hover,
+  .dark-theme .ace-page .ace-mobile-id:hover {
+    color: #f8fafc !important;
+  }
+  
+
+  
+/* ================================================================
+   SALES ORDER VISUAL PARITY OVERRIDES
+   Keeps Credit Listing aligned with SalesOrder.css and the active
+   AdminThemeContext palette (blue/green).
+   ================================================================ */
+
+/* Search, filters and controls: same 38px rhythm as Sales Order */
+.ace-page .ace-search-input,
+.ace-page .ace-filter-select,
+.ace-page .ace-date-toggle-btn,
+
+
+.ace-page .ace-search-input,
+.ace-page .ace-filter-select {
+  border-radius: 8px;
+  border-color: var(--border-color, #e5e7eb);
+}
+
+.ace-page .ace-search-input:focus,
+.ace-page .ace-filter-select:focus {
+  border-color: var(--primary-color, #2563eb);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary-color, #2563eb) 12%, transparent);
+  outline: none;
+}
+
+/* Primary action follows the selected application theme instead of
+   forcing green when the current theme is blue. */
+
+.ace-page .ace-btn-apply-filter {
+  background: var(--primary-color, #2563eb);
+  border-color: var(--primary-color, #2563eb);
+  color: #fff;
+}
+
+
+.ace-page .ace-btn-apply-filter:hover:not(:disabled) {
+  background: var(--primary-hover, #1d4ed8);
+  border-color: var(--primary-hover, #1d4ed8);
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--primary-color, #2563eb) 24%, transparent);
+}
+
+/* Action icons use the same compact button sizing as Sales Order. */
+.ace-page .ace-action-buttons {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.ace-page .ace-action-btn {
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  transition: background-color .2s ease, color .2s ease;
+}
+
+.ace-page .ace-action-view { color: var(--primary-color, #2563eb); }
+.ace-page .ace-action-view:hover {
+  background: color-mix(in srgb, var(--primary-color, #2563eb) 10%, transparent);
+}
+.ace-page .ace-action-edit { color: #f59e0b; }
+.ace-page .ace-action-edit:hover { background: rgba(245, 158, 11, .1); }
+.ace-page .ace-action-delete { color: var(--danger-color, #ef4444); }
+.ace-page .ace-action-delete:hover { background: color-mix(in srgb, var(--danger-color, #ef4444) 10%, transparent); }
+
+/* Pagination matches Sales Order's spacing and theme-driven accents.
+   Overrides older hard-coded white/green pagination rules above. */
+.ace-page .ace-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 0 0;
+  gap: 12px;
+  flex-wrap: wrap;
+  background: transparent !important;
+  border-top: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 0;
+  margin-top: 4px;
+}
+
+.ace-page .ace-pagination-left,
+.ace-page .ace-pagination-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ace-page .ace-pagination-center {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.ace-page .ace-pagination-label,
+.ace-page .ace-pagination-info,
+.ace-page .ace-pagination-page,
+.ace-page .ace-count-label {
+  color: var(--text-secondary, #6b7280) !important;
+  font-size: 13px;
+}
+
+.ace-page .ace-page-btn,
+.ace-page .ace-page-size-select {
+  height: 34px;
+  min-width: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--border-color, #e5e7eb) !important;
+  border-radius: 6px;
+  background: var(--card-bg, #fff) !important;
+  color: var(--text-primary, #374151) !important;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font: inherit;
+  cursor: pointer;
+  transition: background-color .15s ease, border-color .15s ease, color .15s ease;
+}
+
+.ace-page .ace-page-size-select { padding: 0 10px; }
+
+.ace-page .ace-page-btn:hover:not(:disabled) {
+  background: var(--nav-hover, #f3f4f6) !important;
+  border-color: var(--primary-color, #2563eb) !important;
+}
+
+.ace-page .ace-page-btn:disabled {
+  opacity: .5;
+  cursor: not-allowed;
+}
+
+.ace-page .ace-page-btn-active,
+.ace-page .ace-page-btn-active:hover {
+  background: var(--primary-color, #2563eb) !important;
+  border-color: var(--primary-color, #2563eb) !important;
+  color: #fff !important;
+}
+
+.ace-page .ace-page-btn svg { stroke: currentColor; }
+
+/* Dark theme keeps surfaces and pagination consistent with Sales Order. */
+.dark-theme .ace-page .ace-pagination {
+  background: transparent !important;
+  border-top-color: var(--border-color, #334155);
+}
+
+.dark-theme .ace-page .ace-page-btn,
+.dark-theme .ace-page .ace-page-size-select {
+  background: var(--card-bg, #1e293b) !important;
+  border-color: var(--border-color, #334155) !important;
+  color: var(--text-primary, #f8fafc) !important;
+}
+
+.dark-theme .ace-page .ace-page-btn:hover:not(:disabled) {
+  background: var(--nav-hover, rgba(255,255,255,.05)) !important;
+  border-color: var(--primary-color, #3b82f6) !important;
+}
+
+.dark-theme .ace-page .ace-page-btn-active,
+.dark-theme .ace-page .ace-page-btn-active:hover {
+  background: var(--primary-color, #3b82f6) !important;
+  border-color: var(--primary-color, #3b82f6) !important;
+  color: #fff !important;
+}
+
+@media (max-width: 768px) {
+  .ace-page .ace-filter-bar { align-items: stretch; }
+  .ace-page .ace-filter-left,
+  .ace-page .ace-filter-right { width: 100%; min-width: 0; }
+  .ace-page .ace-search-wrapper { max-width: none; }
+  .ace-page .ace-filter-right { justify-content: flex-start; }
+  .ace-page .ace-pagination { align-items: flex-start; }
+}

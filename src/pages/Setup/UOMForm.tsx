@@ -21,6 +21,7 @@ import {
 import "./UOMForm.css";
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
 import api from '../../services/api';
+import toast from "react-hot-toast";
 
 interface ValidationError {
   field: string;
@@ -286,7 +287,7 @@ export default function UOMForm() {
   const { theme } = useAdminTheme();
   const isNew = id === "new";
   const uomName = isNew ? "New UOM" : decodeURIComponent(id || "");
-  const isEditMode = !isNew;
+  const isEditMode = Boolean(id && !isNew);
 
   const passedData = (location.state as any)?.uomData;
   const isViewMode = (location.state as any)?.viewMode === true;
@@ -360,8 +361,24 @@ export default function UOMForm() {
               : false,
         });
       }
-    } catch (err) {
-      console.error("Error fetching UOM data:", err);
+
+      const enabledValue = data.enabled;
+      const wholeNumberValue = data.must_be_whole_number ?? data.mustBeWholeNumber;
+
+      setForm({
+        name: data.uom_name || data.name || uomId,
+        category: data.category || 'Electric Current',
+        symbol: data.symbol || '',
+        commonCode: data.common_code || data.commonCode || '',
+        description: data.description || '',
+        enabled: enabledValue === undefined ? true : (enabledValue === true || Number(enabledValue) === 1),
+        mustBeWholeNumber: wholeNumberValue === undefined
+          ? false
+          : (wholeNumberValue === true || Number(wholeNumberValue) === 1),
+      });
+    } catch (err: any) {
+      console.error('Error fetching UOM data:', err);
+      toast.error(err?.response?.data?.message || err?.message || 'Failed to load UOM data');
     } finally {
       setLoading(false);
     }
@@ -392,11 +409,17 @@ export default function UOMForm() {
 
     const validationErrorsList = getAllValidationErrors();
     if (validationErrorsList.length > 0) {
+      const nextErrors = validationErrorsList.reduce<{ [key: string]: string }>((acc, error) => {
+        acc[error.field] = error.message;
+        return acc;
+      }, {});
+      setErrors(nextErrors);
       setValidationErrors(validationErrorsList);
       setShowValidationSummary(true);
       return;
     }
 
+    setErrors({});
     setSubmitting(true);
     setLoaderAction('save');
     setErrors({});
@@ -406,9 +429,9 @@ export default function UOMForm() {
         uom_name: form.name,
         name: form.name, // send both — backend may use either
         category: form.category,
-        symbol: form.symbol,
-        common_code: form.commonCode,
-        description: form.description,
+        symbol: form.symbol.trim(),
+        common_code: form.commonCode.trim(),
+        description: form.description.trim(),
         enabled: form.enabled ? 1 : 0,
         must_be_whole_number: form.mustBeWholeNumber ? 1 : 0,
       };
@@ -599,7 +622,7 @@ export default function UOMForm() {
                 <input
                   type="text"
                   value={form.name}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
+                  onChange={(e) => { setForm({ ...form, name: e.target.value }); setErrors((prev) => ({ ...prev, name: '' })); }}
                   className={`form-field${errors.name ? ' field-error' : ''}`}
                   placeholder="Enter UOM name"
                   readOnly={isViewMode}
@@ -757,7 +780,7 @@ export default function UOMForm() {
               >
                 {submitting && <FaSpinner className="spinning" />}
                 <FaSave size={12} />
-                {isEditMode ? 'Update' : 'Save'}
+                {submitting ? (isEditMode ? 'Updating...' : 'Saving...') : (isEditMode ? 'Update' : 'Save')}
               </button>
             )}
           </div>

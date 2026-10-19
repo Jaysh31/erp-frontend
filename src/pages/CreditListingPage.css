@@ -424,30 +424,7 @@
     cursor: not-allowed;
   }
   
-  /* ── Primary CTA — always green (sidebar green) ──────── */
-  .ace-btn-primary {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    height: 38px;
-    padding: 0 16px;
-    border: none;
-    border-radius: 8px;
-    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-    color: #fff;
-    font-size: 13px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.15s ease;
-    white-space: nowrap;
-  }
-  
-  .ace-btn-primary:hover {
-    background: linear-gradient(135deg, #059669 0%, #047857 100%);
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
-  }
-  
+ 
   /* ── Active filters indicator ───────────────────────── */
   .ace-active-filters {
     display: flex;
@@ -1416,13 +1393,7 @@
       justify-content: center !important;
     }
   
-    .ace-filter-right .ace-btn-primary {
-      grid-column: 1 / -1 !important;
-      grid-row: 3 !important;
-      width: 100% !important;
-      height: 36px !important;
-      justify-content: center !important;
-    }
+    
   
     .ace-date-picker-popup {
       position: fixed;
@@ -1595,44 +1566,241 @@
     color: #f8fafc !important;
   }
   
-  /* ═══════════════════════════════════════════════════════════════
-     PRIMARY CTA — always green ("New Credit Entry")
-     Locked to brand green so no theme token can override it.
-     ═══════════════════════════════════════════════════════════════ */
+
   
-  .ace-page .ace-btn-primary,
-  .ace-filter-bar .ace-btn-primary,
-  button.ace-btn-primary {
-    background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
-    color: #ffffff !important;
-    border: none !important;
-    box-shadow: none;
-  }
-  
-  .ace-page .ace-btn-primary:hover,
-  .ace-filter-bar .ace-btn-primary:hover,
-  button.ace-btn-primary:hover {
-    background: linear-gradient(135deg, #059669 0%, #047857 100%) !important;
-    color: #ffffff !important;
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3) !important;
-  }
-  
-  .ace-page .ace-btn-primary:active,
-  .ace-filter-bar .ace-btn-primary:active {
-    transform: translateY(0);
-    box-shadow: 0 2px 6px rgba(16, 185, 129, 0.25) !important;
-  }
-  
-  .ace-page .ace-btn-primary:focus-visible,
-  .ace-filter-bar .ace-btn-primary:focus-visible {
-    outline: 2px solid #10b981;
-    outline-offset: 2px;
-  }
-  
-  /* Keep the icon inside the green button white too */
-  .ace-page .ace-btn-primary svg,
-  .ace-filter-bar .ace-btn-primary svg {
-    color: #ffffff !important;
-    stroke: #ffffff !important;
-  }
+
+/* ================================================================
+   SALES ORDER VISUAL PARITY OVERRIDES
+   Keeps Credit Listing aligned with SalesOrder.css and the active
+   AdminThemeContext palette (blue/green).
+   ================================================================ */
+
+/* Search, filters and controls: same 38px rhythm as Sales Order */
+.ace-page .ace-search-input,
+.ace-page .ace-filter-select,
+.ace-page .ace-date-toggle-btn {
+  height: 38px;
+  box-sizing: border-box;
+  font-family: inherit;
+}
+
+.ace-page .ace-search-input,
+.ace-page .ace-filter-select {
+  border-radius: 8px;
+  border-color: var(--border-color, #e5e7eb);
+}
+
+.ace-page .ace-search-input:focus,
+.ace-page .ace-filter-select:focus {
+  border-color: var(--primary-color, #2563eb);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary-color, #2563eb) 12%, transparent);
+  outline: none;
+}
+
+/* Primary action follows the selected application theme instead of
+   forcing green when the current theme is blue. */
+
+.ace-page .ace-btn-apply-filter {
+  background: var(--primary-color, #2563eb);
+  border-color: var(--primary-color, #2563eb);
+  color: #fff;
+}
+
+
+.ace-page .ace-btn-apply-filter:hover:not(:disabled) {
+  background: var(--primary-hover, #1d4ed8);
+  border-color: var(--primary-hover, #1d4ed8);
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--primary-color, #2563eb) 24%, transparent);
+}
+
+/* Action icons use the same compact button sizing as Sales Order. */
+.ace-page .ace-action-buttons {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.ace-page .ace-action-btn {
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  transition: background-color .2s ease, color .2s ease;
+}
+
+.ace-page .ace-action-view { color: var(--primary-color, #2563eb); }
+.ace-page .ace-action-view:hover {
+  background: color-mix(in srgb, var(--primary-color, #2563eb) 10%, transparent);
+}
+.ace-page .ace-action-edit { color: #f59e0b; }
+.ace-page .ace-action-edit:hover { background: rgba(245, 158, 11, .1); }
+.ace-page .ace-action-delete { color: var(--danger-color, #ef4444); }
+.ace-page .ace-action-delete:hover { background: color-mix(in srgb, var(--danger-color, #ef4444) 10%, transparent); }
+
+/* Pagination matches Sales Order's spacing and theme-driven accents.
+   Overrides older hard-coded white/green pagination rules above. */
+.ace-page .ace-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 0 0;
+  gap: 12px;
+  flex-wrap: wrap;
+  background: transparent !important;
+  border-top: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 0;
+  margin-top: 4px;
+}
+
+.ace-page .ace-pagination-left,
+.ace-page .ace-pagination-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ace-page .ace-pagination-center {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.ace-page .ace-pagination-label,
+.ace-page .ace-pagination-info,
+.ace-page .ace-pagination-page,
+.ace-page .ace-count-label {
+  color: var(--text-secondary, #6b7280) !important;
+  font-size: 13px;
+}
+
+.ace-page .ace-page-btn,
+.ace-page .ace-page-size-select {
+  height: 34px;
+  min-width: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--border-color, #e5e7eb) !important;
+  border-radius: 6px;
+  background: var(--card-bg, #fff) !important;
+  color: var(--text-primary, #374151) !important;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font: inherit;
+  cursor: pointer;
+  transition: background-color .15s ease, border-color .15s ease, color .15s ease;
+}
+
+.ace-page .ace-page-size-select { padding: 0 10px; }
+
+.ace-page .ace-page-btn:hover:not(:disabled) {
+  background: var(--nav-hover, #f3f4f6) !important;
+  border-color: var(--primary-color, #2563eb) !important;
+}
+
+.ace-page .ace-page-btn:disabled {
+  opacity: .5;
+  cursor: not-allowed;
+}
+
+.ace-page .ace-page-btn-active,
+.ace-page .ace-page-btn-active:hover {
+  background: var(--primary-color, #2563eb) !important;
+  border-color: var(--primary-color, #2563eb) !important;
+  color: #fff !important;
+}
+
+.ace-page .ace-page-btn svg { stroke: currentColor; }
+
+/* Dark theme keeps surfaces and pagination consistent with Sales Order. */
+.dark-theme .ace-page .ace-pagination {
+  background: transparent !important;
+  border-top-color: var(--border-color, #334155);
+}
+
+.dark-theme .ace-page .ace-page-btn,
+.dark-theme .ace-page .ace-page-size-select {
+  background: var(--card-bg, #1e293b) !important;
+  border-color: var(--border-color, #334155) !important;
+  color: var(--text-primary, #f8fafc) !important;
+}
+
+.dark-theme .ace-page .ace-page-btn:hover:not(:disabled) {
+  background: var(--nav-hover, rgba(255,255,255,.05)) !important;
+  border-color: var(--primary-color, #3b82f6) !important;
+}
+
+.dark-theme .ace-page .ace-page-btn-active,
+.dark-theme .ace-page .ace-page-btn-active:hover {
+  background: var(--primary-color, #3b82f6) !important;
+  border-color: var(--primary-color, #3b82f6) !important;
+  color: #fff !important;
+}
+
+@media (max-width: 768px) {
+  .ace-page .ace-filter-bar { align-items: stretch; }
+  .ace-page .ace-filter-left,
+  .ace-page .ace-filter-right { width: 100%; min-width: 0; }
+  .ace-page .ace-search-wrapper { max-width: none; }
+  .ace-page .ace-filter-right { justify-content: flex-start; }
+  .ace-page .ace-pagination { align-items: flex-start; }
+}
+
+
+
+/* New Credit Entry Button - Same style as qt-btn-new */
+.ace-btn-new {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 9px 16px;
+  min-height: 36px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: var(--primary-color, #2563eb);
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  line-height: 1.4;
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    background-color 0.2s ease,
+    box-shadow 0.2s ease,
+    transform 0.2s ease;
+}
+
+.ace-btn-new svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+.ace-btn-new:hover {
+  background: var(--primary-hover, #1d4ed8);
+  box-shadow: 0 3px 8px rgba(37, 99, 235, 0.2);
+}
+
+.ace-btn-new:active {
+  transform: translateY(1px);
+  box-shadow: none;
+}
+
+.ace-btn-new:focus-visible {
+  outline: 2px solid var(--primary-color, #2563eb);
+  outline-offset: 3px;
+}
+
+.ace-btn-new:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none;
+}

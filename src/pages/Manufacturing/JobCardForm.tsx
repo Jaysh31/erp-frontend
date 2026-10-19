@@ -224,6 +224,7 @@ interface SubcontractingOrderApiItem {
   service_cost_per_qty?: number;
   additional_cost_per_qty?: number;
   warehouse?: string | null;
+  warehouse_name?: string | null;
   expense_account?: string | null;
   manufacturer?: string | null;
   manufacturer_part_no?: string | null;
@@ -386,6 +387,7 @@ interface JobCardRawItem {
   consumed_qty?: number;
   transferred_qty?: number;
   source_warehouse?: string | null;
+  source_warehouse_name?: string | null;
   allow_alternative_item?: number;
   [key: string]: any;
 }
@@ -400,6 +402,7 @@ interface SubcontractingItem {
   rate: number;
   amount: number;
   warehouse?: string;
+  warehouse_name?: string;
   bom?: string | null;
   description?: string;
   conversion_factor?: number;
@@ -446,8 +449,11 @@ interface JobCardFormData {
   status: string;
   assigned_employees: string[];
   source_warehouse: string;
+  source_warehouse_name: string;
   wip_warehouse: string;
+  wip_warehouse_name: string;
   target_warehouse: string;
+  target_warehouse_name: string;
   production_item: string;
   bom_no: string;
   finished_good: string;
@@ -1365,6 +1371,7 @@ const defaultFormData = (): JobCardFormData => ({
   for_quantity: 0, hour_rate: 0, actual_start_date: null, actual_end_date: null,
   remarks: "", company: "", status: "Open", assigned_employees: [],
   source_warehouse: "", wip_warehouse: "", target_warehouse: "",
+  source_warehouse_name: "", wip_warehouse_name: "", target_warehouse_name: "",
   production_item: "", bom_no: "", finished_good: "", semi_fg_bom: "",
   operation: "", workstation_type: "", workstation: "", for_operation: "",
   item_name: "", project: "", operation_row_id: 1, operation_row_number: 1,
@@ -1404,6 +1411,7 @@ const mapJobCardItemsToSubcontractingItems = (rawItems: JobCardRawItem[] | undef
     rate: 0,
     amount: 0,
     warehouse: it.source_warehouse || "",
+    Warehouse: it.source_warehouse_name || "",
     description: it.description || "",
     conversion_factor: 1,
     job_card_item_id: it.id,
@@ -1745,6 +1753,7 @@ const JobCardForm: React.FC = () => {
       remarks: jc.remarks || "",
       status: jc.status || "Open",
       source_warehouse: jc.source_warehouse || "", wip_warehouse: jc.wip_warehouse || "",
+      source_warehouse_name: jc.source_warehouse_name || "", wip_warehouse_name: jc.wip_warehouse_name || "",
       target_warehouse: jc.target_warehouse || "", production_item: jc.production_item || "",
       bom_no: jc.bom_no || "", finished_good: jc.finished_good || "", semi_fg_bom: jc.semi_fg_bom || "",
       operation: jc.operation || "", workstation_type: jc.workstation_type || "",
@@ -2096,12 +2105,14 @@ const JobCardForm: React.FC = () => {
       manufactured_qty: formData.total_completed_qty,
       operation: formData.operation || "",
       source_warehouse: formData.source_warehouse || "",
+      source_warehouse_name: formData.source_warehouse_name || "",
       wip_warehouse: formData.wip_warehouse || "",
       skip_material_transfer: 0,
       backflush_from_wip_warehouse: 0,
       workstation_type: formData.workstation_type || "",
       workstation: formData.workstation || "",
       target_warehouse: formData.target_warehouse || "",
+      target_warehouse_name: formData.target_warehouse_name || "",
       quality_inspection_template: formData.quality_inspection_template,
       quality_inspection: "",
       expected_start_date: formatDateTime(formData.expected_start_date),
@@ -2222,7 +2233,9 @@ const JobCardForm: React.FC = () => {
       amended_from: null,
       cost_center: "",
       set_warehouse: formData.source_warehouse || "",
+      set_warehouse_name: formData.source_warehouse_name || "",
       set_reserve_warehouse: formData.wip_warehouse || "",
+      set_reserve_warehouse_name: formData.wip_warehouse_name || "",
       reserve_stock: 1,
       distribute_additional_costs_based_on: "Qty",
       total_additional_costs: (formData.transport_cost || 0) + (formData.other_charges || 0),
@@ -2253,6 +2266,8 @@ const JobCardForm: React.FC = () => {
         service_cost_per_qty: item.service_cost_per_qty ?? 0,
         additional_cost_per_qty: item.additional_cost_per_qty ?? 0,
         warehouse: item.warehouse || formData.source_warehouse || "",
+        
+        warehouse_name: item.warehouse_name || formData.source_warehouse_name || "",
         expense_account: item.expense_account || "",
         manufacturer: item.manufacturer ?? null,
         manufacturer_part_no: item.manufacturer_part_no ?? null,
@@ -2318,7 +2333,11 @@ const JobCardForm: React.FC = () => {
       secondary_items_cost_per_qty: 0,
       rm_supp_cost: Number(rmSuppCost.toFixed(2)),
       warehouse: formData.target_warehouse || formData.source_warehouse || "",
+      warehouse_name: formData.target_warehouse_name || formData.source_warehouse_name || "",
       rejected_warehouse: formData.source_warehouse || "",
+      rejected_warehouse_name: formData.source_warehouse_name || "",
+      expense_account: null,
+      cost_center: null,
       subcontracting_order: scoRecordId,
       subcontracting_order_item: subcontractingOrderItemId,
       job_card: currentJobCardId,
@@ -2335,9 +2354,9 @@ const JobCardForm: React.FC = () => {
       batch_no: null,
       manufacturer: null,
       manufacturer_part_no: null,
-      expense_account: null,
+      
       service_expense_account: null,
-      cost_center: null,
+      
       project: formData.project || null,
     };
 
@@ -2359,8 +2378,13 @@ const JobCardForm: React.FC = () => {
       cost_center: null,
       project: formData.project || null,
       set_warehouse: formData.target_warehouse || formData.source_warehouse || null,
+      set_warehouse_name: formData.target_warehouse_name || formData.source_warehouse_name || null,
+      set_reserve_warehouse: formData.source_warehouse || null,
+      set_reserve_warehouse_name: formData.source_warehouse_name || null,
       rejected_warehouse: formData.source_warehouse || null,
+      rejected_warehouse_name: formData.source_warehouse_name || null,
       supplier_warehouse: formData.subcontractor_address || null,
+      supplier_warehouse_name: formData.subcontractor_address || null,
       in_words: null,
       bill_no: null,
       bill_date: null,
@@ -2643,7 +2667,7 @@ const JobCardForm: React.FC = () => {
                         {balance}
                       </span>
                     </td>
-                    <td>{it.source_warehouse || "-"}</td>
+                    <td>{it.source_warehouse_name || "-"}</td>
                   </tr>
                 );
               })}
@@ -2932,7 +2956,7 @@ const JobCardForm: React.FC = () => {
                       <td>
                         <input
                           type="text"
-                          value={item.warehouse || ''}
+                          value={item.warehouse_name || ''}
                           onChange={(e) => updateSubcontractingItem(item.id, 'warehouse', e.target.value)}
                           className="jcf-cell-input"
                           placeholder="Warehouse"

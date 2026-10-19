@@ -85,7 +85,7 @@ interface AccountEntryRow {
   partyType: string;
   partyId: number;
   referenceType: string;
-  referenceId: number;      // ✅ ADDED — needed to open edit/view form
+  referenceId: number;
   referenceNo: string;
   paymentType: string;
   amount: number;
@@ -118,11 +118,7 @@ const STATUS_OPTIONS = [
   { value: "Cancelled", label: "Cancelled" },
 ];
 
-const ENTRY_TYPE_OPTIONS = [
-  { value: "all", label: "All Types" },
-  { value: "Credit", label: "Credit" },
-  { value: "Debit", label: "Debit" },
-];
+
 
 const PAYMENT_MODES = [
   { value: "all", label: "All Modes" },
@@ -154,6 +150,14 @@ const formatDate = (value: string | null | undefined): string => {
     day: "numeric",
     year: "numeric",
   });
+};
+
+/** Local-time YYYY-MM-DD (no timezone drift) */
+const toISODate = (d: Date): string => {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 };
 
 /* ─────────────────── Component ─────────────────── */
@@ -263,7 +267,7 @@ const DebitListingPage: React.FC = () => {
       currentMonth.getMonth(),
       day
     );
-    const dateStr = date.toISOString().split("T")[0];
+    const dateStr = toISODate(date); // ✅ local-time ISO, no timezone drift
     if (!fromDate || (fromDate && toDate)) {
       setFromDate(dateStr);
       setToDate("");
@@ -297,8 +301,8 @@ const DebitListingPage: React.FC = () => {
     const today = new Date();
     const from = new Date(today);
     from.setDate(today.getDate() - days);
-    setFromDate(from.toISOString().split("T")[0]);
-    setToDate(today.toISOString().split("T")[0]);
+    setFromDate(toISODate(from));
+    setToDate(toISODate(today));
     setCurrentPage(1);
   };
 
@@ -314,14 +318,24 @@ const DebitListingPage: React.FC = () => {
         limit: String(1000),
       });
 
+      // ✅ Send entry_type to the API. Defaults to "debit"; if the user
+      //    explicitly chooses Credit in the dropdown, we send "credit".
+      if (entryTypeFilter !== "all") {
+        params.append("entry_type", entryTypeFilter.toLowerCase());
+      } else {
+        // "All Types" still defaults to debit on this listing page
+        params.append("entry_type", "debit");
+      }
+
       if (searchTerm.trim()) params.append("search", searchTerm.trim());
       if (statusFilter !== "all") params.append("status", statusFilter);
       if (fromDate) params.append("date_from", fromDate);
       if (toDate) params.append("date_to", toDate);
 
-      const response = await api.get<AccountEntryListResponse>(
-        `/account_entry?${params.toString()}`
-      );
+      const url = `/account_entry?${params.toString()}`;
+      console.log("Fetching debit entries:", url);
+
+      const response = await api.get<AccountEntryListResponse>(url);
 
       if (response.data?.success === 1) {
         const data = response.data.data;
@@ -335,7 +349,6 @@ const DebitListingPage: React.FC = () => {
           records.map((r) => `${r.entry_no}=${r.entry_type}`).join(", ")
         );
 
-        // ✅ Show ALL entries (Credit + Debit) — filtering handled client-side
         setAllEntries(records);
       } else {
         setError("Failed to load entries");
@@ -361,6 +374,7 @@ const DebitListingPage: React.FC = () => {
 
   useEffect(() => {
     fetchEntries();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [statusFilter, entryTypeFilter, fromDate, toDate]);
 
   useEffect(() => {
@@ -369,6 +383,7 @@ const DebitListingPage: React.FC = () => {
       else fetchEntries();
     }, 500);
     return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchTerm]);
 
   useEffect(() => {
@@ -382,20 +397,17 @@ const DebitListingPage: React.FC = () => {
   }, []);
 
   /* ─── Derived filtering ─── */
-
+  // Note: entry_type is now filtered server-side, so we only filter
+  // payment_type client-side here.
   const filteredEntries = useMemo(() => {
     let filtered = [...allEntries];
-
-    if (entryTypeFilter !== "all") {
-      filtered = filtered.filter((e) => e.entry_type === entryTypeFilter);
-    }
 
     if (paymentFilter !== "all") {
       filtered = filtered.filter((e) => e.payment_type === paymentFilter);
     }
 
     return filtered;
-  }, [allEntries, entryTypeFilter, paymentFilter]);
+  }, [allEntries, paymentFilter]);
 
   /* ─── Pagination ─── */
 
@@ -418,7 +430,7 @@ const DebitListingPage: React.FC = () => {
         partyType: e.party_type || "—",
         partyId: e.party_id,
         referenceType: e.reference_type || "—",
-        referenceId: e.reference_id,      // ✅ mapped for edit/view navigation
+        referenceId: e.reference_id,
         referenceNo: e.reference_no || "—",
         paymentType: e.payment_type || "—",
         amount: Number(e.total_amount) || 0,
@@ -473,7 +485,7 @@ const DebitListingPage: React.FC = () => {
   const clearFilters = () => {
     setSearchTerm("");
     setStatusFilter("all");
-    setEntryTypeFilter("Debit"); // reset to Debit default
+    setEntryTypeFilter("Debit"); // ✅ back to the page's default
     setPaymentFilter("all");
     setFromDate("");
     setToDate("");
@@ -689,7 +701,7 @@ const DebitListingPage: React.FC = () => {
           </div>
 
           <div className="ace-filter-right">
-            <select
+            {/*<select
               value={entryTypeFilter}
               onChange={(e) => {
                 setEntryTypeFilter(e.target.value);
@@ -702,7 +714,7 @@ const DebitListingPage: React.FC = () => {
                   {opt.label}
                 </option>
               ))}
-            </select>
+            </select>*/}
 
             <select
               value={statusFilter}
@@ -869,9 +881,9 @@ const DebitListingPage: React.FC = () => {
             </div>
           </div>
 
-          <button className="ace-btn-primary" onClick={handleNewEntry}>
+          <button className="ace-btn-new" onClick={handleNewEntry}>
             <Plus size={12} />
-            New Debit Entry
+            New Payment Voucher
           </button>
         </div>
 

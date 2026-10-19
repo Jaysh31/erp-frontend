@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
@@ -12,10 +13,13 @@ import {
   FaAngleDoubleLeft,
   FaAngleDoubleRight,
 } from 'react-icons/fa';
+
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
 import api from '../../services/api';
 import './UserManagement.css';
 import { PageLoader } from '../components/PageLoader';
+
+/* ----------------------------- Interfaces ----------------------------- */
 
 interface User {
   id: number;
@@ -26,7 +30,7 @@ interface User {
   last_name: string;
   middle_name: string;
   mobile_no?: string;
-  role_profile_name?: string;
+  role_profile_name?: string | null;
   gender?: string;
   birth_date?: string;
   location?: string;
@@ -38,27 +42,28 @@ interface User {
 }
 
 interface ApiResponse {
-  success: number;
+  success: number | boolean;
   users?: User[];
-  data?: any;
+  data?: User[] | { users?: User[] };
   message?: string;
 }
+
+/* ----------------------------- Component ------------------------------ */
 
 export default function UserManagement() {
   const navigate = useNavigate();
   const location = useLocation();
   const { theme } = useAdminTheme();
 
-  // ─── State ─────────────────────────────────────────────────────────────
+  // State
   const [users, setUsers] = useState<User[]>([]);
   const [filteredUsers, setFilteredUsers] = useState<User[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
-
-  // Pagination
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [deletingUserId, setDeletingUserId] = useState<number | null>(null);
 
   // 🆕 Only guard against concurrent duplicate fetches — NOT against
   // refetching after navigation. (The old `isInitialized` ref blocked
@@ -77,14 +82,13 @@ export default function UserManagement() {
     );
   };
 
-  // ─── API Calls ─────────────────────────────────────────────────────────
+  /* ---------------------------- Fetch Users ---------------------------- */
 
   const fetchUsers = useCallback(async () => {
     if (isFetching.current) return;
 
-    try {
-      isFetching.current = true;
-      setLoading(true);
+    isFetching.current = true;
+    setLoading(true);
 
       // 🆕 Cache-busting via a query param only.
       //    Do NOT add custom headers like Cache-Control / Pragma — those
@@ -101,8 +105,8 @@ export default function UserManagement() {
         setUsers(response.data.users);
         setFilteredUsers(response.data.users);
       }
-    } catch (err) {
-      console.error('Error fetching users:', err);
+    } catch (error) {
+      console.error('Error fetching users:', error);
     } finally {
       setLoading(false);
       isFetching.current = false;
@@ -133,24 +137,26 @@ export default function UserManagement() {
     };
   }, [fetchUsers]);
 
-  // ─── Filter & Search ──────────────────────────────────────────────────
+  /* --------------------------- Search & Filter --------------------------- */
+
   useEffect(() => {
     const searchLower = search.toLowerCase().trim();
-    let filtered = users;
+    let filtered = [...users];
 
     if (searchLower) {
-      filtered = filtered.filter(
-        (u) =>
-          (u.full_name || '').toLowerCase().includes(searchLower) ||
-          (u.email || '').toLowerCase().includes(searchLower) ||
-          (u.first_name || '').toLowerCase().includes(searchLower) ||
-          (u.last_name || '').toLowerCase().includes(searchLower) ||
-          (u.mobile_no || '').includes(searchLower) ||
-          (u.role_profile_name || '').toLowerCase().includes(searchLower)
-      );
+      filtered = filtered.filter((user) => {
+        return (
+          (user.full_name || '').toLowerCase().includes(searchLower) ||
+          (user.name || '').toLowerCase().includes(searchLower) ||
+          (user.email || '').toLowerCase().includes(searchLower) ||
+          (user.first_name || '').toLowerCase().includes(searchLower) ||
+          (user.last_name || '').toLowerCase().includes(searchLower) ||
+          (user.mobile_no || '').toLowerCase().includes(searchLower) ||
+          (user.role_profile_name || '').toLowerCase().includes(searchLower)
+        );
+      });
     }
 
-    // Status filter - consider users with role_profile_name as active
     if (statusFilter === 'active') {
       filtered = filtered.filter((u) => u.role_profile_name !== null);
     } else if (statusFilter === 'inactive') {
@@ -161,8 +167,10 @@ export default function UserManagement() {
     setCurrentPage(1);
   }, [search, statusFilter, users]);
 
-  // ─── Pagination ────────────────────────────────────────────────────────
+  /* ----------------------------- Pagination ----------------------------- */
+
   const totalPages = Math.ceil(filteredUsers.length / itemsPerPage);
+
   const paginatedUsers = filteredUsers.slice(
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage
@@ -174,8 +182,8 @@ export default function UserManagement() {
     }
   };
 
-  const getPageNumbers = () => {
-    const pages = [];
+  const getPageNumbers = (): number[] => {
+    const pages: number[] = [];
     const maxVisible = 5;
     let startPage = Math.max(1, currentPage - Math.floor(maxVisible / 2));
     let endPage = Math.min(totalPages, startPage + maxVisible - 1);
@@ -191,42 +199,57 @@ export default function UserManagement() {
   };
 
   const getStartIndex = () => {
-    return (currentPage - 1) * itemsPerPage + 1;
+    return filteredUsers.length === 0
+      ? 0
+      : (currentPage - 1) * itemsPerPage + 1;
   };
 
   const getEndIndex = () => {
-    return Math.min(currentPage * itemsPerPage, filteredUsers.length);
+    return Math.min(
+      currentPage * itemsPerPage,
+      filteredUsers.length
+    );
   };
 
-  // ─── CRUD Operations ──────────────────────────────────────────────────
+  /* ----------------------------- Delete User ----------------------------- */
 
   const handleDeleteUser = async (userId: number) => {
     if (!window.confirm('Are you sure you want to delete this user?')) return;
 
     try {
-      // Try different possible endpoint patterns
       let response;
 
       // Try with /user/{id} first
       try {
         response = await api.delete(`/user/${userId}`);
-      } catch (err: any) {
-        // If that fails, try alternative endpoints
-        if (err.response?.status === 404 || err.response?.status === 500) {
-          // Try with /users/{id}
-          try {
-            response = await api.delete(`/users/${userId}`);
-          } catch (err2: any) {
-            // Try with /user/delete/{id}
-            try {
-              response = await api.delete(`/user/delete/${userId}`);
-            } catch (err3: any) {
-              // Try with POST method for delete
-              response = await api.post(`/user/delete/${userId}`);
-            }
+      } catch (error: any) {
+        const status = error?.response?.status;
+
+        // Try alternate endpoints only when the route or method is unavailable.
+        if (status !== 404 && status !== 405) {
+          throw error;
+        }
+
+        try {
+          response = await api.delete(`/users/${userId}`);
+        } catch (secondError: any) {
+          const secondStatus = secondError?.response?.status;
+
+          if (secondStatus !== 404 && secondStatus !== 405) {
+            throw secondError;
           }
-        } else {
-          throw err;
+
+          try {
+            response = await api.delete(`/user/delete/${userId}`);
+          } catch (thirdError: any) {
+            const thirdStatus = thirdError?.response?.status;
+
+            if (thirdStatus !== 404 && thirdStatus !== 405) {
+              throw thirdError;
+            }
+
+            response = await api.post(`/user/delete/${userId}`);
+          }
         }
       }
 
@@ -234,13 +257,13 @@ export default function UserManagement() {
         await fetchUsers();
         alert('User deleted successfully');
       } else {
-        alert(response?.data?.message || 'Failed to delete user');
+        alert(
+          response?.data?.message ||
+            'Unable to delete the user. Please try again.'
+        );
       }
-    } catch (err) {
-      console.error('Error deleting user:', err);
-      alert('Failed to delete user. Please try again.');
-    }
-  };
+    } catch (error: any) {
+      console.error('Error deleting user:', error);
 
   // ─── Loading Screen ─────────────────────────────────────────────────────
   if (loading) {
@@ -259,13 +282,16 @@ export default function UserManagement() {
           <div className="um-filter-left">
             <div className="um-search-wrapper">
               <FaSearch className="um-search-icon" />
+
               <input
                 type="text"
                 placeholder="Search users..."
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                onChange={(event) => setSearch(event.target.value)}
                 className="um-search-input"
+                aria-label="Search users"
               />
+
               {search && (
                 <button
                   className="um-search-clear"
@@ -276,17 +302,27 @@ export default function UserManagement() {
               )}
             </div>
           </div>
+
           <div className="bom-filter-right">
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
               className="um-filter-select"
+              aria-label="Filter users by status"
             >
               <option value="all">All Status</option>
               <option value="active">Active</option>
               <option value="inactive">Inactive</option>
             </select>
-            <button className="um-filter-btn">
+
+            <button
+              type="button"
+              className="um-filter-btn"
+              onClick={() => {
+                // Search and status filters apply automatically.
+                setCurrentPage(1);
+              }}
+            >
               <FaFilter size={12} />
               Filter
             </button>
@@ -303,13 +339,19 @@ export default function UserManagement() {
         {/* Active Filters Indicator */}
         {(search || statusFilter !== 'all') && (
           <div className="um-active-filters">
-            <FaFilter size={12} style={{ color: 'var(--primary-color)' }} />
+            <FaFilter
+              size={12}
+              style={{ color: 'var(--primary-color)' }}
+            />
+
             <span>Active filters:</span>
+
             {search && (
               <span>
                 <strong>Search:</strong> "{search}"
               </span>
             )}
+
             {statusFilter !== 'all' && (
               <span>
                 <strong>Status:</strong>{' '}
@@ -322,7 +364,7 @@ export default function UserManagement() {
           </div>
         )}
 
-        {/* Table */}
+        {/* Users Table */}
         <div className="um-table-wrap">
           <table className="um-table">
             <thead>
@@ -355,6 +397,7 @@ export default function UserManagement() {
                 </th>
               </tr>
             </thead>
+
             <tbody>
               {paginatedUsers.length === 0 ? (
                 <tr>
@@ -375,6 +418,7 @@ export default function UserManagement() {
                         <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
                         <path d="M16 3.13a4 4 0 0 1 0 7.75" />
                       </svg>
+
                       <p>No users found</p>
                       <span>Try adjusting your search criteria</span>
                     </div>
@@ -419,12 +463,46 @@ export default function UserManagement() {
                           onClick={() => handleDeleteUser(user.id)}
                           title="Delete"
                         >
-                          <FaTrash size={12} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
+                          {active ? 'Active' : 'Inactive'}
+                        </span>
+                      </td>
+
+                      {/* Edit and Delete Actions */}
+                      <td className="um-td um-td-meta">
+                        <div className="um-action-buttons">
+                          <button
+                            type="button"
+                            className="um-action-btn um-action-edit"
+                            onClick={() => navigate(`/users/${user.id}`)}
+                            title="Edit user"
+                            aria-label={`Edit ${formatFullName(user)}`}
+                          >
+                            <FaEdit size={12} />
+                          </button>
+
+                          <button
+                            type="button"
+                            className="um-action-btn um-action-delete"
+                            onClick={() => handleDeleteUser(user.id)}
+                            disabled={deletingUserId === user.id}
+                            title={
+                              deletingUserId === user.id
+                                ? 'Deleting user...'
+                                : 'Delete user'
+                            }
+                            aria-label={`Delete ${formatFullName(user)}`}
+                          >
+                            {deletingUserId === user.id ? (
+                              <span className="um-delete-loading">...</span>
+                            ) : (
+                              <FaTrash size={12} />
+                            )}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
@@ -438,19 +516,24 @@ export default function UserManagement() {
               value={itemsPerPage}
               onChange={(e) => setItemsPerPage(Number(e.target.value))}
               className="um-page-size-select"
+              aria-label="Number of users per page"
             >
               <option value={10}>10</option>
               <option value={25}>25</option>
               <option value={50}>50</option>
               <option value={100}>100</option>
             </select>
+
             <span className="um-pagination-label">entries</span>
           </div>
+
           <div className="um-pagination-center">
             <button
               onClick={() => goToPage(1)}
               disabled={currentPage === 1 || filteredUsers.length === 0}
               className="um-page-btn"
+              title="First page"
+              aria-label="First page"
             >
               <FaAngleDoubleLeft size={12} />
             </button>
@@ -458,6 +541,8 @@ export default function UserManagement() {
               onClick={() => goToPage(currentPage - 1)}
               disabled={currentPage === 1 || filteredUsers.length === 0}
               className="um-page-btn"
+              title="Previous page"
+              aria-label="Previous page"
             >
               <FaChevronLeft size={12} />
             </button>
@@ -479,6 +564,8 @@ export default function UserManagement() {
                 currentPage === totalPages || filteredUsers.length === 0
               }
               className="um-page-btn"
+              title="Next page"
+              aria-label="Next page"
             >
               <FaChevronRight size={12} />
             </button>
@@ -488,10 +575,13 @@ export default function UserManagement() {
                 currentPage === totalPages || filteredUsers.length === 0
               }
               className="um-page-btn"
+              title="Last page"
+              aria-label="Last page"
             >
               <FaAngleDoubleRight size={12} />
             </button>
           </div>
+
           <div className="um-pagination-right">
             <span className="um-pagination-info">
               {filteredUsers.length > 0

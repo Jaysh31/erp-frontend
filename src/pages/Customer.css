@@ -1692,3 +1692,525 @@
     padding: 12px;
   }
 }
+
+
+/* ============================================================
+   CUSTOMER MOBILE TABLE
+   Desktop remains unchanged
+============================================================ */
+
+.customer-mobile-list-wrap {
+  display: none;
+}
+
+
+/* ============================================================
+   MOBILE ONLY
+============================================================ */
+
+@media (max-width: 480px) {
+
+  /* ----------------------------------------------------------
+     Main Mobile Wrapper
+  ---------------------------------------------------------- */
+
+  .customer-mobile-list-wrap {
+    display: block;
+    width: 100%;
+    margin-top: 10px;
+    box-sizing: border-box;
+  }
+
+
+  /* ----------------------------------------------------------
+     Mobile Header
+     
+     CUSTOMER              TYPE        1–1 of 1
+  ---------------------------------------------------------- */
+
+  .customer-mobile-list-header {
+    width: 100%;
+    min-height: 42px;
+
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    padding: 0 12px;
+
+    background: var(--card-bg, #ffffff);
+
+    border: 1px solid var(--border-color, #e5e7eb);
+    border-radius: 8px;
+
+    box-sizing: border-box;
+  }
+
+  .customer-mobile-header-left {
+    display: flex;
+    align-items: center;
+
+    gap: 70px;
+
+    min-width: 0;
+  }
+
+  .customer-mobile-header-title {
+    font-size: 10px;
+    font-weight: 700;
+
+    color: var(--text-secondary, #6b7280);
+
+    letter-spacing: 0.7px;
+
+    white-space: nowrap;
+  }
+
+  .customer-mobile-header-right {
+    display: flex;
+    align-items: center;
+
+    margin-left: auto;
+    padding-left: 8px;
+  }
+
+  .customer-mobile-count {
+    font-size: 10px;
+    color: var(--text-secondary, #6b7280);
+
+    white-space: nowrap;
+  }
+
+
+  /* ----------------------------------------------------------
+     Cards Wrapper
+  ---------------------------------------------------------- */
+
+  .customer-mobile-cards {
+    display: flex;
+    flex-direction: column;
+
+    gap: 8px;
+
+    margin-top: 8px;
+  }
+
+
+  /* ----------------------------------------------------------
+     Customer Card
+  ---------------------------------------------------------- */
+
+  .customer-mobile-card {
+    width: 100%;
+
+    background: var(--card-bg, #ffffff);
+
+    border: 1px solid var(--border-color, #dfe3ea);
+
+    border-radius: 9px;
+
+    overflow: hidden;
+
+    box-sizing: border-box;
+
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  }
+
+
+  /* ----------------------------------------------------------
+     Card Header
+
+     Samil Khan       Individual       ^
+  ---------------------------------------------------------- */
+
+  .customer-mobile-card-header {
+    min-height: 48px;
+
+    display: flex;
+    align-items: center;
+
+    padding: 0 10px 0 12px;
+
+    cursor: pointer;
+
+    box-sizing: border-box;
+  }
+
+  .customer-mobile-card-primary {
+    flex: 1;
+
+    min-width: 0;
+
+    display: grid;
+
+    grid-template-columns: minmax(0, 1fr) 82px;
+
+    align-items: center;
+
+    column-gap: 10px;
+  }
+
+  .customer-mobile-customer-name {
+    min-width: 0;
+
+    font-size: 11px;
+    font-weight: 500;
+
+    color: var(--text-primary, #374151);
+
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .customer-mobile-customer-type {
+    min-width: 0;
+
+    font-size: 10px;
+
+    color: var(--text-secondary, #6b7280);
+
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+
+  /* ----------------------------------------------------------
+     Expand Button
+  ---------------------------------------------------------- */
+
+  .customer-mobile-dropdown-btn {
+    width: 27px;
+    height: 27px;
+
+    flex: 0 0 27px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    margin-left: 8px;
+
+    border: 1px solid #818cf8;
+
+    background: #ffffff;
+
+    color: #6366f1;
+
+    border-radius: 6px;
+
+    cursor: pointer;
+
+    transition:
+      background 0.2s ease,
+      transform 0.2s ease;
+  }
+
+  .customer-mobile-dropdown-btn:hover {
+    background: #f5f5ff;
+  }
+
+  .customer-mobile-dropdown-btn.expanded {
+    background: #f0f0ff;
+  }
+
+  .customer-mobile-chevron {
+    transition: transform 0.2s ease;
+  }
+
+  .customer-mobile-dropdown-btn.expanded
+  .customer-mobile-chevron {
+    transform: rotate(180deg);
+  }
+
+
+  /* ----------------------------------------------------------
+     Expanded Details
+
+     GROUP       Retail
+     EMAIL       abc@xyz.com
+
+     MOBILE      9876543210
+     STATUS      ● Active
+  ---------------------------------------------------------- */
+
+  .customer-mobile-card-details {
+    border-top: 1px solid var(--border-color, #e5e7eb);
+
+    padding: 5px 12px 0;
+
+    background: var(--card-bg, #ffffff);
+
+    box-sizing: border-box;
+  }
+
+
+  /* ----------------------------------------------------------
+     Detail Row
+  ---------------------------------------------------------- */
+
+  .customer-mobile-detail-row {
+    min-height: 37px;
+
+    display: grid;
+
+    grid-template-columns: 72px minmax(0, 1fr);
+
+    align-items: center;
+
+    column-gap: 12px;
+
+    border-bottom: 1px dotted
+      var(--border-color, #e5e7eb);
+
+    box-sizing: border-box;
+  }
+
+  .customer-mobile-detail-row:last-of-type {
+    border-bottom: none;
+  }
+
+  .customer-mobile-detail-label {
+    font-size: 9px;
+
+    font-weight: 600;
+
+    color: var(--text-secondary, #6b7280);
+
+    letter-spacing: 0.25px;
+
+    white-space: nowrap;
+  }
+
+  .customer-mobile-detail-value {
+    min-width: 0;
+
+    text-align: right;
+
+    font-size: 10px;
+
+    font-weight: 500;
+
+    color: var(--text-primary, #374151);
+
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+
+  /* ----------------------------------------------------------
+     Email
+  ---------------------------------------------------------- */
+
+  .customer-mobile-email a {
+    color: var(--primary-color, #6366f1);
+
+    text-decoration: none;
+
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+
+  /* ----------------------------------------------------------
+     Phone
+  ---------------------------------------------------------- */
+
+  .customer-mobile-phone {
+    color: var(--text-primary, #374151);
+
+    text-decoration: none;
+  }
+
+
+  /* ----------------------------------------------------------
+     Status
+  ---------------------------------------------------------- */
+
+  .customer-mobile-detail-value
+  .igl-status-badge {
+    display: inline-flex;
+
+    align-items: center;
+    justify-content: center;
+
+    gap: 3px;
+
+    padding: 3px 7px;
+
+    border-radius: 12px;
+
+    font-size: 9px;
+
+    line-height: 1;
+
+    white-space: nowrap;
+  }
+
+  .customer-mobile-detail-value
+  .igl-status-badge svg {
+    width: 8px;
+    height: 8px;
+  }
+
+
+  /* ----------------------------------------------------------
+     Footer
+
+                          ✎   🗑
+  ---------------------------------------------------------- */
+
+  .customer-mobile-card-footer {
+    min-height: 38px;
+
+    display: flex;
+
+    align-items: center;
+    justify-content: flex-end;
+
+    padding: 0 8px;
+
+    border-top: 1px solid
+      var(--border-color, #e5e7eb);
+
+    box-sizing: border-box;
+  }
+
+  .customer-mobile-action-buttons {
+    display: flex;
+
+    align-items: center;
+
+    gap: 6px;
+  }
+
+  .customer-mobile-action-btn {
+    width: 26px;
+    height: 26px;
+
+    display: inline-flex;
+
+    align-items: center;
+    justify-content: center;
+
+    border: none;
+
+    background: transparent;
+
+    border-radius: 5px;
+
+    cursor: pointer;
+
+    transition:
+      background 0.2s ease,
+      color 0.2s ease;
+  }
+
+  .customer-mobile-edit-btn {
+    color: #f59e0b;
+  }
+
+  .customer-mobile-edit-btn:hover {
+    background: rgba(245, 158, 11, 0.10);
+  }
+
+  .customer-mobile-delete-btn {
+    color: #ef4444;
+  }
+
+  .customer-mobile-delete-btn:hover {
+    background: rgba(239, 68, 68, 0.10);
+  }
+
+  .customer-mobile-action-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+
+  /* ----------------------------------------------------------
+     Empty State
+  ---------------------------------------------------------- */
+
+  .customer-mobile-empty {
+    width: 100%;
+
+    margin-top: 8px;
+
+    padding: 35px 15px;
+
+    background: var(--card-bg, #ffffff);
+
+    border: 1px solid var(--border-color, #e5e7eb);
+
+    border-radius: 8px;
+
+    box-sizing: border-box;
+  }
+
+  .customer-mobile-empty-content {
+    display: flex;
+
+    flex-direction: column;
+
+    align-items: center;
+
+    justify-content: center;
+
+    text-align: center;
+
+    color: var(--text-secondary, #6b7280);
+  }
+
+  .customer-mobile-empty-content svg {
+    margin-bottom: 8px;
+
+    color: var(--primary-color, #6366f1);
+  }
+
+  .customer-mobile-empty-content p {
+    margin: 0;
+
+    font-size: 12px;
+
+    font-weight: 600;
+
+    color: var(--text-primary, #374151);
+  }
+
+  .customer-mobile-empty-content span {
+    margin-top: 4px;
+
+    font-size: 10px;
+  }
+
+
+  /* ----------------------------------------------------------
+     Hide Desktop Customer Table
+     
+     IMPORTANT:
+     If you want ONLY the mobile card on phones.
+  ---------------------------------------------------------- */
+
+  .igl-table-wrap {
+    display: none !important;
+  }
+
+
+  /* ----------------------------------------------------------
+     Existing Pagination Mobile Adjustment
+  ---------------------------------------------------------- */
+
+  .igl-pagination {
+    margin-top: 10px;
+
+    padding-top: 8px;
+
+    border-top: 1px solid
+      var(--border-color, #e5e7eb);
+  }
+
+}

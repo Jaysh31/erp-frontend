@@ -1,10 +1,9 @@
 import React, { useState } from 'react';
-import { 
+import {
   FaMoneyBillWave,
   FaUser,
   FaFileInvoice,
   FaReceipt,
-
   FaPrint,
   FaDownload
 } from 'react-icons/fa';
@@ -22,7 +21,7 @@ const OutstandingDashboard: React.FC = () => {
   ];
 
   const outstandingItems = [
-    { 
+    {
       id: '1',
       customer: 'ABC Traders Pvt Ltd',
       receiptNo: 'SR-2024-002',
@@ -32,7 +31,7 @@ const OutstandingDashboard: React.FC = () => {
       agingDays: 45,
       status: '31-60 days'
     },
-    { 
+    {
       id: '2',
       customer: 'PQR Solutions Ltd',
       receiptNo: 'SR-2024-003',
@@ -42,7 +41,7 @@ const OutstandingDashboard: React.FC = () => {
       agingDays: 62,
       status: '61-90 days'
     },
-    { 
+    {
       id: '3',
       customer: 'RST Industries',
       receiptNo: 'SR-2024-005',
@@ -52,7 +51,7 @@ const OutstandingDashboard: React.FC = () => {
       agingDays: 15,
       status: '0-30 days'
     },
-    { 
+    {
       id: '4',
       customer: 'LMN Group',
       receiptNo: 'SR-2024-004',
@@ -62,7 +61,7 @@ const OutstandingDashboard: React.FC = () => {
       agingDays: 0,
       status: 'Paid'
     },
-    { 
+    {
       id: '5',
       customer: 'XYZ Enterprises',
       receiptNo: 'SR-2024-006',
@@ -75,7 +74,7 @@ const OutstandingDashboard: React.FC = () => {
   ];
 
   const getAgingColor = (status: string) => {
-    switch(status) {
+    switch (status) {
       case '0-30 days': return '#10b981';
       case '31-60 days': return '#f59e0b';
       case '61-90 days': return '#ef4444';
@@ -222,7 +221,7 @@ const OutstandingDashboard: React.FC = () => {
         <div className="table-header">
           <h3>Outstanding Receivables Details</h3>
           <div className="table-filters">
-            <select 
+            <select
               className="filter-select"
               value={selectedCustomer}
               onChange={(e) => setSelectedCustomer(e.target.value)}
@@ -233,16 +232,16 @@ const OutstandingDashboard: React.FC = () => {
               <option value="rst">RST Industries</option>
             </select>
             <div className="date-range">
-              <input 
-                type="date" 
+              <input
+                type="date"
                 className="filter-input"
                 value={dateRange.start}
                 onChange={(e) => setDateRange({ ...dateRange, start: e.target.value })}
                 placeholder="Start"
               />
               <span>to</span>
-              <input 
-                type="date" 
+              <input
+                type="date"
                 className="filter-input"
                 value={dateRange.end}
                 onChange={(e) => setDateRange({ ...dateRange, end: e.target.value })}
@@ -281,7 +280,7 @@ const OutstandingDashboard: React.FC = () => {
                   <td>{formatDate(item.dueDate)}</td>
                   <td className="amount text-red">{formatCurrency(item.outstandingAmount)}</td>
                   <td>
-                    <span 
+                    <span
                       className="aging-badge"
                       style={{ background: agingColor + '20', color: agingColor }}
                     >
@@ -289,7 +288,7 @@ const OutstandingDashboard: React.FC = () => {
                     </span>
                   </td>
                   <td>
-                    <span 
+                    <span
                       className="status-badge"
                       style={{ background: agingColor + '20', color: agingColor }}
                     >
@@ -318,14 +317,112 @@ const OutstandingDashboard: React.FC = () => {
       </div>
 
       <style>{`
-        /* ===== OUTSTANDING DASHBOARD ===== */
+        /* =========================================================
+           OUTSTANDING RECEIVABLES DASHBOARD
+           ========================================================= */
         .outstanding-dashboard {
           padding: 24px;
           background: #f8fafc;
           min-height: 100vh;
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+            'Helvetica Neue', Arial, sans-serif;
+          color: #1e293b;
         }
 
-        /* KPI Cards */
+        /* ============ PAGE HEADER ============ */
+        .page-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-start;
+          gap: 16px;
+          margin-bottom: 24px;
+          flex-wrap: wrap;
+        }
+
+        .page-header-left {
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+        }
+
+        .breadcrumb {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          font-size: 13px;
+          color: #64748b;
+        }
+
+        .breadcrumb .separator {
+          color: #cbd5e1;
+          user-select: none;
+        }
+
+        .breadcrumb .active {
+          color: #2563eb;
+          font-weight: 600;
+        }
+
+        .page-title {
+          font-size: 24px;
+          font-weight: 700;
+          color: #0f172a;
+          margin: 0;
+          line-height: 1.2;
+        }
+
+        .page-subtitle {
+          font-size: 13px;
+          color: #64748b;
+          margin: 0;
+        }
+
+        .page-header-right {
+          display: flex;
+          gap: 10px;
+          align-items: center;
+        }
+
+        /* ============ SECONDARY BUTTONS ============ */
+        .btn-secondary {
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          padding: 9px 16px;
+          background: #ffffff;
+          color: #334155;
+          border: 1px solid #e2e8f0;
+          border-radius: 8px;
+          font-size: 13px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+        }
+
+        .btn-secondary:hover {
+          background: #f1f5f9;
+          border-color: #cbd5e1;
+          color: #0f172a;
+          transform: translateY(-1px);
+          box-shadow: 0 4px 10px rgba(15, 23, 42, 0.08);
+        }
+
+        .btn-secondary:active {
+          transform: translateY(0);
+          box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+        }
+
+        .btn-secondary svg {
+          font-size: 13px;
+          color: #64748b;
+        }
+
+        .btn-secondary:hover svg {
+          color: #2563eb;
+        }
+
+        /* ============ KPI CARDS ============ */
         .kpi-cards {
           display: grid;
           grid-template-columns: repeat(4, 1fr);
@@ -338,7 +435,7 @@ const OutstandingDashboard: React.FC = () => {
           padding: 16px 20px;
           border-radius: 10px;
           box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
-          border-left: 4px solid;
+          border-left: 4px solid #2563eb;
           transition: all 0.2s;
         }
 
@@ -383,7 +480,7 @@ const OutstandingDashboard: React.FC = () => {
           margin-top: 4px;
         }
 
-        /* Charts Section */
+        /* ============ CHARTS SECTION ============ */
         .charts-section {
           display: grid;
           grid-template-columns: 1fr 1fr;
@@ -403,6 +500,7 @@ const OutstandingDashboard: React.FC = () => {
           justify-content: space-between;
           align-items: center;
           margin-bottom: 16px;
+          gap: 12px;
         }
 
         .chart-header h3 {
@@ -424,13 +522,19 @@ const OutstandingDashboard: React.FC = () => {
           font-size: 13px;
           background: #f8fafc;
           color: #1e293b;
+          cursor: pointer;
+          outline: none;
+        }
+
+        .chart-filter:focus {
+          border-color: #2563eb;
+          box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
         }
 
         .chart-placeholder {
-          height: 200px;
+          height: 220px;
           display: flex;
           align-items: flex-end;
-          gap: 16px;
           padding-top: 16px;
         }
 
@@ -452,36 +556,38 @@ const OutstandingDashboard: React.FC = () => {
           flex-direction: column;
           align-items: center;
           justify-content: flex-end;
-          padding: 4px;
+          padding: 6px 4px;
           transition: all 0.3s;
           cursor: pointer;
         }
 
         .bar:hover {
-          transform: scaleY(1.02);
+          filter: brightness(1.08);
         }
 
         .bar-label {
           font-size: 11px;
-          color: #64748b;
+          color: #475569;
           margin-bottom: 4px;
+          font-weight: 500;
+          text-align: center;
         }
 
         .bar-value {
           font-size: 12px;
-          font-weight: 600;
+          font-weight: 700;
           color: #1e293b;
           background: rgba(255, 255, 255, 0.9);
           padding: 2px 6px;
           border-radius: 4px;
         }
 
-        /* Aging Chart */
+        /* ============ AGING CHART ============ */
         .aging-chart {
           display: flex;
           flex-direction: column;
-          gap: 12px;
-          padding: 8px 0;
+          gap: 14px;
+          padding: 10px 0;
         }
 
         .aging-item {
@@ -494,6 +600,7 @@ const OutstandingDashboard: React.FC = () => {
           font-size: 14px;
           color: #64748b;
           min-width: 80px;
+          font-weight: 500;
         }
 
         .aging-bar-container {
@@ -518,7 +625,14 @@ const OutstandingDashboard: React.FC = () => {
           text-align: right;
         }
 
-        /* Table Header */
+        /* ============ TABLE CONTAINER ============ */
+        .table-container {
+          background: #ffffff;
+          border-radius: 12px;
+          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+          overflow: hidden;
+        }
+
         .table-header {
           display: flex;
           justify-content: space-between;
@@ -543,48 +657,171 @@ const OutstandingDashboard: React.FC = () => {
           flex-wrap: wrap;
         }
 
+        .filter-select,
+        .filter-input {
+          padding: 7px 12px;
+          border: 1px solid #e2e8f0;
+          border-radius: 6px;
+          font-size: 13px;
+          background: #f8fafc;
+          color: #1e293b;
+          cursor: pointer;
+          outline: none;
+          transition: all 0.2s ease;
+        }
+
+        .filter-select:focus,
+        .filter-input:focus {
+          border-color: #2563eb;
+          background: #ffffff;
+          box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+
         .date-range {
           display: flex;
           align-items: center;
           gap: 8px;
         }
 
-        .date-range input {
-          padding: 6px 10px;
-          border: 1px solid #e2e8f0;
-          border-radius: 6px;
+        .date-range span {
+          color: #94a3b8;
           font-size: 13px;
+        }
+
+        /* ============ DATA TABLE ============ */
+        .data-table {
+          width: 100%;
+          border-collapse: collapse;
+          font-size: 14px;
+        }
+
+        .data-table thead {
+          background: #f8fafc;
+          border-bottom: 1px solid #e2e8f0;
+        }
+
+        .data-table th {
+          padding: 12px 16px;
+          text-align: left;
+          font-size: 12px;
+          font-weight: 700;
+          color: #475569;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+          white-space: nowrap;
+        }
+
+        .data-table tbody tr {
+          border-bottom: 1px solid #f1f5f9;
+          transition: background 0.15s ease;
+        }
+
+        .data-table tbody tr:hover {
           background: #f8fafc;
         }
 
-        .date-range input:focus {
-          outline: none;
-          border-color: #2563eb;
+        .data-table tbody tr:last-child {
+          border-bottom: none;
         }
 
-        .date-range span {
-          color: #94a3b8;
+        .data-table td {
+          padding: 14px 16px;
+          color: #334155;
+          vertical-align: middle;
         }
 
+        .data-table .amount {
+          font-weight: 600;
+          font-variant-numeric: tabular-nums;
+        }
+
+        .data-table .text-red {
+          color: #ef4444;
+        }
+
+        /* ============ CUSTOMER INFO ============ */
         .customer-info {
           display: flex;
           align-items: center;
           gap: 8px;
+          font-weight: 500;
+          color: #1e293b;
         }
 
         .customer-icon {
           color: #94a3b8;
           font-size: 14px;
+          flex-shrink: 0;
         }
 
+        /* ============ AGING / STATUS BADGES ============ */
         .aging-badge {
-          padding: 4px 8px;
+          display: inline-block;
+          padding: 4px 10px;
           border-radius: 12px;
           font-size: 12px;
-          font-weight: 500;
+          font-weight: 600;
+          white-space: nowrap;
         }
 
-        /* Responsive */
+        .status-badge {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          padding: 4px 10px;
+          border-radius: 12px;
+          font-size: 12px;
+          font-weight: 600;
+          white-space: nowrap;
+        }
+
+        .status-badge .dot {
+          width: 6px;
+          height: 6px;
+          border-radius: 50%;
+          flex-shrink: 0;
+        }
+
+        /* ============ ACTION BUTTONS ============ */
+        .action-buttons {
+          display: flex;
+          gap: 6px;
+        }
+
+        .action-btn {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: 30px;
+          height: 30px;
+          border: 1px solid #e2e8f0;
+          background: #ffffff;
+          color: #64748b;
+          border-radius: 6px;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          font-size: 12px;
+        }
+
+        .action-btn:hover {
+          background: #2563eb;
+          border-color: #2563eb;
+          color: #ffffff;
+          transform: translateY(-1px);
+          box-shadow: 0 3px 8px rgba(37, 99, 235, 0.25);
+        }
+
+        .action-btn.payment-btn:hover {
+          background: #10b981;
+          border-color: #10b981;
+          box-shadow: 0 3px 8px rgba(16, 185, 129, 0.25);
+        }
+
+        .action-btn:active {
+          transform: translateY(0);
+        }
+
+        /* ============ RESPONSIVE ============ */
         @media (max-width: 1200px) {
           .kpi-cards {
             grid-template-columns: repeat(2, 1fr);
@@ -600,6 +837,15 @@ const OutstandingDashboard: React.FC = () => {
         @media (max-width: 768px) {
           .outstanding-dashboard {
             padding: 16px;
+          }
+
+          .page-header {
+            flex-direction: column;
+            align-items: stretch;
+          }
+
+          .page-header-right {
+            justify-content: flex-start;
           }
 
           .kpi-cards {
@@ -618,6 +864,7 @@ const OutstandingDashboard: React.FC = () => {
 
           .date-range {
             flex-direction: column;
+            align-items: stretch;
           }
 
           .date-range input {
@@ -628,6 +875,7 @@ const OutstandingDashboard: React.FC = () => {
             display: block;
             overflow-x: auto;
             white-space: nowrap;
+            -webkit-overflow-scrolling: touch;
           }
         }
 
@@ -636,26 +884,48 @@ const OutstandingDashboard: React.FC = () => {
             grid-template-columns: 1fr;
           }
 
+          .page-title {
+            font-size: 20px;
+          }
+
+          .btn-secondary {
+            flex: 1;
+            justify-content: center;
+          }
+
           .bar-chart {
             flex-direction: column;
             align-items: stretch;
             height: auto;
+            gap: 8px;
           }
 
           .bar {
-            min-height: 30px;
+            min-height: 40px;
             flex-direction: row;
             justify-content: space-between;
+            align-items: center;
             padding: 8px 12px;
-            border-radius: 4px;
+            border-radius: 6px;
           }
 
           .bar-label {
             margin: 0;
+            text-align: left;
           }
 
           .bar-value {
-            background: transparent;
+            background: rgba(255, 255, 255, 0.85);
+          }
+
+          .aging-label {
+            min-width: 70px;
+            font-size: 13px;
+          }
+
+          .aging-value {
+            min-width: 85px;
+            font-size: 13px;
           }
         }
       `}</style>
