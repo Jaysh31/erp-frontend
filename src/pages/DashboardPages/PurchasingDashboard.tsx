@@ -51,7 +51,6 @@ interface GRN {
   created_at?: string;
 }
 
-
 interface DashboardStats {
   totalInvoices: number;
   totalSpend: number;
