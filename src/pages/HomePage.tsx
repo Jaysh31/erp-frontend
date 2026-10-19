@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useEffect, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { useModule } from '../context/ModuleContext';
 import { Search, X, ArrowRight } from 'lucide-react';
 import { useAdminTheme } from '../admin-theme/AdminThemeContext';
 import { hasModule, hasPermission } from '../utils/permissions';
+import api from '../services/api';
 import {
   FaCogs,
   FaIndustry,
@@ -20,14 +21,82 @@ import {
 import logo from '../assets/logo.png';
 import "./HomePage.css";
 
+// 🆕 Report enabled modules to the ERP chatbot.
+// Adjust the relative path if HomePage.tsx lives in a different folder depth.
+import { setAvailableModules } from '../services/erpApi';
+
+// 🆕 Maps Home-page card titles → chatbot module names.
+// Only entries that appear in the chatbot's ENDPOINT_TO_MODULE map matter;
+// everything else is silently ignored by the chatbot.
+const CHATBOT_MODULE_MAP: Record<string, string> = {
+  Manufacturing: "Manufacturing",
+  Setup:         "Setup",
+  Sales:         "Sales",
+  Purchasing:    "Purchasing",
+  Stock:         "Inventory",     // Home shows "Stock", chatbot calls it "Inventory"
+  Quality:       "Quality",
+  Organization:  "Organization",
+  // Reports / Accounting / Tools are not tracked by the chatbot — ignored.
+};
+
 export default function HomePage() {
+  const [appName, setAppName] = useState("ChandraTara Ind");
+  const [logoUrl, setLogoUrl] = useState("");
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const fetchConfiguration = async () => {
+      try {
+        const response = await api.get("/config/getConfiguration");
+        const responseData = response?.data;
+        const config =
+          responseData?.data ??
+          responseData?.configuration ??
+          responseData;
+
+        if (!isMounted || !config) return;
+
+        const configuredAppName = config.appName ?? config.appname;
+        const configuredLogoUrl = config.logoUrl ?? config.logo_url;
+
+        if (typeof configuredAppName === "string" && configuredAppName.trim()) {
+          setAppName(configuredAppName);
+        }
+
+        if (typeof configuredLogoUrl === "string" && configuredLogoUrl.trim()) {
+          setLogoUrl(configuredLogoUrl);
+        }
+      } catch (error) {
+        console.error("Failed to fetch application configuration:", error);
+      }
+    };
+
+    void fetchConfiguration();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   const navigate = useNavigate();
   const { setCurrentModule } = useModule();
   const { theme } = useAdminTheme();
   const [searchQuery, setSearchQuery] = useState("");
   const [showSearchResults, setShowSearchResults] = useState(false);
 
-  const modules = [
+  type HomeModule = {
+    title: string;
+    icon: ReactNode;
+    path: string;
+    module: string;
+    description: string;
+    color: string;
+    apiModule: string;
+    apiSubmodule?: string;
+  };
+
+  const modules: HomeModule[] = [
     {
       title: "Manufacturing",
       icon: <FaIndustry />,
@@ -205,31 +274,19 @@ export default function HomePage() {
       : hasModule(module.apiModule)
   );
 
-  // Filter accessible pages based on module and submodule permissions.
-  const visibleSearchPages = searchablePages.filter((page) => {
-    if (page.apiSubmodule) {
-      return hasPermission(page.apiModule, page.apiSubmodule);
-    }
+  // 🆕 Report the currently-visible modules to the ERP chatbot.
+  // Runs on mount and whenever the set of visible module titles changes,
+  // so the chatbot always reflects exactly what the user sees here.
+  useEffect(() => {
+    const chatbotModules = visibleModules
+      .map((m) => CHATBOT_MODULE_MAP[m.title])
+      .filter(Boolean) as string[];
 
-    return hasModule(page.apiModule);
-  });
+    setAvailableModules(chatbotModules);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visibleModules.map((m) => m.title).join("|")]);
 
-  const query = searchQuery.trim().toLowerCase();
-
-  // Search both module cards and individual ERP pages.
-  const filteredModules = visibleModules.filter((module) =>
-    `${module.title} ${module.description}`
-      .toLowerCase()
-      .includes(query)
-  );
-
-  const filteredPages = visibleSearchPages.filter((page) =>
-    `${page.title} ${page.category}`
-      .toLowerCase()
-      .includes(query)
-  );
-
-  const handleModuleClick = (module: (typeof modules)[number]) => {
+  const handleModuleClick = (module: typeof modules[0]) => {
     setCurrentModule(module.module as any);
     setSearchQuery("");
     setShowSearchResults(false);
@@ -263,7 +320,7 @@ export default function HomePage() {
   };
 
   const handleSearchKeyDown = (
-    event: React.KeyboardEvent<HTMLInputElement>
+    event: KeyboardEvent<HTMLInputElement>
   ) => {
     if (event.key === "Escape") {
       setShowSearchResults(false);
@@ -287,10 +344,22 @@ export default function HomePage() {
           {/* Header Section */}
           <div className="home-header">
             <div className="home-logo">
-              <img src={logo} alt="SculptERP Logo" className="home-logo-image" />
-            </div>
+             
+    <img
+      src={logoUrl || logo}
+      alt={`${appName} Logo`}
+      className="home-logo-image"
+      onError={(e) => {
+        e.currentTarget.onerror = null;
+        e.currentTarget.src = logo;
+      }}
+    />
+  </div>
+              {/*<img src={logo} alt="SculptERP Logo" className="home-logo-image" />*/}
+          
             <div className="home-header-content">
-              <h1>ChandraTara Industries</h1>
+              
+              <h1>{appName}</h1>
               <p>Select a module to begin your journey</p>
             </div>
 
@@ -419,7 +488,7 @@ export default function HomePage() {
                 key={module.title}
                 className="module-card"
                 onClick={() => handleModuleClick(module)}
-                style={{ '--module-color': module.color } as React.CSSProperties}
+                style={{ '--module-color': module.color } as CSSProperties}
               >
                 <div className="module-icon" style={{ background: module.color }}>
                   {module.icon}
@@ -454,3 +523,4 @@ export default function HomePage() {
     </div>
   );
 }
+

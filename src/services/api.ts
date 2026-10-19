@@ -4,8 +4,9 @@ import { storage } from "../utils/storage";
  
 //export baseURL separately
 // export const baseURL = 'http://56.152.66.148.host.secureserver.net:8500/api'
-//  export const baseURL = 'https://erp.sculptortechpvtltd.com/api';
-export const baseURL = 'https://erp.ctindustries.in/api';
+ export const baseURL = 'https://erp.sculptortechpvtltd.com/api';
+//export const baseURL = 'https://erp.ctindustries.in/api';
+//https://erp.sculptortechpvtltd.com/api/config/getConfiguration
 
 export const imageBaseURL = `${baseURL}/getmedia/`;
  

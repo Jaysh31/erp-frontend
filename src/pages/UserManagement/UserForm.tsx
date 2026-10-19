@@ -1,4 +1,4 @@
-import { useState, useEffect, type FormEvent } from "react";
+import { useState, useEffect, useRef, type FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   FaArrowLeft,
@@ -36,7 +36,7 @@ export default function UserForm() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { theme } = useAdminTheme();
-  
+
   const isNew = id === "new" || id === "create" || id === "add" || !id;
   const userId = isNew ? null : parseInt(id || "0");
 
@@ -52,13 +52,17 @@ export default function UserForm() {
   const [birthDate, setBirthDate] = useState('');
   const [location, setLocation] = useState('');
   const [roleProfileName, setRoleProfileName] = useState('');
-  
+
   // ─── Multiple Roles Management ──────────────────────────────────────
   const [selectedRoles, setSelectedRoles] = useState<number[]>([]);
   const [allRoles, setAllRoles] = useState<Role[]>([]);
   const [rolesLoading, setRolesLoading] = useState(false);
   const [roleSearch, setRoleSearch] = useState('');
   const [, setShowRoleDropdown] = useState(false);
+
+  // 🆕 Holds the raw roles from the user payload until `allRoles` finishes
+  //    loading, so we can resolve string / name-based roles into numeric ids.
+  const pendingUserRolesRef = useRef<any[] | null>(null);
 
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -87,11 +91,57 @@ export default function UserForm() {
   };
 
   // ─── Fetch User Data (for edit mode) ──────────────────────────────────
+  // 🆕 Wait until `allRoles` is loaded before fetching the user, so we can
+  //    resolve role names → ids reliably. Without this guard, fetchUserData
+  //    runs while allRoles is still [] and role ids end up as [undefined].
   useEffect(() => {
-    if (!isNew && userId) {
+    if (!isNew && userId && allRoles.length > 0) {
       fetchUserData();
     }
-  }, [isNew, userId]);
+  }, [isNew, userId, allRoles.length]);
+
+  // 🆕 Helper: resolve a single role entry (number | string | object)
+  //    into a numeric role id, using the loaded `allRoles` list to match
+  //    by name when the API gives us strings instead of objects.
+  const resolveRoleId = (entry: any): number | null => {
+    if (entry == null) return null;
+
+    // Already numeric
+    if (typeof entry === 'number' && Number.isFinite(entry)) {
+      return entry;
+    }
+
+    // Numeric string like "3"
+    if (typeof entry === 'string' && /^\d+$/.test(entry.trim())) {
+      return Number(entry.trim());
+    }
+
+    // String role name like "Sales User"
+    if (typeof entry === 'string') {
+      const name = entry.toLowerCase().trim();
+      const match = allRoles.find(
+        (r) => (r.role_name || r.name || '').toLowerCase().trim() === name
+      );
+      return match ? match.id : null;
+    }
+
+    // Object with id
+    if (typeof entry === 'object') {
+      if (entry.id != null && Number.isFinite(Number(entry.id))) {
+        return Number(entry.id);
+      }
+      // Object with name / role_name
+      const name = String(entry.role_name || entry.name || '').toLowerCase().trim();
+      if (name) {
+        const match = allRoles.find(
+          (r) => (r.role_name || r.name || '').toLowerCase().trim() === name
+        );
+        return match ? match.id : null;
+      }
+    }
+
+    return null;
+  };
 
   const fetchUserData = async () => {
     setLoading(true);
@@ -99,6 +149,7 @@ export default function UserForm() {
       const response = await api.get(`/user/${userId}`);
       if (response.data.success === 1 && response.data.data) {
         const user = response.data.data;
+
         setEmail(user.email || '');
         setFirstName(user.first_name || '');
         setMiddleName(user.middle_name || '');
@@ -108,11 +159,42 @@ export default function UserForm() {
         setBirthDate(user.birth_date ? user.birth_date.split('T')[0] : '');
         setLocation(user.location || '');
         setRoleProfileName(user.role_profile_name || '');
-        
-        // Set selected roles from user data
-        if (user.roles && Array.isArray(user.roles)) {
-          const roleIds = user.roles.map((r: any) => r.id);
+
+        // 🆕 Resolve roles from the user payload into numeric ids.
+        //    Handles all shapes returned by different backends:
+        //      - [1, 2, 3]                       (ids)
+        //      - ["Sales User", "System Manager"] (names)
+        //      - [{id: 1, role_name: "..."}, ...] (objects)
+        //    Falls back to `role_profile_name` if `roles` is missing.
+        let roleIds: number[] = [];
+
+        if (Array.isArray(user.roles) && user.roles.length > 0) {
+          roleIds = user.roles
+            .map((r: any) => resolveRoleId(r))
+            .filter((n: number | null): n is number => n !== null);
+        }
+
+        // Fallback: some backends only return role_profile_name, not roles[]
+        if (roleIds.length === 0 && user.role_profile_name) {
+          const match = allRoles.find(
+            (r) =>
+              (r.role_name || r.name || '').toLowerCase().trim() ===
+              String(user.role_profile_name).toLowerCase().trim()
+          );
+          if (match) roleIds = [match.id];
+        }
+
+        // De-dupe just in case
+        roleIds = Array.from(new Set(roleIds));
+
+        if (roleIds.length > 0) {
           setSelectedRoles(roleIds);
+          pendingUserRolesRef.current = null;
+        } else if (Array.isArray(user.roles) && user.roles.length > 0) {
+          // Stash raw roles in case we can resolve them later
+          pendingUserRolesRef.current = user.roles;
+        } else {
+          setSelectedRoles([]);
         }
       }
     } catch (err) {
@@ -122,6 +204,23 @@ export default function UserForm() {
       setLoading(false);
     }
   };
+
+  // 🆕 If a pending roles payload is waiting (roles hadn't loaded when the
+  //    user was fetched), resolve it as soon as `allRoles` is available.
+  useEffect(() => {
+    const pending = pendingUserRolesRef.current;
+    if (!pending || allRoles.length === 0) return;
+
+    const roleIds = pending
+      .map((r: any) => resolveRoleId(r))
+      .filter((n: number | null): n is number => n !== null);
+
+    if (roleIds.length > 0) {
+      setSelectedRoles(Array.from(new Set(roleIds)));
+    }
+    pendingUserRolesRef.current = null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allRoles.length]);
 
   // ─── Role Management Functions ──────────────────────────────────────
 
@@ -141,7 +240,7 @@ export default function UserForm() {
     setRoleProfileName(value);
     // If a role profile is selected, also add it as a role if not already selected
     if (value) {
-      const matchingRole = allRoles.find(r => 
+      const matchingRole = allRoles.find(r =>
         (r.role_name || r.name).toLowerCase() === value.toLowerCase()
       );
       if (matchingRole && !selectedRoles.includes(matchingRole.id)) {
@@ -152,7 +251,7 @@ export default function UserForm() {
 
   // ─── Role Search Filter ──────────────────────────────────────────────
   const filteredRoles = roleSearch
-    ? allRoles.filter(r => 
+    ? allRoles.filter(r =>
         (r.role_name || r.name).toLowerCase().includes(roleSearch.toLowerCase()) &&
         !selectedRoles.includes(r.id)
       )
@@ -278,7 +377,18 @@ export default function UserForm() {
           payload.password = password.trim();
         }
 
-        response = await api.put('/user', payload);
+        // 🆕 Try the primary endpoint first, then fall back to
+        //    `/user/{id}` if the backend uses a REST-style URL.
+        try {
+          response = await api.put('/user', payload);
+        } catch (innerErr: any) {
+          const status = innerErr?.response?.status;
+          if (status === 404 || status === 405) {
+            response = await api.put(`/user/${userId}`, payload);
+          } else {
+            throw innerErr;
+          }
+        }
       } else {
         // Create new user with roles
         const payload = {
@@ -548,7 +658,7 @@ export default function UserForm() {
 
             {/* ─── Roles Management Section ──────────────────────────────── */}
             <div className="uf-divider" />
-            
+
             <div className="uf-section">
               <span className="uf-section-title">
                 <FaShieldAlt className="uf-section-icon" /> Role Assignments <span className="uf-required">*</span>
@@ -667,7 +777,7 @@ export default function UserForm() {
                     <FaLock className="uf-section-icon" /> Security Settings
                   </span>
                 </div>
-                
+
                 <div className="uf-grid-2">
                   <div className="uf-field">
                     <label className="uf-label">
