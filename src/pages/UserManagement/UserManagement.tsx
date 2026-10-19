@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
@@ -65,10 +64,8 @@ export default function UserManagement() {
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [deletingUserId, setDeletingUserId] = useState<number | null>(null);
 
-  // 🆕 Only guard against concurrent duplicate fetches — NOT against
-  // refetching after navigation. (The old `isInitialized` ref blocked
-  // every subsequent fetch after the first mount, which is why the role
-  // column stayed stale after an edit.)
+  // Only guards against concurrent duplicate fetches, not against
+  // refetching after navigation.
   const isFetching = useRef(false);
 
   // ─── Helper Functions ──────────────────────────────────────────────────
@@ -84,19 +81,17 @@ export default function UserManagement() {
 
   /* ---------------------------- Fetch Users ---------------------------- */
 
-  const fetchUsers = useCallback(async () => {
+  // showLoader = true  → full-page loader (initial load / route change)
+  // showLoader = false → silent background refresh (focus / visibility)
+  const fetchUsers = useCallback(async (showLoader = false) => {
     if (isFetching.current) return;
 
     isFetching.current = true;
-    setLoading(true);
+    if (showLoader) setLoading(true);
 
-      // 🆕 Cache-busting via a query param only.
-      //    Do NOT add custom headers like Cache-Control / Pragma — those
-      //    are "non-simple" CORS headers and cause the browser to send a
-      //    preflight OPTIONS request. If the backend doesn't whitelist
-      //    them, the real request is blocked → Axios throws "Network Error".
-      //    A timestamp query param is a "simple" request, no preflight,
-      //    and still bypasses the browser / axios cache.
+    try {
+      // Cache-busting via a query param only. Custom headers like
+      // Cache-Control / Pragma would trigger a CORS preflight request.
       const response = await api.get<ApiResponse>('/user', {
         params: { _t: Date.now() },
       });
@@ -114,16 +109,12 @@ export default function UserManagement() {
   }, []);
 
   // ─── Initial Load + Refetch on Return ──────────────────────────────────
-  // 🆕 Refetch every time the user navigates back to this route.
-  //    `location.pathname` changes when returning from /users/new or
-  //    /users/:id, so the list is always fresh.
   useEffect(() => {
-    fetchUsers();
+    fetchUsers(true);
   }, [location.pathname, fetchUsers]);
 
-  // 🆕 Safety net: if the edit was done in a modal / drawer / new tab and
-  //    the route never changed, refetch when the window regains focus or
-  //    the tab becomes visible again.
+  // Safety net: refetch silently when the window regains focus
+  // or the tab becomes visible again.
   useEffect(() => {
     const handleFocus = () => fetchUsers();
     const handleVisibility = () => {
@@ -186,7 +177,7 @@ export default function UserManagement() {
     const pages: number[] = [];
     const maxVisible = 5;
     let startPage = Math.max(1, currentPage - Math.floor(maxVisible / 2));
-    let endPage = Math.min(totalPages, startPage + maxVisible - 1);
+    const endPage = Math.min(totalPages, startPage + maxVisible - 1);
     if (endPage - startPage + 1 < maxVisible)
       startPage = Math.max(1, endPage - maxVisible + 1);
     for (let i = startPage; i <= endPage; i++) pages.push(i);
@@ -205,10 +196,7 @@ export default function UserManagement() {
   };
 
   const getEndIndex = () => {
-    return Math.min(
-      currentPage * itemsPerPage,
-      filteredUsers.length
-    );
+    return Math.min(currentPage * itemsPerPage, filteredUsers.length);
   };
 
   /* ----------------------------- Delete User ----------------------------- */
@@ -216,37 +204,30 @@ export default function UserManagement() {
   const handleDeleteUser = async (userId: number) => {
     if (!window.confirm('Are you sure you want to delete this user?')) return;
 
+    setDeletingUserId(userId);
+
     try {
       let response;
 
-      // Try with /user/{id} first
+      // Try /user/{id} first, then fall back to alternate endpoints
+      // only when the route or method is unavailable (404 / 405).
       try {
         response = await api.delete(`/user/${userId}`);
       } catch (error: any) {
         const status = error?.response?.status;
-
-        // Try alternate endpoints only when the route or method is unavailable.
-        if (status !== 404 && status !== 405) {
-          throw error;
-        }
+        if (status !== 404 && status !== 405) throw error;
 
         try {
           response = await api.delete(`/users/${userId}`);
         } catch (secondError: any) {
           const secondStatus = secondError?.response?.status;
-
-          if (secondStatus !== 404 && secondStatus !== 405) {
-            throw secondError;
-          }
+          if (secondStatus !== 404 && secondStatus !== 405) throw secondError;
 
           try {
             response = await api.delete(`/user/delete/${userId}`);
           } catch (thirdError: any) {
             const thirdStatus = thirdError?.response?.status;
-
-            if (thirdStatus !== 404 && thirdStatus !== 405) {
-              throw thirdError;
-            }
+            if (thirdStatus !== 404 && thirdStatus !== 405) throw thirdError;
 
             response = await api.post(`/user/delete/${userId}`);
           }
@@ -264,6 +245,14 @@ export default function UserManagement() {
       }
     } catch (error: any) {
       console.error('Error deleting user:', error);
+      alert(
+        error?.response?.data?.message ||
+          'Failed to delete the user. Please try again.'
+      );
+    } finally {
+      setDeletingUserId(null);
+    }
+  };
 
   // ─── Loading Screen ─────────────────────────────────────────────────────
   if (loading) {
@@ -294,8 +283,10 @@ export default function UserManagement() {
 
               {search && (
                 <button
+                  type="button"
                   className="um-search-clear"
                   onClick={() => setSearch('')}
+                  aria-label="Clear search"
                 >
                   <FaTimes size={12} />
                 </button>
@@ -303,7 +294,7 @@ export default function UserManagement() {
             </div>
           </div>
 
-          <div className="bom-filter-right">
+          <div className="um-filter-right">
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
@@ -327,7 +318,9 @@ export default function UserManagement() {
               Filter
             </button>
           </div>
+
           <button
+            type="button"
             className="um-btn-primary"
             onClick={() => navigate('/users/new')}
           >
@@ -339,10 +332,7 @@ export default function UserManagement() {
         {/* Active Filters Indicator */}
         {(search || statusFilter !== 'all') && (
           <div className="um-active-filters">
-            <FaFilter
-              size={12}
-              style={{ color: 'var(--primary-color)' }}
-            />
+            <FaFilter size={12} style={{ color: 'var(--primary-color)' }} />
 
             <span>Active filters:</span>
 
@@ -358,7 +348,12 @@ export default function UserManagement() {
                 {statusFilter === 'active' ? 'Active' : 'Inactive'}
               </span>
             )}
-            <button onClick={clearFilters} className="um-clear-filters">
+
+            <button
+              type="button"
+              onClick={clearFilters}
+              className="um-clear-filters"
+            >
               <FaTimes size={10} /> Clear All
             </button>
           </div>
@@ -425,43 +420,30 @@ export default function UserManagement() {
                   </td>
                 </tr>
               ) : (
-                paginatedUsers.map((user, index) => (
-                  <tr key={user.id} className="um-tr">
-                    <td className="um-td um-td-id">
-                      {(currentPage - 1) * itemsPerPage + index + 1}
-                    </td>
-                    <td className="um-td">
-                      <span className="um-role-badge">
-                        {user.role_profile_name || 'N/A'}
-                      </span>
-                    </td>
-                    <td className="um-td">{formatFullName(user)}</td>
-                    <td className="um-td">{user.mobile_no || '-'}</td>
-                    <td className="um-td">{user.email}</td>
-                    <td className="um-td">
-                      <span
-                        className={`um-status-badge ${
-                          user.role_profile_name
-                            ? 'um-status-active'
-                            : 'um-status-inactive'
-                        }`}
-                      >
-                        {user.role_profile_name ? 'Active' : 'Inactive'}
-                      </span>
-                    </td>
-                    <td className="um-td um-td-meta">
-                      <div className="um-action-buttons">
-                        <button
-                          className="um-action-btn um-action-edit"
-                          onClick={() => navigate(`/users/${user.id}`)}
-                          title="Edit"
-                        >
-                          <FaEdit size={12} />
-                        </button>
-                        <button
-                          className="um-action-btn um-action-delete"
-                          onClick={() => handleDeleteUser(user.id)}
-                          title="Delete"
+                paginatedUsers.map((user, index) => {
+                  const active = !!user.role_profile_name;
+
+                  return (
+                    <tr key={user.id} className="um-tr">
+                      <td className="um-td um-td-id">
+                        {(currentPage - 1) * itemsPerPage + index + 1}
+                      </td>
+
+                      <td className="um-td">
+                        <span className="um-role-badge">
+                          {user.role_profile_name || 'N/A'}
+                        </span>
+                      </td>
+
+                      <td className="um-td">{formatFullName(user)}</td>
+                      <td className="um-td">{user.mobile_no || '-'}</td>
+                      <td className="um-td">{user.email}</td>
+
+                      <td className="um-td">
+                        <span
+                          className={`um-status-badge ${
+                            active ? 'um-status-active' : 'um-status-inactive'
+                          }`}
                         >
                           {active ? 'Active' : 'Inactive'}
                         </span>
@@ -529,6 +511,7 @@ export default function UserManagement() {
 
           <div className="um-pagination-center">
             <button
+              type="button"
               onClick={() => goToPage(1)}
               disabled={currentPage === 1 || filteredUsers.length === 0}
               className="um-page-btn"
@@ -538,6 +521,7 @@ export default function UserManagement() {
               <FaAngleDoubleLeft size={12} />
             </button>
             <button
+              type="button"
               onClick={() => goToPage(currentPage - 1)}
               disabled={currentPage === 1 || filteredUsers.length === 0}
               className="um-page-btn"
@@ -546,9 +530,11 @@ export default function UserManagement() {
             >
               <FaChevronLeft size={12} />
             </button>
+
             {filteredUsers.length > 0 &&
               getPageNumbers().map((page) => (
                 <button
+                  type="button"
                   key={page}
                   onClick={() => goToPage(page)}
                   className={`um-page-btn ${
@@ -558,7 +544,9 @@ export default function UserManagement() {
                   {page}
                 </button>
               ))}
+
             <button
+              type="button"
               onClick={() => goToPage(currentPage + 1)}
               disabled={
                 currentPage === totalPages || filteredUsers.length === 0
@@ -570,6 +558,7 @@ export default function UserManagement() {
               <FaChevronRight size={12} />
             </button>
             <button
+              type="button"
               onClick={() => goToPage(totalPages)}
               disabled={
                 currentPage === totalPages || filteredUsers.length === 0
