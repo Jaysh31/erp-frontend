@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useModule } from '../context/ModuleContext';
@@ -19,6 +20,24 @@ import {
 } from "react-icons/fa";
 import logo from '../assets/logo.png';
 import "./HomePage.css";
+
+// 🆕 Report enabled modules to the ERP chatbot.
+// Adjust the relative path if HomePage.tsx lives in a different folder depth.
+import { setAvailableModules } from '../services/erpApi';
+
+// 🆕 Maps Home-page card titles → chatbot module names.
+// Only entries that appear in the chatbot's ENDPOINT_TO_MODULE map matter;
+// everything else is silently ignored by the chatbot.
+const CHATBOT_MODULE_MAP: Record<string, string> = {
+  Manufacturing: "Manufacturing",
+  Setup:         "Setup",
+  Sales:         "Sales",
+  Purchasing:    "Purchasing",
+  Stock:         "Inventory",     // Home shows "Stock", chatbot calls it "Inventory"
+  Quality:       "Quality",
+  Organization:  "Organization",
+  // Reports / Accounting / Tools are not tracked by the chatbot — ignored.
+};
 
 export default function HomePage() {
   const navigate = useNavigate();
@@ -205,31 +224,19 @@ export default function HomePage() {
       : hasModule(module.apiModule)
   );
 
-  // Filter accessible pages based on module and submodule permissions.
-  const visibleSearchPages = searchablePages.filter((page) => {
-    if (page.apiSubmodule) {
-      return hasPermission(page.apiModule, page.apiSubmodule);
-    }
+  // 🆕 Report the currently-visible modules to the ERP chatbot.
+  // Runs on mount and whenever the set of visible module titles changes,
+  // so the chatbot always reflects exactly what the user sees here.
+  useEffect(() => {
+    const chatbotModules = visibleModules
+      .map((m) => CHATBOT_MODULE_MAP[m.title])
+      .filter(Boolean) as string[];
 
-    return hasModule(page.apiModule);
-  });
+    setAvailableModules(chatbotModules);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visibleModules.map((m) => m.title).join("|")]);
 
-  const query = searchQuery.trim().toLowerCase();
-
-  // Search both module cards and individual ERP pages.
-  const filteredModules = visibleModules.filter((module) =>
-    `${module.title} ${module.description}`
-      .toLowerCase()
-      .includes(query)
-  );
-
-  const filteredPages = visibleSearchPages.filter((page) =>
-    `${page.title} ${page.category}`
-      .toLowerCase()
-      .includes(query)
-  );
-
-  const handleModuleClick = (module: (typeof modules)[number]) => {
+  const handleModuleClick = (module: typeof modules[0]) => {
     setCurrentModule(module.module as any);
     setSearchQuery("");
     setShowSearchResults(false);
