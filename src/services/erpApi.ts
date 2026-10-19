@@ -225,6 +225,251 @@ export const ERP_ENDPOINTS: Record<string, ErpEndpoint> = {
   },
 };
 
+// ═══════════════════════════════════════════════════════════════════════
+// 🆕 MODULE AVAILABILITY — DYNAMIC REGISTRY
+// -----------------------------------------------------------------------
+// Sources of truth, in priority order:
+//   1. Whatever the Home page reported via setAvailableModules()  ← main
+//   2. Persisted snapshot in localStorage (survives page reloads)
+//   3. FALLBACK_MODULES (used only before the Home page reports)
+//
+// The Home page just needs to call:
+//   setAvailableModules(['Sales', 'Manufacturing']);
+// whenever it renders its module tiles. Everything else updates itself.
+// ═══════════════════════════════════════════════════════════════════════
+
+/** Fallback list — used ONLY before the Home page has reported anything. */
+const FALLBACK_MODULES: string[] = ['Sales', 'Manufacturing'];
+
+const MODULES_STORAGE_KEY = 'erp-available-modules';
+
+let _availableModulesCache: string[] | null = null;
+
+/** Normalize + de-duplicate (case-insensitive) a module name list. */
+function normalizeModuleList(modules: string[]): string[] {
+  const cleaned = modules
+    .filter((m) => m !== null && m !== undefined)
+    .map((m) => String(m).trim())
+    .filter((m) => m.length > 0);
+
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const m of cleaned) {
+    const key = m.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(m);
+  }
+  return out;
+}
+
+/**
+ * Called by the Home page (or anywhere) to declare which modules are
+ * currently enabled. Persists to localStorage so the chatbot keeps
+ * working after a page reload.
+ */
+export function setAvailableModules(modules: string[]): void {
+  const normalized = normalizeModuleList(modules);
+  _availableModulesCache = normalized;
+  try {
+    localStorage.setItem(MODULES_STORAGE_KEY, JSON.stringify(normalized));
+    console.log('🟢 [erpApi] Available modules set to:', normalized);
+  } catch (e) {
+    console.warn('⚠️ [erpApi] Could not persist modules:', e);
+  }
+}
+
+/** Reads the current list of enabled modules. */
+export function getAvailableModules(): string[] {
+  if (_availableModulesCache) return _availableModulesCache;
+
+  // Try localStorage
+  try {
+    const raw = localStorage.getItem(MODULES_STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        _availableModulesCache = normalizeModuleList(parsed);
+        return _availableModulesCache;
+      }
+    }
+  } catch {
+    /* ignore — fall through */
+  }
+
+  // Fallback
+  _availableModulesCache = [...FALLBACK_MODULES];
+  return _availableModulesCache;
+}
+
+/** Clears the cache (useful on logout). */
+export function clearAvailableModules(): void {
+  _availableModulesCache = null;
+  try {
+    localStorage.removeItem(MODULES_STORAGE_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
+/**
+ * Kept for backward-compat. Reads live from the registry.
+ * Do NOT mutate this — use setAvailableModules() instead.
+ */
+export const AVAILABLE_MODULES: string[] = new Proxy([] as string[], {
+  get(_target, prop) {
+    const live = getAvailableModules();
+    const value = (live as any)[prop];
+    return typeof value === 'function' ? value.bind(live) : value;
+  },
+  has(_target, prop) {
+    return prop in getAvailableModules();
+  },
+  ownKeys() {
+    return Reflect.ownKeys(getAvailableModules());
+  },
+  getOwnPropertyDescriptor(_target, prop) {
+    return Reflect.getOwnPropertyDescriptor(getAvailableModules(), prop);
+  },
+});
+
+/**
+ * Optional: fetch enabled modules from the backend and sync the registry.
+ * Only does something if your backend exposes `/api/modules`.
+ * Falls back silently to the current list if the endpoint is missing.
+ */
+export async function fetchAndSyncAvailableModules(): Promise<string[]> {
+  try {
+    const token = getAuthToken();
+    const res = await fetch(`${ERP_BASE_URL}/api/modules`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    });
+    if (!res.ok) return getAvailableModules();
+    const json = await res.json();
+    const raw = json?.data ?? json;
+    const list: any[] =
+      (Array.isArray(raw?.modules) && raw.modules) ||
+      (Array.isArray(raw?.data) && raw.data) ||
+      (Array.isArray(raw) && raw) ||
+      [];
+    const names = list
+      .map((m: any) => (typeof m === 'string' ? m : m?.name))
+      .filter(Boolean);
+    if (names.length > 0) setAvailableModules(names);
+    return getAvailableModules();
+  } catch {
+    return getAvailableModules();
+  }
+}
+
+// Maps every endpoint key → business module that owns it.
+export const ENDPOINT_TO_MODULE: Record<string, string> = {
+  // Sales flow
+  lead:              'Sales',
+  quotation:         'Sales',
+  salesOrder:        'Sales',
+  proformaInvoice:   'Sales',
+  deliveryNote:      'Sales',
+  salesInvoice:      'Sales',
+  customer:          'Sales',
+
+  // Inventory / Stock
+  inventory:         'Inventory',
+  stockEntry:        'Inventory',
+  warehouse:         'Inventory',
+
+  // Manufacturing
+  bom:               'Manufacturing',
+  workOrder:         'Manufacturing',
+  jobCard:           'Manufacturing',
+  workstation:       'Manufacturing',
+  operation:         'Manufacturing',
+  qualityInspection: 'Quality',
+
+  // Setup / Master data
+  item:              'Setup',
+  itemProduct:       'Setup',
+  itemRaw:           'Setup',
+  itemGroup:         'Setup',
+  uom:               'Setup',
+
+  // Purchasing
+  purchaseOrder:     'Purchasing',
+  grn:               'Purchasing',
+  purchaseInvoice:   'Purchasing',
+  supplier:          'Purchasing',
+
+  // Organization
+  company:           'Organization',
+  employee:          'Organization',
+};
+
+// Summary-tab → module mapping (used to filter Summary table rows)
+export const SUMMARY_AREA_TO_MODULE: Record<string, string> = {
+  sales:         'Sales',
+  purchasing:    'Purchasing',
+  manufacturing: 'Manufacturing',
+  inventory:     'Inventory',
+  setup:         'Setup',
+  quality:       'Quality',
+  organization:  'Organization',
+};
+
+/** Returns true if the given business module is enabled. */
+export function isModuleAvailable(moduleName: string): boolean {
+  if (!moduleName) return false;
+  const available = getAvailableModules();
+  return available.some(
+    (m) => m.toLowerCase() === moduleName.toLowerCase()
+  );
+}
+
+/**
+ * Returns true if the given endpoint key belongs to an ENABLED module.
+ * Unknown / unmapped endpoints are treated as available (fail-open) to
+ * avoid accidentally blocking valid lookups.
+ */
+export function isEndpointAvailable(
+  endpointKey: string | null | undefined
+): boolean {
+  if (!endpointKey) return true;
+  const moduleName = ENDPOINT_TO_MODULE[endpointKey];
+  if (!moduleName) return true;
+  return isModuleAvailable(moduleName);
+}
+
+/** Business module name that owns the given endpoint key. */
+export function getModuleNameForEndpoint(endpointKey: string): string {
+  return ENDPOINT_TO_MODULE[endpointKey] || 'this';
+}
+
+/** Returns the list of endpoint keys whose owning module is enabled. */
+export function getAvailableEndpoints(): string[] {
+  return Object.keys(ERP_ENDPOINTS).filter((k) => isEndpointAvailable(k));
+}
+
+/**
+ * Standard "module not enabled" reply text. Reads the live list so the
+ * wording stays in sync with whatever the Home page has enabled.
+ */
+export function buildModuleBlockedReply(moduleName: string): string {
+  const available = getAvailableModules();
+  const list = available.length > 0 ? available.join(', ') : 'none';
+  return (
+    `🔒 **${moduleName} module is not currently enabled in this ERP.**\n\n` +
+    `Only the following module${available.length === 1 ? ' is' : 's are'} available: **${list}**.\n\n` +
+    `Try asking about **${list}** — for example:\n` +
+    `• "How many sales orders?"\n` +
+    `• "Show latest quotations"\n` +
+    `• "How many leads?"\n` +
+    `• "Show me draft sales orders"`
+  );
+}
+
 // ============================================================
 // ROUTE MAP
 // ============================================================
@@ -461,14 +706,6 @@ export function buildItemFilterUrl(params: {
 // ============================================================
 // 🆕 BOM FILTER URL BUILDER
 // ============================================================
-/**
- * Builds a filtered BOM API URL.
- * Supports item, type, search, and pagination.
- *
- * Example:
- *   buildBOMFilterUrl({ item: 'wooden study table', page: 1, limit: 200 })
- *   → https://erp.sculptortechpvtltd.com/api/bom?page=1&limit=200&item=wooden%20study%20table
- */
 export function buildBOMFilterUrl(params: {
   item?: string;
   type?: string;
@@ -1824,13 +2061,6 @@ export async function fetchBOMDetailPageData(
 // ============================================================
 // 🆕 BOM DETAIL (single) — thin wrapper around /api/bom/{id}
 // ============================================================
-/**
- * Fetches a single BOM by ID (calls `/api/bom/{bomId}`).
- *
- * Example:
- *   const bom = await fetchBOMDetail('91');
- *   // → GET https://erp.sculptortechpvtltd.com/api/bom/91
- */
 export async function fetchBOMDetail(bomId: string | number): Promise<any | null> {
   if (bomId === undefined || bomId === null || String(bomId).trim() === '') {
     return null;
@@ -1890,29 +2120,12 @@ export interface ProductionCapacityResult {
   bomName: string;
   productionItem: string;
   bomQuantity: number;
-  /** How many finished units can be made from current stock. Infinity = all components available. */
   capacity: number;
-  /** The component that limits production (lowest maxUnits). */
   limitingComponent: ProductionCapacityComponent | null;
   components: ProductionCapacityComponent[];
   error?: string;
 }
 
-/**
- * Mirrors the dashboard's "Production Capacity Check" widget.
- *
- * Steps:
- *   1. Fetch the BOM via `/api/bom/{bomId}`
- *   2. Fetch `/api/inventory` for current stock levels
- *   3. For each component, compute:
- *        requiredPerUnit = component.qty / bom.quantity
- *        maxUnits = floor(availableStock / requiredPerUnit)
- *   4. The result is the minimum across all components.
- *
- * Example:
- *   const cap = await fetchProductionCapacity('91');
- *   // → { capacity: 8, limitingComponent: { itemName: 'rtui', ... }, ... }
- */
 export async function fetchProductionCapacity(
   bomId: string | number
 ): Promise<ProductionCapacityResult> {
@@ -1932,7 +2145,6 @@ export async function fetchProductionCapacity(
     return empty;
   }
 
-  // ── 1. Fetch BOM ─────────────────────────────────────────
   const bom = await fetchBOMDetail(bomId);
   if (!bom) {
     empty.error = `Could not fetch BOM #${bomId}`;
@@ -1956,14 +2168,12 @@ export async function fetchProductionCapacity(
 
   const bomQty = Number(bom.quantity ?? bom.qty ?? 1) || 1;
 
-  // ── 2. Fetch inventory ───────────────────────────────────
   const invResult = await fetchAllPages(`${ERP_BASE_URL}/api/inventory?limit=10000`);
   if (!invResult.ok) {
     empty.error = `Could not fetch inventory: ${invResult.error}`;
     return empty;
   }
 
-  // Build a stock map: item_code → total available qty
   const stockMap = new Map<string, number>();
   for (const inv of invResult.records as any[]) {
     const code = String(inv.item_code ?? inv.item ?? '').toUpperCase().trim();
@@ -1972,7 +2182,6 @@ export async function fetchProductionCapacity(
     stockMap.set(code, (stockMap.get(code) || 0) + qty);
   }
 
-  // ── 3. Compute per-component capacity ────────────────────
   const compRows: ProductionCapacityComponent[] = components.map((c: any) => {
     const code = String(c.item_code ?? c.item ?? '').toUpperCase().trim();
     const name = c.item_name || c.item_code || c.item || '—';
@@ -1993,7 +2202,6 @@ export async function fetchProductionCapacity(
 
   const validRows = compRows.filter((r) => r.itemCode);
 
-  // ── 4. Determine overall capacity ────────────────────────
   const finiteRows = validRows.filter((r) => Number.isFinite(r.maxUnits));
   const capacity =
     finiteRows.length > 0

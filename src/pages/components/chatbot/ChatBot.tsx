@@ -12,14 +12,27 @@ import {
   matchEndpoint,
   extractSearchToken,
   searchAllModulesForRecord,
-  
+
   fetchDetailPageData,
   DETAIL_PAGE_APIS,
   ERP_ENDPOINTS,
   ENDPOINT_ROUTES,
   isLatestListQuery,
-  
+
+  // 🆕 Module availability — DYNAMIC registry from erpApi.ts
+  getAvailableModules,
+  SUMMARY_AREA_TO_MODULE,
+  isModuleAvailable,
+  isEndpointAvailable,
+  getModuleNameForEndpoint,
+  // 🆕 Aliased so we can override locally with a clearer sentence
+  // (see local `buildModuleBlockedReply` below).
+  buildModuleBlockedReply as _buildModuleBlockedReplyFromApi,
 } from "../../../services/erpApi";
+
+// Keep the aliased import referenced so strict TS/ESLint doesn't flag it
+// as unused. The local override below is what actually gets called.
+void _buildModuleBlockedReplyFromApi;
 
 interface Msg {
   role: "user" | "bot";
@@ -117,6 +130,14 @@ function unwrapOne(res: any): any | null {
   return null;
 }
 
+// ═════════════════════════════════════════════════════════════════════
+// 🆕 FIXED: getTotalCount
+// - Only trusts an explicit count when it is POSITIVE.
+// - Falls back to counting the records array (via `unwrap`) when the API
+//   reports 0 / omits the count but still returns records.
+// This fixes "How many GRNs?" showing 0 while the table/records list is
+// non-empty (backend sends `total: 0` alongside a populated `records`).
+// ═════════════════════════════════════════════════════════════════════
 function getTotalCount(res: any): number {
   const raw = res?.data ?? res;
   const candidates = [
@@ -125,14 +146,15 @@ function getTotalCount(res: any): number {
     raw?.data?.total_count, raw?.pagination?.total,
     raw?.pagination?.total_count, raw?.meta?.total, raw?.meta?.total_count,
   ];
+  // Prefer any POSITIVE explicit count reported by the API.
   for (const c of candidates) {
-    if (typeof c === "number" && c >= 0) return c;
+    if (typeof c === "number" && c > 0) return c;
   }
-  const arr =
-    (Array.isArray(raw?.records) && raw.records) ||
-    (Array.isArray(raw?.data) && raw.data) ||
-    (Array.isArray(raw) && raw) || [];
-  return arr.length;
+  // Fallback: if API reported 0 / omitted the count but still returned
+  // records, trust the records array.
+  const records = unwrap(res);
+  if (records.length > 0) return records.length;
+  return 0;
 }
 
 const DEBUG_COUNT = true;
@@ -2527,17 +2549,47 @@ const ENDPOINT_CHIPS: Record<string, string[]> = {
   purchaseInvoice: ["How many purchase invoices?", "Show latest purchase invoices", "Show me paid purchase invoices", "Show me partially paid purchase invoices", "Summary"],
 };
 
-const DEFAULT_CHIPS = [
-  "Summary", "Show me flow of this page", "How many sales orders?",
-  "How many work orders?", "How many items?", "How many warehouses?",
-];
+// 🆕 Default chips: reflect only the modules that are currently ENABLED.
+function buildDefaultChips(): string[] {
+  const modules = getAvailableModules().map((m) => m.toLowerCase());
+  const has = (name: string) => modules.includes(name.toLowerCase());
+
+  const chips: string[] = ["Summary", "Show me flow of this page"];
+
+  if (has("Sales")) {
+    chips.push("How many sales orders?");
+    chips.push("Show latest quotations");
+  }
+  if (has("Manufacturing")) {
+    chips.push("How many work orders?");
+    chips.push("Show latest BOMs");
+  }
+  if (has("Purchasing")) {
+    chips.push("How many purchase orders?");
+  }
+  if (has("Inventory")) {
+    chips.push("Inventory value");
+  }
+  if (has("Setup")) {
+    chips.push("How many items?");
+  }
+  if (has("Quality")) {
+    chips.push("How many quality inspections?");
+  }
+  if (has("Organization")) {
+    chips.push("How many companies?");
+  }
+
+  // Keep it compact — max 6 chips.
+  return chips.slice(0, 6);
+}
 
 function getChipsForPath(pathname: string): string[] {
   const sorted = [...PAGE_CHIPS].sort((a, b) => b.prefix.length - a.prefix.length);
   for (const { prefix, chips } of sorted) {
     if (pathname.startsWith(prefix)) return chips;
   }
-  return DEFAULT_CHIPS;
+  return buildDefaultChips();
 }
 
 const ANALYSIS_KEYWORDS = [
@@ -2561,6 +2613,76 @@ type AnswerResult = {
   suggestionKey?: string;
   tableRoutes?: string[];
 };
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🆕 MODULE AVAILABILITY — LOCAL HELPERS
+// These wrap the shared helpers from erpApi.ts so we can quickly return
+// a blocked AnswerResult whenever an endpoint / module is disabled.
+// ═══════════════════════════════════════════════════════════════════════
+
+// 🆕 Local override with a clearer, proper sentence that tells the user
+// how to get access — "log in as an administrator and enable the module
+// from the Home page". This replaces the version imported from erpApi.ts
+// (which is now aliased as `_buildModuleBlockedReplyFromApi` above).
+function buildModuleBlockedReply(moduleName?: string | null): string {
+  const raw = moduleName != null ? String(moduleName).trim() : "";
+  const name = raw.length > 0 ? raw : "this";
+  return (
+    `🔒 The **${name}** module is not enabled in your current setup.\n\n` +
+    `If you'd like information from the **${name}** module, ` +
+    `please log in as an administrator and enable it from the Home page.`
+  );
+}
+
+function checkEndpointAvailability(
+  endpointKey: string | null | undefined
+): AnswerResult | null {
+  if (!endpointKey) return null;
+  if (isEndpointAvailable(endpointKey)) return null;
+  return {
+    text: buildModuleBlockedReply(getModuleNameForEndpoint(endpointKey)),
+  };
+}
+
+function checkModuleKeyAvailability(
+  moduleKey: string | null | undefined
+): AnswerResult | null {
+  if (!moduleKey) return null;
+  const endpointKey = MODULE_TO_ENDPOINT_KEY[moduleKey.toLowerCase()];
+  return checkEndpointAvailability(endpointKey);
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🆕 WELCOME MESSAGE — reads LIVE enabled modules and uses proper sentences
+// ═══════════════════════════════════════════════════════════════════════
+function buildWelcomeMessage(): string {
+  const modules = getAvailableModules();
+  const list = modules.length > 0 ? modules.join(", ") : "";
+  const enabledLine =
+    modules.length === 0
+      ? `No modules are currently enabled in your account.`
+      : modules.length === 1
+        ? `Your account currently has access to the Manufacturing module: **${list}**.`
+        : `Your account currently has access to the Manufacturing module: **${list}**.`;
+
+  const intro =
+    `Hi 👋 I'm your ERP assistant.\n\n` +
+    `${enabledLine}\n\n` +
+    `I can only answer questions about the modules that are enabled in your account. ` +
+    `If you'd like information from a different module, please log in as an administrator ` +
+    `and enable that module from the Home page.\n\n` +
+    `Try asking me things like:\n` +
+    `• 📊 *How many sales orders?*\n` +
+    `• 📋 *Show latest quotations*\n` +
+    `• 🏭 *How many work orders?*\n` +
+    `• 📋 *Show latest BOMs*\n` +
+    `• 🔍 *Detail about SO-00012*\n` +
+    `• 🧭 *Navigate on 12 detail page*\n` +
+    `• 🗺️ *Show me flow of this page*\n\n` +
+    `What would you like to know?`;
+
+  return intro;
+}
 
 // ═══════════════════════════════════════════════════════════════════════
 // PRODUCTION CAPACITY CHECK
@@ -2719,6 +2841,11 @@ async function answerProductionCapacityQuery(
   question: string
 ): Promise<AnswerResult | null> {
   if (!detectCapacityQuery(question)) return null;
+
+  // 🆕 Production capacity belongs to the Manufacturing module.
+  if (!isModuleAvailable("Manufacturing")) {
+    return { text: buildModuleBlockedReply("Manufacturing") };
+  }
 
   const itemOrBom = extractCapacityItemName(question);
   if (!itemOrBom) {
@@ -2982,6 +3109,28 @@ async function answerQuestion(
   const has = (...words: string[]) => words.some((w) => q.includes(w));
   const isCount = has("how many", "count", "number of", "total number");
 
+  // ═══════════════════════════════════════════════════════════════════
+  // 🆕 EARLY MODULE-AVAILABILITY GATE
+  // If the question maps to an endpoint whose module is not enabled,
+  // block it immediately — no API call, no AI call.
+  // ═══════════════════════════════════════════════════════════════════
+  const earlyEndpoint = matchEndpoint(question);
+  if (earlyEndpoint) {
+    const earlyKey = Object.keys(ERP_ENDPOINTS).find(
+      (k) => ERP_ENDPOINTS[k] === earlyEndpoint
+    );
+    const blocked = checkEndpointAvailability(earlyKey);
+    if (blocked) {
+      console.log(`🔒 Blocked early: ${earlyKey} (module disabled)`);
+      return blocked;
+    }
+  }
+
+  // 🆕 Production-capacity guard (Manufacturing)
+  if (detectCapacityQuery(question) && !isModuleAvailable("Manufacturing")) {
+    return { text: buildModuleBlockedReply("Manufacturing") };
+  }
+
   const capacityResult = await answerProductionCapacityQuery(question);
   if (capacityResult) return capacityResult;
 
@@ -2998,6 +3147,10 @@ async function answerQuestion(
       endpointKey === "itemProduct" ||
       endpointKey === "itemRaw"
     ) {
+      // 🆕 Item queries belong to Setup — block if not enabled
+      const blocked = checkEndpointAvailability(endpointKey);
+      if (blocked) return blocked;
+
       const wantsList = isStatusListQuery(question) || !isStatusCountQuery(question);
       console.log(
         `🆕 Item type query detected: ${endpointKey} → "${itemTypeFilter}" (list=${wantsList})`
@@ -3008,6 +3161,10 @@ async function answerQuestion(
 
   const statusQuery = detectStatusQuery(question);
   if (statusQuery) {
+    // 🆕 Block if the endpoint's module is disabled
+    const blocked = checkEndpointAvailability(statusQuery.endpointKey);
+    if (blocked) return blocked;
+
     console.log(
       `🔢 Status query detected: ${statusQuery.endpointKey} → "${statusQuery.status}" ` +
       `(list=${statusQuery.wantsList})`
@@ -3032,6 +3189,10 @@ async function answerQuestion(
         (k) => ERP_ENDPOINTS[k] === endpointForListing
       );
       if (endpointKey) {
+        // 🆕 Block if the endpoint's module is disabled
+        const blocked = checkEndpointAvailability(endpointKey);
+        if (blocked) return blocked;
+
         console.log(
           `🆕 Listing query detected: ${endpointKey} — building row-action list`
         );
@@ -3066,6 +3227,10 @@ async function answerQuestion(
   if (isNavigationQuestion(question)) {
     const detailTarget = detectDetailNavigationTarget(question);
     if (detailTarget) {
+      // 🆕 Block if the target module is disabled
+      const blocked = checkModuleKeyAvailability(detailTarget.moduleKey);
+      if (blocked) return blocked;
+
       console.log(
         `🧭 Detail nav (named module) → "${detailTarget.moduleKey}", search "${detailTarget.searchId}"`
       );
@@ -3153,6 +3318,16 @@ async function answerQuestion(
     if (generic) {
       const { id: genericId, moduleHint, endpointHint } = generic;
 
+      // 🆕 Block if the hinted module/endpoint is disabled
+      if (moduleHint) {
+        const blocked = checkModuleKeyAvailability(moduleHint);
+        if (blocked) return blocked;
+      }
+      if (endpointHint) {
+        const blocked = checkEndpointAvailability(endpointHint);
+        if (blocked) return blocked;
+      }
+
       console.log(
         `🧭 Generic detail nav → id="${genericId}", moduleHint="${moduleHint}", endpointHint="${endpointHint}"`
       );
@@ -3233,6 +3408,15 @@ async function answerQuestion(
 
       const found = await searchAllModulesForRecord(genericId);
       if (found) {
+        // 🆕 Block if the found record's module is disabled
+        const foundOwnerKey = Object.keys(MODULE_DETAIL_ROUTES).find(
+          (k) => MODULE_DETAIL_ROUTES[k] === found.endpoint.url
+        );
+        const foundEndpointKey =
+          MODULE_TO_ENDPOINT_KEY[foundOwnerKey || ""] || found.endpointKey;
+        const blocked = checkEndpointAvailability(foundEndpointKey);
+        if (blocked) return blocked;
+
         const resolvedId = getRecordNavId(found.record, genericId);
 
         const { route: detailRoute, moduleKey: matchedModuleKey } =
@@ -3295,6 +3479,10 @@ async function answerQuestion(
 
     const target = detectNavigationTarget(question);
     if (target) {
+      // 🆕 Block if the target module is disabled
+      const blocked = checkModuleKeyAvailability(target.label);
+      if (blocked) return blocked;
+
       const current = currentPath.replace(/\/$/, "");
       const dest = target.route.replace(/\/$/, "");
       if (current === dest || current.startsWith(dest + "/")) {
@@ -3314,7 +3502,12 @@ async function answerQuestion(
       ? (DASHBOARD_MODULES[dashInfo.label] || ["all"])
       : ["all"];
     const showAll = include.includes("all");
-    const show = (m: string) => showAll || include.includes(m);
+    // 🆕 Only show summary rows for ENABLED modules.
+    const show = (m: string) => {
+      const owner = SUMMARY_AREA_TO_MODULE[m];
+      if (owner && !isModuleAvailable(owner)) return false;
+      return showAll || include.includes(m);
+    };
 
     const salesPromise = show("sales")
       ? Promise.all([
@@ -3500,6 +3693,10 @@ async function answerQuestion(
   }
 
   if (has("revenue", "sales value", "total sales", "sales amount")) {
+    // 🆕 Sales revenue belongs to Sales
+    if (!isModuleAvailable("Sales")) {
+      return { text: buildModuleBlockedReply("Sales") };
+    }
     const res = await api.get("/sales-order?page=1&limit=100");
     const orders = unwrap(res);
     const total = orders.reduce((s: number, o: any) => s + (o.grand_total || 0), 0);
@@ -3510,6 +3707,10 @@ async function answerQuestion(
   }
 
   if (has("inventory value", "stock value", "item value")) {
+    // 🆕 Inventory value belongs to Inventory
+    if (!isModuleAvailable("Inventory")) {
+      return { text: buildModuleBlockedReply("Inventory") };
+    }
     const res = await api.get("/inventory?page=1&limit=100");
     const totalCount = getTotalCount(res);
     const items = unwrap(res);
@@ -3690,6 +3891,15 @@ async function answerQuestion(
       const found = await searchAllModulesForRecord(token);
 
       if (found) {
+        // 🆕 Block if the found record's module is disabled
+        const foundOwnerKey = Object.keys(MODULE_DETAIL_ROUTES).find(
+          (k) => MODULE_DETAIL_ROUTES[k] === found.endpoint.url
+        );
+        const foundEndpointKey =
+          MODULE_TO_ENDPOINT_KEY[foundOwnerKey || ""] || found.endpointKey;
+        const blocked = checkEndpointAvailability(foundEndpointKey);
+        if (blocked) return blocked;
+
         console.log(`✅ Found "${token}" in ${found.endpoint.label}`);
         const recordId = getRecordNavId(found.record, token);
 
@@ -3802,21 +4012,12 @@ export default function ChatBot() {
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState("");
   const [wide, setWide] = useState(false);
-  const [messages, setMessages] = useState<Msg[]>([
+
+  // 🆕 Welcome message reads the LIVE enabled-module list at mount time.
+  const [messages, setMessages] = useState<Msg[]>(() => [
     {
       role: "bot",
-      text:
-        "Hi 👋 I'm your ERP assistant.\n\n" +
-        "I can help you with:\n" +
-        "• 📊 Counting — *How many sales orders?*\n" +
-        "• 🏭 Capacity — *Production capacity for wooden study table*\n" +
-        "• 🔢 Status — *How many work orders are completed?*\n" +
-        "• 🏷️ Items — *Show me raw items*\n" +
-        "• 🔍 Details — *Detail about 12ABC*\n" +
-        "• 🧭 Navigate — *Navigate on 12abc detail page*\n" +
-        "• 🗺️ Page Flow — *Show me flow of this page*\n" +
-        "• ⚙️ Settings — *What is the current theme?*\n\n" +
-        "What would you like to know?",
+      text: buildWelcomeMessage(),
     },
   ]);
   const [loading, setLoading] = useState(false);
@@ -3835,6 +4036,21 @@ export default function ChatBot() {
       behavior: "smooth",
     });
   }, [messages, loading]);
+
+  // 🆕 Refresh welcome message when the chatbot is opened, in case the
+  // Home page has changed the set of enabled modules since last time.
+  useEffect(() => {
+    if (!open) return;
+    setMessages((prev) => {
+      if (prev.length === 1 && prev[0].role === "bot") {
+        const fresh = buildWelcomeMessage();
+        if (fresh !== prev[0].text) {
+          return [{ ...prev[0], text: fresh }];
+        }
+      }
+      return prev;
+    });
+  }, [open]);
 
   const runQuestion = async (q: string, clearInput: boolean) => {
     if (!q || loading) return;

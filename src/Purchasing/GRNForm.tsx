@@ -719,26 +719,7 @@ export default function GRNForm() {
   const [] = useState<boolean>(false);
 
   // ─── View Mode Badge ────────────────────────────────────────────────── 
-  const renderViewModeBadge = () => {
-    if (!isViewMode) return null;
-
-    return (
-      <span className="grnf-view-mode-badge" style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: '6px',
-        background: '#6366f1',
-        color: '#ffffff',
-        padding: '4px 12px',
-        borderRadius: '20px',
-        fontSize: '12px',
-        fontWeight: 500,
-        marginLeft: '12px',
-      }}>
-
-      </span>
-    );
-  };
+ 
 
   const poDisplayValue = isPOFocused
     ? poSearchTerm

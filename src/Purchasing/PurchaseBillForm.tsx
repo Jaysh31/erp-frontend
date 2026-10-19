@@ -8,7 +8,7 @@ import {
   FaPrint, FaPlus, FaTrash, FaTruck,
   FaUser, FaUsers, FaWarehouse, FaPhone, FaEnvelope, FaGlobeAsia,
   FaStickyNote,
-  FaSearch, FaEye,
+  FaSearch, 
 } from 'react-icons/fa';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useAdminTheme } from '../admin-theme/AdminThemeContext';
@@ -367,27 +367,7 @@ export default function PurchaseInvoiceForm() {
   const [, setSavedInvoiceNumber] = useState<string>('');
 
   // ─── View Mode Badge ─────────────────────────────────────────────────────────
-  const renderViewModeBadge = () => {
-    if (!isViewMode) return null;
-    
-    return (
-      <span className="pif-view-mode-badge" style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: '6px',
-        background: '#6366f1',
-        color: '#ffffff',
-        padding: '4px 12px',
-        borderRadius: '20px',
-        fontSize: '12px',
-        fontWeight: 500,
-        marginLeft: '12px',
-      }}>
-        <FaEye size={12} />
-        View Mode
-      </span>
-    );
-  };
+
 
   // ─── Handle Add New Supplier ──────────────────────────────────────────────
   const handleAddNewSupplier = async () => {
