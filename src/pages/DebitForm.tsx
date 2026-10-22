@@ -2,7 +2,12 @@ import React, { useState, useEffect, useRef } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import "./DebitForm.css";
 import api from "../services/api";
-import { FaArrowLeft, FaExclamationTriangle } from "react-icons/fa";
+import {
+  FaArrowLeft,
+  FaExclamationTriangle,
+  FaPlus,
+  FaTimes,
+} from "react-icons/fa";
 
 /* ----------------------------- Interfaces ----------------------------- */
 
@@ -15,6 +20,19 @@ interface Supplier {
   email_id?: string;
   primary_address?: string;
   country?: string;
+}
+
+/**
+ * Customer record returned by:
+ * GET /customer?page=1&limit=10
+ */
+interface Customer {
+  id: number;
+  name: string;
+  customer_name: string;
+  customer_group: string;
+  mobile_no: string;
+  email_id: string;
 }
 
 interface BankDetails {
@@ -50,10 +68,10 @@ interface Company {
  */
 interface ReferenceRecord {
   id: number;
-  refNo: string;          // display: "PINV-102" or "PO-2026-368"
+  refNo: string; // display: "PINV-102" or "PO-2026-368"
   grandTotal: number;
-  date: string;           // posting_date or transaction_date
-  supplier: string;       // supplier id as string
+  date: string; // posting_date or transaction_date
+  supplier: string; // supplier id as string
   supplierName: string;
   company: string;
   currency: string;
@@ -224,6 +242,20 @@ const normalizeReference = (raw: any, type: ReferenceType): ReferenceRecord => {
   };
 };
 
+/**
+ * Normalize a raw customer record from:
+ * GET /customer?page=1&limit=10
+ */
+const normalizeCustomer = (raw: any): Customer => ({
+  id: Number(raw?.id ?? 0),
+  name: String(raw?.name ?? ""),
+  customer_name: String(raw?.customer_name ?? raw?.name ?? ""),
+  customer_group:
+    raw?.customer_group != null ? String(raw.customer_group) : "",
+  mobile_no: String(raw?.mobile_no ?? raw?.mobile ?? ""),
+  email_id: String(raw?.email_id ?? raw?.email ?? ""),
+});
+
 /* --------------------------- Component -------------------------------- */
 
 const DebitForm: React.FC = () => {
@@ -262,6 +294,13 @@ const DebitForm: React.FC = () => {
   const [refSearch, setRefSearch] = useState("");
   const [showRefDropdown, setShowRefDropdown] = useState(false);
   const [showBankDetails, setShowBankDetails] = useState(false);
+
+  /* ----------------------- Customer modal state ---------------------- */
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [loadingCustomers, setLoadingCustomers] = useState(false);
+  const [customerModalOpen, setCustomerModalOpen] = useState(false);
+  const [customerSearch, setCustomerSearch] = useState("");
+  const [customerError, setCustomerError] = useState<string | null>(null);
 
   const supplierRef = useRef<HTMLDivElement>(null);
   const refRef = useRef<HTMLDivElement>(null);
@@ -525,6 +564,68 @@ const DebitForm: React.FC = () => {
     }
   };
 
+  /**
+   * GET /customer?page=1&limit=10
+   * Called when the "+" / "Add Customer" option is clicked.
+   */
+  const fetchCustomers = async () => {
+    setLoadingCustomers(true);
+    setCustomerError(null);
+    try {
+      const response = await api.get("/customer?page=1&limit=10");
+
+      if (response.data?.success === 1) {
+        const data = response.data.data;
+        const records: any[] = Array.isArray(data) ? data : data?.records ?? [];
+        setCustomers(records.map(normalizeCustomer));
+      } else {
+        setCustomers([]);
+        setCustomerError(
+          response.data?.message || "Unable to load customers."
+        );
+      }
+    } catch (err: any) {
+      console.error("Error fetching customers:", err);
+      setCustomers([]);
+      setCustomerError(
+        err.response?.data?.message || "Failed to load customers."
+      );
+    } finally {
+      setLoadingCustomers(false);
+    }
+  };
+
+  const openCustomerModal = () => {
+    setShowSupplierDropdown(false);
+    setCustomerModalOpen(true);
+    setCustomerSearch("");
+    setCustomerError(null);
+    fetchCustomers();
+  };
+
+  const handleCustomerSelect = (customer: Customer) => {
+    const displayName = customer.customer_name || customer.name || "";
+
+    setFormData((prev) => ({
+      ...prev,
+      supplierId: customer.id,
+      supplierName: displayName,
+      partyName: displayName,
+      referenceId: "",
+      referenceNo: "",
+      referenceDate: "",
+      grandTotal: "",
+      purchaseOrderNo: "",
+      grnNo: "",
+      amount: "",
+    }));
+
+    setSupplierSearch(displayName);
+    setShowSupplierDropdown(false);
+    setCustomerModalOpen(false);
+    setErrors((prev) => ({ ...prev, supplierId: "" }));
+  };
+
   /* ---------------------------- Handlers ----------------------------- */
 
   const handleCancel = () => {
@@ -675,6 +776,20 @@ const DebitForm: React.FC = () => {
   const filteredReferences = references.filter((r) => {
     const label = `${safeLower(r.refNo)} ${safeLower(r.grandTotal)}`;
     return label.includes(safeLower(refSearch));
+  });
+
+  const filteredCustomers = customers.filter((c) => {
+    const label = [
+      c.customer_name,
+      c.name,
+      c.customer_group,
+      c.mobile_no,
+      c.email_id,
+    ]
+      .join(" ")
+      .toLowerCase();
+
+    return label.includes(safeLower(customerSearch));
   });
 
   /* -------------------------- Validation ----------------------------- */
@@ -828,28 +943,33 @@ const DebitForm: React.FC = () => {
   return (
     <div className="rd-credit-page">
       <div className="rd-credit-top-bar">
-      <div className="pof-header">
-                <button onClick={handleCancel} className="pof-back-btn">
-                  <FaArrowLeft size={9} /> Back
-                </button>
-                <div className="pof-header-title">
-                  <h1>
-                    {isViewMode ? 'View Payment Voucher' : isEdit ? 'Edit Payment Voucher' : 'Payment Voucher'}
-                  </h1>
-                  
-                </div>
-                {!isViewMode && Object.keys(errors).length > 0 && (
-                  <div className="pof-error-badge">
-                    <FaExclamationTriangle size={12} />
-                    {Object.keys(errors).length} missing field{Object.keys(errors).length !== 1 ? 's' : ''}
-                  </div>
-                )}
-              </div>
+        <div className="pof-header">
+          <button onClick={handleCancel} className="pof-back-btn">
+            <FaArrowLeft size={9} /> Back
+          </button>
+          <div className="pof-header-title">
+            <h1>
+              {isViewMode
+                ? "View Payment Voucher"
+                : isEdit
+                ? "Edit Payment Voucher"
+                : "Payment Voucher"}
+            </h1>
+          </div>
+          {!isViewMode && Object.keys(errors).length > 0 && (
+            <div className="pof-error-badge">
+              <FaExclamationTriangle size={12} />
+              {Object.keys(errors).length} missing field
+              {Object.keys(errors).length !== 1 ? "s" : ""}
+            </div>
+          )}
+        </div>
       </div>
+
       <div className="rd-credit-card">
         <div className="rd-credit-header">
           <h2>
-            REFERENCE DETAILS – Payment Voucher
+            REFERENCE DETAILS – Paymen
             {isReadOnly ? " (View)" : isEditOrView ? " (Edit)" : ""}
           </h2>
         </div>
@@ -1003,6 +1123,50 @@ const DebitForm: React.FC = () => {
                         </div>
                       ))
                     )}
+
+                    {/* ✅ + Add Customer button inside the dropdown */}
+                    <div
+                      role="button"
+                      tabIndex={0}
+                      onClick={openCustomerModal}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          openCustomerModal();
+                        }
+                      }}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                        padding: "10px 12px",
+                        borderTop: "1px solid #e5e7eb",
+                        cursor: "pointer",
+                        color: "#4f46e5",
+                        fontWeight: 600,
+                        fontSize: 12,
+                        background: "#fff",
+                      }}
+                      title="Add customer"
+                    >
+                      <span
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          width: 18,
+                          height: 18,
+                          borderRadius: "50%",
+                          background: "#4f46e5",
+                          color: "#fff",
+                          fontSize: 10,
+                          flexShrink: 0,
+                        }}
+                      >
+                        <FaPlus size={8} />
+                      </span>
+                      <span>Add Customer</span>
+                    </div>
                   </div>
                 )}
               </div>
@@ -1029,7 +1193,9 @@ const DebitForm: React.FC = () => {
                 ))}
               </select>
               {errors.referenceType && (
-                <small className="rd-credit-error">{errors.referenceType}</small>
+                <small className="rd-credit-error">
+                  {errors.referenceType}
+                </small>
               )}
             </div>
           </div>
@@ -1448,6 +1614,297 @@ const DebitForm: React.FC = () => {
           )}
         </div>
       </div>
+
+      {/* ═══ ADD CUSTOMER MODAL ═══ */}
+      {customerModalOpen && (
+        <div
+          onClick={() => setCustomerModalOpen(false)}
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: "rgba(15, 23, 42, 0.45)",
+            zIndex: 1000,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 16,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: "min(760px, 100%)",
+              maxHeight: "85vh",
+              background: "#fff",
+              borderRadius: 12,
+              boxShadow: "0 20px 60px rgba(15, 23, 42, 0.25)",
+              display: "flex",
+              flexDirection: "column",
+              overflow: "hidden",
+            }}
+          >
+            {/* Header */}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                padding: "16px 20px",
+                borderBottom: "1px solid #e5e7eb",
+              }}
+            >
+              <div>
+                <h3
+                  style={{
+                    margin: 0,
+                    fontSize: 16,
+                    fontWeight: 700,
+                    color: "#111827",
+                  }}
+                >
+                  Add Customer
+                </h3>
+                <p
+                  style={{
+                    margin: "4px 0 0",
+                    fontSize: 12,
+                    color: "#6b7280",
+                  }}
+                >
+                  Select an existing customer to add to this payment voucher.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCustomerModalOpen(false)}
+                title="Close"
+                style={{
+                  border: "none",
+                  background: "transparent",
+                  cursor: "pointer",
+                  color: "#6b7280",
+                  padding: 4,
+                  display: "inline-flex",
+                }}
+              >
+                <FaTimes size={16} />
+              </button>
+            </div>
+
+            {/* Search */}
+            <div
+              style={{
+                padding: "12px 20px",
+                borderBottom: "1px solid #f3f4f6",
+              }}
+            >
+              <input
+                type="text"
+                placeholder="Search by customer name, group, mobile or email..."
+                value={customerSearch}
+                onChange={(e) => setCustomerSearch(e.target.value)}
+                style={{
+                  width: "100%",
+                  boxSizing: "border-box",
+                  padding: "9px 12px",
+                  border: "1px solid #d1d5db",
+                  borderRadius: 8,
+                  fontSize: 13,
+                  outline: "none",
+                }}
+                autoFocus
+              />
+            </div>
+
+            {/* Body */}
+            <div style={{ overflowY: "auto", padding: "0 20px 12px" }}>
+              {loadingCustomers ? (
+                <div
+                  style={{
+                    padding: 32,
+                    textAlign: "center",
+                    color: "#6b7280",
+                    fontSize: 13,
+                  }}
+                >
+                  Loading customers…
+                </div>
+              ) : customerError ? (
+                <div
+                  style={{
+                    padding: 24,
+                    textAlign: "center",
+                    color: "#dc2626",
+                    fontSize: 13,
+                  }}
+                >
+                  {customerError}
+                </div>
+              ) : filteredCustomers.length === 0 ? (
+                <div
+                  style={{
+                    padding: 32,
+                    textAlign: "center",
+                    color: "#6b7280",
+                    fontSize: 13,
+                  }}
+                >
+                  {customers.length === 0
+                    ? "No customers found."
+                    : "No matching customers found."}
+                </div>
+              ) : (
+                <table
+                  style={{
+                    width: "100%",
+                    borderCollapse: "collapse",
+                    fontSize: 12,
+                  }}
+                >
+                  <thead>
+                    <tr>
+                      <th
+                        style={{
+                          textAlign: "left",
+                          padding: "10px 8px",
+                          borderBottom: "1px solid #e5e7eb",
+                          color: "#6b7280",
+                          fontWeight: 600,
+                        }}
+                      >
+                        Customer Name
+                      </th>
+                      <th
+                        style={{
+                          textAlign: "left",
+                          padding: "10px 8px",
+                          borderBottom: "1px solid #e5e7eb",
+                          color: "#6b7280",
+                          fontWeight: 600,
+                        }}
+                      >
+                        Group
+                      </th>
+                      <th
+                        style={{
+                          textAlign: "left",
+                          padding: "10px 8px",
+                          borderBottom: "1px solid #e5e7eb",
+                          color: "#6b7280",
+                          fontWeight: 600,
+                        }}
+                      >
+                        Mobile
+                      </th>
+                      <th
+                        style={{
+                          textAlign: "left",
+                          padding: "10px 8px",
+                          borderBottom: "1px solid #e5e7eb",
+                          color: "#6b7280",
+                          fontWeight: 600,
+                        }}
+                      >
+                        Email
+                      </th>
+                      <th
+                        style={{
+                          textAlign: "right",
+                          padding: "10px 8px",
+                          borderBottom: "1px solid #e5e7eb",
+                          color: "#6b7280",
+                          fontWeight: 600,
+                          width: 80,
+                        }}
+                      >
+                        Action
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredCustomers.map((customer) => (
+                      <tr
+                        key={customer.id}
+                        onClick={() => handleCustomerSelect(customer)}
+                        style={{
+                          cursor: "pointer",
+                          borderBottom: "1px solid #f3f4f6",
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.background = "#f9fafb";
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background = "#fff";
+                        }}
+                      >
+                        <td
+                          style={{
+                            padding: "10px 8px",
+                            fontWeight: 600,
+                            color: "#111827",
+                          }}
+                        >
+                          {customer.customer_name || customer.name || "—"}
+                        </td>
+                        <td style={{ padding: "10px 8px", color: "#4b5563" }}>
+                          {customer.customer_group || "—"}
+                        </td>
+                        <td style={{ padding: "10px 8px", color: "#4b5563" }}>
+                          {customer.mobile_no || "—"}
+                        </td>
+                        <td style={{ padding: "10px 8px", color: "#4b5563" }}>
+                          {customer.email_id || "—"}
+                        </td>
+                        <td
+                          style={{
+                            padding: "10px 8px",
+                            textAlign: "right",
+                          }}
+                        >
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleCustomerSelect(customer);
+                            }}
+                            style={{
+                              border: "1px solid #4f46e5",
+                              background: "#fff",
+                              color: "#4f46e5",
+                              borderRadius: 6,
+                              padding: "5px 10px",
+                              fontSize: 11,
+                              fontWeight: 600,
+                              cursor: "pointer",
+                            }}
+                          >
+                            Select
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div
+              style={{
+                padding: "10px 20px",
+                borderTop: "1px solid #e5e7eb",
+                fontSize: 11,
+                color: "#9ca3af",
+              }}
+            >
+              Showing up to 10 customers from the API.
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

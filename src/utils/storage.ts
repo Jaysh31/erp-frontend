@@ -147,9 +147,13 @@ export const storage = {
     return storage.get<Module[]>(STORAGE_KEYS.MODULES);
   },
 
+  // ✅ HARDENED: Strictly checks if the token is a valid, non-empty string
   isAuthenticated: (): boolean => {
     const token = storage.getToken();
-    return !!token && token.length > 0;
+    if (!token || typeof token !== 'string') return false;
+    
+    const cleanToken = token.trim();
+    return cleanToken.length > 0 && cleanToken !== 'undefined' && cleanToken !== 'null';
   },
 
   clearAuthData: (): void => {
@@ -158,12 +162,20 @@ export const storage = {
     });
   },
 
+  // ✅ HARDENED: Checks for valid JWT structure before trying to decode
   isTokenExpired: (): boolean => {
     try {
       const token = storage.getToken();
-      if (!token) return true;
+      if (!token || typeof token !== 'string') return true;
 
-      const payload = token.split('.')[1];
+      const parts = token.split('.');
+      // A valid JWT must have exactly 3 parts
+      if (parts.length !== 3) {
+        console.error('Invalid token format');
+        return true; 
+      }
+
+      const payload = parts[1];
       const decoded = JSON.parse(atob(payload));
 
       if (decoded.exp) {
@@ -173,16 +185,19 @@ export const storage = {
       return false;
     } catch (error) {
       console.error('Error checking token expiration:', error);
-      return true;
+      return true; // Treat malformed tokens as expired
     }
   },
 
   getTokenExpiry: (): Date | null => {
     try {
       const token = storage.getToken();
-      if (!token) return null;
+      if (!token || typeof token !== 'string') return null;
 
-      const payload = token.split('.')[1];
+      const parts = token.split('.');
+      if (parts.length !== 3) return null;
+
+      const payload = parts[1];
       const decoded = JSON.parse(atob(payload));
 
       if (decoded.exp) {

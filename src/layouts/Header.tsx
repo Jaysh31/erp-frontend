@@ -70,6 +70,7 @@ const PAGE_TITLES: Record<string, string> = {
   "/sales-receipts": "Delivery Challans",
   "/Customer-payments": "Customer Payments",
   "/customer-invoices": "Customer Invoices",
+  "/customer-receipts": "Customer Receipts",
   "/receivables/credit-notes": "Credit Notes",
   "/Debit-notes": "Debit Notes",
   "/GeneralAccountEntry": "General Account Entry",
@@ -120,7 +121,11 @@ const PAGE_TITLES: Record<string, string> = {
   "/proforma-invoice/:id":"Proforma Invoice / Proforma Invoice Details",
   "/grn/:id":"GRN / GRN Details",
   "/delivery-challan/:id":"Delivery Challan / Delivery Challan Details",
-  "/Tax-Invoice/:id":"Tax Invoice / Tax Invoice Details"
+  "/Tax-Invoice/:id":"Tax Invoice / Tax Invoice Details",
+  
+  // ✅ ADDED THESE TWO LINES TO FIX THE BREADCRUMB:
+  "/receivables/new-credits": "Customer Receipts / Add Customer Receipt Entry",
+  "/receivables/new-debits": "Supplier Payments / Add Supplier Payment"
 };
 
 // Module names for display
@@ -151,8 +156,6 @@ const MODULE_DASHBOARD_PATHS: Record<string, string> = {
   'accounting': '/dashboard/accounting'
 };
 
-
-
 // Get the display name for a path
 const getPageTitle = (path: string): string => {
   // Check exact match first
@@ -168,6 +171,7 @@ const getPageTitle = (path: string): string => {
   // Default fallback
   return "Dashboard";
 };
+
 interface HeaderProps {
   isSidebarOpen?: boolean;
   onToggleSidebar?: () => void;
@@ -280,21 +284,6 @@ export default function Header({ isSidebarOpen = false, onToggleSidebar }: Heade
 
   return (
     <header className={`header ${theme}`}>
-       {/* 3 Dots Menu Button - Toggles Sidebar */}
-        {/*<button 
-          type="button"
-          className={`header-icon-btn three-dots-btn ${isSidebarOpen ? 'active' : ''}`}
-          onClick={onToggleSidebar}
-          title={isSidebarOpen ? "Close sidebar menu" : "Open sidebar menu"}
-          aria-label={isSidebarOpen ? "Close sidebar menu" : "Open sidebar menu"}
-          aria-expanded={isSidebarOpen}
-        >
-         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
-            <circle cx="12" cy="5" r="1.6" fill="currentColor"/>
-            <circle cx="12" cy="12" r="1.6" fill="currentColor"/>
-            <circle cx="12" cy="19" r="1.6" fill="currentColor"/>
-          </svg>
-        </button>*/}
         <button 
           type="button"
           className={`header-icon-btn three-dots-btn menu-toggle-btn ${isSidebarOpen ? 'active' : ''}`}
@@ -429,8 +418,6 @@ export default function Header({ isSidebarOpen = false, onToggleSidebar }: Heade
             </div>
           )}
         </div>
-
-       
       </div>
     </header>
   );

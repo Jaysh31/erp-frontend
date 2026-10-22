@@ -1,6 +1,11 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { FaArrowLeft, FaExclamationTriangle } from "react-icons/fa";
+import {
+  FaArrowLeft,
+  FaExclamationTriangle,
+  FaPlus,
+  FaTimes,
+} from "react-icons/fa";
 import "./DebitForm.css";
 import api from "../services/api";
 
@@ -11,6 +16,15 @@ interface Party {
   name: string;
   display_name: string;
   group?: string;
+}
+
+interface NewPartyFormData {
+  customer_name: string; // Used for both supplier_name and customer_name payloads
+  territory: string;
+  email_id: string;
+  mobile_no: string;
+  customer_primary_address: string;
+  primary_address: string;
 }
 
 interface BankDetails {
@@ -114,6 +128,15 @@ const initialFormData: GAEFormData = {
 
   amount: "",
   narration: "",
+};
+
+const initialNewParty: NewPartyFormData = {
+  customer_name: "",
+  territory: "",
+  email_id: "",
+  mobile_no: "",
+  customer_primary_address: "",
+  primary_address: "",
 };
 
 const TRANSFER_MODES = [
@@ -268,6 +291,11 @@ const GAEForm: React.FC = () => {
   const [refSearch, setRefSearch] = useState("");
   const [showRefDropdown, setShowRefDropdown] = useState(false);
   const [showBankDetails, setShowBankDetails] = useState(false);
+
+  /* ----------------------- Party modal state ---------------------- */
+  const [partyModalOpen, setPartyModalOpen] = useState(false);
+  const [newParty, setNewParty] = useState<NewPartyFormData>(initialNewParty);
+  const [creatingParty, setCreatingParty] = useState(false);
 
   const partyRef = useRef<HTMLDivElement>(null);
   const refRef = useRef<HTMLDivElement>(null);
@@ -584,14 +612,65 @@ const GAEForm: React.FC = () => {
     setRefSearch("");
   };
 
-  /* --------- Add-New Party → navigate to the full AddSupplier page --- */
+  /* --------- Add-New Party Handler (ALWAYS Opens Popup) --------- */
 
   const openAddParty = () => {
     setShowPartyDropdown(false);
-    if (formData.partyType === "Supplier") {
-      navigate("/supplier/new");
-    } else {
-      navigate("/customer/add");
+    setNewParty(initialNewParty);
+    setPartyModalOpen(true);
+  };
+
+  const handleNewPartyChange = (
+    field: keyof NewPartyFormData,
+    value: string
+  ) => {
+    setNewParty((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleCreateParty = async () => {
+    if (!newParty.customer_name.trim()) {
+      alert(`${formData.partyType} Name is required`);
+      return;
+    }
+    setCreatingParty(true);
+    try {
+      const isCustomer = formData.partyType === "Customer";
+      const endpoint = isCustomer ? "/customer" : "/supplier";
+      
+      const payload: any = { ...newParty };
+      if (!isCustomer) {
+        // For Supplier, the API expects supplier_name
+        payload.supplier_name = newParty.customer_name;
+      }
+
+      const response = await api.post(endpoint, payload);
+      
+      if (response.data?.success === 1 || response.data?.id) {
+        const created = response.data.data || response.data;
+        const createdParty: Party = {
+          id: Number(created.id),
+          name: String(created.customer_name || created.supplier_name || created.name),
+          display_name: String(created.customer_name || created.supplier_name || created.name),
+          group: isCustomer ? (created.customer_group || "") : (created.supplier_group || ""),
+        };
+
+        // Automatically select the new party in the main form
+        handlePartySelect(createdParty);
+
+        // Reset modal state and close
+        setPartyModalOpen(false);
+        setNewParty(initialNewParty);
+
+        // Refresh the dropdown list
+        fetchParties(formData.partyType);
+      } else {
+        alert(`Failed to create ${formData.partyType.toLowerCase()}`);
+      }
+    } catch (err: any) {
+      console.error(err);
+      alert(err.response?.data?.message || `Error creating ${formData.partyType.toLowerCase()}`);
+    } finally {
+      setCreatingParty(false);
     }
   };
 
@@ -781,22 +860,22 @@ const GAEForm: React.FC = () => {
   return (
     <div className="rd-credit-page">
       <div className="pof-header">
-                      <button onClick={() => navigate("/GeneralAccountEntry")} className="pof-back-btn">
-                        <FaArrowLeft size={9} /> Back
-                      </button>
-                      <div className="pof-header-title">
-                        <h1>
-                        Create Journal Entry
-                        </h1>
-                        
-                      </div>
-                      {Object.keys(errors).length > 0 && (
-                        <div className="pof-error-badge">
-                          <FaExclamationTriangle size={12} />
-                          {Object.keys(errors).length} missing field{Object.keys(errors).length !== 1 ? 's' : ''}
-                        </div>
-                      )}
-                    </div>
+        <button onClick={() => navigate("/GeneralAccountEntry")} className="pof-back-btn">
+          <FaArrowLeft size={9} /> Back
+        </button>
+        <div className="pof-header-title">
+          <h1>
+            Create Journal Entry
+          </h1>
+          
+        </div>
+        {Object.keys(errors).length > 0 && (
+          <div className="pof-error-badge">
+            <FaExclamationTriangle size={12} />
+            {Object.keys(errors).length} missing field{Object.keys(errors).length !== 1 ? 's' : ''}
+          </div>
+        )}
+      </div>
       <div className="rd-credit-card">
         <div className="rd-credit-header">
           <h2>GENERAL ACCOUNT ENTRY</h2>
@@ -936,46 +1015,86 @@ const GAEForm: React.FC = () => {
                 </div>
 
                 {showPartyDropdown && (
-                  <div className="rd-credit-searchable-menu">
-                    {/* Add New Party → navigates to full form page */}
-                    <div
-                      className="rd-credit-searchable-item rd-credit-searchable-add"
-                      onClick={openAddParty}
-                      style={{
-                        borderBottom:
-                          "1px dashed var(--border-color, #e5e7eb)",
-                        color: "#dc2626",
-                        fontWeight: 600,
-                      }}
-                    >
-                      <span>＋ Add New {formData.partyType}</span>
+                  <div 
+                    className="rd-credit-searchable-menu"
+                    style={{ padding: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
+                  >
+                    {/* Scrollable List Area */}
+                    <div style={{ overflowY: 'auto', flex: 1, padding: '4px' }}>
+                      {filteredParties.length === 0 ? (
+                        <div className="rd-credit-searchable-empty">
+                          {isCustomer && partySearch.trim()
+                            ? `Use "${partySearch.trim()}" as customer name`
+                            : `No ${formData.partyType.toLowerCase()}s found`}
+                        </div>
+                      ) : (
+                        filteredParties.slice(0, 100).map((party) => (
+                          <div
+                            key={party.id}
+                            className={`rd-credit-searchable-item ${
+                              formData.partyId === party.id ? "active" : ""
+                            }`}
+                            onClick={() => handlePartySelect(party)}
+                          >
+                            <span className="rd-credit-searchable-name">
+                              {party.display_name || party.name || "—"}
+                            </span>
+                            {party.group && (
+                              <span className="rd-credit-searchable-tag">
+                                {party.group}
+                              </span>
+                            )}
+                          </div>
+                        ))
+                      )}
                     </div>
 
-                    {filteredParties.length === 0 ? (
-                      <div className="rd-credit-searchable-empty">
-                        {isCustomer && partySearch.trim()
-                          ? `Use "${partySearch.trim()}" as customer name`
-                          : `No ${formData.partyType.toLowerCase()}s found`}
-                      </div>
-                    ) : (
-                      filteredParties.slice(0, 100).map((party) => (
-                        <div
-                          key={party.id}
-                          className={`rd-credit-searchable-item ${
-                            formData.partyId === party.id ? "active" : ""
-                          }`}
-                          onClick={() => handlePartySelect(party)}
+                    {/* ✅ + Add Party button inside the dropdown - ONLY FOR SUPPLIER and stable at bottom */}
+                    {isSupplier && (
+                      <div
+                        role="button"
+                        tabIndex={0}
+                        onClick={openAddParty}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            openAddParty();
+                          }
+                        }}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 8,
+                          padding: "10px 12px",
+                          borderTop: "1px solid #e5e7eb",
+                          cursor: "pointer",
+                          color: "#4f46e5",
+                          fontWeight: 600,
+                          fontSize: 12,
+                          background: "#fff",
+                          flexShrink: 0, // Prevents the button from shrinking when list is long
+                          borderRadius: "0 0 10px 10px" // Match dropdown bottom corners
+                        }}
+                        title={`Add ${formData.partyType}`}
+                      >
+                        <span
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            width: 18,
+                            height: 18,
+                            borderRadius: "50%",
+                            background: "#4f46e5",
+                            color: "#fff",
+                            fontSize: 10,
+                            flexShrink: 0,
+                          }}
                         >
-                          <span className="rd-credit-searchable-name">
-                            {party.display_name || party.name || "—"}
-                          </span>
-                          {party.group && (
-                            <span className="rd-credit-searchable-tag">
-                              {party.group}
-                            </span>
-                          )}
-                        </div>
-                      ))
+                          <FaPlus size={8} />
+                        </span>
+                        <span>Add New {formData.partyType}</span>
+                      </div>
                     )}
                   </div>
                 )}
@@ -1330,6 +1449,339 @@ const GAEForm: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* ═══ ADD PARTY MODAL (For Both Customer & Supplier) ═══ */}
+      {partyModalOpen && (
+        <div
+          onClick={() => setPartyModalOpen(false)}
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: "rgba(15, 23, 42, 0.45)",
+            zIndex: 1000,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 16,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: "min(760px, 100%)",
+              maxHeight: "85vh",
+              background: "#fff",
+              borderRadius: 12,
+              boxShadow: "0 20px 60px rgba(15, 23, 42, 0.25)",
+              display: "flex",
+              flexDirection: "column",
+              overflow: "hidden",
+            }}
+          >
+            {/* Header */}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                padding: "16px 20px",
+                borderBottom: "1px solid #e5e7eb",
+                background: "#fff"
+              }}
+            >
+              <div>
+                <h3
+                  style={{
+                    margin: 0,
+                    fontSize: 16,
+                    fontWeight: 700,
+                    color: "#111827",
+                  }}
+                >
+                  Create New {formData.partyType}
+                </h3>
+                <p
+                  style={{
+                    margin: "4px 0 0",
+                    fontSize: 12,
+                    color: "#6b7280",
+                  }}
+                >
+                  Fill in the details to create a new {formData.partyType.toLowerCase()}.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPartyModalOpen(false)}
+                title="Close"
+                style={{
+                  border: "none",
+                  background: "transparent",
+                  cursor: "pointer",
+                  color: "#6b7280",
+                  padding: 4,
+                  display: "inline-flex",
+                }}
+              >
+                <FaTimes size={16} />
+              </button>
+            </div>
+
+            {/* Create New Party Form */}
+            <div style={{ overflowY: "auto", padding: "20px", background: "#fff" }}>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr",
+                  gap: "16px",
+                }}
+              >
+                <div>
+                  <label
+                    style={{
+                      display: "block",
+                      fontSize: 12,
+                      marginBottom: 4,
+                      fontWeight: 600,
+                      color: "#374151",
+                    }}
+                  >
+                    {formData.partyType} Name <span style={{ color: "#dc2626" }}>*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={newParty.customer_name}
+                    onChange={(e) =>
+                      handleNewPartyChange("customer_name", e.target.value)
+                    }
+                    placeholder={`Enter ${formData.partyType.toLowerCase()} name`}
+                    style={{
+                      width: "100%",
+                      boxSizing: "border-box",
+                      padding: "8px 12px",
+                      border: "1px solid #d1d5db",
+                      borderRadius: 6,
+                      fontSize: 13,
+                      background: "#ffffff",
+                      color: "#111827"
+                    }}
+                  />
+                </div>
+                <div>
+                  <label
+                    style={{
+                      display: "block",
+                      fontSize: 12,
+                      marginBottom: 4,
+                      fontWeight: 600,
+                      color: "#374151",
+                    }}
+                  >
+                    Territory
+                  </label>
+                  <input
+                    type="text"
+                    value={newParty.territory}
+                    onChange={(e) =>
+                      handleNewPartyChange("territory", e.target.value)
+                    }
+                    placeholder="Enter territory"
+                    style={{
+                      width: "100%",
+                      boxSizing: "border-box",
+                      padding: "8px 12px",
+                      border: "1px solid #d1d5db",
+                      borderRadius: 6,
+                      fontSize: 13,
+                      background: "#ffffff",
+                      color: "#111827"
+                    }}
+                  />
+                </div>
+                <div>
+                  <label
+                    style={{
+                      display: "block",
+                      fontSize: 12,
+                      marginBottom: 4,
+                      fontWeight: 600,
+                      color: "#374151",
+                    }}
+                  >
+                    Email
+                  </label>
+                  <input
+                    type="email"
+                    value={newParty.email_id}
+                    onChange={(e) =>
+                      handleNewPartyChange("email_id", e.target.value)
+                    }
+                    placeholder="Enter email"
+                    style={{
+                      width: "100%",
+                      boxSizing: "border-box",
+                      padding: "8px 12px",
+                      border: "1px solid #d1d5db",
+                      borderRadius: 6,
+                      fontSize: 13,
+                      background: "#ffffff",
+                      color: "#111827"
+                    }}
+                  />
+                </div>
+                <div>
+                  <label
+                    style={{
+                      display: "block",
+                      fontSize: 12,
+                      marginBottom: 4,
+                      fontWeight: 600,
+                      color: "#374151",
+                    }}
+                  >
+                    Mobile
+                  </label>
+                  <input
+                    type="text"
+                    value={newParty.mobile_no}
+                    onChange={(e) =>
+                      handleNewPartyChange("mobile_no", e.target.value)
+                    }
+                    placeholder="Enter mobile"
+                    style={{
+                      width: "100%",
+                      boxSizing: "border-box",
+                      padding: "8px 12px",
+                      border: "1px solid #d1d5db",
+                      borderRadius: 6,
+                      fontSize: 13,
+                      background: "#ffffff",
+                      color: "#111827"
+                    }}
+                  />
+                </div>
+                <div>
+                  <label
+                    style={{
+                      display: "block",
+                      fontSize: 12,
+                      marginBottom: 4,
+                      fontWeight: 600,
+                      color: "#374151",
+                    }}
+                  >
+                    {formData.partyType} Primary Address
+                  </label>
+                  <input
+                    type="text"
+                    value={newParty.customer_primary_address}
+                    onChange={(e) =>
+                      handleNewPartyChange(
+                        "customer_primary_address",
+                        e.target.value
+                      )
+                    }
+                    placeholder={`Enter ${formData.partyType.toLowerCase()} primary address`}
+                    style={{
+                      width: "100%",
+                      boxSizing: "border-box",
+                      padding: "8px 12px",
+                      border: "1px solid #d1d5db",
+                      borderRadius: 6,
+                      fontSize: 13,
+                      background: "#ffffff",
+                      color: "#111827"
+                    }}
+                  />
+                </div>
+                <div>
+                  <label
+                    style={{
+                      display: "block",
+                      fontSize: 12,
+                      marginBottom: 4,
+                      fontWeight: 600,
+                      color: "#374151",
+                    }}
+                  >
+                    Primary Address
+                  </label>
+                  <input
+                    type="text"
+                    value={newParty.primary_address}
+                    onChange={(e) =>
+                      handleNewPartyChange(
+                        "primary_address",
+                        e.target.value
+                      )
+                    }
+                    placeholder="Enter primary address"
+                    style={{
+                      width: "100%",
+                      boxSizing: "border-box",
+                      padding: "8px 12px",
+                      border: "1px solid #d1d5db",
+                      borderRadius: 6,
+                      fontSize: 13,
+                      background: "#ffffff",
+                      color: "#111827"
+                    }}
+                  />
+                </div>
+              </div>
+
+              {/* Form Actions */}
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "flex-end",
+                  gap: 12,
+                  marginTop: 24,
+                  paddingTop: 16,
+                  borderTop: "1px solid #e5e7eb",
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() => setPartyModalOpen(false)}
+                  style={{
+                    padding: "8px 16px",
+                    border: "1px solid #d1d5db",
+                    background: "#fff",
+                    borderRadius: 6,
+                    fontSize: 13,
+                    cursor: "pointer",
+                    color: "#374151",
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCreateParty}
+                  disabled={creatingParty}
+                  style={{
+                    padding: "8px 16px",
+                    border: "none",
+                    background: "#4f46e5",
+                    borderRadius: 6,
+                    fontSize: 13,
+                    cursor: creatingParty ? "not-allowed" : "pointer",
+                    color: "#fff",
+                    fontWeight: 600,
+                    opacity: creatingParty ? 0.7 : 1,
+                  }}
+                >
+                  {creatingParty ? "Saving..." : `Save ${formData.partyType}`}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

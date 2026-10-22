@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import {
-  FaMoneyBillWave,
   FaUser,
-  FaFileInvoice,
-  FaReceipt,
+  FaEye,
+  FaEdit,
+  FaTrash,
   FaPrint,
   FaDownload
 } from 'react-icons/fa';
@@ -282,7 +282,7 @@ const OutstandingDashboard: React.FC = () => {
                   <td>
                     <span
                       className="aging-badge"
-                      style={{ background: agingColor + '20', color: agingColor }}
+                      style={{ background: agingColor + '15', color: agingColor }}
                     >
                       {item.agingDays} days
                     </span>
@@ -290,7 +290,7 @@ const OutstandingDashboard: React.FC = () => {
                   <td>
                     <span
                       className="status-badge"
-                      style={{ background: agingColor + '20', color: agingColor }}
+                      style={{ background: agingColor + '15', color: agingColor }}
                     >
                       <span className="dot" style={{ background: agingColor }} />
                       {item.status}
@@ -298,14 +298,14 @@ const OutstandingDashboard: React.FC = () => {
                   </td>
                   <td>
                     <div className="action-buttons">
-                      <button className="action-btn payment-btn" title="Collect Payment">
-                        <FaMoneyBillWave />
+                      <button className="action-btn" title="View">
+                        <FaEye />
                       </button>
-                      <button className="action-btn" title="View Receipt">
-                        <FaReceipt />
+                      <button className="action-btn" title="Edit">
+                        <FaEdit />
                       </button>
-                      <button className="action-btn" title="View Invoice">
-                        <FaFileInvoice />
+                      <button className="action-btn" title="Delete">
+                        <FaTrash />
                       </button>
                     </div>
                   </td>
@@ -631,6 +631,7 @@ const OutstandingDashboard: React.FC = () => {
           border-radius: 12px;
           box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
           overflow: hidden;
+          border: 1px solid #e2e8f0;
         }
 
         .table-header {
@@ -688,7 +689,7 @@ const OutstandingDashboard: React.FC = () => {
           font-size: 13px;
         }
 
-        /* ============ DATA TABLE ============ */
+        /* ============ DATA TABLE (COMPACT HEIGHT) ============ */
         .data-table {
           width: 100%;
           border-collapse: collapse;
@@ -696,18 +697,16 @@ const OutstandingDashboard: React.FC = () => {
         }
 
         .data-table thead {
-          background: #f8fafc;
+          background: #ffffff;
           border-bottom: 1px solid #e2e8f0;
         }
 
         .data-table th {
-          padding: 12px 16px;
+          padding: 8px 16px; /* Reduced vertical padding */
           text-align: left;
           font-size: 12px;
-          font-weight: 700;
-          color: #475569;
-          text-transform: uppercase;
-          letter-spacing: 0.5px;
+          font-weight: 600;
+          color: #64748b;
           white-space: nowrap;
         }
 
@@ -725,7 +724,7 @@ const OutstandingDashboard: React.FC = () => {
         }
 
         .data-table td {
-          padding: 14px 16px;
+          padding: 8px 16px; /* Reduced vertical padding */
           color: #334155;
           vertical-align: middle;
         }
@@ -757,7 +756,7 @@ const OutstandingDashboard: React.FC = () => {
         /* ============ AGING / STATUS BADGES ============ */
         .aging-badge {
           display: inline-block;
-          padding: 4px 10px;
+          padding: 3px 8px; /* Slightly reduced */
           border-radius: 12px;
           font-size: 12px;
           font-weight: 600;
@@ -768,7 +767,7 @@ const OutstandingDashboard: React.FC = () => {
           display: inline-flex;
           align-items: center;
           gap: 6px;
-          padding: 4px 10px;
+          padding: 3px 8px; /* Slightly reduced */
           border-radius: 12px;
           font-size: 12px;
           font-weight: 600;
@@ -785,40 +784,30 @@ const OutstandingDashboard: React.FC = () => {
         /* ============ ACTION BUTTONS ============ */
         .action-buttons {
           display: flex;
-          gap: 6px;
+          gap: 10px;
+          align-items: center;
         }
 
         .action-btn {
           display: inline-flex;
           align-items: center;
           justify-content: center;
-          width: 30px;
-          height: 30px;
-          border: 1px solid #e2e8f0;
-          background: #ffffff;
-          color: #64748b;
-          border-radius: 6px;
+          background: transparent;
+          border: none;
+          color: #94a3b8;
           cursor: pointer;
-          transition: all 0.2s ease;
-          font-size: 12px;
+          transition: color 0.2s ease, transform 0.2s ease;
+          font-size: 14px;
+          padding: 2px;
         }
 
         .action-btn:hover {
-          background: #2563eb;
-          border-color: #2563eb;
-          color: #ffffff;
-          transform: translateY(-1px);
-          box-shadow: 0 3px 8px rgba(37, 99, 235, 0.25);
+          color: #2563eb;
+          transform: scale(1.1);
         }
 
-        .action-btn.payment-btn:hover {
-          background: #10b981;
-          border-color: #10b981;
-          box-shadow: 0 3px 8px rgba(16, 185, 129, 0.25);
-        }
-
-        .action-btn:active {
-          transform: translateY(0);
+        .action-btn[title="Delete"]:hover {
+          color: #ef4444;
         }
 
         /* ============ RESPONSIVE ============ */

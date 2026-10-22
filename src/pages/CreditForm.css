@@ -654,7 +654,7 @@
 .rd-credit-page {
   width: 100%;
   min-height: 100%;
-  padding: 20px;
+  padding: 10px 20px 20px 20px; /* <-- Reduced top padding */
 
   background: var(--layout-bg, #f5f7fb);
 
@@ -1246,7 +1246,7 @@
 
 @media (max-width: 768px) {
   .rd-credit-page {
-    padding: 12px 10px;
+    padding: 8px 10px 12px; /* <-- Reduced top padding for mobile */
   }
 
   .rd-credit-header {
@@ -1348,7 +1348,7 @@
 
 @media (max-width: 480px) {
   .rd-credit-page {
-    padding: 8px;
+    padding: 6px 8px 8px; /* <-- Reduced top padding for small mobile */
   }
 
   .rd-credit-header {

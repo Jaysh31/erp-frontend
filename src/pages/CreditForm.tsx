@@ -2,7 +2,12 @@ import React, { useState, useEffect, useRef } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import "./CreditForm.css";
 import api from "../services/api";
-import { FaArrowLeft, FaExclamationTriangle } from "react-icons/fa";
+import {
+  FaArrowLeft,
+  FaExclamationTriangle,
+  FaPlus,
+  FaTimes,
+} from "react-icons/fa";
 
 /* ----------------------------- Interfaces ----------------------------- */
 
@@ -15,6 +20,15 @@ interface Customer {
   email_id?: string;
   primary_address?: string;
   country?: string;
+}
+
+interface NewCustomerFormData {
+  customer_name: string;
+  territory: string;
+  email_id: string;
+  mobile_no: string;
+  customer_primary_address: string;
+  primary_address: string;
 }
 
 interface BankDetails {
@@ -122,6 +136,15 @@ const initialFormData: CreditFormData = {
   amount: "",
 };
 
+const initialNewCustomer: NewCustomerFormData = {
+  customer_name: "",
+  territory: "",
+  email_id: "",
+  mobile_no: "",
+  customer_primary_address: "",
+  primary_address: "",
+};
+
 const TRANSFER_MODES = [
   { value: "NEFT", label: "NEFT" },
   { value: "IMPS", label: "IMPS" },
@@ -217,6 +240,18 @@ const normalizeReference = (raw: any, type: ReferenceType): ReferenceRecord => {
   };
 };
 
+const normalizeCustomer = (raw: any): Customer => ({
+  id: Number(raw?.id ?? 0),
+  name: String(raw?.name ?? ""),
+  customer_name: String(raw?.customer_name ?? raw?.name ?? ""),
+  customer_group:
+    raw?.customer_group != null ? String(raw.customer_group) : "",
+  mobile_no: String(raw?.mobile_no ?? raw?.mobile ?? ""),
+  email_id: String(raw?.email_id ?? raw?.email ?? ""),
+  primary_address: raw?.primary_address ?? "",
+  country: raw?.country ?? "",
+});
+
 /* --------------------------- Component -------------------------------- */
 
 const CreditForm: React.FC = () => {
@@ -257,6 +292,14 @@ const CreditForm: React.FC = () => {
   const [refSearch, setRefSearch] = useState("");
   const [showRefDropdown, setShowRefDropdown] = useState(false);
   const [showBankDetails, setShowBankDetails] = useState(false);
+
+  /* ----------------------- Customer modal state ---------------------- */
+  const [customerModalOpen, setCustomerModalOpen] = useState(false);
+  
+  // New customer creation state
+  const [newCustomer, setNewCustomer] =
+    useState<NewCustomerFormData>(initialNewCustomer);
+  const [creatingCustomer, setCreatingCustomer] = useState(false);
 
   const customerRef = useRef<HTMLDivElement>(null);
   const refRef = useRef<HTMLDivElement>(null);
@@ -429,17 +472,7 @@ const CreditForm: React.FC = () => {
       if (response.data?.success === 1) {
         const data = response.data.data;
         const records: any[] = Array.isArray(data) ? data : data?.records ?? [];
-        const normalized: Customer[] = records.map((c) => ({
-          id: Number(c?.id ?? 0),
-          name: String(c?.name ?? ""),
-          customer_name: String(c?.customer_name ?? c?.name ?? ""),
-          customer_group: c?.customer_group ?? "",
-          mobile_no: c?.mobile_no ?? "",
-          email_id: c?.email_id ?? "",
-          primary_address: c?.primary_address ?? "",
-          country: c?.country ?? "",
-        }));
-        setCustomers(normalized);
+        setCustomers(records.map(normalizeCustomer));
       }
     } catch (err) {
       console.error("Error fetching customers:", err);
@@ -652,6 +685,62 @@ const CreditForm: React.FC = () => {
     navigate(`/receivables/new-credits?${params.toString()}`);
   };
 
+  /* ---------------------------- Modal Handlers ----------------------- */
+
+  const openCustomerModal = () => {
+    setShowCustomerDropdown(false);
+    setNewCustomer(initialNewCustomer);
+    setCustomerModalOpen(true);
+  };
+
+  const handleNewCustomerChange = (
+    field: keyof NewCustomerFormData,
+    value: string
+  ) => {
+    setNewCustomer((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleCreateCustomer = async () => {
+    if (!newCustomer.customer_name.trim()) {
+      alert("Customer Name is required");
+      return;
+    }
+    setCreatingCustomer(true);
+    try {
+      const response = await api.post("/customer", newCustomer);
+      if (response.data?.success === 1 || response.data?.id) {
+        const created = response.data.data || response.data;
+        const createdCustomer: Customer = {
+          id: created.id,
+          name: created.customer_name || created.name,
+          customer_name: created.customer_name || created.name,
+          mobile_no: created.mobile_no,
+          email_id: created.email_id,
+          primary_address:
+            created.customer_primary_address || created.primary_address,
+          country: created.country,
+        };
+        
+        // Select the new customer immediately in the form
+        handleCustomerSelect(createdCustomer);
+        
+        // Reset modal state and close
+        setCustomerModalOpen(false);
+        setNewCustomer(initialNewCustomer);
+        
+        // Refresh the main list so it's available for future use
+        fetchCustomers();
+      } else {
+        alert("Failed to create customer");
+      }
+    } catch (err: any) {
+      console.error(err);
+      alert(err.response?.data?.message || "Error creating customer");
+    } finally {
+      setCreatingCustomer(false);
+    }
+  };
+
   /* ---------------------------- Filters ------------------------------ */
 
   const filteredCustomers = customers.filter((c) =>
@@ -775,7 +864,9 @@ const CreditForm: React.FC = () => {
       setTimeout(() => setSuccessMessage(null), 5000);
     } catch (err: any) {
       console.error("Failed to save:", err);
-      alert(err.response?.data?.message || "Failed to save Customer Receipt Details");
+      alert(
+        err.response?.data?.message || "Failed to save Customer Receipt Details"
+      );
     } finally {
       setSaving(false);
     }
@@ -827,33 +918,52 @@ const CreditForm: React.FC = () => {
 
   return (
     <div className="rd-credit-page">
-       <div className="rd-credit-top-bar">
-      <div className="pof-header">
-                      <button onClick={handleCancel} className="pof-back-btn">
-                        <FaArrowLeft size={9} /> Back
-                      </button>
-                      <div className="pof-header-title">
-                        <h1>
-                          {isViewMode ? 'View Customer Receipt Details' : isEdit ? 'Edit Customer Receipt Details' : 'Customer Receipt Details'}
-                        </h1>
-                        
-                       
-                      </div>
-                      {!isViewMode && Object.keys(errors).length > 0 && (
-                        <div className="pof-error-badge">
-                          <FaExclamationTriangle size={12} />
-                          {Object.keys(errors).length} missing field{Object.keys(errors).length !== 1 ? 's' : ''}
-                        </div>
-                      )}
-                    </div>
+      <div className="rd-credit-top-bar">
+        <div className="pof-header">
+         
+          <div className="pof-header-title">
+            <h1>
+              {isViewMode
+                ? "View Customer Receipt Details"
+                : isEdit
+                ? "Edit Customer Receipt Details"
+                : ""}
+            </h1>
+          </div>
+          
+          {!isViewMode && Object.keys(errors).length > 0 && (
+            <div className="pof-error-badge">
+              <FaExclamationTriangle size={12} />
+              {Object.keys(errors).length} missing field
+              {Object.keys(errors).length !== 1 ? "s" : ""}
+            </div>
+          )}
+        </div>
       </div>
-      
+
       <div className="rd-credit-card">
-        <div className="rd-credit-header">
-          <h2>
+        
+        {/* ✅ Back button + heading: small gap and compact height */}
+        <div
+          className="rd-credit-header"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            paddingTop: 6,
+            paddingBottom: 6,
+            minHeight: "auto",
+          }}
+        >
+           <button onClick={handleCancel} className="pof-back-btn">
+            <FaArrowLeft size={9} /> Back
+          </button>
+            <h2 style={{ margin: 0, fontSize: 14, lineHeight: 1.3 }}>
             REFERENCE DETAILS – Customer Receipt Details
             {isReadOnly ? " (View)" : isEditOrView ? " (Edit)" : ""}
-          </h2>
+            
+            </h2>
+          
         </div>
 
         {successMessage && (
@@ -980,31 +1090,83 @@ const CreditForm: React.FC = () => {
                 </div>
 
                 {showCustomerDropdown && !isReadOnly && (
-                  <div className="rd-credit-searchable-menu">
-                    {filteredCustomers.length === 0 ? (
-                      <div className="rd-credit-searchable-empty">
-                        No customers found
-                      </div>
-                    ) : (
-                      filteredCustomers.slice(0, 100).map((customer) => (
-                        <div
-                          key={customer.id}
-                          className={`rd-credit-searchable-item ${
-                            formData.customerId === customer.id ? "active" : ""
-                          }`}
-                          onClick={() => handleCustomerSelect(customer)}
-                        >
-                          <span className="rd-credit-searchable-name">
-                            {customer.customer_name || customer.name || "—"}
-                          </span>
-                          {customer.customer_group && (
-                            <span className="rd-credit-searchable-tag">
-                              {customer.customer_group}
-                            </span>
-                          )}
+                  <div 
+                    className="rd-credit-searchable-menu"
+                    style={{ padding: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
+                  >
+                    {/* Scrollable List Area */}
+                    <div style={{ overflowY: 'auto', flex: 1, padding: '4px' }}>
+                      {filteredCustomers.length === 0 ? (
+                        <div className="rd-credit-searchable-empty">
+                          No customers found
                         </div>
-                      ))
-                    )}
+                      ) : (
+                        filteredCustomers.slice(0, 100).map((customer) => (
+                          <div
+                            key={customer.id}
+                            className={`rd-credit-searchable-item ${
+                              formData.customerId === customer.id ? "active" : ""
+                            }`}
+                            onClick={() => handleCustomerSelect(customer)}
+                          >
+                            <span className="rd-credit-searchable-name">
+                              {customer.customer_name || customer.name || "—"}
+                            </span>
+                            {customer.customer_group && (
+                              <span className="rd-credit-searchable-tag">
+                                {customer.customer_group}
+                              </span>
+                            )}
+                          </div>
+                        ))
+                      )}
+                    </div>
+
+                    {/* ✅ + Add Customer button - Fixed at the bottom */}
+                    <div
+                      role="button"
+                      tabIndex={0}
+                      onClick={openCustomerModal}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          openCustomerModal();
+                        }
+                      }}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                        padding: "10px 12px",
+                        borderTop: "1px solid #e5e7eb",
+                        cursor: "pointer",
+                        color: "#4f46e5",
+                        fontWeight: 600,
+                        fontSize: 12,
+                        background: "#fff",
+                        flexShrink: 0, // Prevents the button from shrinking when list is long
+                        borderRadius: "0 0 10px 10px" // Match dropdown bottom corners
+                      }}
+                      title="Add customer"
+                    >
+                      <span
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          width: 18,
+                          height: 18,
+                          borderRadius: "50%",
+                          background: "#4f46e5",
+                          color: "#fff",
+                          fontSize: 10,
+                          flexShrink: 0,
+                        }}
+                      >
+                        <FaPlus size={8} />
+                      </span>
+                      <span>Add New Customer</span>
+                    </div>
                   </div>
                 )}
               </div>
@@ -1556,6 +1718,339 @@ const CreditForm: React.FC = () => {
           )}
         </div>
       </div>
+
+      {/* ═══ ADD CUSTOMER MODAL ═══ */}
+      {customerModalOpen && (
+        <div
+          onClick={() => setCustomerModalOpen(false)}
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: "rgba(15, 23, 42, 0.45)",
+            zIndex: 1000,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 16,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: "min(760px, 100%)",
+              maxHeight: "85vh",
+              background: "#fff",
+              borderRadius: 12,
+              boxShadow: "0 20px 60px rgba(15, 23, 42, 0.25)",
+              display: "flex",
+              flexDirection: "column",
+              overflow: "hidden",
+            }}
+          >
+            {/* Header */}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                padding: "16px 20px",
+                borderBottom: "1px solid #e5e7eb",
+                background: "#fff"
+              }}
+            >
+              <div>
+                <h3
+                  style={{
+                    margin: 0,
+                    fontSize: 16,
+                    fontWeight: 700,
+                    color: "#111827",
+                  }}
+                >
+                  Create New Customer
+                </h3>
+                <p
+                  style={{
+                    margin: "4px 0 0",
+                    fontSize: 12,
+                    color: "#6b7280",
+                  }}
+                >
+                  Fill in the details to create a new customer.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCustomerModalOpen(false)}
+                title="Close"
+                style={{
+                  border: "none",
+                  background: "transparent",
+                  cursor: "pointer",
+                  color: "#6b7280",
+                  padding: 4,
+                  display: "inline-flex",
+                }}
+              >
+                <FaTimes size={16} />
+              </button>
+            </div>
+
+            {/* Create New Customer Form */}
+            <div style={{ overflowY: "auto", padding: "20px", background: "#fff" }}>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr",
+                  gap: "16px",
+                }}
+              >
+                <div>
+                  <label
+                    style={{
+                      display: "block",
+                      fontSize: 12,
+                      marginBottom: 4,
+                      fontWeight: 600,
+                      color: "#374151",
+                    }}
+                  >
+                    Customer Name <span style={{ color: "#dc2626" }}>*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={newCustomer.customer_name}
+                    onChange={(e) =>
+                      handleNewCustomerChange("customer_name", e.target.value)
+                    }
+                    placeholder="Enter customer name"
+                    style={{
+                      width: "100%",
+                      boxSizing: "border-box",
+                      padding: "8px 12px",
+                      border: "1px solid #d1d5db",
+                      borderRadius: 6,
+                      fontSize: 13,
+                      background: "#ffffff",
+                      color: "#111827"
+                    }}
+                  />
+                </div>
+                <div>
+                  <label
+                    style={{
+                      display: "block",
+                      fontSize: 12,
+                      marginBottom: 4,
+                      fontWeight: 600,
+                      color: "#374151",
+                    }}
+                  >
+                    Territory
+                  </label>
+                  <input
+                    type="text"
+                    value={newCustomer.territory}
+                    onChange={(e) =>
+                      handleNewCustomerChange("territory", e.target.value)
+                    }
+                    placeholder="Enter territory"
+                    style={{
+                      width: "100%",
+                      boxSizing: "border-box",
+                      padding: "8px 12px",
+                      border: "1px solid #d1d5db",
+                      borderRadius: 6,
+                      fontSize: 13,
+                      background: "#ffffff",
+                      color: "#111827"
+                    }}
+                  />
+                </div>
+                <div>
+                  <label
+                    style={{
+                      display: "block",
+                      fontSize: 12,
+                      marginBottom: 4,
+                      fontWeight: 600,
+                      color: "#374151",
+                    }}
+                  >
+                    Email
+                  </label>
+                  <input
+                    type="email"
+                    value={newCustomer.email_id}
+                    onChange={(e) =>
+                      handleNewCustomerChange("email_id", e.target.value)
+                    }
+                    placeholder="Enter email"
+                    style={{
+                      width: "100%",
+                      boxSizing: "border-box",
+                      padding: "8px 12px",
+                      border: "1px solid #d1d5db",
+                      borderRadius: 6,
+                      fontSize: 13,
+                      background: "#ffffff",
+                      color: "#111827"
+                    }}
+                  />
+                </div>
+                <div>
+                  <label
+                    style={{
+                      display: "block",
+                      fontSize: 12,
+                      marginBottom: 4,
+                      fontWeight: 600,
+                      color: "#374151",
+                    }}
+                  >
+                    Mobile
+                  </label>
+                  <input
+                    type="text"
+                    value={newCustomer.mobile_no}
+                    onChange={(e) =>
+                      handleNewCustomerChange("mobile_no", e.target.value)
+                    }
+                    placeholder="Enter mobile"
+                    style={{
+                      width: "100%",
+                      boxSizing: "border-box",
+                      padding: "8px 12px",
+                      border: "1px solid #d1d5db",
+                      borderRadius: 6,
+                      fontSize: 13,
+                      background: "#ffffff",
+                      color: "#111827"
+                    }}
+                  />
+                </div>
+                <div>
+                  <label
+                    style={{
+                      display: "block",
+                      fontSize: 12,
+                      marginBottom: 4,
+                      fontWeight: 600,
+                      color: "#374151",
+                    }}
+                  >
+                    Customer Primary Address
+                  </label>
+                  <input
+                    type="text"
+                    value={newCustomer.customer_primary_address}
+                    onChange={(e) =>
+                      handleNewCustomerChange(
+                        "customer_primary_address",
+                        e.target.value
+                      )
+                    }
+                    placeholder="Enter customer primary address"
+                    style={{
+                      width: "100%",
+                      boxSizing: "border-box",
+                      padding: "8px 12px",
+                      border: "1px solid #d1d5db",
+                      borderRadius: 6,
+                      fontSize: 13,
+                      background: "#ffffff",
+                      color: "#111827"
+                    }}
+                  />
+                </div>
+                <div>
+                  <label
+                    style={{
+                      display: "block",
+                      fontSize: 12,
+                      marginBottom: 4,
+                      fontWeight: 600,
+                      color: "#374151",
+                    }}
+                  >
+                    Primary Address
+                  </label>
+                  <input
+                    type="text"
+                    value={newCustomer.primary_address}
+                    onChange={(e) =>
+                      handleNewCustomerChange(
+                        "primary_address",
+                        e.target.value
+                      )
+                    }
+                    placeholder="Enter primary address"
+                    style={{
+                      width: "100%",
+                      boxSizing: "border-box",
+                      padding: "8px 12px",
+                      border: "1px solid #d1d5db",
+                      borderRadius: 6,
+                      fontSize: 13,
+                      background: "#ffffff",
+                      color: "#111827"
+                    }}
+                  />
+                </div>
+              </div>
+
+              {/* Form Actions */}
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "flex-end",
+                  gap: 12,
+                  marginTop: 24,
+                  paddingTop: 16,
+                  borderTop: "1px solid #e5e7eb",
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() => setCustomerModalOpen(false)}
+                  style={{
+                    padding: "8px 16px",
+                    border: "1px solid #d1d5db",
+                    background: "#fff",
+                    borderRadius: 6,
+                    fontSize: 13,
+                    cursor: "pointer",
+                    color: "#374151",
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCreateCustomer}
+                  disabled={creatingCustomer}
+                  style={{
+                    padding: "8px 16px",
+                    border: "none",
+                    background: "#4f46e5",
+                    borderRadius: 6,
+                    fontSize: 13,
+                    cursor: creatingCustomer ? "not-allowed" : "pointer",
+                    color: "#fff",
+                    fontWeight: 600,
+                    opacity: creatingCustomer ? 0.7 : 1,
+                  }}
+                >
+                  {creatingCustomer ? "Saving..." : "Save Customer"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

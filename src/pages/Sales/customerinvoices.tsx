@@ -783,9 +783,7 @@ export default function CustomerInvoices() {
             <option value="Cancelled">Cancelled</option>
             <option value="Return">Return</option>
           </select>
-          <button className="ci-btn-new" onClick={() => navigate('/customer-invoices/new')}>
-            <FaPlus size={12} /> Add Customer Invoice
-          </button>
+         
         </div>
       </div>
 
