@@ -33,7 +33,11 @@ interface POItem {
   amount: number;
   received_qty: number;
   billed_amt: number;
-  item_tax_rate?: string;
+  item_tax_rate?: string | number;
+  tax_rate?: string | number;
+  item_tax_template?: string;
+  item_tax_id?: number | string;
+  tax_id?: number | string;
 }
 
 interface PODetail {
@@ -351,9 +355,76 @@ export default function PurchaseInvoiceForm() {
   const findTaxById = (taxId?: number | null): Tax | undefined =>
     taxId == null ? undefined : (taxes || []).find(t => t.tax_id === taxId);
 
-  // For PO items that only carry a rate: prefer plain GST over IGST
+  // For PO items that only carry a rate: prefer plain GST over IGST.
   const findTaxByRate = (rate: number): Tax | undefined =>
     (taxes || []).find(t => (t.tax_type || '').startsWith('GST') && getRateFromTaxType(t.tax_type) === rate);
+
+  // Convert different PO tax formats into a numeric percentage.
+  const normalizeTaxRate = (value: unknown): number => {
+    if (value == null || value === '') return 0;
+
+    if (typeof value === 'number') {
+      return Number.isFinite(value) ? value : 0;
+    }
+
+    if (typeof value === 'object') {
+      const values = Object.values(value as Record<string, unknown>);
+      for (const item of values) {
+        const rate = normalizeTaxRate(item);
+        if (rate > 0) return rate;
+      }
+      return 0;
+    }
+
+    const text = String(value).trim();
+    if (text.startsWith('{')) {
+      try {
+        return normalizeTaxRate(JSON.parse(text));
+      } catch {
+        // Fall through to ordinary string parsing.
+      }
+    }
+
+    const match = text.match(/(\d+(?:\.\d+)?)/);
+    return match ? Number(match[1]) : 0;
+  };
+
+  // Resolve the tax master entry and rate for a PO item.
+  const getPOTaxDetails = (pi: POItem): { tax_id?: number; tax_rate: number } => {
+    const rawTaxId = pi.item_tax_id ?? pi.tax_id;
+    let tax = rawTaxId != null ? findTaxById(Number(rawTaxId)) : undefined;
+
+    let taxRate = normalizeTaxRate(pi.item_tax_rate ?? pi.tax_rate);
+    if (taxRate === 0 && pi.item_tax_template) {
+      taxRate = parseTaxRateFromTemplate(pi.item_tax_template);
+    }
+
+    // A valid tax ID is the source of truth.
+    if (tax) {
+      return { tax_id: tax.tax_id, tax_rate: getRateFromTaxType(tax.tax_type) };
+    }
+
+    // If PO detail omits tax fields, use the item master tax assignment.
+    const masterItem = (itemsList || []).find(item =>
+      Number(item.id) === Number(pi.item_id) ||
+      (pi.item_code && String(item.item_code || '').trim().toLowerCase() === String(pi.item_code).trim().toLowerCase())
+    );
+
+    if (masterItem?.tax_id != null) {
+      tax = findTaxById(Number(masterItem.tax_id));
+      if (tax) {
+        return { tax_id: tax.tax_id, tax_rate: getRateFromTaxType(tax.tax_type) };
+      }
+    }
+
+    // Finally, resolve a tax master entry from the numeric rate.
+    tax = findTaxByRate(taxRate);
+    if (tax) {
+      return { tax_id: tax.tax_id, tax_rate: getRateFromTaxType(tax.tax_type) };
+    }
+
+    return { tax_id: undefined, tax_rate: taxRate };
+  };
 
   // ── UI state ────────────────────────────────────────────────────────────────
   const [loading, setLoading] = useState(false);
@@ -952,10 +1023,7 @@ export default function PurchaseInvoiceForm() {
         const totalReceived = rec.qty;
         const alreadyBilledQty = pi.rate > 0 ? (pi.billed_amt || 0) / pi.rate : 0;
         const unbilledQty = Math.max(0, totalReceived - alreadyBilledQty);
-        const taxRate = parseFloat(pi.item_tax_rate || '0') || 0;
-
-        // ✅ FIX: rate → tax lookup that handles GST/IGST; no forced fallback to id 1
-        const tax = findTaxByRate(taxRate);
+        const taxDetails = getPOTaxDetails(pi);
 
         return {
           id: makeRowId(),
@@ -973,8 +1041,8 @@ export default function PurchaseInvoiceForm() {
           bill_qty: Math.round(unbilledQty * 1000) / 1000,
           amount: Math.round(unbilledQty * (pi.rate || 0) * 100) / 100,
           grn_refs: rec.grnNums || [],
-          tax_rate: taxRate,
-          tax_id: tax?.tax_id, // ✅ FIX: was `tax?.tax_id || 1`
+          tax_rate: taxDetails.tax_rate,
+          tax_id: taxDetails.tax_id,
           note: '',
         };
       });
@@ -1028,8 +1096,7 @@ export default function PurchaseInvoiceForm() {
   // ─── Build invoice items straight from a PO that has no GRN yet ───────────
   const buildInvoiceItemsFromPOOnly = (poDetail: PODetail) => {
     const invoiceRows: InvoiceItem[] = (poDetail.items || []).map(pi => {
-      const taxRate = parseFloat(pi.item_tax_rate || '0') || 0;
-      const tax = findTaxByRate(taxRate);
+      const taxDetails = getPOTaxDetails(pi);
       return {
         id: makeRowId(),
         po_item_id: pi.id,
@@ -1045,8 +1112,8 @@ export default function PurchaseInvoiceForm() {
         bill_qty: pi.qty || 0,
         amount: Math.round((pi.qty || 0) * (pi.rate || 0) * 100) / 100,
         grn_refs: [],
-        tax_rate: taxRate,
-        tax_id: tax?.tax_id, // ✅ FIX: was `tax?.tax_id || 1`
+        tax_rate: taxDetails.tax_rate,
+        tax_id: taxDetails.tax_id,
         note: '',
       };
     });
@@ -3362,4 +3429,4 @@ export default function PurchaseInvoiceForm() {
       </div>
     </div>
   );
-}
+} 
