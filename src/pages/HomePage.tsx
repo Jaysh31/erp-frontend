@@ -274,6 +274,23 @@ export default function HomePage() {
       : hasModule(module.apiModule)
   );
 
+  // Search results are derived from the current query and the user's permissions.
+  const normalizedSearchQuery = searchQuery.trim().toLowerCase();
+
+  const filteredModules = visibleModules.filter((module) =>
+    `${module.title} ${module.description}`.toLowerCase().includes(normalizedSearchQuery)
+  );
+
+  const filteredPages = searchablePages
+    .filter((page) =>
+      page.apiSubmodule
+        ? hasPermission(page.apiModule, page.apiSubmodule)
+        : hasModule(page.apiModule)
+    )
+    .filter((page) =>
+      `${page.title} ${page.category}`.toLowerCase().includes(normalizedSearchQuery)
+    );
+
   // 🆕 Report the currently-visible modules to the ERP chatbot.
   // Runs on mount and whenever the set of visible module titles changes,
   // so the chatbot always reflects exactly what the user sees here.

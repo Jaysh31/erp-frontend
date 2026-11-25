@@ -2554,10 +2554,6 @@ interface SidebarProps {
 }
 
 
-interface AppConfiguration {
-  appName?: string;
-  logoUrl?: string;
-}
 
 
 
